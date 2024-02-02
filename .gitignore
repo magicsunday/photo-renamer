@@ -1,0 +1,8 @@
+/.idea
+/vendor
+/test
+/renamed
+/test/coverage
+/coverage
+/.phpunit.cache
+composer.lock

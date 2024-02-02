@@ -1,0 +1,22 @@
+#!/usr/bin/env php
+<?php
+
+use MagicSunday\Renamer\Command\RenameByDatePatternCommand;
+use MagicSunday\Renamer\Command\RenameByPatternCommand;
+use MagicSunday\Renamer\Command\RenameLivePhotosCommand;
+use MagicSunday\Renamer\Command\RenameLowerCaseCommand;
+use Symfony\Component\Console\Application;
+
+require_once __DIR__ . '/../vendor/autoload.php';
+
+// Create the Application
+$application = new Application();
+
+// Register all Commands
+$application->add(new RenameLivePhotosCommand());
+$application->add(new RenameLowerCaseCommand());
+$application->add(new RenameByPatternCommand());
+$application->add(new RenameByDatePatternCommand());
+
+// Run it
+$application->run();
