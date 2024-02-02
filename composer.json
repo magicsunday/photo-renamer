@@ -1,0 +1,77 @@
+{
+    "name": "magicsunday/photo-renamer",
+    "description": "Renames photos using EXIF date, patterns, filesize, ...",
+    "license": "GPL-3.0-or-later",
+    "keywords": [
+        "rename",
+        "live",
+        "photo",
+        "live photos",
+        "Apple",
+        "videos"
+    ],
+    "authors": [
+        {
+            "name": "Rico Sonntag",
+            "email": "mail@ricosonntag.de",
+            "homepage": "https://ricosonntag.de",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": ">=8.1.0 <8.4.0",
+        "ext-exif": "*",
+        "ext-json": "*",
+        "ext-dom": "*",
+        "symfony/console": "^6.0 || ^7.0"
+    },
+    "require-dev": {
+        "phpdocumentor/reflection-docblock": "^5.0",
+        "friendsofphp/php-cs-fixer": "^3.50",
+        "overtrue/phplint": "^3.4 || ^9.0",
+        "phpstan/phpstan": "^1.10",
+        "phpstan/phpstan-strict-rules": "^1.5",
+        "phpstan/phpstan-deprecation-rules": "^1.1",
+        "rector/rector": "^1.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "MagicSunday\\Renamer\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "MagicSunday\\Renamer\\Test\\": "test/"
+        }
+    },
+    "config": {
+        "bin-dir": ".build/bin",
+        "vendor-dir": ".build/vendor",
+        "discard-changes": true,
+        "sort-packages": true,
+        "optimize-autoloader": true,
+        "platform-check": false
+    },
+    "scripts": {
+        "ci:test:php:lint": [
+            "phplint"
+        ],
+        "ci:test:php:phpstan": [
+            "phpstan analyze"
+        ],
+        "ci:test:php:phpstan:baseline": [
+            "phpstan analyze --generate-baseline phpstan-baseline.neon --allow-empty-baseline"
+        ],
+        "ci:test:php:rector": [
+            "rector process --config rector.php --dry-run"
+        ],
+        "ci:test": [
+            "@ci:test:php:lint",
+            "@ci:test:php:phpstan",
+            "@ci:test:php:rector"
+        ],
+        "ci:cgl": [
+            "php-cs-fixer fix --diff --verbose"
+        ]
+    }
+}

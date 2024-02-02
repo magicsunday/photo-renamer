@@ -1,0 +1,37 @@
+#!/usr/bin/env php
+<?php
+
+/**
+ * This file is part of the package magicsunday/photo-renamer.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE file distributed with this source code.
+ */
+
+declare(strict_types=1);
+
+use MagicSunday\Renamer\Command\RenameByDatePatternCommand;
+use MagicSunday\Renamer\Command\RenameByExifDateCommand;
+use MagicSunday\Renamer\Command\RenameByHashCommand;
+use MagicSunday\Renamer\Command\RenameByPatternCommand;
+use MagicSunday\Renamer\Command\RenameLowerCaseCommand;
+use Symfony\Component\Console\Application;
+
+require_once __DIR__ . '/../.build/vendor/autoload.php';
+
+// Create the Application
+$application = new Application();
+
+// Register all Commands
+$application->add(new RenameByDatePatternCommand());
+$application->add(new RenameByPatternCommand());
+$application->add(new RenameByExifDateCommand());
+$application->add(new RenameLowerCaseCommand());
+$application->add(new RenameByHashCommand());
+
+// Run it
+try {
+    $application->run();
+} catch (Exception $exception) {
+    echo 'Application failed with: ' . $exception->getMessage();
+}
