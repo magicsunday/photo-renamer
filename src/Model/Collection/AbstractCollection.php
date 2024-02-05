@@ -1,17 +1,16 @@
 <?php
 
 /**
- * This file is part of the package magicsunday/renamer.
+ * This file is part of the package magicsunday/photo-renamer.
  *
  * For the full copyright and license information, please read the
- * LICENSE file distributed with this source code.
+ * LICENSE file that was distributed with this source code.
  */
 
 declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Model\Collection;
 
-use JsonSerializable;
 use ReturnTypeWillChange;
 
 use function array_key_exists;
@@ -23,17 +22,17 @@ use function count;
  *
  * @author  Rico Sonntag <rico.sonntag@netresearch.de>
  * @license https://opensource.org/licenses/MIT
- * @link    https://github.com/magicsunday/renamer/
+ * @link    https://github.com/magicsunday/photo-renamer/
  *
- * @template TKey of array-key
+ * @template TKey
  * @template TValue
  *
  * @implements CollectionInterface<TKey, TValue>
  */
-abstract class AbstractCollection implements CollectionInterface, JsonSerializable
+abstract class AbstractCollection implements CollectionInterface
 {
     /**
-     * An array containing the elements of this collection
+     * An array containing the elements of this collection.
      *
      * @var TValue[]
      */
@@ -54,7 +53,7 @@ abstract class AbstractCollection implements CollectionInterface, JsonSerializab
      *
      * @param TKey $offset The offset to retrieve
      *
-     * @return null|TValue
+     * @return TValue|null
      */
     #[ReturnTypeWillChange]
     public function offsetGet($offset): mixed
@@ -139,9 +138,9 @@ abstract class AbstractCollection implements CollectionInterface, JsonSerializab
     /**
      * Return the key of the current element.
      *
-     * @return null|int|string
+     * @return int|string|null
      */
-    public function key(): null|int|string
+    public function key(): int|string|null
     {
         return key($this->elements);
     }
@@ -184,16 +183,6 @@ abstract class AbstractCollection implements CollectionInterface, JsonSerializab
     }
 
     /**
-     * Specify data which should be serialized to JSON.
-     *
-     * @return TValue[]
-     */
-    public function jsonSerialize(): array
-    {
-        return $this->elements;
-    }
-
-    /**
      * Sort the elements using a callback function.
      *
      * @param callable $callback The callback function to use
@@ -203,6 +192,7 @@ abstract class AbstractCollection implements CollectionInterface, JsonSerializab
     public function sort(callable $callback): self
     {
         uasort($this->elements, $callback);
+
         return $this;
     }
 
@@ -216,6 +206,7 @@ abstract class AbstractCollection implements CollectionInterface, JsonSerializab
     public function filter(callable $callback): self
     {
         $this->elements = array_filter($this->elements, $callback);
+
         return $this;
     }
 
@@ -224,16 +215,17 @@ abstract class AbstractCollection implements CollectionInterface, JsonSerializab
      *
      * @param int      $offset If the offset is non-negative, the sequence will start at that offset in the array. If
      *                         offset is negative, the sequence will start that far from the end of the array.
-     * @param null|int $length If length is given and is positive, then the sequence will have that many elements
+     * @param int|null $length If length is given and is positive, then the sequence will have that many elements
      *                         in it. If length is given and is negative, then the sequence will stop that many
      *                         elements from the end of the array. If it is omitted, then the sequence will have
      *                         everything from offset up until the end of the array.
      *
      * @return self<TKey, TValue>
      */
-    public function slice(int $offset, int $length = null): self
+    public function slice(int $offset, ?int $length = null): self
     {
         $this->elements = array_slice($this->elements, $offset, $length);
+
         return $this;
     }
 }

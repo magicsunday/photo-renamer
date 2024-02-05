@@ -1,10 +1,10 @@
 <?php
 
 /**
- * This file is part of the package magicsunday/renamer.
+ * This file is part of the package magicsunday/photo-renamer.
  *
  * For the full copyright and license information, please read the
- * LICENSE file distributed with this source code.
+ * LICENSE file that was distributed with this source code.
  */
 
 declare(strict_types=1);
@@ -13,6 +13,8 @@ namespace MagicSunday\Renamer\Command;
 
 use FilesystemIterator;
 use MagicSunday\Renamer\Command\FilterIterator\FilenameFilterIterator;
+use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
+use MagicSunday\Renamer\Model\FileDuplicate;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
@@ -21,11 +23,13 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
+use function in_array;
+use function strlen;
+
 /**
- *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
- * @link    https://github.com/magicsunday/renamer/
+ * @link    https://github.com/magicsunday/photo-renamer/
  */
 class RenameByPatternCommand extends BaseRenameCommand
 {
@@ -49,18 +53,20 @@ class RenameByPatternCommand extends BaseRenameCommand
                 InputOption::VALUE_REQUIRED,
                 'The pattern used to search for files',
                 '/^(.+)(jpeg)$/'
-            );
-
-        $this
+            )
             ->addOption(
                 'replacement',
                 'r',
                 InputOption::VALUE_REQUIRED,
                 'The pattern used to replace the matches results',
                 '\$1jpg'
+            )
+            ->addOption(
+                'skip-duplicates',
+                null,
+                InputOption::VALUE_NONE,
+                'Skip duplicate files from copy/rename action. The files remain unchanged in the source directory.'
             );
-
-        // TODO Remove not required 'target-filename-pattern' option
     }
 
     /**
@@ -77,9 +83,11 @@ class RenameByPatternCommand extends BaseRenameCommand
 
         if ($input->getOption('replacement') === null) {
             $this->io->error('A valid replacement value is required');
+
             return self::FAILURE;
         }
 
+        /** @var string $sourceDirectory */
         $sourceDirectory = $input->getArgument('source-directory');
 
         $this->io->note(
@@ -90,6 +98,7 @@ class RenameByPatternCommand extends BaseRenameCommand
             $this->processDirectory(
                 $input->getOption('dry-run'),
                 $input->getOption('copy-files'),
+                $input->getOption('skip-duplicates'),
                 $input->getOption('pattern'),
                 $input->getOption('replacement'),
                 $sourceDirectory,
@@ -97,6 +106,7 @@ class RenameByPatternCommand extends BaseRenameCommand
             );
         } catch (RuntimeException $exception) {
             $this->io->error($exception->getMessage());
+
             return self::FAILURE;
         }
 
@@ -108,18 +118,18 @@ class RenameByPatternCommand extends BaseRenameCommand
     /**
      * @param bool        $dryRun
      * @param bool        $copyFiles
+     * @param bool        $skipDuplicates
      * @param string      $pattern
      * @param string      $replacement
      * @param string      $sourceDirectory
      * @param string|null $targetDirectory
      *
      * @return void
-     *
-     * @throws RuntimeException
      */
     public function processDirectory(
         bool $dryRun,
         bool $copyFiles,
+        bool $skipDuplicates,
         string $pattern,
         string $replacement,
         string $sourceDirectory,
@@ -129,31 +139,175 @@ class RenameByPatternCommand extends BaseRenameCommand
         $filenameFilterIterator = new FilenameFilterIterator($directoryIterator, $pattern);
         $iterator               = new RecursiveIteratorIterator($filenameFilterIterator, RecursiveIteratorIterator::LEAVES_ONLY);
 
+        $fileDuplicateCollection = new FileDuplicateCollection();
+
         /** @var SplFileInfo $fileInfo */
         foreach ($iterator as $fileInfo) {
-            // Perform regular expression replacement
-            $newFilename = preg_replace(
-                $pattern,
-                $replacement,
-                $fileInfo->getFilename()
+            $this->io->text('Process: ' . $fileInfo->getPathname());
+
+            $targetBasename = $this->removeDuplicateIdentifier(
+                $fileInfo->getBasename('.' . $fileInfo->getExtension())
             );
 
-            if ($targetDirectory !== null) {
-                $newPathname = $targetDirectory . '/' . $fileInfo->getPath() . '/' . $newFilename;
+            // Perform regular expression replacement
+            $targetFilename = preg_replace(
+                $pattern,
+                $replacement,
+                $targetBasename . '.' . $fileInfo->getExtension()
+            );
+
+            // Create a new target file object
+            $targetFileInfo = new SplFileInfo($fileInfo->getPath() . '/' . $targetFilename);
+
+            if ($fileDuplicateCollection->offsetExists($targetFileInfo->getPathname())) {
+                /** @var FileDuplicate $file */
+                $file = $fileDuplicateCollection->offsetGet($targetFileInfo->getPathname());
             } else {
-                $newPathname = $fileInfo->getPath() . '/' . $newFilename;
+                $file = new FileDuplicate();
+                $file
+                    ->setPath($fileInfo->getPath())
+                    ->setBasename($targetFileInfo->getBasename('.' . $targetFileInfo->getExtension()))
+                    ->setExtension($fileInfo->getExtension());
+
+                $fileDuplicateCollection->offsetSet($targetFileInfo->getPathname(), $file);
             }
 
-            $this->io->text('Rename ' . $fileInfo->getPathname() . ' to ' . $newPathname);
+            // Append all files with the same target filename into one array
+            $file->addFile($fileInfo);
+        }
 
-            if (file_exists($newPathname)) {
-                $this->io->text('=> Skipping. Filename already exists.');
-                continue;
-            }
+        $this->createDuplicateBasename($fileDuplicateCollection);
 
-            if ($dryRun === false) {
-                $this->renameFile($newPathname, $fileInfo, $copyFiles);
+        $targetDirectory = $targetDirectory !== null
+            ? trim($targetDirectory, '/')
+            : $targetDirectory;
+
+        $this->renameFiles(
+            $fileDuplicateCollection,
+            $dryRun,
+            $copyFiles,
+            $skipDuplicates,
+            $targetDirectory
+        );
+    }
+
+    /**
+     * Creates a consecutive new filename for all duplicate files. The order of the duplicate files
+     * is the same as in the input "files" array.
+     *
+     * @param FileDuplicateCollection $fileDuplicateCollection
+     *
+     * @return FileDuplicateCollection
+     */
+    protected function createDuplicateBasename(
+        FileDuplicateCollection $fileDuplicateCollection
+    ): FileDuplicateCollection {
+        $this->io->note('Create list of duplicate files');
+
+        /** @var FileDuplicate $fileGroupData */
+        foreach ($fileDuplicateCollection as $fileGroupData) {
+            $fileCount = count($fileGroupData->getFiles());
+
+            // Handle possible duplicate files, after renaming
+            for ($file = 0; $file < $fileCount; ++$file) {
+                $duplicateFileName = $fileGroupData->getBasename();
+                $duplicateCount    = 0;
+
+                while (in_array($duplicateFileName, $fileGroupData->getNew(), true)) {
+                    ++$duplicateCount;
+
+                    $duplicateFileName = sprintf(
+                        '%s-duplicate-%003d',
+                        $fileGroupData->getBasename(),
+                        $duplicateCount
+                    );
+                }
+
+                $fileGroupData->addNew($duplicateFileName);
             }
         }
+
+        return $fileDuplicateCollection;
+    }
+
+    /**
+     * Renames all the files.
+     *
+     * @param FileDuplicateCollection $fileDuplicateCollection
+     * @param bool                    $dryRun
+     * @param bool                    $copyFiles
+     * @param bool                    $skipDuplicates
+     * @param string|null             $targetDirectory
+     *
+     * @return void
+     *
+     * @throws RuntimeException
+     */
+    protected function renameFiles(
+        FileDuplicateCollection $fileDuplicateCollection,
+        bool $dryRun,
+        bool $copyFiles,
+        bool $skipDuplicates,
+        ?string $targetDirectory = null
+    ): void {
+        $this->io->note('Start renaming files to new filenames');
+
+        $maxFilenameLength = 0;
+        $fileCount         = 0;
+        $duplicateCount    = 0;
+
+        foreach ($fileDuplicateCollection as $fileGroupData) {
+            foreach ($fileGroupData->getFiles() as $fileInfo) {
+                if (strlen($fileInfo->getFilename()) > $maxFilenameLength) {
+                    $maxFilenameLength = strlen($fileInfo->getFilename());
+                }
+            }
+        }
+
+        /** @var FileDuplicate $fileGroupData */
+        foreach ($fileDuplicateCollection as $fileGroupData) {
+            foreach ($fileGroupData->getFiles() as $key => $fileInfo) {
+                $newFilename = $fileGroupData->getNew()[$key] . '.' . $fileGroupData->getExtension();
+
+                if ($targetDirectory !== null) {
+                    $newPathname = $targetDirectory . '/' . $fileGroupData->getPath() . '/' . $newFilename;
+                } else {
+                    $newPathname = $fileInfo->getPath() . '/' . $newFilename;
+                }
+
+                if (file_exists($newPathname)) {
+                    continue;
+                }
+
+                $this->io->text(
+                    sprintf(
+                        'Rename %-' . $maxFilenameLength . 's to %s',
+                        $fileInfo->getFilename(),
+                        $newPathname
+                    )
+                );
+
+                if (str_contains($newFilename, '-duplicate-')) {
+                    ++$duplicateCount;
+                }
+
+                if (
+                    $skipDuplicates
+                    && str_contains($newFilename, '-duplicate-')
+                ) {
+                    $this->io->text('=> Duplicate! Skip "' . $fileInfo->getPathname() . '"');
+                    continue;
+                }
+
+                ++$fileCount;
+
+                if ($dryRun === false) {
+                    $this->renameFile($newPathname, $fileInfo, $copyFiles);
+                }
+            }
+        }
+
+        $this->io->info($duplicateCount . ' possible duplicates found');
+        $this->io->info($fileCount . ' files renamed');
     }
 }

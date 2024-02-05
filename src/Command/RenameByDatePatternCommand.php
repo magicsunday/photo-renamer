@@ -1,10 +1,10 @@
 <?php
 
 /**
- * This file is part of the package magicsunday/renamer.
+ * This file is part of the package magicsunday/photo-renamer.
  *
  * For the full copyright and license information, please read the
- * LICENSE file distributed with this source code.
+ * LICENSE file that was distributed with this source code.
  */
 
 declare(strict_types=1);
@@ -25,10 +25,9 @@ use Symfony\Component\Console\Output\OutputInterface;
 use function strlen;
 
 /**
- *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
- * @link    https://github.com/magicsunday/renamer/
+ * @link    https://github.com/magicsunday/photo-renamer/
  */
 class RenameByDatePatternCommand extends BaseRenameCommand
 {
@@ -66,19 +65,21 @@ class RenameByDatePatternCommand extends BaseRenameCommand
                 'p',
                 InputOption::VALUE_REQUIRED,
                 'The pattern used to search for files',
-                '/^{y}-{m}-{d}\s{H}-{i}-{s}(.+)$/'
-            );
-
-        $this
+                '/^{y}-{m}-{d}.{H}-{i}-{s}(.+)$/'
+            )
             ->addOption(
                 'replacement',
                 'r',
                 InputOption::VALUE_REQUIRED,
                 'The pattern used to replace the matches results',
                 '{Y}-{m}-{d}_{H}-{i}-{s}'
+            )
+            ->addOption(
+                'skip-duplicates',
+                null,
+                InputOption::VALUE_NONE,
+                'Skip duplicate files from copy/rename action. The files remain unchanged in the source directory.'
             );
-
-        // TODO Remove not required 'target-filename-pattern' option
     }
 
     /**
@@ -95,9 +96,11 @@ class RenameByDatePatternCommand extends BaseRenameCommand
 
         if ($input->getOption('replacement') === null) {
             $this->io->error('A valid replacement value is required');
+
             return self::FAILURE;
         }
 
+        /** @var string $sourceDirectory */
         $sourceDirectory = $input->getArgument('source-directory');
 
         $this->io->note(
@@ -115,6 +118,7 @@ class RenameByDatePatternCommand extends BaseRenameCommand
             );
         } catch (RuntimeException $exception) {
             $this->io->error($exception->getMessage());
+
             return self::FAILURE;
         }
 
@@ -150,6 +154,10 @@ class RenameByDatePatternCommand extends BaseRenameCommand
             $pattern
         );
 
+        if ($datePattern === null) {
+            throw new RuntimeException('Failed to extract the date pattern from given pattern');
+        }
+
         // Extract the used date parts in the pattern
         preg_match_all(
             '/{(\w+)}/',
@@ -160,6 +168,7 @@ class RenameByDatePatternCommand extends BaseRenameCommand
         $directoryIterator      = new RecursiveDirectoryIterator($sourceDirectory, FilesystemIterator::SKIP_DOTS);
         $filenameFilterIterator = new FilenameFilterIterator($directoryIterator, $datePattern);
         $iterator               = new RecursiveIteratorIterator($filenameFilterIterator, RecursiveIteratorIterator::LEAVES_ONLY);
+        $fileCount              = 0;
 
         /** @var SplFileInfo $fileInfo */
         foreach ($iterator as $fileInfo) {
@@ -184,7 +193,7 @@ class RenameByDatePatternCommand extends BaseRenameCommand
             // Create new filename
             $newFilename = preg_replace_callback(
                 $datePattern,
-                static function ($replacementMatches) use ($dateFormatCharacters, $targetFilenamePattern, $filePartMatches): string {
+                static function (array $replacementMatches) use ($dateFormatCharacters, $targetFilenamePattern, $filePartMatches): string {
                     $dateParts = [];
 
                     foreach ($dateFormatCharacters as $key => $dateFormatCharacter) {
@@ -196,8 +205,11 @@ class RenameByDatePatternCommand extends BaseRenameCommand
                         if (($dateFormatCharacter === 'Y')
                             && (strlen($replacementMatches[$key + 1]) === 2)
                         ) {
-                            $replacementMatches[$key + 1] = DateTime::createFromFormat('y', $replacementMatches[$key + 1] ?? 0)
-                                ->format('Y');
+                            $fourDigitYearDate = DateTime::createFromFormat('y', $replacementMatches[$key + 1]);
+
+                            if ($fourDigitYearDate !== false) {
+                                $replacementMatches[$key + 1] = $fourDigitYearDate->format('Y');
+                            }
                         }
 
                         $dateParts[$dateFormatCharacter] = (int) $replacementMatches[$key + 1];
@@ -219,16 +231,19 @@ class RenameByDatePatternCommand extends BaseRenameCommand
                 $newPathname = $fileInfo->getPath() . '/' . $newFilename;
             }
 
-            $this->io->text('Rename ' . $fileInfo->getPathname() . ' to ' . $newPathname);
-
             if (file_exists($newPathname)) {
-                $this->io->text('=> Skipping. Filename already exists.');
                 continue;
             }
+
+            $this->io->text('Rename ' . $fileInfo->getPathname() . ' to ' . $newPathname);
+
+            ++$fileCount;
 
             if ($dryRun === false) {
                 $this->renameFile($newPathname, $fileInfo, $copyFiles);
             }
         }
+
+        $this->io->info($fileCount . ' files renamed');
     }
 }

@@ -1,10 +1,10 @@
 <?php
 
 /**
- * This file is part of the package magicsunday/renamer.
+ * This file is part of the package magicsunday/photo-renamer.
  *
  * For the full copyright and license information, please read the
- * LICENSE file distributed with this source code.
+ * LICENSE file that was distributed with this source code.
  */
 
 declare(strict_types=1);
@@ -18,7 +18,7 @@ use SplFileInfo;
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
- * @link    https://github.com/magicsunday/renamer/
+ * @link    https://github.com/magicsunday/photo-renamer/
  */
 class FileInfo
 {
@@ -28,19 +28,24 @@ class FileInfo
     protected string $path = '';
 
     /**
-     * @var string
-     */
-    protected string $targetFilename = '';
-
-    /**
      * @var SplFileInfo[]
      */
     protected array $files = [];
 
     /**
-     * @var array
+     * @var string
      */
-    protected array $duplicateFiles = [];
+    protected string $exifDateTimeOriginal = '';
+
+    /**
+     * @var string
+     */
+    protected string $exifSubSecTimeOriginal = '';
+
+    /**
+     * @var int
+     */
+    protected int $filesize = 0;
 
     /**
      * @return string
@@ -58,6 +63,7 @@ class FileInfo
     public function setPath(string $path): FileInfo
     {
         $this->path = $path;
+
         return $this;
     }
 
@@ -70,17 +76,6 @@ class FileInfo
     }
 
     /**
-     * @param SplFileInfo[] $files
-     *
-     * @return FileInfo
-     */
-    public function setFiles(array $files): FileInfo
-    {
-        $this->files = $files;
-        return $this;
-    }
-
-    /**
      * @param SplFileInfo $fileInfo
      *
      * @return FileInfo
@@ -88,6 +83,67 @@ class FileInfo
     public function addFile(SplFileInfo $fileInfo): FileInfo
     {
         $this->files[] = $fileInfo;
+
+        return $this;
+    }
+
+    /**
+     * @return string
+     */
+    public function getExifDateTimeOriginal(): string
+    {
+        return $this->exifDateTimeOriginal;
+    }
+
+    /**
+     * @param string $exifDateTimeOriginal
+     *
+     * @return FileInfo
+     */
+    public function setExifDateTimeOriginal(string $exifDateTimeOriginal): FileInfo
+    {
+        $this->exifDateTimeOriginal = $exifDateTimeOriginal;
+
+        return $this;
+    }
+
+    /**
+     * @return string
+     */
+    public function getExifSubSecTimeOriginal(): string
+    {
+        return $this->exifSubSecTimeOriginal;
+    }
+
+    /**
+     * @param string $exifSubSecTimeOriginal
+     *
+     * @return FileInfo
+     */
+    public function setExifSubSecTimeOriginal(string $exifSubSecTimeOriginal): FileInfo
+    {
+        $this->exifSubSecTimeOriginal = $exifSubSecTimeOriginal;
+
+        return $this;
+    }
+
+    /**
+     * @return int
+     */
+    public function getFilesize(): int
+    {
+        return $this->filesize;
+    }
+
+    /**
+     * @param int $filesize
+     *
+     * @return FileInfo
+     */
+    public function setFilesize(int $filesize): FileInfo
+    {
+        $this->filesize = $filesize;
+
         return $this;
     }
 }

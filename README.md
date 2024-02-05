@@ -1,5 +1,25 @@
+[![Latest version](https://img.shields.io/github/v/release/magicsunday/photo-renamer?sort=semver)](https://github.com/magicsunday/photo-renamer/releases/latest)
+[![License](https://img.shields.io/github/license/magicsunday/photo-renamer)](https://github.com/magicsunday/photo-renamer/blob/main/LICENSE)
+[![CI](https://github.com/magicsunday/photo-renamer/actions/workflows/ci.yml/badge.svg)](https://github.com/magicsunday/photo-renamer/actions/workflows/ci.yml)
 
-!!! WIP !!!
+
+# Benutzung auf eigene Gefahr! Immer zuerst mit "--dry-run" probieren.
+
+
+# Installation
+
+## 1 - Install mediainfo
+You should install [mediainfo](http://manpages.ubuntu.com/manpages/gutsy/man1/mediainfo.1.html):
+
+### On linux:
+```bash
+$ sudo apt-get install mediainfo
+```
+
+### On Mac:
+```bash
+$ brew install mediainfo
+```
 
 
 # Usage
@@ -24,7 +44,7 @@ Datumsformat umwandeln: 2018-12-31_22-15-00.jpg bzw 2018-12-31_22-15-00-blah.jpg
 
 ```bash
 bin/console rename:date-pattern \
-  --pattern "/^{y}-{m}-{d}[.]{H}-{i}-{s}(.+)$/" \ 
+  --pattern "/^{y}-{m}-{d}.{H}-{i}-{s}(.+)$/" \ 
   --replacement="{Y}-{m}-{d}_{H}-{i}-{s}" sourceDirectory/
 ```
 
@@ -50,7 +70,7 @@ der Dateierweiterung) nach dem vorgegebenen Zieldateinamen zu benennen.
 Etwaige auftretende Duplikate werden, wenn `--skip-duplicates` nicht verwendet wird, mit einer fortlaufenden Nummer versehen.
 
 ```bash
-bin/console rename:live-photos \
+bin/console rename:exifdate \
   --skip-duplicates sourceDirectory/ targetDirectory/
 ```
 
@@ -73,3 +93,26 @@ bin/console rename:pattern \
   der vom n-ten eingeklammerten Suchmuster erfasst wurde. $0 bezieht sich auf den Text, der auf das komplette Suchmuster passt.
 
 - Der Parameter "replacement" gibt an, wie alle Suchmuster durch diese Zeichenkette ersetzt werden.
+
+
+## Dateigröße aus Name entfernen
+```bash
+bin/console rename:pattern \
+  --dry-run \ 
+  --pattern "/^(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}-\d{3})(\d{9})\.(.+)/" \
+  --replacement "\$1.\$3" sourceDirectory/
+```
+
+
+# Development
+
+## Testing
+```bash
+composer update
+composer ci:cgl
+composer ci:test
+composer ci:test:php:phplint
+composer ci:test:php:phpstan
+composer ci:test:php:rector
+composer ci:test:php:unit
+```

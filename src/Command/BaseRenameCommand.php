@@ -1,10 +1,10 @@
 <?php
 
 /**
- * This file is part of the package magicsunday/renamer.
+ * This file is part of the package magicsunday/photo-renamer.
  *
  * For the full copyright and license information, please read the
- * LICENSE file distributed with this source code.
+ * LICENSE file that was distributed with this source code.
  */
 
 declare(strict_types=1);
@@ -23,10 +23,9 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use function dirname;
 
 /**
- *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
- * @link    https://github.com/magicsunday/renamer/
+ * @link    https://github.com/magicsunday/photo-renamer/
  */
 abstract class BaseRenameCommand extends Command
 {
@@ -35,9 +34,6 @@ abstract class BaseRenameCommand extends Command
      */
     protected SymfonyStyle $io;
 
-    /**
-     *
-     */
     protected function configure(): void
     {
         $this
@@ -63,28 +59,16 @@ abstract class BaseRenameCommand extends Command
                 null,
                 InputOption::VALUE_NONE,
                 'Copies the files to the target directory instead of renaming/moving them directly.'
-            )
-            ->addOption(
-                'skip-duplicates',
-                null,
-                InputOption::VALUE_NONE,
-                'Skip duplicate files from copy/rename action. The files remain unchanged in the source directory.'
-            )
-            ->addOption(
-                'target-filename-pattern',
-                'fp',
-                InputOption::VALUE_REQUIRED,
-                'The date pattern used to create the target filename.',
-                'Y-m-d_H-i-s-v'
             );
-//            ->addOption(
-//                'skipped-suffix',
-//                null,
-//                InputOption::VALUE_OPTIONAL,
-//                'Suffix that is appended to all skipped files before the file extension.',
-//                '.skipped'
-//            )
+        //            ->addOption(
+        //                'skipped-suffix',
+        //                null,
+        //                InputOption::VALUE_OPTIONAL,
+        //                'Suffix that is appended to all skipped files before the file extension.',
+        //                '.skipped'
+        //            )
     }
+
     /**
      * Executes the current command.
      *
@@ -96,17 +80,24 @@ abstract class BaseRenameCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $this->io = new SymfonyStyle($input, $output);
-        $this->io->title($this->getName());
+        $this->io->title($this->getName() ?? '');
+
+        /** @var bool $copyFiles */
+        $copyFiles = $input->getOption('copy-files');
+
+        /** @var bool $dryRun */
+        $dryRun = $input->getOption('dry-run');
 
         if (
-            $input->getOption('copy-files')
+            $copyFiles
             && ($input->getArgument('target-directory') === null)
         ) {
             $this->io->error('Copying files requires a target directory');
+
             return self::FAILURE;
         }
 
-        if ($input->getOption('dry-run')) {
+        if ($dryRun) {
             $this->io->info('Performing dry run');
         }
 
@@ -160,5 +151,17 @@ abstract class BaseRenameCommand extends Command
                 )
             );
         }
+    }
+
+    /**
+     * Remove any existing "-duplicate-000" identifier.
+     *
+     * @param string $filename
+     *
+     * @return string
+     */
+    protected function removeDuplicateIdentifier(string $filename): string
+    {
+        return preg_replace('/-duplicate-\d{3}$/', '', $filename) ?? $filename;
     }
 }

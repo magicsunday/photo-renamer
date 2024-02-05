@@ -1,10 +1,10 @@
 <?php
 
 /**
- * This file is part of the package magicsunday/renamer.
+ * This file is part of the package magicsunday/photo-renamer.
  *
  * For the full copyright and license information, please read the
- * LICENSE file distributed with this source code.
+ * LICENSE file that was distributed with this source code.
  */
 
 declare(strict_types=1);
@@ -13,14 +13,15 @@ namespace MagicSunday\Renamer\Command\FilterIterator;
 
 use RecursiveFilterIterator;
 use RecursiveIterator;
+use RuntimeException;
+use SplFileInfo;
 
 /**
- *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
- * @link    https://github.com/magicsunday/renamer/
+ * @link    https://github.com/magicsunday/photo-renamer/
  */
-class FilenameFilterIterator extends RecursiveFilterIterator
+final class FilenameFilterIterator extends RecursiveFilterIterator
 {
     /**
      * @var string
@@ -49,18 +50,30 @@ class FilenameFilterIterator extends RecursiveFilterIterator
      */
     public function accept(): bool
     {
-        return $this->current()->isDir()
-            || preg_match($this->regex, $this->current()->getFilename());
+        /** @var SplFileInfo $fileInfo */
+        $fileInfo = $this->current();
+
+        if ($fileInfo->isDir()) {
+            return true;
+        }
+
+        return preg_match($this->regex, $fileInfo->getFilename()) === 1;
     }
 
     /**
      * Return the inner iterator's children contained in a RecursiveFilterIterator.
      *
-     * @return null|RecursiveFilterIterator
+     * @return FilenameFilterIterator
+     *
+     * @throws RuntimeException
      */
-    public function getChildren(): ?RecursiveFilterIterator
+    public function getChildren(): FilenameFilterIterator
     {
-        return new static(
+        if (!($this->getInnerIterator() instanceof RecursiveIterator)) {
+            throw new RuntimeException('Missing "getChildren" method in inner iterator');
+        }
+
+        return new FilenameFilterIterator(
             $this->getInnerIterator()->getChildren(),
             $this->regex
         );

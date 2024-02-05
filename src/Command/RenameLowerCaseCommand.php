@@ -1,10 +1,10 @@
 <?php
 
 /**
- * This file is part of the package magicsunday/renamer.
+ * This file is part of the package magicsunday/photo-renamer.
  *
  * For the full copyright and license information, please read the
- * LICENSE file distributed with this source code.
+ * LICENSE file that was distributed with this source code.
  */
 
 declare(strict_types=1);
@@ -24,7 +24,7 @@ use Symfony\Component\Console\Output\OutputInterface;
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
- * @link    https://github.com/magicsunday/renamer/
+ * @link    https://github.com/magicsunday/photo-renamer/
  */
 class RenameLowerCaseCommand extends BaseRenameCommand
 {
@@ -43,9 +43,6 @@ class RenameLowerCaseCommand extends BaseRenameCommand
                 'Renames the file name to lowercase. By default, renaming occurs in the same'
                 . ' directory unless the appropriate options have been specified.'
             );
-
-        // TODO Remove not required 'target-filename-pattern' option
-        // TODO Remove not required 'skip-duplicates' option
     }
 
     /**
@@ -60,6 +57,7 @@ class RenameLowerCaseCommand extends BaseRenameCommand
     {
         parent::execute($input, $output);
 
+        /** @var string $sourceDirectory */
         $sourceDirectory = $input->getArgument('source-directory');
 
         $this->io->note(
@@ -75,6 +73,7 @@ class RenameLowerCaseCommand extends BaseRenameCommand
             );
         } catch (RuntimeException $exception) {
             $this->io->error($exception->getMessage());
+
             return self::FAILURE;
         }
 
@@ -101,6 +100,7 @@ class RenameLowerCaseCommand extends BaseRenameCommand
     ): void {
         $directoryIterator = new RecursiveDirectoryIterator($sourceDirectory, FilesystemIterator::SKIP_DOTS);
         $iterator          = new RecursiveIteratorIterator($directoryIterator, RecursiveIteratorIterator::LEAVES_ONLY);
+        $fileCount         = 0;
 
         /** @var SplFileInfo $fileInfo */
         foreach ($iterator as $fileInfo) {
@@ -112,16 +112,19 @@ class RenameLowerCaseCommand extends BaseRenameCommand
                 $newPathname = $fileInfo->getPath() . '/' . $newFilename;
             }
 
-            $this->io->text('Rename ' . $fileInfo->getPathname() . ' to ' . $newPathname);
-
             if (file_exists($newPathname)) {
-                $this->io->text('=> Skipping. Filename already exists.');
                 continue;
             }
+
+            $this->io->text('Rename ' . $fileInfo->getPathname() . ' to ' . $newPathname);
+
+            ++$fileCount;
 
             if ($dryRun === false) {
                 $this->renameFile($newPathname, $fileInfo, $copyFiles);
             }
         }
+
+        $this->io->info($fileCount . ' files renamed');
     }
 }

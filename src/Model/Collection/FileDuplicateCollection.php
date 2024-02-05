@@ -11,7 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Model\Collection;
 
-use MagicSunday\Renamer\Model\FileInfo;
+use MagicSunday\Renamer\Model\FileDuplicate;
 
 /**
  * A file info collection.
@@ -20,8 +20,8 @@ use MagicSunday\Renamer\Model\FileInfo;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  *
- * @extends AbstractCollection<string, FileInfo>
+ * @extends AbstractCollection<string, FileDuplicate>
  */
-class FileInfoCollection extends AbstractCollection
+class FileDuplicateCollection extends AbstractCollection
 {
 }
