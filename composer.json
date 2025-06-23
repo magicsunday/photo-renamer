@@ -18,21 +18,28 @@
             "role": "Developer"
         }
     ],
+    "config": {
+        "discard-changes": true,
+        "sort-packages": true,
+        "optimize-autoloader": true,
+        "platform-check": false
+    },
     "require": {
-        "php": ">=8.1.0 <8.4.0",
+        "php": ">=8.3.0 <8.5.0",
+        "ext-dom": "*",
         "ext-exif": "*",
         "ext-json": "*",
         "ext-dom": "*",
         "symfony/console": "^6.0 || ^7.0"
     },
     "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.75",
+        "overtrue/phplint": "^9.0",
         "phpdocumentor/reflection-docblock": "^5.0",
-        "friendsofphp/php-cs-fixer": "^3.50",
-        "overtrue/phplint": "^3.4 || ^9.0",
-        "phpstan/phpstan": "^1.10",
-        "phpstan/phpstan-strict-rules": "^1.5",
-        "phpstan/phpstan-deprecation-rules": "^1.1",
-        "rector/rector": "^1.0"
+        "phpstan/phpstan": "^2.0",
+        "phpstan/phpstan-deprecation-rules": "^2.0",
+        "phpstan/phpstan-strict-rules": "^2.0",
+        "rector/rector": "^2.0"
     },
     "autoload": {
         "psr-4": {
@@ -44,34 +51,33 @@
             "MagicSunday\\Renamer\\Test\\": "test/"
         }
     },
-    "config": {
-        "bin-dir": ".build/bin",
-        "vendor-dir": ".build/vendor",
-        "discard-changes": true,
-        "sort-packages": true,
-        "optimize-autoloader": true,
-        "platform-check": false
-    },
     "scripts": {
+        "ci:cgl": [
+            "bin/php vendor/bin/php-cs-fixer fix --config .build/.php-cs-fixer.dist.php --diff --verbose --cache-file .build/.php-cs-fixer.cache"
+        ],
+        "ci:rector": [
+            "bin/php vendor/bin/rector process --config .build/rector.php"
+        ],
+        "ci:test:php:cgl": [
+            "@ci:cgl --dry-run"
+        ],
         "ci:test:php:lint": [
-            "phplint"
+            "bin/php vendor/bin/phplint --configuration .build/.phplint.yml"
         ],
         "ci:test:php:phpstan": [
-            "phpstan analyze"
+            "bin/php vendor/bin/phpstan analyze --configuration .build/phpstan.neon --memory-limit=-1"
         ],
         "ci:test:php:phpstan:baseline": [
-            "phpstan analyze --generate-baseline phpstan-baseline.neon --allow-empty-baseline"
+            "bin/php vendor/bin/phpstan analyze --configuration .build/phpstan.neon --memory-limit=-1 --generate-baseline .build/phpstan-baseline.neon --allow-empty-baseline"
         ],
         "ci:test:php:rector": [
-            "rector process --config rector.php --dry-run"
+            "@ci:rector --dry-run"
         ],
         "ci:test": [
             "@ci:test:php:lint",
             "@ci:test:php:phpstan",
-            "@ci:test:php:rector"
-        ],
-        "ci:cgl": [
-            "php-cs-fixer fix --diff --verbose"
+            "@ci:test:php:rector",
+            "@ci:test:php:cgl"
         ]
     }
 }

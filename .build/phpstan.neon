@@ -1,0 +1,17 @@
+includes:
+    - %currentWorkingDirectory%/vendor/phpstan/phpstan-strict-rules/rules.neon
+    - %currentWorkingDirectory%/vendor/phpstan/phpstan-deprecation-rules/rules.neon
+    - %currentWorkingDirectory%/.build/phpstan-baseline.neon
+
+parameters:
+    # You can currently choose from 11 levels (0 is the loosest and 10 is the strictest).
+    level: 6
+
+    tmpDir: %currentWorkingDirectory%/.build/.phpstan.cache
+
+    paths:
+        - %currentWorkingDirectory%/src/
+
+    ignoreErrors:
+        -
+            identifier: missingType.generics

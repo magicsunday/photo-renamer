@@ -16,7 +16,7 @@ declare(strict_types=1);
  *
  *  $ composer global require friendsofphp/php-cs-fixer
  *
- * And then run
+ * And then simply run
  *
  *  $ php-cs-fixer fix
  *
@@ -38,6 +38,7 @@ EOF;
 
 return (new PhpCsFixer\Config())
     ->setRiskyAllowed(true)
+    ->setParallelConfig(new PhpCsFixer\Runner\Parallel\ParallelConfig(4, 8))
     ->setRules([
         '@PSR12'                          => true,
         '@PER-CS2.0'                      => true,
@@ -93,18 +94,8 @@ return (new PhpCsFixer\Config())
             'less_and_greater'     => false,
             'always_move_variable' => false,
         ],
-        'blank_line_before_statement'     => [
-            'statements' => [
-                'return',
-                'if',
-                'throw',
-            ],
-        ],
     ])
     ->setFinder(
         PhpCsFixer\Finder::create()
-            ->exclude('.build')
-            ->exclude('.github')
-            ->in(__DIR__)
+            ->in(__DIR__ . '/../src/')
     );
-

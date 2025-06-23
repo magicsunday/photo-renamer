@@ -1,0 +1,13 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Call to method get\(\) on an unknown class MagicSunday\\Renamer\\DependencyContainer\.$#'
+			identifier: class.notFound
+			count: 1
+			path: ../src/Renamer.php
+
+		-
+			message: '#^Instantiated class MagicSunday\\Renamer\\DependencyContainer not found\.$#'
+			identifier: class.notFound
+			count: 1
+			path: ../src/Renamer.php

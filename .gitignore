@@ -11,7 +11,7 @@ logs/
 composer.lock
 
 # Build stuff
-.build/
+.build/*.cache
 
 # Cache
 .php-cs-fixer.cache
