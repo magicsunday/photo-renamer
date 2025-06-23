@@ -3,56 +3,90 @@
 [![CI](https://github.com/magicsunday/photo-renamer/actions/workflows/ci.yml/badge.svg)](https://github.com/magicsunday/photo-renamer/actions/workflows/ci.yml)
 
 
-# Benutzung auf eigene Gefahr! Immer zuerst mit "--dry-run" probieren.
+# Use at your own risk! Always try "--dry-run" first.
 
-# Dependencies
 
 This tool is written in PHP and relies on a statically linked php binary which is built and provided by the project itself. This will make a local installation of PHP unnecessary. This makes it possible to provide the whole tool as a single binary which contains all dependencies.
 
+# Development Guidelines for Photo Renamer
 
-# Usage
+This document provides guidelines and instructions for developing and maintaining the Photo Renamer project.
 
-To start the development of this tool, you need to have a working PHP environment. You can start the development by executing the following commands.
+## Build/Configuration Instructions
 
-## Build PHP and install dependencies
+### Setting Up the Development Environment
+
+There are two ways to initialize the build environment:
+
+#### 1. Using Docker (Recommended)
+
+```bash
+make init-with-docker
+```
+
+This command uses Docker to set up the build environment, which is the recommended approach as it ensures a consistent environment across different development machines.
+
+#### 2. Without Docker
+
 ```bash
 make init
+```
+
+This command sets up the build environment directly on your machine.
+
+### Installing Dependencies
+
+After initializing the build environment, install the PHP dependencies:
+
+```bash
 bin/composer install
 ```
 
-[i] Please note, that the downloading, building and compiling of the PHP binary will take some time and consume a lot of resources.
-* ~ 1.5 GB of disk space
-* ~ 4 GB of RAM
-* ~ 10 minutes of time
-* The whole CPU power of your machine
+**Note:** The initialization process downloads, builds, and compiles a PHP binary, which:
+- Requires approximately 1.5 GB of disk space
+- Requires approximately 4 GB of RAM
+- Takes about 10 minutes to complete
+- Uses all available CPU resources
 
-## Build the tool
-To build a new version of the tool, you can execute the following command. This will create a new binary as `renamer` in the project root.
+### Building the Tool
+
+To build a new version of the renamer binary:
 
 ```bash
 make build
 ```
+
+This creates a new binary named `renamer` in the project root.
 
 ## Run the tool
 ```bash
 ./renamer
 ```
 
+[//]: # (# Installation)
 
-# Installation
+[//]: # ()
+[//]: # (## 1 - Install mediainfo)
 
-## 1 - Install mediainfo
-You should install [mediainfo](http://manpages.ubuntu.com/manpages/gutsy/man1/mediainfo.1.html):
+[//]: # (You should install [mediainfo]&#40;http://manpages.ubuntu.com/manpages/gutsy/man1/mediainfo.1.html&#41;:)
 
-### On linux:
-```bash
-$ sudo apt-get install mediainfo
-```
+[//]: # ()
+[//]: # (### On linux:)
 
-### On Mac:
-```bash
-$ brew install mediainfo
-```
+[//]: # (```bash)
+
+[//]: # ($ sudo apt-get install mediainfo)
+
+[//]: # (```)
+
+[//]: # ()
+[//]: # (### On Mac:)
+
+[//]: # (```bash)
+
+[//]: # ($ brew install mediainfo)
+
+[//]: # (```)
 
 
 # Usage
