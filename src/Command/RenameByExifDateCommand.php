@@ -11,8 +11,8 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Command;
 
-use DateTime;
-use Exception;
+use MagicSunday\Renamer\DuplicateIdentifierProcessor\TargetFilenameIdentifierProcessor;
+use MagicSunday\Renamer\FilenameProcessor\ExifDateFilenameProcessor;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use Override;
@@ -77,7 +77,7 @@ class RenameByExifDateCommand extends AbstractRenameCommand
 
         $this->io->text('Perform a second pass to find all remaining files that share the same base name');
         $this->io->newLine();
-        $this->io->progressStart($this->countFiles($iterator));
+        $this->io->progressStart($this->fileSystemService->countFiles($iterator));
 
         // Perform a second iteration over all files and now add all files that are not yet included in the list
         foreach ($iterator as $sourceFileInfo) {
@@ -155,24 +155,17 @@ class RenameByExifDateCommand extends AbstractRenameCommand
     }
 
     #[Override]
-    protected function getTargetFilename(SplFileInfo $sourceFileInfo): ?string
+    protected function getTargetFilenameProcessor(): callable
     {
-        // Create a new filename based on the formatted value of the EXIF field "DateTimeOriginal".
-        $targetBasename = $this->getExifDateFormatted($this->targetFilenamePattern, $sourceFileInfo);
-
-        if ($targetBasename === null) {
-            return null;
-        }
-
-        return $targetBasename . '.' . $sourceFileInfo->getExtension();
+        return new ExifDateFilenameProcessor($this->targetFilenamePattern);
     }
 
     #[Override]
-    protected function getUniqueDuplicateIdentifier(SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo): string|false
+    protected function getDuplicateIdentifierProcessor(): callable
     {
         // We want to find duplicates across all directories based
         // on the EXIF field "DateTimeOriginal" of the image.
-        return $targetFileInfo->getFilename();
+        return new TargetFilenameIdentifierProcessor();
     }
 
     /**
@@ -190,62 +183,5 @@ class RenameByExifDateCommand extends AbstractRenameCommand
             0,
             -strlen('.' . $fileInfo->getExtension())
         );
-    }
-
-    /**
-     * Returns the formatted EXIF date of the specified file, formatted according to the specified pattern.
-     *
-     * @param string      $pattern
-     * @param SplFileInfo $sourceFileInfo
-     *
-     * @return string|null
-     */
-    private function getExifDateFormatted(
-        string $pattern,
-        SplFileInfo $sourceFileInfo,
-    ): ?string {
-        // Look up EXIF data
-        $exifData = @exif_read_data($sourceFileInfo->getPathname());
-
-        //        if ($exifData !== false) {
-        //            $this->io->text('Extract EXIF data from: ' . $sourceFileInfo->getPathname());
-        //        }
-
-        // Ignore files without EXIF data
-        if ($exifData === false) {
-            return null;
-        }
-
-        if (!isset($exifData['DateTimeOriginal'])) {
-            return null;
-        }
-
-        //        $this->io->text('=> Found "DateTimeOriginal" => ' . $exifData['DateTimeOriginal']);
-
-        // Store the date and time the image/video was recorded
-
-        /** @var string $exifDateTimeOriginal */
-        $exifDateTimeOriginal = $exifData['DateTimeOriginal'];
-
-        /** @var string $exifSubSecTimeOriginal */
-        $exifSubSecTimeOriginal = $exifData['SubSecTimeOriginal'] ?? '';
-
-        try {
-            $dateTimeOriginal = new DateTime($exifDateTimeOriginal);
-
-            if ($exifSubSecTimeOriginal !== '') {
-                if (strlen($exifSubSecTimeOriginal) > 4) {
-                    $dateTimeOriginal->modify('+' . $exifSubSecTimeOriginal . ' Microseconds');
-                } else {
-                    $dateTimeOriginal->modify('+' . $exifSubSecTimeOriginal . ' Milliseconds');
-                }
-            }
-        } catch (Exception) {
-            //            $this->io->warning('=> Invalid EXIF date format in "DateTimeOriginal".');
-
-            return null;
-        }
-
-        return $dateTimeOriginal->format($pattern);
     }
 }

@@ -19,7 +19,7 @@ try
     $phar->startBuffering();
 
     // Create the default stub
-    $defaultStub = $phar->createDefaultStub('src/Renamer.php');
+    $defaultStub = Phar::createDefaultStub('src/Renamer.php');
 
     $phar->buildFromDirectory(__DIR__ . "/renamer");
     $phar->setStub("#!/usr/bin/env php \n" . $defaultStub);

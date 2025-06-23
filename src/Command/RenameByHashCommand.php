@@ -11,8 +11,9 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Command;
 
+use MagicSunday\Renamer\DuplicateIdentifierProcessor\ContentHashIdentifierProcessor;
+use MagicSunday\Renamer\FilenameProcessor\DefaultFilenameProcessor;
 use Override;
-use SplFileInfo;
 
 /**
  * Recursively detects duplicates in the specified directory matching the same file hash.
@@ -41,19 +42,14 @@ class RenameByHashCommand extends AbstractRenameCommand
     }
 
     #[Override]
-    protected function getTargetFilename(SplFileInfo $sourceFileInfo): ?string
+    protected function getTargetFilenameProcessor(): callable
     {
-        $targetBasename = $this->removeDuplicateFileIdentifier(
-            $sourceFileInfo->getBasename('.' . $sourceFileInfo->getExtension())
-        );
-
-        return $targetBasename . '.' . $sourceFileInfo->getExtension();
+        return new DefaultFilenameProcessor();
     }
 
     #[Override]
-    protected function getUniqueDuplicateIdentifier(SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo): string|false
+    protected function getDuplicateIdentifierProcessor(): callable
     {
-        // We want to find duplicates across all directories based on a hash of the file contents.
-        return hash_file('xxh128', $sourceFileInfo->getPathname());
+        return new ContentHashIdentifierProcessor();
     }
 }

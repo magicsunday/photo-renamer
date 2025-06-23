@@ -17,7 +17,7 @@ use Symfony\Component\Console\Command\Command;
 /**
  * Class Application.
  *
- * @author  Rico Sonntag <rico.sonntag@netresearch.de>
+ * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
@@ -39,9 +39,19 @@ class Application extends \Symfony\Component\Console\Application
      */
     public function __construct(iterable $commands)
     {
-        $version = trim(file_get_contents(__DIR__ . '/../version'), PHP_EOL);
+        $version = file_get_contents(__DIR__ . '/../version');
 
-        parent::__construct(self::NAME, $version);
+        if ($version === false) {
+            $version = '0.0.0';
+        }
+
+        parent::__construct(
+            self::NAME,
+            trim(
+                $version,
+                PHP_EOL
+            )
+        );
 
         foreach ($commands as $command) {
             $this->add($command);

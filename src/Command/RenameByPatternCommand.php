@@ -13,10 +13,11 @@ namespace MagicSunday\Renamer\Command;
 
 use FilesystemIterator;
 use MagicSunday\Renamer\Command\FilterIterator\RecursiveRegexFileFilterIterator;
+use MagicSunday\Renamer\DuplicateIdentifierProcessor\TargetPathnameIdentifierProcessor;
+use MagicSunday\Renamer\FilenameProcessor\PatternFilenameProcessor;
 use Override;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
-use SplFileInfo;
 use Symfony\Component\Console\Input\InputOption;
 
 /**
@@ -85,43 +86,31 @@ class RenameByPatternCommand extends AbstractRenameCommand
     #[Override]
     protected function createFileIterator(): RecursiveIteratorIterator
     {
-        return new RecursiveIteratorIterator(
-            new RecursiveRegexFileFilterIterator(
-                new RecursiveDirectoryIterator(
-                    $this->sourceDirectory,
-                    FilesystemIterator::SKIP_DOTS
-                ),
-                $this->pattern
-            )
-        );
+        return $this->fileSystemService
+            ->createFileIterator(
+                $this->sourceDirectory,
+                new RecursiveRegexFileFilterIterator(
+                    new RecursiveDirectoryIterator(
+                        $this->sourceDirectory,
+                        FilesystemIterator::SKIP_DOTS
+                    ),
+                    $this->pattern
+                )
+            );
     }
 
     #[Override]
-    protected function getTargetFilename(SplFileInfo $sourceFileInfo): ?string
+    protected function getTargetFilenameProcessor(): callable
     {
-        $targetBasename = $this->removeDuplicateFileIdentifier(
-            $sourceFileInfo->getBasename('.' . $sourceFileInfo->getExtension())
-        );
-
-        // Perform the regular expression replacement
-        $targetFilename = preg_replace(
+        return new PatternFilenameProcessor(
             $this->pattern,
-            $this->replacement,
-            $targetBasename . '.' . $sourceFileInfo->getExtension()
+            $this->replacement
         );
-
-        if ($targetFilename === null) {
-            $this->io->error(preg_last_error_msg());
-        }
-
-        return $targetFilename;
     }
 
     #[Override]
-    protected function getUniqueDuplicateIdentifier(SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo): string|false
+    protected function getDuplicateIdentifierProcessor(): callable
     {
-        // We want to find duplicates in the current directory,
-        // so the unique identifier must also contain the path.
-        return $targetFileInfo->getPathname();
+        return new TargetPathnameIdentifierProcessor();
     }
 }

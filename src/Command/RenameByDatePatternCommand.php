@@ -11,18 +11,15 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Command;
 
-use DateTime;
 use FilesystemIterator;
 use MagicSunday\Renamer\Command\FilterIterator\RecursiveRegexFileFilterIterator;
+use MagicSunday\Renamer\DuplicateIdentifierProcessor\TargetPathnameIdentifierProcessor;
+use MagicSunday\Renamer\FilenameProcessor\DatePatternFilenameProcessor;
 use Override;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
-use SplFileInfo;
 use Symfony\Component\Console\Input\InputOption;
-
-use function count;
-use function strlen;
 
 /**
  * Recursively renames all files matching a given date/time pattern.
@@ -133,90 +130,32 @@ class RenameByDatePatternCommand extends AbstractRenameCommand
     #[Override]
     protected function createFileIterator(): RecursiveIteratorIterator
     {
-        return new RecursiveIteratorIterator(
-            new RecursiveRegexFileFilterIterator(
-                new RecursiveDirectoryIterator(
-                    $this->sourceDirectory,
-                    FilesystemIterator::SKIP_DOTS
-                ),
-                $this->pattern
-            )
+        return $this->fileSystemService
+            ->createFileIterator(
+                $this->sourceDirectory,
+                new RecursiveRegexFileFilterIterator(
+                    new RecursiveDirectoryIterator(
+                        $this->sourceDirectory,
+                        FilesystemIterator::SKIP_DOTS
+                    ),
+                    $this->pattern
+                )
+            );
+    }
+
+    #[Override]
+    protected function getTargetFilenameProcessor(): callable
+    {
+        return new DatePatternFilenameProcessor(
+            $this->pattern,
+            $this->replacement,
+            $this->patternMatches
         );
     }
 
     #[Override]
-    protected function getTargetFilename(SplFileInfo $sourceFileInfo): ?string
+    protected function getDuplicateIdentifierProcessor(): callable
     {
-        $filePartMatches    = [];
-        $replacementMatches = [];
-
-        $targetBasename = $this->removeDuplicateFileIdentifier(
-            $sourceFileInfo->getBasename('.' . $sourceFileInfo->getExtension())
-        );
-
-        // Perform the regular expression replacement
-        preg_match(
-            $this->pattern,
-            $targetBasename . '.' . $sourceFileInfo->getExtension(),
-            $filePartMatches
-        );
-
-        preg_match_all(
-            '/{(\w+)}/',
-            $this->replacement . '$1',
-            $replacementMatches
-        );
-
-        $dateFormatCharacters  = $this->patternMatches[1];
-        $targetFilenamePattern = str_replace($replacementMatches[0], $replacementMatches[1], $this->replacement);
-
-        // Create a new filename
-        $targetFilename = preg_replace_callback(
-            $this->pattern,
-            static function (array $replacementMatches) use ($dateFormatCharacters, $targetFilenamePattern, $filePartMatches): string {
-                $dateParts = [];
-
-                foreach ($dateFormatCharacters as $key => $dateFormatCharacter) {
-                    if ($dateFormatCharacter === 'y') {
-                        $dateFormatCharacter = 'Y';
-                    }
-
-                    // Convert 2-digit year to 4-digit
-                    if (($dateFormatCharacter === 'Y')
-                        && (strlen($replacementMatches[$key + 1]) === 2)
-                    ) {
-                        $fourDigitYearDate = DateTime::createFromFormat('y', $replacementMatches[$key + 1]);
-
-                        if ($fourDigitYearDate !== false) {
-                            $replacementMatches[$key + 1] = $fourDigitYearDate->format('Y');
-                        }
-                    }
-
-                    $dateParts[$dateFormatCharacter] = (int) $replacementMatches[$key + 1];
-                }
-
-                $dateTimeCreated = new DateTime();
-                $dateTimeCreated
-                    ->setDate($dateParts['Y'] ?? 0, $dateParts['m'] ?? 1, $dateParts['d'] ?? 1)
-                    ->setTime($dateParts['H'] ?? 0, $dateParts['i'] ?? 0, $dateParts['s'] ?? 0);
-
-                return $dateTimeCreated->format($targetFilenamePattern) . $replacementMatches[count($filePartMatches) - 1];
-            },
-            $targetBasename . '.' . $sourceFileInfo->getExtension()
-        );
-
-        if ($targetFilename === null) {
-            $this->io->error(preg_last_error_msg());
-        }
-
-        return $targetFilename;
-    }
-
-    #[Override]
-    protected function getUniqueDuplicateIdentifier(SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo): string|false
-    {
-        // We want to find duplicates in the current directory,
-        // so the unique identifier must also contain the path.
-        return $targetFileInfo->getPathname();
+        return new TargetPathnameIdentifierProcessor();
     }
 }

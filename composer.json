@@ -1,7 +1,7 @@
 {
     "name": "magicsunday/photo-renamer",
     "description": "Renames photos using EXIF date, patterns, filesize, ...",
-    "license": "GPL-3.0-or-later",
+    "license": "MIT",
     "keywords": [
         "rename",
         "live",

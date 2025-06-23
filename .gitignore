@@ -20,9 +20,6 @@ composer.lock
 .phpunit.cache
 
 # Custom
-/test/
-/sdk-api-mediainfo/
-
 /bin/*
 /spc
 renamer.phar

@@ -11,8 +11,9 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Command;
 
+use MagicSunday\Renamer\DuplicateIdentifierProcessor\TargetPathnameIdentifierProcessor;
+use MagicSunday\Renamer\FilenameProcessor\LowerCaseFilenameProcessor;
 use Override;
-use SplFileInfo;
 
 /**
  * Recursively renames all files in the specified directory to lowercase.
@@ -42,20 +43,14 @@ class RenameLowerCaseCommand extends AbstractRenameCommand
     }
 
     #[Override]
-    protected function getTargetFilename(SplFileInfo $sourceFileInfo): ?string
+    protected function getTargetFilenameProcessor(): callable
     {
-        $targetBasename = $this->removeDuplicateFileIdentifier(
-            $sourceFileInfo->getBasename('.' . $sourceFileInfo->getExtension())
-        );
-
-        return mb_strtolower($targetBasename . '.' . $sourceFileInfo->getExtension());
+        return new LowerCaseFilenameProcessor();
     }
 
     #[Override]
-    protected function getUniqueDuplicateIdentifier(SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo): string|false
+    protected function getDuplicateIdentifierProcessor(): callable
     {
-        // We want to find duplicates in the current directory,
-        // so the unique identifier must also contain the path.
-        return $targetFileInfo->getPathname();
+        return new TargetPathnameIdentifierProcessor();
     }
 }
