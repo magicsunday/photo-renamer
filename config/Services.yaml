@@ -1,0 +1,27 @@
+# config/services.yaml
+services:
+    # default configuration for services in *this* file
+    _defaults:
+        autowire: true      # Automatically injects dependencies in your services.
+        autoconfigure: true # Automatically registers your services as commands, event subscribers, etc.
+        public: false
+
+    _instanceof:
+        Symfony\Component\Console\Command\Command:
+            tags: ['command']
+
+    # makes classes in src/ available to be used as services
+    # this creates a service per class whose id is the fully-qualified class name
+    MagicSunday\Renamer\:
+        resource: '../src/'
+        exclude: ['../src/{Renamer,Dependencies,Constants}.php', '../src/Model/']
+
+    MagicSunday\Renamer\Application:
+        public: true
+        arguments:
+            $commands: !tagged command
+
+    # order is important in this file because service definitions
+    # always *replace* previous ones; add your own service configuration below
+
+    # ...

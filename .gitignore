@@ -22,3 +22,11 @@ composer.lock
 # Custom
 /test/
 /sdk-api-mediainfo/
+
+/bin/*
+/spc
+renamer.phar
+/var/
+renamer
+renamer.md5
+.env

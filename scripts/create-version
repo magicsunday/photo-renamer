@@ -1,0 +1,27 @@
+#!/bin/bash
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+echo "Last version: $(cat version)"
+
+read -p "Enter new version: " VERSION
+
+if [ -z "$VERSION" ]; then
+    echo "Version is required"
+    exit 1
+fi
+
+if [ -f "version" ]; then
+    CURRENT_VERSION=$(cat version)
+    if [ "$VERSION" == "$CURRENT_VERSION" ]; then
+        echo "Version $VERSION is already released"
+        exit 1
+    fi
+fi
+
+echo $VERSION > version
+
+git add version
+git commit -m "[Release] $VERSION"
+git tag $VERSION
+git push
+git push --tags

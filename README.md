@@ -5,6 +5,39 @@
 
 # Benutzung auf eigene Gefahr! Immer zuerst mit "--dry-run" probieren.
 
+# Dependencies
+
+This tool is written in PHP and relies on a statically linked php binary which is built and provided by the project itself. This will make a local installation of PHP unnecessary. This makes it possible to provide the whole tool as a single binary which contains all dependencies.
+
+
+# Usage
+
+To start the development of this tool, you need to have a working PHP environment. You can start the development by executing the following commands.
+
+## Build PHP and install dependencies
+```bash
+make init
+bin/composer install
+```
+
+[i] Please note, that the downloading, building and compiling of the PHP binary will take some time and consume a lot of resources.
+* ~ 1.5 GB of disk space
+* ~ 4 GB of RAM
+* ~ 10 minutes of time
+* The whole CPU power of your machine
+
+## Build the tool
+To build a new version of the tool, you can execute the following command. This will create a new binary as `renamer` in the project root.
+
+```bash
+make build
+```
+
+## Run the tool
+```bash
+./renamer
+```
+
 
 # Installation
 
@@ -23,21 +56,19 @@ $ brew install mediainfo
 
 
 # Usage
-Dies sind ein paar Kommandozeilenbefehle, die ich benutze, um die Fotos in meiner Fotosammlung einheitlich zu benennen.
-Auch im Hinblick auf die Apple Live-Fotos (bestehend aus einer Bild- und Video-Datei mit gleichem Namen). Die Tools
-helfen mir die Dateien einheitlich nach Datum und Zeit zu benennen und über die EXIF-Daten Dupliakte zu markieren.
+These are some command-line commands I use to consistently name the photos in my photo collection.
 
-Idealerweise sollten die Anwendung der Tools vor dem Sortieren und Gruppieren, der Bilddaten in einzelne Unterordner, 
-erfolgen, da sonst bei der Duplikatserkennung Duplikate in unterschiedlichen Ordnern zurückbleiben könnten, die danach 
-ggf. erst wieder mühsam von Hand verschoben/gelöscht werden müssten.
+This also applies to Apple Live Photos (consisting of an image and a video file with the same name).
+These tools help me consistently name the files by date and time and mark duplicates based on the EXIF data.
 
-Folgende Schritte führe ich z.B. für mich persönlich aus, um Ordnung in den Bilderwust zu bekommen.
+Ideally, these tools should be used before sorting and grouping the images into individual subfolders, as otherwise, duplicate detection may result in duplicates in different folders, which may then have to be laboriously moved or deleted manually.
 
+For example, I personally perform the following steps to organize the jumble of images.
 
 ## Alle Dateinamen in Kleinbuchstaben umbenennen
 
 ```bash
-bin/console rename:lower sourceDirectory/
+./renamer rename:lower sourceDirectory/
 ```
 
 
@@ -45,9 +76,7 @@ bin/console rename:lower sourceDirectory/
 Alle Dateien mit Endung "jpeg" suchen und nach "jpg" umbenennen. Dazu verwende ich den "pattern" Befehl.
 
 ```bash
-bin/console rename:pattern \
-  --pattern "/^(.+)(jpeg)$/" \ 
-  --replacement "\$1jpg" sourceDirectory/
+./renamer rename:pattern --dry-run --pattern "/^(.+)(jpeg)$/" --replacement "\$1jpg" sourceDirectory/
 ```
 
 - Das Suchen und Ersetzen erfolgt hierbei per regulärem Ausdruck.
@@ -69,9 +98,7 @@ Alle Dateien nach Datumsformat filtern, z.B. 18-12-31 22-15-00.jpg oder 18-12-31
 Datumsformat umwandeln: 2018-12-31_22-15-00.jpg bzw. 2018-12-31_22-15-00-blah.jpg
 
 ```bash
-bin/console rename:date-pattern \
-  --pattern "/^{y}-{m}-{d}.{H}-{i}-{s}(.+)$/" \ 
-  --replacement "{Y}-{m}-{d}_{H}-{i}-{s}" sourceDirectory/
+./renamer rename:date-pattern --pattern "/^{y}-{m}-{d}.{H}-{i}-{s}(.+)$/" --replacement "{Y}-{m}-{d}_{H}-{i}-{s}" sourceDirectory/
 ```
 
 Die Platzhalter im Pattern entsprechen den Formatierungszeichen der Datumsformatfunktion von PHP.
@@ -102,7 +129,7 @@ Bei Verwendung von `--skip-duplicates` verbleiben etwaige auftretende Duplikate 
 sie mit einer fortlaufenden Nummer versehen.
 
 ```bash
-bin/console rename:hash --skip-duplicates sourceDirectory/ targetDirectory/
+./renamer rename:hash --skip-duplicates sourceDirectory/ targetDirectory/
 ```
 
 
@@ -121,18 +148,15 @@ Es werden nur Bilder mit einem gültigen Aufnahmedatum und deren zugehörige Vid
 Alle anderen Dateien verbleiben unberührt im Verzeichnis.
 
 ```bash
-bin/console rename:exifdate sourceDirectory/ 
+./renamer rename:exifdate sourceDirectory/ 
 ```
-
-
-# Development
 
 ## Testing
 ```bash
-composer update
-composer ci:cgl
-composer ci:test
-composer ci:test:php:phplint
-composer ci:test:php:phpstan
-composer ci:test:php:rector
+bin/composer update
+bin/composer ci:cgl
+bin/composer ci:test
+bin/composer ci:test:php:phplint
+bin/composer ci:test:php:phpstan
+bin/composer ci:test:php:rector
 ```

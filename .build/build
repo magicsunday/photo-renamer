@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+
+set -e # Instructs a shell to exit if a command fails, i.e., if it outputs a non-zero exit status.
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+BUILD_DIR_NAME=".build/renamer/"
+BIN_NAME="renamer"
+
+echo "Compiling ${BIN_NAME}"
+
+if [ ! -f "bin/composer" ]; then
+    bin/init
+fi
+
+if [ -d "${BUILD_DIR_NAME}" ]; then
+    rm -rf "${BUILD_DIR_NAME}"
+fi
+
+echo "Creating build directory"
+mkdir "${BUILD_DIR_NAME}"
+
+echo "Copying files"
+cp composer.json $BUILD_DIR_NAME
+# Ignore error if composer.lock is not available
+cp composer.lock $BUILD_DIR_NAME 2>/dev/null || :
+cp -r src $BUILD_DIR_NAME
+cp -r config $BUILD_DIR_NAME
+cp version $BUILD_DIR_NAME
+echo "Installing composer dependencies"
+bin/composer -d $BUILD_DIR_NAME install --no-dev --no-ansi --no-interaction --no-progress --no-scripts --classmap-authoritative
+
+find $BUILD_DIR_NAME -type f -iname README.* -delete || :
+find $BUILD_DIR_NAME -type f -iname LICENSE -delete || :
+find $BUILD_DIR_NAME -type f -iname CHANGELOG* -delete || :
+
+echo "Creating phar archive"
+bin/php .build/build.php
+
+echo "Cleaning up"
+rm -rf "${BUILD_DIR_NAME}"
+
+echo "Building self-containing binary"
+bin/spc micro:combine "${BIN_NAME}.phar" --output=${BIN_NAME} --with-micro=spc/buildroot/bin/micro.sfx
+rm "${BIN_NAME}.phar"
+
+md5sum -b "${BIN_NAME}" > "${BIN_NAME}.md5"

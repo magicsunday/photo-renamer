@@ -1,0 +1,12 @@
+services:
+    builder:
+        build:
+            context: .build/docker
+            dockerfile: Dockerfile
+            args:
+                USERID: ${USERID}
+                GROUPID: ${GROUPID}
+        volumes:
+            - ./:/renamer
+        working_dir: /renamer
+        user: "renamer"

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+set -e # Instructs a shell to exit if a command fails, i.e., if it outputs a non-zero exit status.
+
+cd $(dirname "$0")/..
+
+#echo "USERID=$(id -u)" > .env
+#echo "GROUPID=$(id -g)" >> .env
+
+docker compose run --build --rm builder ./.build/init
