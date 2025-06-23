@@ -9,9 +9,8 @@
 
 declare(strict_types=1);
 
-namespace MagicSunday\Renamer\FilenameProcessor;
+namespace MagicSunday\Renamer\Strategy\RenameStrategy;
 
-use DateMalformedStringException;
 use DateTime;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use Override;
@@ -21,11 +20,11 @@ use function count;
 use function strlen;
 
 /**
- * @author  Rico Sonntag <rico.sonntag@netresearch.de>
+ * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-class DatePatternFilenameProcessor extends DefaultFilenameProcessor
+class DatePatternFilenameStrategy extends InheritFilenameStrategy
 {
     /**
      * @var string
@@ -56,21 +55,13 @@ class DatePatternFilenameProcessor extends DefaultFilenameProcessor
         $this->patternMatches = $patternMatches;
     }
 
-    /**
-     * @param SplFileInfo $splFileInfo
-     *
-     * @return string
-     *
-     * @throws TargetFilenameException
-     * @throws DateMalformedStringException
-     */
     #[Override]
-    public function __invoke(SplFileInfo $splFileInfo): string
+    public function generateFilename(SplFileInfo $splFileInfo): string
     {
         $filePartMatches    = [];
         $replacementMatches = [];
 
-        $targetFilename = parent::__invoke($splFileInfo);
+        $targetFilename = parent::generateFilename($splFileInfo);
 
         // Perform the regular expression replacement
         preg_match(
@@ -124,7 +115,12 @@ class DatePatternFilenameProcessor extends DefaultFilenameProcessor
         );
 
         if ($targetFilename === null) {
-            throw new TargetFilenameException(preg_last_error_msg());
+            throw new TargetFilenameException(
+                'Date pattern error: ' . preg_last_error_msg() . '. ' .
+                'Check your pattern syntax "' . $this->pattern . '". ' .
+                'Make sure all date placeholders ({Y}, {m}, {d}, etc.) are valid and properly formatted. ' .
+                'Try using the --dry-run option to test your pattern before applying changes.'
+            );
         }
 
         return $targetFilename;

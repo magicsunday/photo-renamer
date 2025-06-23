@@ -9,21 +9,23 @@
 
 declare(strict_types=1);
 
-namespace MagicSunday\Renamer\DuplicateIdentifierProcessor;
+namespace MagicSunday\Renamer\Strategy\RenameStrategy;
 
 use Override;
 use SplFileInfo;
 
 /**
- * @author  Rico Sonntag <rico.sonntag@netresearch.de>
+ * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-class TargetFilenameIdentifierProcessor implements DuplicateIdentifierProcessorInterface
+class LowerCaseFilenameStrategy extends InheritFilenameStrategy
 {
     #[Override]
-    public function __invoke(SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo): string
+    public function generateFilename(SplFileInfo $splFileInfo): string
     {
-        return $targetFileInfo->getFilename();
+        $targetFilename = parent::generateFilename($splFileInfo);
+
+        return mb_strtolower($targetFilename);
     }
 }

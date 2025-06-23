@@ -13,8 +13,10 @@ namespace MagicSunday\Renamer\Command;
 
 use FilesystemIterator;
 use MagicSunday\Renamer\Command\FilterIterator\RecursiveRegexFileFilterIterator;
-use MagicSunday\Renamer\DuplicateIdentifierProcessor\TargetPathnameIdentifierProcessor;
-use MagicSunday\Renamer\FilenameProcessor\PatternFilenameProcessor;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\DuplicateIdentifierStrategyInterface;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\TargetPathnameStrategy;
+use MagicSunday\Renamer\Strategy\RenameStrategy\PatternFilenameStrategy;
+use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use Override;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -100,17 +102,17 @@ class RenameByPatternCommand extends AbstractRenameCommand
     }
 
     #[Override]
-    protected function getTargetFilenameProcessor(): callable
+    protected function getTargetFilenameProcessor(): RenameStrategyInterface
     {
-        return new PatternFilenameProcessor(
+        return new PatternFilenameStrategy(
             $this->pattern,
             $this->replacement
         );
     }
 
     #[Override]
-    protected function getDuplicateIdentifierProcessor(): callable
+    protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
     {
-        return new TargetPathnameIdentifierProcessor();
+        return new TargetPathnameStrategy();
     }
 }

@@ -9,7 +9,7 @@
 
 declare(strict_types=1);
 
-namespace MagicSunday\Renamer\FilenameProcessor;
+namespace MagicSunday\Renamer\Strategy\RenameStrategy;
 
 use DateTime;
 use Exception;
@@ -19,11 +19,11 @@ use SplFileInfo;
 use function strlen;
 
 /**
- * @author  Rico Sonntag <rico.sonntag@netresearch.de>
+ * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-class ExifDateFilenameProcessor implements FilenameProcessorInterface
+class ExifDateFilenameStrategy implements RenameStrategyInterface
 {
     /**
      * @var string
@@ -40,13 +40,8 @@ class ExifDateFilenameProcessor implements FilenameProcessorInterface
         $this->targetFilenamePattern = $targetFilenamePattern;
     }
 
-    /**
-     * @param SplFileInfo $splFileInfo
-     *
-     * @return string|null
-     */
     #[Override]
-    public function __invoke(SplFileInfo $splFileInfo): ?string
+    public function generateFilename(SplFileInfo $splFileInfo): ?string
     {
         // Create a new filename based on the formatted value of the EXIF field "DateTimeOriginal".
         $targetBasename = $this->getExifDateFormatted($this->targetFilenamePattern, $splFileInfo);

@@ -11,8 +11,10 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Command;
 
-use MagicSunday\Renamer\DuplicateIdentifierProcessor\ContentHashIdentifierProcessor;
-use MagicSunday\Renamer\FilenameProcessor\DefaultFilenameProcessor;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\ContentHashStrategy;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\DuplicateIdentifierStrategyInterface;
+use MagicSunday\Renamer\Strategy\RenameStrategy\InheritFilenameStrategy;
+use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use Override;
 
 /**
@@ -42,14 +44,14 @@ class RenameByHashCommand extends AbstractRenameCommand
     }
 
     #[Override]
-    protected function getTargetFilenameProcessor(): callable
+    protected function getTargetFilenameProcessor(): RenameStrategyInterface
     {
-        return new DefaultFilenameProcessor();
+        return new InheritFilenameStrategy();
     }
 
     #[Override]
-    protected function getDuplicateIdentifierProcessor(): callable
+    protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
     {
-        return new ContentHashIdentifierProcessor();
+        return new ContentHashStrategy();
     }
 }

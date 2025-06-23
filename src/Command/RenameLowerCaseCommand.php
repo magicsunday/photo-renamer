@@ -11,8 +11,10 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Command;
 
-use MagicSunday\Renamer\DuplicateIdentifierProcessor\TargetPathnameIdentifierProcessor;
-use MagicSunday\Renamer\FilenameProcessor\LowerCaseFilenameProcessor;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\DuplicateIdentifierStrategyInterface;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\TargetPathnameStrategy;
+use MagicSunday\Renamer\Strategy\RenameStrategy\LowerCaseFilenameStrategy;
+use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use Override;
 
 /**
@@ -43,14 +45,14 @@ class RenameLowerCaseCommand extends AbstractRenameCommand
     }
 
     #[Override]
-    protected function getTargetFilenameProcessor(): callable
+    protected function getTargetFilenameProcessor(): RenameStrategyInterface
     {
-        return new LowerCaseFilenameProcessor();
+        return new LowerCaseFilenameStrategy();
     }
 
     #[Override]
-    protected function getDuplicateIdentifierProcessor(): callable
+    protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
     {
-        return new TargetPathnameIdentifierProcessor();
+        return new TargetPathnameStrategy();
     }
 }

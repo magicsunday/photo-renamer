@@ -14,6 +14,8 @@ namespace MagicSunday\Renamer\Command;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Service\DuplicateDetectionService;
 use MagicSunday\Renamer\Service\FileSystemService;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\DuplicateIdentifierStrategyInterface;
+use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use Override;
 use RecursiveIteratorIterator;
 use RuntimeException;
@@ -245,7 +247,8 @@ abstract class AbstractRenameCommand extends Command
     private function handleDryRunConfirmation(): int
     {
         if ($this->dryRun) {
-            $this->io->info('Performing dry run');
+            $this->io->info('Performing dry run. No files will be changed.');
+
             return self::SUCCESS;
         }
 
@@ -279,6 +282,7 @@ abstract class AbstractRenameCommand extends Command
      */
     private function configureDuplicateDetectionService(): void
     {
+        // PHPStan detects $this->targetDirectory as null, even though it is no longer null here.
         $this->duplicateDetectionService
             ->setSourceDirectory($this->sourceDirectory)
             ->setTargetDirectory($this->targetDirectory);
@@ -353,8 +357,8 @@ abstract class AbstractRenameCommand extends Command
         return $this->duplicateDetectionService
             ->groupFilesByDuplicateIdentifier(
                 iterator: $this->createFileIterator(),
-                targetFilenameProcessorCallable: $this->getTargetFilenameProcessor(),
-                uniqueDuplicateIdentifierCallable: $this->getDuplicateIdentifierProcessor()
+                renameStrategy: $this->getTargetFilenameProcessor(),
+                duplicateIdentifierStrategy: $this->getDuplicateIdentifierStrategy()
             );
     }
 
@@ -379,16 +383,16 @@ abstract class AbstractRenameCommand extends Command
     /**
      * Returns the target filename processor.
      *
-     * @return callable
+     * @return RenameStrategyInterface
      */
-    abstract protected function getTargetFilenameProcessor(): callable;
+    abstract protected function getTargetFilenameProcessor(): RenameStrategyInterface;
 
     /**
-     * Returns the duplicate identifier processor.
+     * Returns the duplicate identifier strategy.
      *
-     * @return callable
+     * @return DuplicateIdentifierStrategyInterface
      */
-    abstract protected function getDuplicateIdentifierProcessor(): callable;
+    abstract protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface;
 
     /**
      * Creates and returns a RecursiveIteratorIterator that is used to find the files for the given command.

@@ -1,6 +1,12 @@
 parameters:
 	ignoreErrors:
 		-
+			message: '#^Parameter \#1 \$targetDirectory of method MagicSunday\\Renamer\\Service\\DuplicateDetectionService\:\:setTargetDirectory\(\) expects string, string\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: ../src/Command/AbstractRenameCommand.php
+
+		-
 			message: '#^Call to method get\(\) on an unknown class MagicSunday\\Renamer\\DependencyContainer\.$#'
 			identifier: class.notFound
 			count: 1

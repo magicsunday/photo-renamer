@@ -15,6 +15,8 @@ use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\DuplicateIdentifierStrategyInterface;
+use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use RecursiveIteratorIterator;
 use SplFileInfo;
 use Symfony\Component\Console\Style\SymfonyStyle;
@@ -24,7 +26,7 @@ use function sprintf;
 /**
  * Service for duplicate detection operations.
  *
- * @author  Rico Sonntag <rico.sonntag@netresearch.de>
+ * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
@@ -108,14 +110,16 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     /**
      * Creates a collection of duplicates. Files with the same unique identifier are grouped together.
      *
-     * @param RecursiveIteratorIterator $iterator
+     * @param RecursiveIteratorIterator            $iterator
+     * @param RenameStrategyInterface              $renameStrategy
+     * @param DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy
      *
      * @return FileDuplicateCollection
      */
     public function groupFilesByDuplicateIdentifier(
         RecursiveIteratorIterator $iterator,
-        callable $targetFilenameProcessorCallable,
-        callable $uniqueDuplicateIdentifierCallable,
+        RenameStrategyInterface $renameStrategy,
+        DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy,
     ): FileDuplicateCollection {
         $this->io->progressStart(
             $this->fileSystemService->countFiles($iterator)
@@ -128,14 +132,17 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             // The resulting file object
             $targetFileInfo = $this->getTargetFileInfo(
                 $sourceFileInfo,
-                $targetFilenameProcessorCallable
+                $renameStrategy
             );
 
             if (!($targetFileInfo instanceof SplFileInfo)) {
                 continue;
             }
 
-            $duplicateIdentifier = $uniqueDuplicateIdentifierCallable($sourceFileInfo, $targetFileInfo);
+            $duplicateIdentifier = $duplicateIdentifierStrategy->generateIdentifier(
+                $sourceFileInfo,
+                $targetFileInfo
+            );
 
             if ($duplicateIdentifier === false) {
                 continue;
@@ -373,15 +380,15 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     /**
      * Returns a new target file object for the given source file object.
      *
-     * @param SplFileInfo $sourceFileInfo
-     * @param callable    $targetFilenameProcessorCallable
+     * @param SplFileInfo             $sourceFileInfo
+     * @param RenameStrategyInterface $renameStrategy
      *
      * @return SplFileInfo|null
      */
-    protected function getTargetFileInfo(SplFileInfo $sourceFileInfo, callable $targetFilenameProcessorCallable): ?SplFileInfo
+    protected function getTargetFileInfo(SplFileInfo $sourceFileInfo, RenameStrategyInterface $renameStrategy): ?SplFileInfo
     {
         try {
-            $targetFilename = $targetFilenameProcessorCallable($sourceFileInfo);
+            $targetFilename = $renameStrategy->generateFilename($sourceFileInfo);
 
             if ($targetFilename !== null) {
                 // Create a new target file object

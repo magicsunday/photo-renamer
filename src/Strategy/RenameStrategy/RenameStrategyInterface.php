@@ -9,23 +9,25 @@
 
 declare(strict_types=1);
 
-namespace MagicSunday\Renamer\FilenameProcessor;
+namespace MagicSunday\Renamer\Strategy\RenameStrategy;
 
 use SplFileInfo;
 
 /**
- * @author  Rico Sonntag <rico.sonntag@netresearch.de>
+ * Interface for renaming strategies.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-interface FilenameProcessorInterface
+interface RenameStrategyInterface
 {
     /**
-     * Returns the new target filename.
+     * Generates a unique identifier for a file to detect duplicates.
      *
-     * @param SplFileInfo $splFileInfo
+     * @param SplFileInfo $splFileInfo The file info instance
      *
      * @return string|null
      */
-    public function __invoke(SplFileInfo $splFileInfo): ?string;
+    public function generateFilename(SplFileInfo $splFileInfo): ?string;
 }

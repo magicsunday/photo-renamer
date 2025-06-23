@@ -12,12 +12,14 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service;
 
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\DuplicateIdentifierStrategyInterface;
+use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use RecursiveIteratorIterator;
 
 /**
  * Interface for duplicate detection operations.
  *
- * @author  Rico Sonntag <rico.sonntag@netresearch.de>
+ * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
@@ -26,15 +28,15 @@ interface DuplicateDetectionServiceInterface
     /**
      * Creates a collection of duplicates. Files with the same unique identifier are grouped together.
      *
-     * @param RecursiveIteratorIterator $iterator
-     * @param callable                  $targetFilenameProcessorCallable
-     * @param callable                  $uniqueDuplicateIdentifierCallable
+     * @param RecursiveIteratorIterator            $iterator
+     * @param RenameStrategyInterface              $renameStrategy
+     * @param DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy
      *
      * @return FileDuplicateCollection
      */
     public function groupFilesByDuplicateIdentifier(
         RecursiveIteratorIterator $iterator,
-        callable $targetFilenameProcessorCallable,
-        callable $uniqueDuplicateIdentifierCallable,
+        RenameStrategyInterface $renameStrategy,
+        DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy,
     ): FileDuplicateCollection;
 }

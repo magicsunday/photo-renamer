@@ -27,7 +27,7 @@ use function strlen;
 /**
  * Service for file system operations.
  *
- * @author  Rico Sonntag <rico.sonntag@netresearch.de>
+ * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
@@ -107,7 +107,7 @@ class FileSystemService implements FileSystemServiceInterface
             foreach ($fileDuplicate->getRenames() as $rename) {
                 $this->io->text(
                     sprintf(
-                        '%-' . $maxFilenameLength . 's → %s',
+                        '<fg=yellow>%-' . $maxFilenameLength . 's</> <fg=cyan>→</> <fg=green>%s</>',
                         $rename->getSource()->getPathname(),
                         $rename->getTarget()->getPathname()
                     )

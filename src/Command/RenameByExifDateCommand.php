@@ -11,10 +11,12 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Command;
 
-use MagicSunday\Renamer\DuplicateIdentifierProcessor\TargetFilenameIdentifierProcessor;
-use MagicSunday\Renamer\FilenameProcessor\ExifDateFilenameProcessor;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\DuplicateIdentifierStrategyInterface;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\TargetFilenameStrategy;
+use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
+use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use Override;
 use RecursiveIteratorIterator;
 use SplFileInfo;
@@ -155,17 +157,17 @@ class RenameByExifDateCommand extends AbstractRenameCommand
     }
 
     #[Override]
-    protected function getTargetFilenameProcessor(): callable
+    protected function getTargetFilenameProcessor(): RenameStrategyInterface
     {
-        return new ExifDateFilenameProcessor($this->targetFilenamePattern);
+        return new ExifDateFilenameStrategy($this->targetFilenamePattern);
     }
 
     #[Override]
-    protected function getDuplicateIdentifierProcessor(): callable
+    protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
     {
         // We want to find duplicates across all directories based
         // on the EXIF field "DateTimeOriginal" of the image.
-        return new TargetFilenameIdentifierProcessor();
+        return new TargetFilenameStrategy();
     }
 
     /**

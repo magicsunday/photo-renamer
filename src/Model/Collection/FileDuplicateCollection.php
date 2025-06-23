@@ -16,7 +16,7 @@ use MagicSunday\Renamer\Model\FileDuplicate;
 /**
  * A file duplicate collection.
  *
- * @author  Rico Sonntag <rico.sonntag@netresearch.de>
+ * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  *
