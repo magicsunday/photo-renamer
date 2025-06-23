@@ -97,7 +97,7 @@ abstract class AbstractCollection implements CollectionInterface
     /**
      * Count elements of an object.
      *
-     * @return int
+     * @return int<0, max>
      */
     public function count(): int
     {
@@ -157,7 +157,7 @@ abstract class AbstractCollection implements CollectionInterface
     }
 
     /**
-     * Checks if current position is valid.
+     * Checks if the current position is valid.
      *
      * @return bool
      */

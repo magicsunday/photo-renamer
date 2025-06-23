@@ -14,13 +14,13 @@ namespace MagicSunday\Renamer\Command\FilterIterator;
 use RecursiveIterator;
 
 /**
- * Filter iterator matching files with at least one uppercase character.
+ * A class that filters files to include only those whose filename contains at least one uppercase letter.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-final class UppercaseFilterIterator extends RegExFilterIterator
+final class RecursiveUppercaseFilenameFilterIterator extends RecursiveRegexFileFilterIterator
 {
     /**
      * Constructor.
@@ -30,6 +30,7 @@ final class UppercaseFilterIterator extends RegExFilterIterator
     public function __construct(
         RecursiveIterator $iterator,
     ) {
+        // Regex searches for at least one capital letter in the file name
         parent::__construct($iterator, '/[A-Z]/');
     }
 }

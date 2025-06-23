@@ -12,19 +12,15 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Command;
 
 use FilesystemIterator;
-use MagicSunday\Renamer\Command\FilterIterator\RegExFilterIterator;
-use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
-use MagicSunday\Renamer\Model\FileDuplicate;
+use MagicSunday\Renamer\Command\FilterIterator\RecursiveRegexFileFilterIterator;
+use Override;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
-use RuntimeException;
 use SplFileInfo;
-use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Output\OutputInterface;
 
 /**
- * Recursivly renames all files matching a given pattern. The renaming is defined by the given "replacement" pattern.
+ * Recursively renames all files matching a given pattern. The renaming is defined by the given "replacement" pattern.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -33,10 +29,21 @@ use Symfony\Component\Console\Output\OutputInterface;
 class RenameByPatternCommand extends AbstractRenameCommand
 {
     /**
+     * @var string
+     */
+    private string $pattern = '';
+
+    /**
+     * @var string
+     */
+    private string $replacement = '';
+
+    /**
      * Configures the current command.
      *
      * @return void
      */
+    #[Override]
     protected function configure(): void
     {
         parent::configure();
@@ -60,200 +67,61 @@ class RenameByPatternCommand extends AbstractRenameCommand
             );
     }
 
-    /**
-     * Executes the current command.
-     *
-     * @param InputInterface  $input
-     * @param OutputInterface $output
-     *
-     * @return int
-     */
-    protected function execute(InputInterface $input, OutputInterface $output): int
+    #[Override]
+    protected function executeCommand(): int
     {
-        $parentResult = parent::execute($input, $output);
-
-        if ($parentResult === self::FAILURE) {
-            return self::FAILURE;
-        }
-
-        if ($input->getOption('replacement') === null) {
+        if ($this->input->getOption('replacement') === null) {
             $this->io->error('A valid replacement value is required');
 
             return self::FAILURE;
         }
 
-        try {
-            $this->processDirectory(
-                $input->getOption('dry-run'),
-                $input->getOption('copy-files'),
-                $input->getOption('skip-duplicates'),
-                $input->getOption('pattern'),
-                $input->getOption('replacement'),
-                $input->getArgument('source-directory'),
-                $input->getArgument('target-directory')
-            );
-        } catch (RuntimeException $exception) {
-            $this->io->error($exception->getMessage());
+        $this->pattern     = $this->input->getOption('pattern');
+        $this->replacement = $this->input->getOption('replacement');
 
-            return self::FAILURE;
-        }
-
-        $this->io->success('done');
-
-        return self::SUCCESS;
+        return parent::executeCommand();
     }
 
-    /**
-     * @param bool        $dryRun
-     * @param bool        $copyFiles
-     * @param bool        $skipDuplicates
-     * @param string      $pattern
-     * @param string      $replacement
-     * @param string      $sourceDirectory
-     * @param string|null $targetDirectory
-     *
-     * @return void
-     */
-    private function processDirectory(
-        bool $dryRun,
-        bool $copyFiles,
-        bool $skipDuplicates,
-        string $pattern,
-        string $replacement,
-        string $sourceDirectory,
-        ?string $targetDirectory = null,
-    ): void {
-        $directoryIterator      = new RecursiveDirectoryIterator($sourceDirectory, FilesystemIterator::SKIP_DOTS);
-        $filenameFilterIterator = new RegExFilterIterator($directoryIterator, $pattern);
-        $iterator               = new RecursiveIteratorIterator($filenameFilterIterator, RecursiveIteratorIterator::LEAVES_ONLY);
-
-        $sourceDirectory = rtrim($sourceDirectory, '/');
-
-        // If target directory is empty, use source directory as target
-        $targetDirectory = $targetDirectory !== null
-            ? rtrim($targetDirectory, '/')
-            : $sourceDirectory;
-
-        // Process list of all files matching the given pattern
-        $fileDuplicateCollection = $this->groupFilesByTargetPathname(
-            $iterator,
-            $pattern,
-            $replacement,
-            $sourceDirectory,
-            $targetDirectory
-        );
-
-        $this->createDuplicateFilenames(
-            $fileDuplicateCollection,
-            $sourceDirectory,
-            $targetDirectory
-        );
-
-        $this->renameFiles(
-            $fileDuplicateCollection,
-            $dryRun,
-            $copyFiles,
-            $skipDuplicates
+    #[Override]
+    protected function createFileIterator(): RecursiveIteratorIterator
+    {
+        return new RecursiveIteratorIterator(
+            new RecursiveRegexFileFilterIterator(
+                new RecursiveDirectoryIterator(
+                    $this->sourceDirectory,
+                    FilesystemIterator::SKIP_DOTS
+                ),
+                $this->pattern
+            )
         );
     }
 
-    /**
-     * Groups all the files matching the given pattern together by the resulting target file pathname.
-     *
-     * @param RecursiveIteratorIterator $iterator
-     * @param string                    $pattern
-     * @param string                    $replacement
-     * @param string                    $sourceDirectory
-     * @param string                    $targetDirectory
-     *
-     * @return FileDuplicateCollection
-     */
-    private function groupFilesByTargetPathname(
-        RecursiveIteratorIterator $iterator,
-        string $pattern,
-        string $replacement,
-        string $sourceDirectory,
-        string $targetDirectory,
-    ): FileDuplicateCollection {
-        $this->io->text(sprintf('Process files in: %s', $sourceDirectory));
-        $this->io->newLine();
-        $this->io->progressStart($this->countFiles($iterator));
+    #[Override]
+    protected function getTargetFilename(SplFileInfo $sourceFileInfo): ?string
+    {
+        $targetBasename = $this->removeDuplicateFileIdentifier(
+            $sourceFileInfo->getBasename('.' . $sourceFileInfo->getExtension())
+        );
 
-        $fileDuplicateCollection = new FileDuplicateCollection();
-
-        /** @var SplFileInfo $splFileInfo */
-        foreach ($iterator as $splFileInfo) {
-            $targetBasename = $this->removeDuplicateIdentifier(
-                $splFileInfo->getBasename('.' . $splFileInfo->getExtension())
-            );
-
-            $targetFilename = $this->getTargetFilename(
-                $pattern,
-                $replacement,
-                $targetBasename,
-                $splFileInfo
-            );
-
-            if ($targetFilename === null) {
-                $this->io->error(preg_last_error_msg());
-                continue;
-            }
-
-            $targetPathname = $this->getTargetPathname(
-                $splFileInfo,
-                $targetFilename,
-                $sourceDirectory,
-                $targetDirectory
-            );
-
-            // Create a new target file object
-            $targetFileInfo = new SplFileInfo($targetPathname);
-            $collectionKey  = $targetFileInfo->getPathname();
-
-            // Create duplicate object storing relevant data
-            $fileDuplicate = new FileDuplicate();
-            $fileDuplicate
-                ->addFile($splFileInfo)
-                ->setTarget($targetFileInfo);
-
-            if ($fileDuplicateCollection->offsetExists($collectionKey)) {
-                /** @var FileDuplicate $fileDuplicate */
-                $fileDuplicate = $fileDuplicateCollection->offsetGet($collectionKey);
-                $fileDuplicate->addFile($splFileInfo);
-            } else {
-                $fileDuplicateCollection->offsetSet($collectionKey, $fileDuplicate);
-            }
-
-            $this->io->progressAdvance();
-        }
-
-        $this->io->progressFinish();
-        $this->io->newLine();
-
-        return $fileDuplicateCollection;
-    }
-
-    /**
-     * Returns the new target filename.
-     *
-     * @param string      $pattern
-     * @param string      $replacement
-     * @param string      $targetBasename
-     * @param SplFileInfo $splFileInfo
-     *
-     * @return string|null
-     */
-    private function getTargetFilename(
-        string $pattern,
-        string $replacement,
-        string $targetBasename,
-        SplFileInfo $splFileInfo,
-    ): ?string {
         // Perform the regular expression replacement
-        return preg_replace(
-            $pattern,
-            $replacement,
-            $targetBasename . '.' . $splFileInfo->getExtension()
+        $targetFilename = preg_replace(
+            $this->pattern,
+            $this->replacement,
+            $targetBasename . '.' . $sourceFileInfo->getExtension()
         );
+
+        if ($targetFilename === null) {
+            $this->io->error(preg_last_error_msg());
+        }
+
+        return $targetFilename;
+    }
+
+    #[Override]
+    protected function getUniqueDuplicateIdentifier(SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo): string|false
+    {
+        // We want to find duplicates in the current directory,
+        // so the unique identifier must also contain the path.
+        return $targetFileInfo->getPathname();
     }
 }

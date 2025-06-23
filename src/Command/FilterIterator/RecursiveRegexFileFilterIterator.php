@@ -17,16 +17,19 @@ use RuntimeException;
 use SplFileInfo;
 
 /**
+ * A class that implements a recursive filter iterator. It recursively searches a directory tree and returns
+ * only those files whose path matches a configured regular expression.
+ *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-class RegExFilterIterator extends RecursiveFilterIterator
+class RecursiveRegexFileFilterIterator extends RecursiveFilterIterator
 {
     /**
      * @var string
      */
-    private string $regex;
+    private readonly string $regex;
 
     /**
      * Constructor.
@@ -53,10 +56,12 @@ class RegExFilterIterator extends RecursiveFilterIterator
         /** @var SplFileInfo $fileInfo */
         $fileInfo = $this->current();
 
+        // Check if the current element is a directory: always accept (so recursion works)
         if ($fileInfo->isDir()) {
             return true;
         }
 
+        // Only files that match the regex are accepted
         return $fileInfo->isFile()
             && (preg_match($this->regex, $fileInfo->getFilename()) === 1);
     }
@@ -64,17 +69,17 @@ class RegExFilterIterator extends RecursiveFilterIterator
     /**
      * Return the inner iterator's children contained in a RecursiveFilterIterator.
      *
-     * @return RegExFilterIterator
+     * @return RecursiveRegexFileFilterIterator
      *
      * @throws RuntimeException
      */
-    public function getChildren(): RegExFilterIterator
+    public function getChildren(): RecursiveRegexFileFilterIterator
     {
         if (!($this->getInnerIterator() instanceof RecursiveIterator)) {
             throw new RuntimeException('Missing "getChildren" method in inner iterator');
         }
 
-        return new RegExFilterIterator(
+        return new RecursiveRegexFileFilterIterator(
             $this->getInnerIterator()->getChildren(),
             $this->regex
         );

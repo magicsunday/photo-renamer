@@ -25,7 +25,7 @@ class Rename
     /**
      * @var SplFileInfo
      */
-    private SplFileInfo $source;
+    private readonly SplFileInfo $source;
 
     /**
      * @var SplFileInfo
