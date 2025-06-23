@@ -172,13 +172,50 @@ abstract class AbstractRenameCommand extends Command
         $this->io = new SymfonyStyle($input, $output);
         $this->io->title($this->getName() ?? '');
 
-        $this->input           = $input;
+        $this->input = $input;
+
+        $this->initializeCommandParameters($input, $output);
+
+        $validationResult = $this->validateCommandOptions();
+        if ($validationResult !== self::SUCCESS) {
+            return $validationResult;
+        }
+
+        $confirmationResult = $this->handleDryRunConfirmation();
+        if ($confirmationResult !== self::SUCCESS) {
+            return $confirmationResult;
+        }
+
+        $this->normalizeDirectoryPaths();
+        $this->configureDuplicateDetectionService();
+
+        return $this->executeCommand();
+    }
+
+    /**
+     * Initializes command parameters from input.
+     *
+     * @param InputInterface  $input
+     * @param OutputInterface $output
+     *
+     * @return void
+     */
+    private function initializeCommandParameters(InputInterface $input, OutputInterface $output): void
+    {
         $this->copyFiles       = $input->getOption('copy');
         $this->dryRun          = $input->getOption('dry-run');
         $this->skipDuplicates  = $input->getOption('skip-duplicates');
         $this->sourceDirectory = $input->getArgument('source-directory');
         $this->targetDirectory = $input->getArgument('target-directory');
+    }
 
+    /**
+     * Validates command options for consistency.
+     *
+     * @return int SUCCESS if validation passes, FAILURE otherwise
+     */
+    private function validateCommandOptions(): int
+    {
         if (
             $this->copyFiles
             && ($this->targetDirectory === null)
@@ -197,14 +234,35 @@ abstract class AbstractRenameCommand extends Command
             return self::FAILURE;
         }
 
+        return self::SUCCESS;
+    }
+
+    /**
+     * Handles dry run confirmation or user confirmation for file operations.
+     *
+     * @return int SUCCESS if confirmed, FAILURE otherwise
+     */
+    private function handleDryRunConfirmation(): int
+    {
         if ($this->dryRun) {
             $this->io->info('Performing dry run');
-        } elseif (
-            !$this->io->confirm('This will rename all files in the selected directory. Are you sure?', false)
-        ) {
+            return self::SUCCESS;
+        }
+
+        if (!$this->io->confirm('This will rename all files in the selected directory. Are you sure?', false)) {
             return self::FAILURE;
         }
 
+        return self::SUCCESS;
+    }
+
+    /**
+     * Normalizes source and target directory paths.
+     *
+     * @return void
+     */
+    private function normalizeDirectoryPaths(): void
+    {
         // Remove the trailing directory separator
         $this->sourceDirectory = rtrim($this->sourceDirectory, DIRECTORY_SEPARATOR);
 
@@ -212,12 +270,18 @@ abstract class AbstractRenameCommand extends Command
         $this->targetDirectory = $this->targetDirectory !== null
             ? rtrim($this->targetDirectory, DIRECTORY_SEPARATOR)
             : $this->sourceDirectory;
+    }
 
+    /**
+     * Configures the duplicate detection service with source and target directories.
+     *
+     * @return void
+     */
+    private function configureDuplicateDetectionService(): void
+    {
         $this->duplicateDetectionService
             ->setSourceDirectory($this->sourceDirectory)
             ->setTargetDirectory($this->targetDirectory);
-
-        return $this->executeCommand();
     }
 
     /**
@@ -228,27 +292,49 @@ abstract class AbstractRenameCommand extends Command
     protected function executeCommand(): int
     {
         try {
-            // Process list of all files
-            $fileDuplicateCollection = $this->createDuplicateFilenames(
-                $this->groupFilesByDuplicateIdentifier($this->createFileIterator())
-            );
-
-            $this->fileSystemService
-                ->renameFiles(
-                    $fileDuplicateCollection,
-                    $this->dryRun,
-                    $this->skipDuplicates,
-                    $this->copyFiles
-                );
+            $this->processAndRenameFiles();
         } catch (RuntimeException $exception) {
-            $this->io->error($exception->getMessage());
-
-            return self::FAILURE;
+            return $this->handleExecutionError($exception);
         }
 
         $this->io->success('done');
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Processes files and performs rename/copy operations.
+     *
+     * @return void
+     */
+    private function processAndRenameFiles(): void
+    {
+        // Process list of all files
+        $fileDuplicateCollection = $this->createDuplicateFilenames(
+            $this->groupFilesByDuplicateIdentifier($this->createFileIterator())
+        );
+
+        $this->fileSystemService
+            ->renameFiles(
+                $fileDuplicateCollection,
+                $this->dryRun,
+                $this->skipDuplicates,
+                $this->copyFiles
+            );
+    }
+
+    /**
+     * Handles execution errors by displaying error message.
+     *
+     * @param RuntimeException $exception The exception that occurred
+     *
+     * @return int Always returns FAILURE
+     */
+    private function handleExecutionError(RuntimeException $exception): int
+    {
+        $this->io->error($exception->getMessage());
+
+        return self::FAILURE;
     }
 
     /**
