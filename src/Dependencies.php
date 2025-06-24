@@ -38,7 +38,7 @@ if (!file_exists($cacheDir)
     );
 }
 
-// Use a cached container if it exists
+// Create a cached container if it doesn't exist
 if (!file_exists($cachedContainer)) {
     // Create and configure the container
     $containerBuilder = new ContainerBuilder();

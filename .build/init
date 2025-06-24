@@ -2,15 +2,17 @@
 
 set -e # Instructs a shell to exit if a command fails, i.e., if it outputs a non-zero exit status.
 
-PHP_EXTENSIONS="curl,dom,exif,fileinfo,filter,intl,mbstring,opcache,openssl,pcntl,phar,posix,readline,session,tokenizer,yaml,zip,zlib"
+# Add only the PHP extensions that are really required to reduce the size of the final binary file
+PHP_EXTENSIONS="curl,dom,exif,filter,mbstring,openssl,pcntl,phar,posix,tokenizer,yaml,zlib"
+#PHP_EXTENSIONS="curl,dom,exif,fileinfo,filter,intl,mbstring,opcache,openssl,pcntl,phar,posix,readline,session,tokenizer,yaml,zip,zlib"
 
 cd $(dirname "${BASH_SOURCE[0]}")
 
 cd ..
 
 if [ -f 'spc/buildroot/bin/micro.sfx' ]; then
-    echo "Found micro.sfx we consider SPC already built"
-    exit 0
+    echo "Delete existing buildroot/ and source/ directories to start a new build from scratch"
+    rm -rf spc/buildroot spc/source
 fi
 
 if [ ! -d "spc" ]; then
@@ -20,7 +22,7 @@ fi
 if [ ! -f "bin/spc" ]; then
     echo "Download SPC binary command"
     curl -fsSL -o bin/spc https://dl.static-php.dev/static-php-cli/spc-bin/nightly/spc-linux-x86_64
-    # Add execute perm (Linux and macOS only)
+    # Add execute permission (Linux and macOS only)
     chmod +x bin/spc
 fi
 
@@ -29,11 +31,13 @@ cd spc
 echo "Check system tool dependencies, auto-fix them if possible"
 ../bin/spc doctor --auto-fix
 
-echo "Download UPX command"
-../bin/spc install-pkg upx
+if [ ! -f "spc/pkgroot/bin/upx" ]; then
+    echo "Download UPX command"
+    ../bin/spc install-pkg upx
+fi
 
 echo "Download SPC extensions"
-../bin/spc download --with-php=8.3 --for-extensions "${PHP_EXTENSIONS}" --prefer-pre-built
+../bin/spc download --with-php=8.3 --for-extensions "${PHP_EXTENSIONS}" --prefer-pre-built --without-suggestions
 
 echo "Compile SPC"
 ../bin/spc build --build-cli --build-micro --with-micro-fake-cli --with-upx-pack "${PHP_EXTENSIONS}" -I "phar.readonly=Off" -I "memory_limit=4G"
@@ -48,7 +52,16 @@ if [ ! -f "composer-setup.php" ]; then
     exit 1
 fi
 
-../bin/php -r "if (hash_file('sha384', 'composer-setup.php') === 'dac665fdc30fdd8ec78b38b9800061b4150413ff2e3b6f88543c636f7cd84f6db9189d43a81e5503cda447da73c7e5b6') { echo 'Installer verified'; } else { echo 'Installer corrupt'; unlink('composer-setup.php'); } echo PHP_EOL;" && \
+EXPECTED_CHECKSUM="$(../bin/php -r 'copy("https://composer.github.io/installer.sig", "php://stdout");')"
+ACTUAL_CHECKSUM="$(../bin/php -r "echo hash_file('sha384', 'composer-setup.php');")"
+
+if [ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]
+then
+    >&2 echo 'ERROR: Invalid Composer installer checksum'
+    rm composer-setup.php
+    exit 1
+fi
+
 ../bin/php composer-setup.php && \
 ../bin/php -r "unlink('composer-setup.php');"
 

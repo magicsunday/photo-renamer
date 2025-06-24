@@ -43,5 +43,3 @@ rm -rf "${BUILD_DIR_NAME}"
 echo "Building self-containing binary"
 bin/spc micro:combine "${BIN_NAME}.phar" --output=${BIN_NAME} --with-micro=spc/buildroot/bin/micro.sfx
 rm "${BIN_NAME}.phar"
-
-md5sum -b "${BIN_NAME}" > "${BIN_NAME}.md5"

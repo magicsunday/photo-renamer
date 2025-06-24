@@ -19,6 +19,7 @@ RUN apt-get update && \
     libtool \
     make \
     openssl \
+    patchelf \
     sudo \
     unzip \
     wget \
@@ -26,7 +27,6 @@ RUN apt-get update && \
 
 RUN rm -rf /var/lib/apt/lists/*
 
-RUN set -ex && \
-    groupadd --gid ${GROUPID} renamer && \
+RUN groupadd --gid ${GROUPID} renamer && \
     useradd --uid ${USERID} --gid renamer --create-home renamer && \
     echo "renamer ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
