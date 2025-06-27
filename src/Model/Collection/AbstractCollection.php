@@ -24,7 +24,7 @@ use function count;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  *
- * @template TKey
+ * @template TKey as array-key
  * @template TValue
  *
  * @implements CollectionInterface<TKey, TValue>
@@ -34,14 +34,14 @@ abstract class AbstractCollection implements CollectionInterface
     /**
      * An array containing the elements of this collection.
      *
-     * @var TValue[]
+     * @var array<TKey, TValue>
      */
     protected array $elements = [];
 
     /**
      * Constructs a list of values.
      *
-     * @param TValue[] $array Array of values
+     * @param array<TKey, TValue> $array Array of values
      */
     public function __construct(array $array = [])
     {
@@ -56,7 +56,7 @@ abstract class AbstractCollection implements CollectionInterface
      * @return TValue|null
      */
     #[ReturnTypeWillChange]
-    public function offsetGet($offset): mixed
+    public function offsetGet(mixed $offset): mixed
     {
         return $this->elements[$offset] ?? null;
     }
@@ -64,12 +64,14 @@ abstract class AbstractCollection implements CollectionInterface
     /**
      * Offset to set.
      *
-     * @param TKey   $offset The offset to assign the value to
-     * @param TValue $value  The value to set
+     * @param TKey|null $offset The offset to assign the value to
+     * @param TValue    $value  The value to set
      */
-    public function offsetSet($offset, $value): void
+    public function offsetSet(mixed $offset, mixed $value): void
     {
-        $this->elements[$offset] = $value;
+        $offset !== null
+            ? $this->elements[$offset] = $value
+            : $this->elements[]        = $value;
     }
 
     /**
@@ -77,7 +79,7 @@ abstract class AbstractCollection implements CollectionInterface
      *
      * @param TKey $offset The offset to unset
      */
-    public function offsetUnset($offset): void
+    public function offsetUnset(mixed $offset): void
     {
         unset($this->elements[$offset]);
     }
@@ -89,7 +91,7 @@ abstract class AbstractCollection implements CollectionInterface
      *
      * @return bool
      */
-    public function offsetExists($offset): bool
+    public function offsetExists(mixed $offset): bool
     {
         return array_key_exists($offset, $this->elements);
     }
@@ -109,7 +111,7 @@ abstract class AbstractCollection implements CollectionInterface
      *
      * @param TValue $value The value to append
      */
-    public function append($value): void
+    public function append(mixed $value): void
     {
         $this->elements[] = $value;
     }
@@ -138,9 +140,9 @@ abstract class AbstractCollection implements CollectionInterface
     /**
      * Return the key of the current element.
      *
-     * @return int|string|null
+     * @return string|int|null
      */
-    public function key(): int|string|null
+    public function key(): string|int|null
     {
         return key($this->elements);
     }
@@ -175,7 +177,7 @@ abstract class AbstractCollection implements CollectionInterface
     /**
      * Returns the collection as a plain array.
      *
-     * @return TValue[]
+     * @return array<TKey, TValue>
      */
     public function asArray(): array
     {

@@ -22,6 +22,7 @@ use RecursiveIteratorIterator;
 use SplFileInfo;
 use Symfony\Component\Console\Input\InputOption;
 
+use function is_string;
 use function strlen;
 
 /**
@@ -67,7 +68,12 @@ class RenameByExifDateCommand extends AbstractRenameCommand
     protected function executeCommand(): int
     {
         $this->useFileExtensionFromSource = true;
-        $this->targetFilenamePattern      = $this->input->getOption('target-filename-pattern');
+
+        $targetFilenamePattern = $this->input->getOption('target-filename-pattern');
+
+        if (is_string($targetFilenamePattern)) {
+            $this->targetFilenamePattern = $targetFilenamePattern;
+        }
 
         return parent::executeCommand();
     }
@@ -82,8 +88,9 @@ class RenameByExifDateCommand extends AbstractRenameCommand
         $this->io->progressStart($this->fileSystemService->countFiles($iterator));
 
         // Perform a second iteration over all files and now add all files that are not yet included in the list
+
+        /** @var SplFileInfo $sourceFileInfo */
         foreach ($iterator as $sourceFileInfo) {
-            // $this->io->text($sourceFileInfo->getPathname());
             foreach ($fileDuplicateCollection as $duplicateIdentifier => $fileDuplicate) {
                 foreach ($fileDuplicate->getFiles() as $duplicateSplFileInfo) {
                     if ($sourceFileInfo->getPathname() === $duplicateSplFileInfo->getPathname()) {

@@ -23,6 +23,8 @@ use RecursiveIteratorIterator;
 use RuntimeException;
 use Symfony\Component\Console\Input\InputOption;
 
+use function is_string;
+
 /**
  * Recursively renames all files matching a given date/time pattern.
  * The renaming is defined by the given "replacement" pattern.
@@ -101,30 +103,44 @@ class RenameByDatePatternCommand extends AbstractRenameCommand
             return self::FAILURE;
         }
 
-        $pattern     = (string) $this->input->getOption('pattern');
-        $replacement = (string) $this->input->getOption('replacement');
+        $pattern     = $this->input->getOption('pattern');
+        $replacement = $this->input->getOption('replacement');
+        $datePattern = null;
 
-        // Create a regular date expression
-        $datePattern = preg_replace_callback(
-            '/{(\w+)}/',
-            fn ($matches): string => $this->dateExpression[$matches[1]] ?? $matches[0],
-            $pattern
-        );
+        if (is_string($pattern)) {
+            // Create a regular date expression
+            $datePattern = preg_replace_callback(
+                '/{(\w+)}/',
+                fn ($matches): string => $this->dateExpression[$matches[1]] ?? $matches[0],
+                $pattern
+            );
+        }
 
         if ($datePattern === null) {
             throw new RuntimeException('Failed to extract the date pattern from given pattern');
         }
 
-        // Extract the used date parts in the pattern
-        preg_match_all(
-            '/{(\w+)}/',
-            $pattern,
-            $patternMatches
-        );
+        $patternMatches = [];
+
+        if (is_string($pattern)) {
+            // Extract the used date parts in the pattern
+            $foundMatches = preg_match_all(
+                '/{(\w+)}/',
+                $pattern,
+                $patternMatches
+            );
+
+            if ($foundMatches === false) {
+                throw new RuntimeException('Failed to extract the used date parts in the pattern');
+            }
+        }
 
         $this->pattern        = $datePattern;
         $this->patternMatches = $patternMatches;
-        $this->replacement    = $replacement;
+
+        if (is_string($replacement)) {
+            $this->replacement = $replacement;
+        }
 
         return parent::executeCommand();
     }

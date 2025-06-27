@@ -26,6 +26,7 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
+use function is_string;
 use function sprintf;
 
 /**
@@ -74,7 +75,7 @@ abstract class AbstractRenameCommand extends Command
      *
      * @var string
      */
-    protected string $sourceDirectory;
+    protected string $sourceDirectory = '';
 
     /**
      * The target directory in which the changed files should be stored.
@@ -204,11 +205,20 @@ abstract class AbstractRenameCommand extends Command
      */
     private function initializeCommandParameters(InputInterface $input, OutputInterface $output): void
     {
-        $this->copyFiles       = $input->getOption('copy');
-        $this->dryRun          = $input->getOption('dry-run');
-        $this->skipDuplicates  = $input->getOption('skip-duplicates');
-        $this->sourceDirectory = $input->getArgument('source-directory');
-        $this->targetDirectory = $input->getArgument('target-directory');
+        $this->copyFiles      = (bool) $input->getOption('copy');
+        $this->dryRun         = (bool) $input->getOption('dry-run');
+        $this->skipDuplicates = (bool) $input->getOption('skip-duplicates');
+
+        $sourceDirectory = $input->getArgument('source-directory');
+        $targetDirectory = $input->getArgument('target-directory');
+
+        if (is_string($sourceDirectory)) {
+            $this->sourceDirectory = $sourceDirectory;
+        }
+
+        if (is_string($targetDirectory) || ($targetDirectory === null)) {
+            $this->targetDirectory = $targetDirectory;
+        }
     }
 
     /**

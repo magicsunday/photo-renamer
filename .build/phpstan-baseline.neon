@@ -7,6 +7,12 @@ parameters:
 			path: ../src/Command/AbstractRenameCommand.php
 
 		-
+			message: '#^Return type \(int\|string\|null\) of method MagicSunday\\Renamer\\Model\\Collection\\AbstractCollection\:\:key\(\) should be covariant with return type \(\(int\|string\)\) of method Iterator\<TKey of \(int\|string\),TValue\>\:\:key\(\)$#'
+			identifier: method.childReturnType
+			count: 2
+			path: ../src/Model/Collection/AbstractCollection.php
+
+		-
 			message: '#^Call to method get\(\) on an unknown class MagicSunday\\Renamer\\DependencyContainer\.$#'
 			identifier: class.notFound
 			count: 1

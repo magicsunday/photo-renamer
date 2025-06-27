@@ -28,4 +28,9 @@ $io     = new SymfonyStyle($input, $output);
 $container->set(SymfonyStyle::class, $io);
 
 // Run the application
-exit($container->get(Application::class)->run($input, $output));
+
+/** @var Application $application */
+$application = $container->get(Application::class);
+$result      = $application->run($input, $output);
+
+exit($result);

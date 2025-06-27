@@ -22,6 +22,8 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use Symfony\Component\Console\Input\InputOption;
 
+use function is_string;
+
 /**
  * Recursively renames all files matching a given pattern. The renaming is defined by the given "replacement" pattern.
  *
@@ -79,8 +81,16 @@ class RenameByPatternCommand extends AbstractRenameCommand
             return self::FAILURE;
         }
 
-        $this->pattern     = $this->input->getOption('pattern');
-        $this->replacement = $this->input->getOption('replacement');
+        $pattern     = $this->input->getOption('pattern');
+        $replacement = $this->input->getOption('replacement');
+
+        if (is_string($pattern)) {
+            $this->pattern = $pattern;
+        }
+
+        if (is_string($replacement)) {
+            $this->replacement = $replacement;
+        }
 
         return parent::executeCommand();
     }
