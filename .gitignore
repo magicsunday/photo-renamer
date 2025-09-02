@@ -8,12 +8,14 @@
 vendor/
 bin/
 logs/
+log/
 composer.lock
 
 # Build stuff
 .build/*.cache
 
 # Cache
+.build/cache
 .php-cs-fixer.cache
 .phplint.cache
 .phpunit.result.cache
@@ -27,3 +29,8 @@ renamer.phar
 renamer
 renamer.md5
 .env
+
+# Coverage reports
+coverage-report/
+coverage-report-xdebug/
+phpunit-*.xml

@@ -3,7 +3,7 @@
 set -e # Instructs a shell to exit if a command fails, i.e., if it outputs a non-zero exit status.
 
 # Add only the PHP extensions that are really required to reduce the size of the final binary file
-PHP_EXTENSIONS="curl,dom,exif,filter,mbstring,openssl,pcntl,phar,posix,tokenizer,yaml,zlib"
+PHP_EXTENSIONS="curl,dom,exif,filter,iconv,mbstring,openssl,pcntl,phar,posix,tokenizer,yaml,xml,xmlwriter,zlib"
 #PHP_EXTENSIONS="curl,dom,exif,fileinfo,filter,intl,mbstring,opcache,openssl,pcntl,phar,posix,readline,session,tokenizer,yaml,zip,zlib"
 
 cd $(dirname "${BASH_SOURCE[0]}")
@@ -40,7 +40,7 @@ echo "Download SPC extensions"
 ../bin/spc download --with-php=8.3 --for-extensions "${PHP_EXTENSIONS}" --prefer-pre-built --without-suggestions
 
 echo "Compile SPC"
-../bin/spc build --build-cli --build-micro --with-micro-fake-cli --with-upx-pack "${PHP_EXTENSIONS}" -I "phar.readonly=Off" -I "memory_limit=4G"
+../bin/spc build --build-cli --build-micro --with-micro-fake-cli --with-upx-pack "${PHP_EXTENSIONS}" -I "phar.readonly=Off" -I "memory_limit=-1" -I "error_reporting=-1"
 
 ln -sf ../spc/buildroot/bin/php ../bin/php
 
