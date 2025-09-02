@@ -1,5 +1,5 @@
 path: ./src
 jobs: 10
-cache-dir: .build/.phplint.cache
+cache-dir: .build/cache/.phplint.cache
 extensions:
     - php

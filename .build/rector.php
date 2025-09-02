@@ -22,10 +22,11 @@ use Rector\Set\ValueObject\SetList;
 return static function (RectorConfig $rectorConfig): void {
     $rectorConfig->paths([
         __DIR__ . '/../src/',
+        __DIR__ . '/../test/',
     ]);
 
     if (
-        !is_dir($concurrentDirectory = __DIR__ . '/.rector.cache')
+        !is_dir($concurrentDirectory = __DIR__ . '/cache/.rector.cache')
         && !mkdir($concurrentDirectory, 0775, true)
         && !is_dir($concurrentDirectory)
     ) {
@@ -38,7 +39,7 @@ return static function (RectorConfig $rectorConfig): void {
     }
 
     if (
-        !is_dir($concurrentDirectory = __DIR__ . '/.rector.container.cache')
+        !is_dir($concurrentDirectory = __DIR__ . '/cache/.rector.container.cache')
         && !mkdir($concurrentDirectory, 0775, true)
         && !is_dir($concurrentDirectory)
     ) {
@@ -54,8 +55,8 @@ return static function (RectorConfig $rectorConfig): void {
     $rectorConfig->importNames();
     $rectorConfig->removeUnusedImports();
     $rectorConfig->disableParallel();
-    $rectorConfig->cacheDirectory(__DIR__ . '/.rector.cache');
-    $rectorConfig->containerCacheDirectory(__DIR__ . '/.rector.container.cache');
+    $rectorConfig->cacheDirectory(__DIR__ . '/cache/.rector.cache');
+    $rectorConfig->containerCacheDirectory(__DIR__ . '/cache/.rector.container.cache');
 
     // Define what rule sets will be applied
     $rectorConfig->sets([
