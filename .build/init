@@ -19,6 +19,11 @@ if [ ! -d "spc" ]; then
     mkdir spc
 fi
 
+if [ ! -d "bin" ]; then
+    echo "Create bin directory"
+    mkdir -p bin
+fi
+
 if [ ! -f "bin/spc" ]; then
     echo "Download SPC binary command"
     curl -fsSL -o bin/spc https://dl.static-php.dev/static-php-cli/spc-bin/nightly/spc-linux-x86_64
@@ -37,7 +42,7 @@ if [ ! -f "spc/pkgroot/bin/upx" ]; then
 fi
 
 echo "Download SPC extensions"
-../bin/spc download --with-php=8.3 --for-extensions "${PHP_EXTENSIONS}" --prefer-pre-built --without-suggestions
+../bin/spc download --with-php=8.4 --for-extensions "${PHP_EXTENSIONS}" --prefer-pre-built --without-suggestions
 
 echo "Compile SPC"
 ../bin/spc build --build-cli --build-micro --with-micro-fake-cli --with-upx-pack "${PHP_EXTENSIONS}" -I "phar.readonly=Off" -I "memory_limit=-1" -I "error_reporting=-1"
