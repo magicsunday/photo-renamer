@@ -276,7 +276,7 @@ Here's a recommended workflow for organizing a collection of photos:
 
 2. **Standardize file extensions** (e.g., convert "jpeg" to "jpg"):
    ```bash
-   ./renamer rename:pattern --dry-run --pattern "/^(.+)(jpeg)$/" --replacement "$1jpg" photos/
+   ./renamer rename:pattern --dry-run --pattern "/^(.+)(jpeg)$/" --replacement "\$1jpg" photos/
    ```
 
 3. **Convert two-digit years to four-digit years in filenames**:
