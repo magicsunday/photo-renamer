@@ -20,6 +20,7 @@ RUN apt-get update && \
     make \
     openssl \
     patchelf \
+    re2c \
     sudo \
     unzip \
     wget \
