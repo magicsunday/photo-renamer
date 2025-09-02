@@ -28,7 +28,7 @@ interface DuplicateIdentifierStrategyInterface
      * @param SplFileInfo $sourceFileInfo The source file
      * @param SplFileInfo $targetFileInfo The target file
      *
-     * @return string|false A unique identifier for the file or false if the file should be skipped
+     * @return string|false A unique identifier for the file or false in case of an error
      */
     public function generateIdentifier(SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo): string|false;
 }

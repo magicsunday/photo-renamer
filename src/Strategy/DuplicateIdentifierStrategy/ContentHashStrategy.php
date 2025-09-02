@@ -29,12 +29,13 @@ class ContentHashStrategy implements DuplicateIdentifierStrategyInterface
      * @param SplFileInfo $sourceFileInfo The source file
      * @param SplFileInfo $targetFileInfo The target file
      *
-     * @return string|false A unique identifier for the file or false if the file should be skipped
+     * @return string|false A unique identifier for the file or false in case of an error
      */
     #[Override]
     public function generateIdentifier(SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo): string|false
     {
         // We want to find duplicates across all directories based on a hash of the file contents.
-        return hash_file('xxh128', $sourceFileInfo->getPathname());
+        // Suppress: Failed to open stream: No such file or directory
+        return @hash_file('xxh128', $sourceFileInfo->getPathname());
     }
 }
