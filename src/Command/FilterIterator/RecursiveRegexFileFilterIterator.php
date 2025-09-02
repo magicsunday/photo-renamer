@@ -54,7 +54,7 @@ class RecursiveRegexFileFilterIterator extends RecursiveFilterIterator
     public function accept(): bool
     {
         /** @var SplFileInfo $fileInfo */
-        $fileInfo = $this->current();
+        $fileInfo = $this->getInnerIterator()->current();
 
         // Check if the current element is a directory: always accept (so recursion works)
         if ($fileInfo->isDir()) {
