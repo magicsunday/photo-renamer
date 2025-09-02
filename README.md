@@ -169,7 +169,7 @@ Renames files using regular expression patterns. This powerful command allows fo
 
 **Example**: Convert files with extension "jpeg" to "jpg":
 ```bash
-./renamer rename:pattern --dry-run --pattern "/^(.+)(jpeg)$/" --replacement "$1jpg" <source-directory>
+./renamer rename:pattern --dry-run --pattern "/^(.+)(jpeg)$/" --replacement "\$1jpg" <source-directory>
 ```
 
 The search and replacement use PHP's regular expression syntax. See [preg_replace documentation](https://www.php.net/manual/en/function.preg-replace.php) for more details.
