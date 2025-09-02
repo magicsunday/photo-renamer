@@ -16,6 +16,9 @@ use Override;
 use SplFileInfo;
 
 /**
+ * Provides a strategy to rename files by inheriting their original filename
+ * and removing any duplicate identifier present in the filename.
+ *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
@@ -36,7 +39,11 @@ class InheritFilenameStrategy implements RenameStrategyInterface
             $splFileInfo->getBasename('.' . $splFileInfo->getExtension())
         );
 
-        return $basename . '.' . $splFileInfo->getExtension();
+        if ($splFileInfo->getExtension() !== '') {
+            return $basename . '.' . $splFileInfo->getExtension();
+        }
+
+        return $basename;
     }
 
     /**
