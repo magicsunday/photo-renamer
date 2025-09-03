@@ -39,7 +39,7 @@ class InheritFilenameStrategyTest extends TestCase
     ): void {
         $file = new SplFileInfo($filename);
 
-        $this->assertSame(
+        self::assertSame(
             $expected,
             $this->strategy->generateFilename($file),
             sprintf('Failed for case: %s', $description)

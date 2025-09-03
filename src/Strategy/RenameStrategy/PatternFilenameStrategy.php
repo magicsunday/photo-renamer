@@ -50,7 +50,7 @@ class PatternFilenameStrategy extends InheritFilenameStrategy
         $targetFilename = parent::generateFilename($splFileInfo);
 
         // Perform the regular expression replacement
-        $targetFilename = preg_replace(
+        $targetFilename = @preg_replace(
             $this->pattern,
             $this->replacement,
             $targetFilename
