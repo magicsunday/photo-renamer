@@ -64,13 +64,13 @@ class DatePatternFilenameStrategy extends InheritFilenameStrategy
         $targetFilename = parent::generateFilename($splFileInfo);
 
         // Perform the regular expression replacement
-        preg_match(
+        @preg_match(
             $this->pattern,
             $targetFilename,
             $filePartMatches
         );
 
-        preg_match_all(
+        @preg_match_all(
             '/{(\w+)}/',
             $this->replacement . '$1',
             $replacementMatches
@@ -80,7 +80,7 @@ class DatePatternFilenameStrategy extends InheritFilenameStrategy
         $targetFilenamePattern = str_replace($replacementMatches[0], $replacementMatches[1], $this->replacement);
 
         // Create a new filename
-        $targetFilename = preg_replace_callback(
+        $targetFilename = @preg_replace_callback(
             $this->pattern,
             static function (array $replacementMatches) use ($dateFormatCharacters, $targetFilenamePattern, $filePartMatches): string {
                 $dateParts = [];

@@ -10,7 +10,7 @@
 declare(strict_types=1);
 
 /**
- * EXIF Function Stubbing for Testing
+ * EXIF Function Stubbing for Testing.
  *
  * IMPORTANT: We define a namespaced function stub for exif_read_data in the
  * same namespace as the class under test. Because the class refers to
@@ -25,6 +25,7 @@ declare(strict_types=1);
  * - Testing edge cases and error conditions that would be hard to reproduce with real files
  * - Ensuring tests run even when the EXIF extension is not installed
  */
+
 namespace MagicSunday\Renamer\Strategy\RenameStrategy {
     /**
      * Internal test stub state holder for EXIF responses.
