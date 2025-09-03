@@ -1,20 +1,19 @@
-.PHONY: *
+SHELL = /bin/bash
 
-help:
-	@echo -e "Photo Renamer CLI Tool\n\nUsage: make [target]\n"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+.SILENT:
 
-init: ## Initialize the build environment and create necessary files
-	@bash .build/init
+# Do not print "Entering directory ..."
+MAKEFLAGS += --no-print-directory
 
-init-with-docker: ## Initialize the build environment with the help of Docker
-	@bash .build/init-with-docker
+.PHONY: no_targets__ *
+	no_targets__:
 
-build: ## Build a new renamer binary
-	@bash .build/build
+.DEFAULT_GOAL := help
 
-version: ## Create a new version release and trigger build of new binary
-	@bash scripts/create-version
+# Includes
+-include Make/*.mk
+-include Make/**/*.mk
 
-cleanup: ## Removes all sources, downloads and pkgroot to free some space which is not needed after spc was built
-	@rm -rf spc/pkgroot/ spc/downloads/ spc/source/
+# Argument fix workaround
+%:
+	@:
