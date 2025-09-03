@@ -11,7 +11,7 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                php: [ '8.3', '8.4' ]
+                php: [ '8.4' ]
 
         steps:
             -   name: Checkout
@@ -48,3 +48,8 @@ jobs:
                 if: ${{ always() && steps.install.conclusion == 'success' }}
                 run: |
                     php vendor/bin/rector process --config .build/rector.php
+
+            -   name: PHPUnit
+                if: ${{ always() && steps.install.conclusion == 'success' }}
+                run: |
+                    php vendor/bin/phpunit --configuration .build/phpunit.xml
