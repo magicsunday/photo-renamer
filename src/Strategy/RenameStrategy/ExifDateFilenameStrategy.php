@@ -66,7 +66,7 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
         SplFileInfo $splFileInfo,
     ): ?string {
         // Look up EXIF data
-        $exifData = @exif_read_data($splFileInfo->getPathname());
+        $exifData = $this->getExifData($splFileInfo);
 
         // if ($exifData !== false) {
         //     $this->io->text('Extract EXIF data from: ' . $splFileInfo->getPathname());
@@ -108,5 +108,17 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
         }
 
         return $dateTimeOriginal->format($pattern);
+    }
+
+    /**
+     * Retrieves EXIF data from the specified file.
+     *
+     * @param SplFileInfo $splFileInfo The file information object representing the target file.
+     *
+     * @return array|false Returns an associative array with EXIF data on success, or false on failure.
+     */
+    private function getExifData(SplFileInfo $splFileInfo): false|array
+    {
+        return @exif_read_data($splFileInfo->getPathname());
     }
 }
