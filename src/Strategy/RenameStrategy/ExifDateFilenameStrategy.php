@@ -113,9 +113,9 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
     /**
      * Retrieves EXIF data from the specified file.
      *
-     * @param SplFileInfo $splFileInfo The file information object representing the target file.
+     * @param SplFileInfo $splFileInfo The file information object representing the target file
      *
-     * @return array|false Returns an associative array with EXIF data on success, or false on failure.
+     * @return array<string|mixed>|false Returns an associative array with EXIF data on success, or false on failure
      */
     private function getExifData(SplFileInfo $splFileInfo): false|array
     {

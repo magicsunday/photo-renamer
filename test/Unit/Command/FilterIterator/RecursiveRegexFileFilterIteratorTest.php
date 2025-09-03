@@ -21,19 +21,39 @@ use RecursiveArrayIterator;
 use RecursiveIterator;
 use SplFileInfo;
 
+/**
+ * Unit tests for the RecursiveRegexFileFilterIterator class.
+ *
+ * This test class validates the behavior of a recursive iterator that filters files
+ * based on regular expression patterns. The iterator is designed to traverse directory
+ * structures recursively while only accepting files that match a given regex pattern.
+ *
+ * The iterator is particularly useful for:
+ * - Processing only specific file types (e.g., only .jpg images)
+ * - Finding files with certain naming patterns
+ * - Excluding unwanted files during directory traversal
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
+ */
 #[CoversClass(RecursiveRegexFileFilterIterator::class)]
 final class RecursiveRegexFileFilterIteratorTest extends TestCase
 {
+    /** @var string Regular expression pattern to match .txt files */
     private const string REGEX_TXT_FILES = '/\.txt$/';
 
     /**
-     * Create a stub SplFileInfo object.
+     * Create a stub SplFileInfo object for testing.
      *
-     * @param bool        $isDir
-     * @param bool        $isFile
-     * @param string|null $filename
+     * This helper method creates a mock SplFileInfo object with configurable
+     * properties to simulate different types of filesystem entries (files/directories).
      *
-     * @return Stub&SplFileInfo
+     * @param bool        $isDir    Whether the entry should be a directory
+     * @param bool        $isFile   Whether the entry should be a file
+     * @param string|null $filename The filename to return (null for directories)
+     *
+     * @return Stub&SplFileInfo A stubbed SplFileInfo object
      */
     private function createFileInfoStub(bool $isDir, bool $isFile, ?string $filename = null): Stub
     {
@@ -51,28 +71,35 @@ final class RecursiveRegexFileFilterIteratorTest extends TestCase
     /**
      * Create a filter iterator with a positioned inner iterator.
      *
-     * @param SplFileInfo $fileInfo
-     * @param string      $regex
+     * This helper creates a properly initialized RecursiveRegexFileFilterIterator
+     * with the inner iterator positioned at the first element.
      *
-     * @return RecursiveRegexFileFilterIterator
+     * @param SplFileInfo $fileInfo The file info to iterate over
+     * @param string      $regex    The regex pattern to use for filtering
+     *
+     * @return RecursiveRegexFileFilterIterator The configured filter iterator
      */
     private function createFilterIterator(SplFileInfo $fileInfo, string $regex = self::REGEX_TXT_FILES): RecursiveRegexFileFilterIterator
     {
         $iterator = new RecursiveArrayIterator([$fileInfo]);
-        $iterator->rewind(); // Position the inner iterator
+        $iterator->rewind(); // Position the inner iterator at the first element
 
         return new RecursiveRegexFileFilterIterator($iterator, $regex);
     }
 
     /**
-     * Create a recursive iterator for testing getChildren().
+     * Create a recursive iterator for testing getChildren() method.
      *
-     * @param array $items
+     * This creates a custom recursive iterator that can be used to test
+     * the recursive behavior of the filter iterator.
      *
-     * @return RecursiveIterator
+     * @param array $items Items to include in the iterator
+     *
+     * @return RecursiveIterator A recursive iterator for testing
      */
     private function createRecursiveIterator(array $items = []): RecursiveIterator
     {
+        // Anonymous class implementing RecursiveIterator for testing purposes
         return new class($items) extends RecursiveArrayIterator {
             public function hasChildren(): bool
             {
@@ -87,6 +114,14 @@ final class RecursiveRegexFileFilterIteratorTest extends TestCase
     }
 
     /**
+     * Provides test data for the accept() method tests.
+     *
+     * Each test case includes:
+     * - Whether the item is a directory
+     * - Whether the item is a file
+     * - The filename (if applicable)
+     * - The expected result of the accept() method
+     *
      * @return array<string, array{isDir: bool, isFile: bool, filename: ?string, expectedResult: bool}>
      */
     public static function acceptTestDataProvider(): array
@@ -125,17 +160,31 @@ final class RecursiveRegexFileFilterIteratorTest extends TestCase
         ];
     }
 
+    /**
+     * Tests the accept() method with various file types and patterns.
+     *
+     * This test validates that:
+     * - Directories are always accepted (for recursive traversal)
+     * - Files matching the regex pattern are accepted
+     * - Files not matching the pattern are rejected
+     * - The regex is case-sensitive (e.g., .txt vs .TXT)
+     * - The regex matches the end of the filename ($ anchor)
+     */
     #[Test]
     #[DataProvider('acceptTestDataProvider')]
     public function accept(bool $isDir, bool $isFile, ?string $filename, bool $expectedResult): void
     {
+        // Arrange: Create a file info stub with specified properties
         $fileInfoStub   = $this->createFileInfoStub($isDir, $isFile, $filename);
         $filterIterator = $this->createFilterIterator($fileInfoStub);
 
+        // Act & Assert: Verify the accept() method returns expected result
         self::assertSame($expectedResult, $filterIterator->accept());
     }
 
     /**
+     * Provides test data for getChildren() method tests.
+     *
      * @return array<string, array{isDir: bool, isFile: bool, filename: ?string}>
      */
     public static function getChildrenTestDataProvider(): array
@@ -159,10 +208,19 @@ final class RecursiveRegexFileFilterIteratorTest extends TestCase
         ];
     }
 
+    /**
+     * Tests that getChildren() returns a filter iterator instance.
+     *
+     * This test ensures that when traversing into subdirectories,
+     * the getChildren() method returns a new instance of the same
+     * filter iterator type, maintaining the filtering behavior
+     * throughout the recursive traversal.
+     */
     #[Test]
     #[DataProvider('getChildrenTestDataProvider')]
     public function getChildrenReturnsFilterIterator(bool $isDir, bool $isFile, ?string $filename): void
     {
+        // Arrange: Create test data and iterator
         $fileInfoStub  = $this->createFileInfoStub($isDir, $isFile, $filename);
         $innerIterator = $this->createRecursiveIterator([$fileInfoStub]);
 
@@ -171,15 +229,23 @@ final class RecursiveRegexFileFilterIteratorTest extends TestCase
             self::REGEX_TXT_FILES
         );
 
+        // Act & Assert: Verify getChildren() returns correct type
         self::assertInstanceOf(
             RecursiveRegexFileFilterIterator::class,
             $filterIterator->getChildren()
         );
     }
 
+    /**
+     * Tests getChildren() method with an empty iterator.
+     *
+     * This test ensures the iterator handles empty directories gracefully
+     * and still returns the correct iterator type even when there are no children.
+     */
     #[Test]
     public function getChildrenWithEmptyIterator(): void
     {
+        // Arrange: Create an empty iterator
         $innerIterator = $this->createRecursiveIterator([]);
 
         $filterIterator = new RecursiveRegexFileFilterIterator(
@@ -187,6 +253,7 @@ final class RecursiveRegexFileFilterIteratorTest extends TestCase
             self::REGEX_TXT_FILES
         );
 
+        // Act & Assert: Verify getChildren() works with empty iterator
         self::assertInstanceOf(
             RecursiveRegexFileFilterIterator::class,
             $filterIterator->getChildren()
@@ -195,26 +262,35 @@ final class RecursiveRegexFileFilterIteratorTest extends TestCase
 
     /**
      * Test that the filter correctly iterates through mixed content.
+     *
+     * This integration test validates that the iterator correctly:
+     * - Filters files based on the regex pattern
+     * - Includes directories (for potential recursion)
+     * - Maintains the correct order of accepted items
+     * - Skips non-matching files during iteration
      */
     #[Test]
     public function iterationWithMixedContent(): void
     {
+        // Arrange: Create a mixed collection of files and directories
         $files = [
-            $this->createFileInfoStub(false, true, 'file1.txt'),
-            $this->createFileInfoStub(false, true, 'file2.jpg'),
-            $this->createFileInfoStub(true, false, 'directory'),
-            $this->createFileInfoStub(false, true, 'file3.txt'),
-            $this->createFileInfoStub(false, true, 'file4.png'),
+            $this->createFileInfoStub(false, true, 'file1.txt'),  // Should be accepted
+            $this->createFileInfoStub(false, true, 'file2.jpg'),  // Should be rejected
+            $this->createFileInfoStub(true, false, 'directory'),  // Should be accepted (directory)
+            $this->createFileInfoStub(false, true, 'file3.txt'),  // Should be accepted
+            $this->createFileInfoStub(false, true, 'file4.png'),  // Should be rejected
         ];
 
         $iterator       = new RecursiveArrayIterator($files);
         $filterIterator = new RecursiveRegexFileFilterIterator($iterator, self::REGEX_TXT_FILES);
 
+        // Act: Iterate through the filter and collect accepted items
         $acceptedItems = [];
         foreach ($filterIterator as $item) {
             $acceptedItems[] = $item;
         }
 
+        // Assert: Verify only matching files and directories are included
         // Should contain: file1.txt, directory, file3.txt
         self::assertCount(3, $acceptedItems);
         self::assertSame($files[0], $acceptedItems[0]); // file1.txt

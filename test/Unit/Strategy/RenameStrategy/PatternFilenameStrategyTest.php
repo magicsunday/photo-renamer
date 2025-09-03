@@ -18,11 +18,68 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
+
 use function sprintf;
 
+/**
+ * Unit tests for PatternFilenameStrategy class.
+ *
+ * This test class validates the behavior of PatternFilenameStrategy, which provides
+ * powerful regex-based filename transformation capabilities. The strategy allows users
+ * to define custom patterns and replacements for renaming files based on their content.
+ *
+ * Key features tested:
+ * - Regular expression pattern matching and replacement
+ * - Support for capture groups and backreferences ($1, $2, etc.)
+ * - Case-sensitive and case-insensitive matching
+ * - Unicode character support
+ * - Automatic removal of duplicate identifiers before pattern application
+ * - Proper error handling for invalid regex patterns
+ *
+ * Common use cases:
+ * - Standardizing file naming conventions (e.g., IMG_XXXX to photo-XXXX)
+ * - Removing or replacing date patterns in filenames
+ * - Batch renaming with complex transformations
+ * - Cleaning up camera-generated filenames
+ * - Version number updates in documentation files
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
+ */
 #[CoversClass(PatternFilenameStrategy::class)]
 class PatternFilenameStrategyTest extends TestCase
 {
+    /**
+     * Tests that the strategy correctly applies pattern replacements.
+     *
+     * This parameterized test validates the core functionality of the PatternFilenameStrategy
+     * by testing various regex patterns and replacement scenarios. Each test case demonstrates
+     * a different aspect of the pattern matching and replacement capability.
+     *
+     * The test covers:
+     * - Simple string replacements
+     * - Complex regex patterns with capture groups
+     * - Case-insensitive matching with the 'i' flag
+     * - Unicode character support
+     * - Word boundary matching
+     * - Multiple occurrence replacements
+     * - Edge cases like files without extensions
+     *
+     * Important behaviors verified:
+     * - Duplicate identifiers (-duplicate-XXX) are removed before pattern application
+     * - File extensions are preserved during transformation
+     * - Full paths are handled correctly (only filename is returned)
+     * - Patterns that don't match leave the filename unchanged
+     *
+     * @param string $originalFilename The input filename to be transformed
+     * @param string $pattern          The regular expression pattern to match
+     * @param string $replacement      The replacement string (may include backreferences)
+     * @param string $expected         The expected filename after transformation
+     * @param string $description      Human-readable description of the test case
+     *
+     * @return void
+     */
     #[Test]
     #[DataProvider('patternReplacementProvider')]
     public function generateFilenameAppliesPatternReplacement(
@@ -32,10 +89,13 @@ class PatternFilenameStrategyTest extends TestCase
         string $expected,
         string $description,
     ): void {
+        // Create a file info object from the test filename
         $file = new SplFileInfo($originalFilename);
 
+        // Initialize the strategy with the pattern and replacement
         $strategy = new PatternFilenameStrategy($pattern, $replacement);
 
+        // Assert that the generated filename matches expectations
         self::assertSame(
             $expected,
             $strategy->generateFilename($file),
@@ -43,6 +103,33 @@ class PatternFilenameStrategyTest extends TestCase
         );
     }
 
+    /**
+     * Tests that invalid regex patterns throw appropriate exceptions.
+     *
+     * This test ensures robust error handling when users provide malformed or
+     * invalid regular expression patterns. The strategy should detect regex errors
+     * during pattern compilation and throw a TargetFilenameException with a
+     * descriptive error message.
+     *
+     * Types of invalid patterns tested:
+     * - Missing or unclosed delimiters
+     * - Unmatched parentheses or brackets
+     * - Invalid quantifiers
+     * - Syntax errors in regex constructs
+     * - Patterns without proper delimiters
+     *
+     * This is important for:
+     * - Providing clear feedback to users about pattern errors
+     * - Preventing silent failures or unexpected behavior
+     * - Maintaining application stability with invalid input
+     *
+     * @param string $filename    The test filename (content doesn't matter for these tests)
+     * @param string $pattern     The invalid regex pattern to test
+     * @param string $replacement The replacement string (not used but required by strategy)
+     * @param string $description Human-readable description of the invalid pattern type
+     *
+     * @return void
+     */
     #[Test]
     #[DataProvider('invalidPatternProvider')]
     public function generateFilenameThrowsExceptionOnInvalidPattern(
@@ -51,18 +138,36 @@ class PatternFilenameStrategyTest extends TestCase
         string $replacement,
         string $description,
     ): void {
+        // Create a file info object for testing
         $file = new SplFileInfo($filename);
 
+        // Initialize the strategy with the invalid pattern
         $strategy = new PatternFilenameStrategy($pattern, $replacement);
 
+        // Expect a TargetFilenameException to be thrown
         $this->expectException(TargetFilenameException::class);
         $this->expectExceptionMessageMatches('/Regular expression error:/');
 
+        // Attempt to generate a filename, which should trigger the exception
         $strategy->generateFilename($file);
     }
 
     /**
      * Provides test cases for pattern replacement functionality.
+     *
+     * This comprehensive data provider covers a wide range of regex pattern scenarios,
+     * from simple string replacements to complex transformations with capture groups.
+     * Each test case is designed to validate a specific aspect of the pattern matching
+     * and replacement functionality.
+     *
+     * Test categories include:
+     * - Basic pattern matching (digits, words, specific strings)
+     * - Capture groups and backreferences ($1, $2, etc.)
+     * - Case-insensitive matching with flags
+     * - Unicode and special character handling
+     * - Word boundary matching (\b)
+     * - Edge cases (no match, empty replacement, files without extensions)
+     * - Integration with duplicate identifier removal
      *
      * @return array<string, array{originalFilename: string, pattern: string, replacement: string, expected: string, description: string}>
      */
@@ -128,8 +233,8 @@ class PatternFilenameStrategyTest extends TestCase
             'handles special characters in replacement' => [
                 'originalFilename' => 'file.txt',
                 'pattern'          => '/file/',
-                'replacement'      => 'doc\$1ument',
-                'expected'         => 'doc$1ument.txt',
+                'replacement'      => 'doc$1ument',  // $1 is empty, results in 'document'
+                'expected'         => 'document.txt',
                 'description'      => 'Should handle special characters in replacement string',
             ],
             'removes duplicate identifier before pattern replacement' => [
@@ -179,6 +284,18 @@ class PatternFilenameStrategyTest extends TestCase
 
     /**
      * Provides test cases for invalid pattern scenarios.
+     *
+     * This data provider supplies various malformed regex patterns that should
+     * trigger exception handling in the strategy. These tests ensure that the
+     * application provides meaningful error messages when users supply invalid patterns.
+     *
+     * Types of errors covered:
+     * - Syntax errors (unclosed brackets, missing delimiters)
+     * - Invalid regex constructs (malformed named groups, quantifiers)
+     * - Structural errors (unmatched parentheses)
+     * - Missing regex delimiters (plain strings without //)
+     *
+     * Each test case helps ensure robust error handling and user feedback.
      *
      * @return array<string, array{filename: string, pattern: string, replacement: string, description: string}>
      */

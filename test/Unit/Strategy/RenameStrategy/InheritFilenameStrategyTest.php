@@ -20,16 +20,65 @@ use SplFileInfo;
 
 use function sprintf;
 
+/**
+ * Unit tests for InheritFilenameStrategy class.
+ *
+ * This test class verifies the behavior of InheritFilenameStrategy, which is responsible
+ * for cleaning up filenames that contain duplicate identifiers. The strategy removes
+ * "-duplicate-XXX" suffixes from filenames while preserving the original file extension.
+ *
+ * This strategy is typically used when:
+ * - Files have been renamed with duplicate identifiers during previous operations
+ * - You want to restore original filenames by removing duplicate markers
+ * - Files need to be cleaned up after a duplicate detection/renaming process
+ *
+ * The pattern matched is: -duplicate-\d{3} (e.g., -duplicate-001, -duplicate-999)
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
+ */
 #[CoversClass(InheritFilenameStrategy::class)]
 class InheritFilenameStrategyTest extends TestCase
 {
+    /**
+     * The strategy instance being tested.
+     *
+     * @var InheritFilenameStrategy
+     */
     private InheritFilenameStrategy $strategy;
 
+    /**
+     * Sets up the test fixture before each test method.
+     *
+     * Initializes a fresh instance of InheritFilenameStrategy to ensure
+     * test isolation and prevent state leakage between tests.
+     *
+     * @return void
+     */
     protected function setUp(): void
     {
         $this->strategy = new InheritFilenameStrategy();
     }
 
+    /**
+     * Tests filename generation with various input patterns.
+     *
+     * This parameterized test verifies that the strategy correctly processes
+     * different filename patterns, including
+     * - Files with duplicate identifiers that should be removed
+     * - Files without duplicate identifiers that should remain unchanged
+     * - Edge cases like missing extensions, multipart extensions, and malformed patterns
+     *
+     * The test uses a data provider to test multiple scenarios efficiently,
+     * ensuring comprehensive coverage of the strategy's behavior.
+     *
+     * @param string $filename    The input filename to process
+     * @param string $expected    The expected output filename after processing
+     * @param string $description Human-readable description of the test case
+     *
+     * @return void
+     */
     #[Test]
     #[DataProvider('filenameProvider')]
     public function generateFilename(
@@ -37,8 +86,10 @@ class InheritFilenameStrategyTest extends TestCase
         string $expected,
         string $description,
     ): void {
+        // Create a SplFileInfo instance from the test filename
         $file = new SplFileInfo($filename);
 
+        // Assert that the strategy produces the expected output
         self::assertSame(
             $expected,
             $this->strategy->generateFilename($file),
@@ -48,6 +99,21 @@ class InheritFilenameStrategyTest extends TestCase
 
     /**
      * Provides test cases for filename generation.
+     *
+     * This data provider supplies a comprehensive set of test cases covering:
+     * - Standard duplicate identifier removal
+     * - Files without duplicate identifiers (should pass through unchanged)
+     * - Files without extensions
+     * - Files with complex multipart extensions (.tar.gz)
+     * - Multiple duplicate identifiers in the same filename
+     * - Similar but non-matching patterns (e.g., "duplicated" vs "duplicate")
+     * - Edge cases with malformed or incomplete patterns
+     * - Files with full path specifications
+     *
+     * Each test case includes:
+     * - filename: The input filename to be processed
+     * - expected: The expected result after processing
+     * - description: A human-readable description of what's being tested
      *
      * @return array<string, array{filename: string, expected: string, description: string}>
      */
