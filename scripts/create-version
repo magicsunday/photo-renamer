@@ -1,5 +1,6 @@
-#!/bin/bash
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
+#!/usr/bin/env bash
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit
 
 echo "Last version: $(cat version)"
 
@@ -18,10 +19,10 @@ if [ -f "version" ]; then
     fi
 fi
 
-echo $VERSION > version
+echo "$VERSION" > version
 
 git add version
 git commit -m "[Release] $VERSION"
-git tag $VERSION
+git tag "$VERSION"
 git push
 git push --tags
