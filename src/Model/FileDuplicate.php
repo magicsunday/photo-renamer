@@ -11,6 +11,9 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Model;
 
+use MagicSunday\Renamer\Model\Collection\FileList;
+use MagicSunday\Renamer\Model\Collection\RenameList;
+use MagicSunday\Renamer\Model\Rename;
 use SplFileInfo;
 
 /**
@@ -22,37 +25,29 @@ use SplFileInfo;
  */
 class FileDuplicate
 {
-    /**
-     * @var SplFileInfo[]
-     */
-    private array $files = [];
+    private FileList $files;
 
     /**
      * @var SplFileInfo
      */
     private SplFileInfo $target;
 
-    /**
-     * @var Rename[]
-     */
-    private array $renames = [];
+    private RenameList $renames;
 
-    /**
-     * @return SplFileInfo[]
-     */
-    public function getFiles(): array
+    public function __construct(?FileList $files = null, ?RenameList $renames = null)
+    {
+        $this->files   = $files ?? new FileList();
+        $this->renames = $renames ?? new RenameList();
+    }
+
+    public function getFiles(): FileList
     {
         return $this->files;
     }
 
-    /**
-     * @param SplFileInfo $fileInfo
-     *
-     * @return FileDuplicate
-     */
-    public function addFile(SplFileInfo $fileInfo): FileDuplicate
+    public function addFile(SplFileInfo $fileInfo): self
     {
-        $this->files[] = $fileInfo;
+        $this->files->append($fileInfo);
 
         return $this;
     }
@@ -77,34 +72,21 @@ class FileDuplicate
         return $this;
     }
 
-    /**
-     * @return Rename[]
-     */
-    public function getRenames(): array
+    public function getRenames(): RenameList
     {
         return $this->renames;
     }
 
-    /**
-     * @param Rename[] $renames
-     *
-     * @return FileDuplicate
-     */
-    public function setRenames(array $renames): FileDuplicate
+    public function setRenames(RenameList $renames): self
     {
         $this->renames = $renames;
 
         return $this;
     }
 
-    /**
-     * @param Rename $rename
-     *
-     * @return FileDuplicate
-     */
-    public function addRename(Rename $rename): FileDuplicate
+    public function addRename(Rename $rename): self
     {
-        $this->renames[] = $rename;
+        $this->renames->append($rename);
 
         return $this;
     }
