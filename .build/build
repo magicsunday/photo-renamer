@@ -10,7 +10,7 @@ BIN_NAME="renamer"
 echo "Compiling ${BIN_NAME}"
 
 if [ ! -f "bin/composer" ]; then
-    bin/init
+    ./.build/init
 fi
 
 if [ -d "${BUILD_DIR_NAME}" ]; then
