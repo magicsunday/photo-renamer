@@ -300,6 +300,22 @@ namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy {
             self::assertNull($strategy->generateFilename($file));
         }
 
+        #[Test]
+        public function itIgnoresNonStringSubSecondData(): void
+        {
+            $path = '/virtual/' . uniqid('exif_', true) . '.jpg';
+
+            ExifReadDataStub::set($path, [
+                'DateTimeOriginal'   => '2024:01:15 14:30:45',
+                'SubSecTimeOriginal' => 123,
+            ]);
+
+            $file     = new SplFileInfo($path);
+            $strategy = new ExifDateFilenameStrategy('Y-m-d_H-i-s-u');
+
+            self::assertSame('2024-01-15_14-30-45-000000.jpg', $strategy->generateFilename($file));
+        }
+
         /**
          * Provides test cases for EXIF date handling.
          *
