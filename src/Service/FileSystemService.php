@@ -173,10 +173,28 @@ class FileSystemService implements FileSystemServiceInterface
         ) {
             if ($copy) {
                 // Copies a file from source to target with renaming
-                copy($sourceFileInfo->getPathname(), $targetFileInfo->getPathname());
+                $result = copy($sourceFileInfo->getPathname(), $targetFileInfo->getPathname());
+
+                if ($result === false) {
+                    throw new RuntimeException(
+                        sprintf(
+                            'Failed to copy file to "%s"',
+                            $targetFileInfo->getPathname(),
+                        ),
+                    );
+                }
             } else {
                 // Moves a file from source to target (removes a file at the source)
-                rename($sourceFileInfo->getPathname(), $targetFileInfo->getPathname());
+                $result = rename($sourceFileInfo->getPathname(), $targetFileInfo->getPathname());
+
+                if ($result === false) {
+                    throw new RuntimeException(
+                        sprintf(
+                            'Failed to move file to "%s"',
+                            $targetFileInfo->getPathname(),
+                        ),
+                    );
+                }
             }
         } else {
             throw new RuntimeException(
