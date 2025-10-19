@@ -118,12 +118,12 @@ class RenameByExifDateCommand extends AbstractRenameCommand
                         $duplicateIdentifier = substr($duplicateIdentifier, 0, -strlen('.' . $sourceFileInfo->getExtension()))
                             . '.' . $targetFileInfo->getExtension();
 
-                        if ($fileDuplicateCollection->offsetExists($duplicateIdentifier)) {
+                        if ($fileDuplicateCollection->has($duplicateIdentifier)) {
                             /** @var FileDuplicate $fileDuplicate */
-                            $fileDuplicate = $fileDuplicateCollection->offsetGet($duplicateIdentifier);
+                            $fileDuplicate = $fileDuplicateCollection->get($duplicateIdentifier);
                             $fileDuplicate->addFile($sourceFileInfo);
                         } else {
-                            $fileDuplicateCollection->offsetSet($duplicateIdentifier, $fileDuplicate);
+                            $fileDuplicateCollection->set($duplicateIdentifier, $fileDuplicate);
                         }
 
                         break 2;

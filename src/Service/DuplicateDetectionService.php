@@ -154,12 +154,12 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 ->addFile($sourceFileInfo)
                 ->setTarget($targetFileInfo);
 
-            if ($fileDuplicateCollection->offsetExists($duplicateIdentifier)) {
+            if ($fileDuplicateCollection->has($duplicateIdentifier)) {
                 /** @var FileDuplicate $fileDuplicate */
-                $fileDuplicate = $fileDuplicateCollection->offsetGet($duplicateIdentifier);
+                $fileDuplicate = $fileDuplicateCollection->get($duplicateIdentifier);
                 $fileDuplicate->addFile($sourceFileInfo);
             } else {
-                $fileDuplicateCollection->offsetSet($duplicateIdentifier, $fileDuplicate);
+                $fileDuplicateCollection->set($duplicateIdentifier, $fileDuplicate);
             }
 
             $this->io->progressAdvance();
