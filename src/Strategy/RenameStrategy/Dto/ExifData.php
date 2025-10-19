@@ -19,6 +19,7 @@ final class ExifData
     public function __construct(
         private readonly string $dateTimeOriginal,
         private readonly ?string $subSecTimeOriginal,
+        private readonly ?string $contentIdentifier,
     ) {
     }
 
@@ -30,5 +31,10 @@ final class ExifData
     public function getSubSecTimeOriginal(): ?string
     {
         return $this->subSecTimeOriginal;
+    }
+
+    public function getContentIdentifier(): ?string
+    {
+        return $this->contentIdentifier;
     }
 }
