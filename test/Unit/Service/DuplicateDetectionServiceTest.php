@@ -265,6 +265,39 @@ final class DuplicateDetectionServiceTest extends TestCase
         );
     }
 
+    #[Test]
+    public function getTargetPathnameRetainsNestedDirectoriesWithDuplicateNames(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceRoot       = $this->createTempDirectory();
+        $sourceDirectory  = $sourceRoot . DIRECTORY_SEPARATOR . 'Photos';
+        $nestedDirectory  = $sourceDirectory . DIRECTORY_SEPARATOR . 'Photos';
+        $targetDirectory  = $this->createTempDirectory();
+
+        if (!mkdir($sourceDirectory, 0777, true) && !is_dir($sourceDirectory)) {
+            self::fail('Failed to create source directory: ' . $sourceDirectory);
+        }
+
+        if (!mkdir($nestedDirectory, 0777, true) && !is_dir($nestedDirectory)) {
+            self::fail('Failed to create nested directory: ' . $nestedDirectory);
+        }
+
+        $sourceFile = $nestedDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
+        file_put_contents($sourceFile, 'image');
+
+        $service
+            ->setSourceDirectory($sourceDirectory)
+            ->setTargetDirectory($targetDirectory);
+
+        $targetPathname = $service->getTargetPathname(new SplFileInfo($sourceFile), 'renamed.jpg');
+
+        self::assertSame(
+            $targetDirectory . DIRECTORY_SEPARATOR . 'Photos' . DIRECTORY_SEPARATOR . 'renamed.jpg',
+            $targetPathname,
+        );
+    }
+
     /**
      * @return array{DuplicateDetectionService, BufferedOutput}
      */
