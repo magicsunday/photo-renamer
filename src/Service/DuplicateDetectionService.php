@@ -18,6 +18,7 @@ use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
+use Symfony\Component\Console\Helper\ProgressBar;
 use RecursiveIteratorIterator;
 use SplFileInfo;
 use Symfony\Component\Console\Style\SymfonyStyle;
@@ -122,7 +123,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         RenameStrategyInterface $renameStrategy,
         DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy,
     ): FileDuplicateCollection {
-        $this->io->progressStart(
+        $progressBar = $this->startProgressBar(
             $this->fileSystemService->countFiles($iterator)
         );
 
@@ -163,10 +164,10 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 $fileDuplicateCollection->set($duplicateIdentifier, $fileDuplicate);
             }
 
-            $this->io->progressAdvance();
+            $progressBar->advance();
         }
 
-        $this->io->progressFinish();
+        $progressBar->finish();
         $this->io->newLine();
 
         return $fileDuplicateCollection;
@@ -182,7 +183,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
      */
     public function createDuplicateFilenames(FileDuplicateCollection $fileDuplicateCollection): FileDuplicateCollection
     {
-        $this->io->progressStart($fileDuplicateCollection->count());
+        $progressBar = $this->startProgressBar($fileDuplicateCollection->count());
 
         /** @var FileDuplicate $fileDuplicate */
         foreach ($fileDuplicateCollection as $fileDuplicate) {
@@ -240,13 +241,22 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 );
             }
 
-            $this->io->progressAdvance();
+            $progressBar->advance();
         }
 
-        $this->io->progressFinish();
+        $progressBar->finish();
         $this->io->newLine();
 
         return $fileDuplicateCollection;
+    }
+
+    private function startProgressBar(int $max): ProgressBar
+    {
+        $progressBar = $this->io->createProgressBar($max);
+        $progressBar->setFormat(' %current%/%max% [%bar%] %percent:3s%% ETA %estimated% Remaining %remaining%');
+        $progressBar->start();
+
+        return $progressBar;
     }
 
     /**
