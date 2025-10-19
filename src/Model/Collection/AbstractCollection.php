@@ -11,11 +11,14 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Model\Collection;
 
-use ReturnTypeWillChange;
+use ArrayIterator;
+use Traversable;
 
+use function array_filter;
 use function array_key_exists;
 use function array_slice;
 use function count;
+use function uasort;
 
 /**
  * An abstract collection of values.
@@ -24,8 +27,8 @@ use function count;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  *
- * @template TKey as array-key
- * @template TValue
+ * @template TKey of array-key
+ * @template TValue of object
  *
  * @implements CollectionInterface<TKey, TValue>
  */
@@ -49,54 +52,6 @@ abstract class AbstractCollection implements CollectionInterface
     }
 
     /**
-     * Offset to retrieve.
-     *
-     * @param TKey $offset The offset to retrieve
-     *
-     * @return TValue|null
-     */
-    #[ReturnTypeWillChange]
-    public function offsetGet(mixed $offset): mixed
-    {
-        return $this->elements[$offset] ?? null;
-    }
-
-    /**
-     * Offset to set.
-     *
-     * @param TKey|null $offset The offset to assign the value to
-     * @param TValue    $value  The value to set
-     */
-    public function offsetSet(mixed $offset, mixed $value): void
-    {
-        $offset !== null
-            ? $this->elements[$offset] = $value
-            : $this->elements[]        = $value;
-    }
-
-    /**
-     * Offset to unset.
-     *
-     * @param TKey $offset The offset to unset
-     */
-    public function offsetUnset(mixed $offset): void
-    {
-        unset($this->elements[$offset]);
-    }
-
-    /**
-     * Whether an offset exists.
-     *
-     * @param TKey $offset An offset to check for
-     *
-     * @return bool
-     */
-    public function offsetExists(mixed $offset): bool
-    {
-        return array_key_exists($offset, $this->elements);
-    }
-
-    /**
      * Count elements of an object.
      *
      * @return int<0, max>
@@ -111,67 +66,9 @@ abstract class AbstractCollection implements CollectionInterface
      *
      * @param TValue $value The value to append
      */
-    public function append(mixed $value): void
+    public function append(object $value): void
     {
         $this->elements[] = $value;
-    }
-
-    /**
-     * Rewind to the first element.
-     *
-     * @return void
-     */
-    public function rewind(): void
-    {
-        reset($this->elements);
-    }
-
-    /**
-     * Return the current element.
-     *
-     * @return false|TValue
-     */
-    #[ReturnTypeWillChange]
-    public function current(): mixed
-    {
-        return current($this->elements);
-    }
-
-    /**
-     * Return the key of the current element.
-     *
-     * @return string|int|null
-     */
-    public function key(): string|int|null
-    {
-        return key($this->elements);
-    }
-
-    /**
-     * Move forward to the next element.
-     *
-     * @return false|TValue
-     */
-    #[ReturnTypeWillChange]
-    public function next(): mixed
-    {
-        return next($this->elements);
-    }
-
-    /**
-     * Checks if the current position is valid.
-     *
-     * @return bool
-     */
-    public function valid(): bool
-    {
-        $key = $this->key();
-
-        if ($key !== null) {
-            return array_key_exists($key, $this->elements);
-        }
-
-        return false;
     }
 
     /**
@@ -229,5 +126,51 @@ abstract class AbstractCollection implements CollectionInterface
         $this->elements = array_slice($this->elements, $offset, $length);
 
         return $this;
+    }
+
+    /**
+     * @param TKey $key
+     *
+     * @return TValue|null
+     */
+    public function get(int|string $key): ?object
+    {
+        $value = $this->elements[$key] ?? null;
+
+        if ($value === null) {
+            return null;
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param TKey   $key
+     * @param TValue $value
+     */
+    public function set(int|string $key, object $value): void
+    {
+        $this->elements[$key] = $value;
+    }
+
+    /**
+     * @param TKey $key
+     */
+    public function has(int|string $key): bool
+    {
+        return array_key_exists($key, $this->elements);
+    }
+
+    /**
+     * @param TKey $key
+     */
+    public function remove(int|string $key): void
+    {
+        unset($this->elements[$key]);
+    }
+
+    public function getIterator(): Traversable
+    {
+        return new ArrayIterator($this->elements);
     }
 }
