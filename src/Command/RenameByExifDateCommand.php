@@ -14,7 +14,7 @@ namespace MagicSunday\Renamer\Command;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\DuplicateIdentifierStrategyInterface;
-use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\TargetFilenameStrategy;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\LivePhotoContentIdentifierStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use Override;
@@ -38,6 +38,10 @@ class RenameByExifDateCommand extends AbstractRenameCommand
      * @var string
      */
     private string $targetFilenamePattern = '';
+
+    private ?ExifDateFilenameStrategy $exifDateFilenameStrategy = null;
+
+    private ?DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy = null;
 
     /**
      * Configures the current command.
@@ -73,6 +77,8 @@ class RenameByExifDateCommand extends AbstractRenameCommand
 
         if (is_string($targetFilenamePattern)) {
             $this->targetFilenamePattern = $targetFilenamePattern;
+            $this->exifDateFilenameStrategy = null;
+            $this->duplicateIdentifierStrategy = null;
         }
 
         return parent::executeCommand();
@@ -166,15 +172,19 @@ class RenameByExifDateCommand extends AbstractRenameCommand
     #[Override]
     protected function getTargetFilenameProcessor(): RenameStrategyInterface
     {
-        return new ExifDateFilenameStrategy($this->targetFilenamePattern);
+        return $this->getExifDateFilenameStrategy();
     }
 
     #[Override]
     protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
     {
-        // We want to find duplicates across all directories based
-        // on the EXIF field "DateTimeOriginal" of the image.
-        return new TargetFilenameStrategy();
+        if ($this->duplicateIdentifierStrategy === null) {
+            $this->duplicateIdentifierStrategy = new LivePhotoContentIdentifierStrategy(
+                $this->getExifDateFilenameStrategy(),
+            );
+        }
+
+        return $this->duplicateIdentifierStrategy;
     }
 
     /**
@@ -192,5 +202,14 @@ class RenameByExifDateCommand extends AbstractRenameCommand
             0,
             -strlen('.' . $fileInfo->getExtension())
         );
+    }
+
+    private function getExifDateFilenameStrategy(): ExifDateFilenameStrategy
+    {
+        if ($this->exifDateFilenameStrategy === null) {
+            $this->exifDateFilenameStrategy = new ExifDateFilenameStrategy($this->targetFilenamePattern);
+        }
+
+        return $this->exifDateFilenameStrategy;
     }
 }
