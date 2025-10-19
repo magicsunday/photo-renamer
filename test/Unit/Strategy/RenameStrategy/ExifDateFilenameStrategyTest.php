@@ -68,6 +68,27 @@ namespace MagicSunday\Renamer\Strategy\RenameStrategy {
     }
 
     /**
+     * Internal test stub state holder for file_get_contents responses.
+     */
+    final class FileGetContentsStub
+    {
+        /**
+         * @var array<string, string|false>
+         */
+        public static array $map = [];
+
+        public static function set(string $path, string|false $data): void
+        {
+            self::$map[$path] = $data;
+        }
+
+        public static function reset(): void
+        {
+            self::$map = [];
+        }
+    }
+
+    /**
      * Stub replacement for the global exif_read_data function.
      *
      * This function is called by ExifDateFilenameStrategy::getExifData() instead of
@@ -82,11 +103,28 @@ namespace MagicSunday\Renamer\Strategy\RenameStrategy {
     {
         return ExifReadDataStub::$map[$filename] ?? false;
     }
+
+    /**
+     * Stub replacement for the global file_get_contents function.
+     *
+     * @param string $filename The path to the file
+     *
+     * @return string|false The configured file contents or the actual file contents
+     */
+    function file_get_contents(string $filename): string|false
+    {
+        if (array_key_exists($filename, FileGetContentsStub::$map)) {
+            return FileGetContentsStub::$map[$filename];
+        }
+
+        return \file_get_contents($filename);
+    }
 }
 
 namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy {
     use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
     use MagicSunday\Renamer\Strategy\RenameStrategy\ExifReadDataStub;
+    use MagicSunday\Renamer\Strategy\RenameStrategy\FileGetContentsStub;
     use PHPUnit\Framework\Attributes\CoversClass;
     use PHPUnit\Framework\Attributes\DataProvider;
     use PHPUnit\Framework\Attributes\Test;
@@ -137,8 +175,9 @@ namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy {
          */
         protected function tearDown(): void
         {
-            // Ensure the stub map is reset after each test
+            // Ensure the stub maps are reset after each test
             ExifReadDataStub::reset();
+            FileGetContentsStub::reset();
         }
 
         /**
@@ -204,6 +243,91 @@ namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy {
                 $strategy->generateFilename($file),
                 sprintf('Failed for case: %s', $description)
             );
+        }
+
+        #[Test]
+        public function itExtractsLivePhotoContentIdentifierFromExifData(): void
+        {
+            $path = '/virtual/' . uniqid('live_', true) . '.jpg';
+
+            ExifReadDataStub::set($path, [
+                'DateTimeOriginal' => '2024:05:05 12:00:00',
+                'ContentIdentifier' => 'A1B2C3D4-EXIF-UUID',
+            ]);
+
+            $file = new SplFileInfo($path);
+            $strategy = new ExifDateFilenameStrategy('Y-m-d_H-i-s');
+
+            // Trigger metadata extraction to populate the cache
+            $strategy->generateFilename($file);
+
+            self::assertSame('A1B2C3D4-EXIF-UUID', $strategy->getLivePhotoContentIdentifier($file));
+        }
+
+        #[Test]
+        public function itExtractsLivePhotoContentIdentifierFromQuickTimeMetadata(): void
+        {
+            $path = '/virtual/' . uniqid('quicktime_', true) . '.mov';
+
+            ExifReadDataStub::set($path, false);
+            FileGetContentsStub::set($path, self::createQuickTimeSample('550E8400-E29B-41D4-A716-446655440000'));
+
+            $file = new SplFileInfo($path);
+            $strategy = new ExifDateFilenameStrategy('Y-m-d_H-i-s');
+
+            self::assertSame(
+                '550E8400-E29B-41D4-A716-446655440000',
+                $strategy->getLivePhotoContentIdentifier($file),
+            );
+        }
+
+        private static function createQuickTimeSample(string $identifier): string
+        {
+            $key = 'com.apple.quicktime.content.identifier';
+
+            $keyEntryPayload = pack('N', 8 + strlen($key))
+                . "\0\0\0\0"
+                . $key;
+
+            $keysPayload = "\0\0\0\0"
+                . pack('N', 1)
+                . $keyEntryPayload;
+
+            $keysAtom = pack('N', 8 + strlen($keysPayload))
+                . 'keys'
+                . $keysPayload;
+
+            $dataPayload = pack('N', 16 + strlen($identifier))
+                . 'data'
+                . "\0\0\0\1"
+                . "\0\0\0\0"
+                . $identifier;
+
+            $ilstEntry = pack('N', 8 + strlen($dataPayload))
+                . pack('N', 1)
+                . $dataPayload;
+
+            $ilstAtom = pack('N', 8 + strlen($ilstEntry))
+                . 'ilst'
+                . $ilstEntry;
+
+            $metaPayload = "\0\0\0\0"
+                . $keysAtom
+                . $ilstAtom;
+
+            $metaAtom = pack('N', 8 + strlen($metaPayload))
+                . 'meta'
+                . $metaPayload;
+
+            $udtaAtom = pack('N', 8 + strlen($metaAtom))
+                . 'udta'
+                . $metaAtom;
+
+            $moovAtom = pack('N', 8 + strlen($udtaAtom))
+                . 'moov'
+                . $udtaAtom;
+
+            return $moovAtom;
         }
 
         /**
