@@ -12,6 +12,8 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy;
 
 use MagicSunday\Renamer\Exception\TargetFilenameException;
+use MagicSunday\Renamer\Model\Pattern\PatternMatch;
+use MagicSunday\Renamer\Model\Pattern\PatternMatchSet;
 use MagicSunday\Renamer\Strategy\RenameStrategy\DatePatternFilenameStrategy;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -63,7 +65,7 @@ class DatePatternFilenameStrategyTest extends TestCase
         $strategy = new DatePatternFilenameStrategy(
             '/[',  // Invalid regex - unclosed bracket
             '{Y}-{m}-{d}',
-            [1 => ['Y']]
+            $this->createPatternMatchSet(['Y'])
         );
 
         // Expect a TargetFilenameException to be thrown
@@ -94,7 +96,7 @@ class DatePatternFilenameStrategyTest extends TestCase
         $strategy = new DatePatternFilenameStrategy(
             '/IMG_(\d{4})(\d{2})(\d{2})/',
             '{Y}-{m}-{d}',
-            [1 => ['Y', 'm', 'd']]
+            $this->createPatternMatchSet(['Y', 'm', 'd'])
         );
 
         // Get the result
@@ -125,7 +127,7 @@ class DatePatternFilenameStrategyTest extends TestCase
         $strategy = new DatePatternFilenameStrategy(
             '/IMG_(\d{4})(\d{2})(\d{2})/',
             '{Y}-{m}-{d}',
-            [1 => ['Y', 'm', 'd']]
+            $this->createPatternMatchSet(['Y', 'm', 'd'])
         );
 
         // Get the result
@@ -153,7 +155,7 @@ class DatePatternFilenameStrategyTest extends TestCase
         $strategy = new DatePatternFilenameStrategy(
             '/photo_(\d{2})(\d{2})(\d{2})/',
             '{Y}',
-            [1 => ['y', 'm', 'd']]  // Note: lowercase 'y' for 2-digit year
+            $this->createPatternMatchSet(['y', 'm', 'd'])  // Note: lowercase 'y' for 2-digit year
         );
 
         $result = $strategy->generateFilename($file);
@@ -166,7 +168,7 @@ class DatePatternFilenameStrategyTest extends TestCase
         $strategy2 = new DatePatternFilenameStrategy(
             '/photo_(\d{2})(\d{2})(\d{2})/',
             '{Y}',
-            [1 => ['y', 'm', 'd']]
+            $this->createPatternMatchSet(['y', 'm', 'd'])
         );
 
         $result2 = $strategy2->generateFilename($file2);
@@ -193,7 +195,7 @@ class DatePatternFilenameStrategyTest extends TestCase
         $strategy = new DatePatternFilenameStrategy(
             '/file_(\d{2})-(\d{2})-(\d{4})/',
             '{Y}-{m}-{d}',
-            [1 => ['d', 'm', 'Y']]  // Note: mapping order is d, m, Y
+            $this->createPatternMatchSet(['d', 'm', 'Y'])  // Note: mapping order is d, m, Y
         );
 
         $result = $strategy->generateFilename($file);
@@ -223,7 +225,7 @@ class DatePatternFilenameStrategyTest extends TestCase
         $strategy = new DatePatternFilenameStrategy(
             '/README_(\d{4})(\d{2})(\d{2})/',
             '{Y}-{m}-{d}',
-            [1 => ['Y', 'm', 'd']]
+            $this->createPatternMatchSet(['Y', 'm', 'd'])
         );
 
         $result = $strategy->generateFilename($file);
@@ -233,5 +235,20 @@ class DatePatternFilenameStrategyTest extends TestCase
         self::assertStringContainsString('03', $result);
         self::assertStringContainsString('15', $result);
         self::assertStringNotContainsString('.', $result);
+    }
+
+
+    /**
+     * @param string[] $placeholders
+     */
+    private function createPatternMatchSet(array $placeholders): PatternMatchSet
+    {
+        $set = new PatternMatchSet();
+
+        foreach ($placeholders as $placeholder) {
+            $set->append(new PatternMatch('{' . $placeholder . '}', $placeholder));
+        }
+
+        return $set;
     }
 }

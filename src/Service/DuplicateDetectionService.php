@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Service;
 
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
+use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\DuplicateIdentifierStrategyInterface;
@@ -210,17 +211,19 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 );
             }
 
+            /** @var RenameList $renames */
             $renames = $fileDuplicate->getRenames();
 
             // Remove elements where the source already equals the target (these don't need to be copied or moved)
             foreach ($renames as $key => $rename) {
                 if ($rename->getSource()->getPathname() === $rename->getTarget()->getPathname()) {
-                    unset($renames[$key]);
+                    $renames->remove($key);
                     break;
                 }
             }
 
-            $fileDuplicate->setRenames(array_values($renames));
+            $renames->reindex();
+            $fileDuplicate->setRenames($renames);
 
             $duplicateCount = 1;
 

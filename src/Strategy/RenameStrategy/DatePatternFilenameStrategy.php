@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Strategy\RenameStrategy;
 
 use DateTime;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
+use MagicSunday\Renamer\Model\Pattern\PatternMatchSet;
 use Override;
 use SplFileInfo;
 
@@ -36,19 +37,16 @@ class DatePatternFilenameStrategy extends InheritFilenameStrategy
      */
     private readonly string $replacement;
 
-    /**
-     * @var string[][]
-     */
-    private array $patternMatches;
+    private readonly PatternMatchSet $patternMatches;
 
     /**
      * Constructor.
      *
-     * @param string     $pattern
-     * @param string     $replacement
-     * @param string[][] $patternMatches
+     * @param string          $pattern
+     * @param string          $replacement
+     * @param PatternMatchSet $patternMatches
      */
-    public function __construct(string $pattern, string $replacement, array $patternMatches = [])
+    public function __construct(string $pattern, string $replacement, PatternMatchSet $patternMatches)
     {
         $this->pattern        = $pattern;
         $this->replacement    = $replacement;
@@ -76,7 +74,7 @@ class DatePatternFilenameStrategy extends InheritFilenameStrategy
             $replacementMatches
         );
 
-        $dateFormatCharacters  = $this->patternMatches[1];
+        $dateFormatCharacters  = $this->patternMatches->placeholders();
         $targetFilenamePattern = str_replace($replacementMatches[0], $replacementMatches[1], $this->replacement);
 
         // Create a new filename
