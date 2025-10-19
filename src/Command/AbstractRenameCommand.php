@@ -12,8 +12,8 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Command;
 
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
-use MagicSunday\Renamer\Service\DuplicateDetectionService;
-use MagicSunday\Renamer\Service\FileSystemService;
+use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
+use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use Override;
@@ -54,14 +54,14 @@ abstract class AbstractRenameCommand extends Command
     protected RecursiveIteratorIterator $iterator;
 
     /**
-     * @var FileSystemService
+     * @var FileSystemServiceInterface
      */
-    protected FileSystemService $fileSystemService;
+    protected FileSystemServiceInterface $fileSystemService;
 
     /**
-     * @var DuplicateDetectionService
+     * @var DuplicateDetectionServiceInterface
      */
-    protected DuplicateDetectionService $duplicateDetectionService;
+    protected DuplicateDetectionServiceInterface $duplicateDetectionService;
 
     /**
      * Set to TRUE to use the file extension from the current processed source file.
@@ -108,12 +108,12 @@ abstract class AbstractRenameCommand extends Command
     /**
      * Constructor.
      *
-     * @param FileSystemService         $fileSystemService
-     * @param DuplicateDetectionService $duplicateDetectionService
+     * @param FileSystemServiceInterface         $fileSystemService
+     * @param DuplicateDetectionServiceInterface $duplicateDetectionService
      */
     public function __construct(
-        FileSystemService $fileSystemService,
-        DuplicateDetectionService $duplicateDetectionService,
+        FileSystemServiceInterface $fileSystemService,
+        DuplicateDetectionServiceInterface $duplicateDetectionService,
     ) {
         parent::__construct();
 
