@@ -26,6 +26,27 @@ use RecursiveIteratorIterator;
 interface DuplicateDetectionServiceInterface
 {
     /**
+     * @param string $sourceDirectory
+     *
+     * @return self
+     */
+    public function setSourceDirectory(string $sourceDirectory): self;
+
+    /**
+     * @param string $targetDirectory
+     *
+     * @return self
+     */
+    public function setTargetDirectory(string $targetDirectory): self;
+
+    /**
+     * @param bool $useFileExtensionFromSource
+     *
+     * @return self
+     */
+    public function setUseFileExtensionFromSource(bool $useFileExtensionFromSource): self;
+
+    /**
      * Creates a collection of duplicates. Files with the same unique identifier are grouped together.
      *
      * @param RecursiveIteratorIterator            $iterator
@@ -39,4 +60,13 @@ interface DuplicateDetectionServiceInterface
         RenameStrategyInterface $renameStrategy,
         DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy,
     ): FileDuplicateCollection;
+
+    /**
+     * Creates a consecutive new filename for all duplicate files.
+     *
+     * @param FileDuplicateCollection $fileDuplicateCollection
+     *
+     * @return FileDuplicateCollection
+     */
+    public function createDuplicateFilenames(FileDuplicateCollection $fileDuplicateCollection): FileDuplicateCollection;
 }
