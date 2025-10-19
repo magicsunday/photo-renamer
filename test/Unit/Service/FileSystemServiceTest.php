@@ -206,6 +206,68 @@ final class FileSystemServiceTest extends TestCase
         }
     }
 
+    #[Test]
+    public function renameFilesThrowsWhenMoveFails(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'source-move-fails';
+        $targetDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'target-move-fails';
+
+        mkdir($sourceDirectory);
+        mkdir($targetDirectory, 0555);
+
+        $sourceFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
+        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
+
+        file_put_contents($sourceFile, 'content');
+
+        $fileDuplicateCollection = $this->createFileDuplicateCollection(
+            $sourceFile,
+            $targetFile,
+        );
+
+        try {
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessage('Failed to move file');
+
+            $service->renameFiles($fileDuplicateCollection);
+        } finally {
+            chmod($targetDirectory, 0755);
+        }
+    }
+
+    #[Test]
+    public function renameFilesThrowsWhenCopyFails(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'source-copy-fails';
+        $targetDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'target-copy-fails';
+
+        mkdir($sourceDirectory);
+        mkdir($targetDirectory, 0555);
+
+        $sourceFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
+        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
+
+        file_put_contents($sourceFile, 'content');
+
+        $fileDuplicateCollection = $this->createFileDuplicateCollection(
+            $sourceFile,
+            $targetFile,
+        );
+
+        try {
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessage('Failed to copy file');
+
+            $service->renameFiles($fileDuplicateCollection, copyFiles: true);
+        } finally {
+            chmod($targetDirectory, 0755);
+        }
+    }
+
     /**
      * @return array{FileSystemService, BufferedOutput}
      */
