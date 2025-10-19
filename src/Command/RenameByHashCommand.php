@@ -37,7 +37,8 @@ class RenameByHashCommand extends AbstractRenameCommand
         parent::configure();
 
         $this
-            ->setName('rename:hash')
+            ->setName('hash')
+            ->setAliases(['rename:hash'])
             ->setDescription(
                 'Detects duplicate files matching the same file hash.'
             );
