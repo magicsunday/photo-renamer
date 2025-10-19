@@ -72,21 +72,21 @@ renamer lowercase [--dry-run] <source-directory>
 
 Converts filenames to lowercase while preserving extensions. Handy for normalising mixed-case collections or preparing files for case-sensitive systems.
 
-### `rename:pattern`
+### `pattern`
 
 ```
-renamer rename:pattern [--dry-run] --pattern "<regex>" --replacement "<replacement>" <source-directory>
+renamer pattern [--dry-run] --pattern "<regex>" --replacement "<replacement>" <source-directory>
 ```
 
-Searches filenames with a regular expression and renames them using a replacement pattern. Perfect for cleaning stray characters or harmonising extensions (for example converting `.jpeg` to `.jpg`). Patterns follow PHP regular-expression syntax.
+Searches filenames with a regular expression and renames them using a replacement pattern. Perfect for cleaning stray characters or harmonising extensions (for example converting `.jpeg` to `.jpg`). Patterns follow PHP regular-expression syntax. Alias: `rename:pattern`.
 
-### `rename:date-pattern`
+### `pattern:date`
 
 ```
-renamer rename:date-pattern [--dry-run] --pattern "<date-pattern>" --replacement "<replacement>" <source-directory>
+renamer pattern:date [--dry-run] --pattern "<date-pattern>" --replacement "<replacement>" <source-directory>
 ```
 
-Targets date fragments inside filenames and rewrites them using placeholders such as `{Y}` (year) or `{H}` (hour). Use it to expand two-digit years, adjust separators, or align file names with your preferred date format.
+Targets date fragments inside filenames and rewrites them using placeholders such as `{Y}` (year) or `{H}` (hour). Use it to expand two-digit years, adjust separators, or align file names with your preferred date format. Alias: `rename:date-pattern`.
 
 ### `hash`
 
@@ -114,11 +114,11 @@ Follow a staged approach when cleaning a large library. Run each step with `--dr
    ```
 2. Normalise extensions:
    ```bash
-   renamer rename:pattern --dry-run --pattern "/^(.+)(jpeg)$/" --replacement "\\1jpg" ~/Photos
-   ```
+   renamer pattern --dry-run --pattern "/^(.+)(jpeg)$/" --replacement "\\1jpg" ~/Photos
+    ```
 3. Expand date fragments inside filenames:
    ```bash
-   renamer rename:date-pattern --dry-run --pattern "/^{y}-{m}-{d}.{H}-{i}-{s}(.+)$/" --replacement "{Y}-{m}-{d}_{H}-{i}-{s}" ~/Photos
+   renamer pattern:date --dry-run --pattern "/^{y}-{m}-{d}.{H}-{i}-{s}(.+)$/" --replacement "{Y}-{m}-{d}_{H}-{i}-{s}" ~/Photos
    ```
 4. Rename based on EXIF metadata:
    ```bash
