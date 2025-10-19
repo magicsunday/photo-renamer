@@ -103,10 +103,10 @@ To get detailed help for a specific command:
 ./renamer help [command]
 ```
 
-For example, to get help for the `rename:exifdate` command:
+For example, to get help for the `exif:date` command:
 
 ```bash
-./renamer help rename:exifdate
+./renamer help exif:date
 ```
 
 This displays detailed information about the command, including all available options, arguments, and usage examples.
@@ -120,7 +120,7 @@ All commands follow this general syntax:
 ```
 
 Where:
-- `[command]` is the specific renaming operation to perform (e.g., `rename:lower`, `rename:exifdate`)
+- `[command]` is the specific renaming operation to perform (e.g., `lowercase`, `exif:date`)
 - `[options]` are the command-specific options and common parameters (e.g., `--dry-run`, `--copy`)
 - `[arguments]` are the required and optional arguments (e.g., source directory, target directory)
 
@@ -129,7 +129,7 @@ Where:
 Here's a basic example that converts all filenames in a directory to lowercase:
 
 ```bash
-./renamer rename:lower --dry-run ~/Photos
+./renamer lowercase --dry-run ~/Photos
 ```
 
 This command performs a dry run of the lowercase conversion operation on all files in the ~/Photos directory, showing what changes would be made without actually modifying any files.
@@ -138,12 +138,12 @@ This command performs a dry run of the lowercase conversion operation on all fil
 
 Photo Renamer provides several commands for different renaming strategies:
 
-### rename:lower
+### lowercase
 
 Converts all filenames to lowercase. This command is useful for standardizing your file collection and ensuring consistent naming conventions.
 
 ```bash
-./renamer rename:lower [--dry-run] <source-directory>
+./renamer lowercase [--dry-run] <source-directory>
 ```
 
 **Function**: Transforms uppercase letters in filenames to lowercase while preserving the file extension.
@@ -217,12 +217,12 @@ Converts date formats in filenames, such as converting two-digit years to four-d
 - Reorganizing date components in filenames
 - Fixing inconsistent date formatting
 
-### rename:hash
+### hash
 
 Identifies duplicate files based on their content hash and renames them accordingly. This command is essential for detecting and managing duplicate files in your collection.
 
 ```bash
-./renamer rename:hash [--dry-run] [--skip-duplicates] <source-directory> [<target-directory>]
+./renamer hash [--dry-run] [--skip-duplicates] <source-directory> [<target-directory>]
 ```
 
 **Function**: Calculates a unique hash for each file based on its content, identifies duplicates, and either renames them with a sequential number or skips them.
@@ -238,12 +238,12 @@ Identifies duplicate files based on their content hash and renames them accordin
 - Consolidating files from multiple sources
 - Creating a clean, duplicate-free collection
 
-### rename:exifdate
+### exif:date
 
 Renames files based on their EXIF date information (DateTimeOriginal). This command is particularly useful for organizing photos, including Apple Live Photos (image + video pairs).
 
 ```bash
-./renamer rename:exifdate [--dry-run] [--target-filename-pattern <pattern>] <source-directory>
+./renamer exif:date [--dry-run] [--target-filename-pattern <pattern>] <source-directory>
 ```
 
 **Function**: Extracts the original date and time from a photo's EXIF metadata and renames the file using that information. Only images with valid EXIF metadata and their associated video file are processed. All other files remain untouched in the directory.
@@ -271,7 +271,7 @@ Here's a recommended workflow for organizing a collection of photos:
 
 1. **Convert all filenames to lowercase**:
    ```bash
-   ./renamer rename:lower --dry-run photos/
+   ./renamer lowercase --dry-run photos/
    ```
 
 2. **Standardize file extensions** (e.g., convert "jpeg" to "jpg"):
@@ -286,12 +286,12 @@ Here's a recommended workflow for organizing a collection of photos:
 
 4. **Rename files based on EXIF data**:
    ```bash
-   ./renamer rename:exifdate --dry-run photos/
+   ./renamer exif:date --dry-run photos/
    ```
 
 5. **Identify and handle duplicates**:
    ```bash
-   ./renamer rename:hash --dry-run --skip-duplicates photos/ organized-photos/
+   ./renamer hash --dry-run --skip-duplicates photos/ organized-photos/
    ```
 
 After verifying the changes, remove the `--dry-run` option to actually perform the renaming operations.
