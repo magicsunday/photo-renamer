@@ -13,9 +13,11 @@ namespace MagicSunday\Renamer\Strategy\RenameStrategy;
 
 use DateTime;
 use Exception;
+use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\ExifData;
 use Override;
 use SplFileInfo;
 
+use function is_string;
 use function strlen;
 
 /**
@@ -68,28 +70,12 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
         // Look up EXIF data
         $exifData = $this->getExifData($splFileInfo);
 
-        // if ($exifData !== false) {
-        //     $this->io->text('Extract EXIF data from: ' . $splFileInfo->getPathname());
-        // }
-
-        // Ignore files without EXIF data
-        if ($exifData === false) {
+        if ($exifData === null) {
             return null;
         }
 
-        if (!isset($exifData['DateTimeOriginal'])) {
-            return null;
-        }
-
-        // $this->io->text('=> Found "DateTimeOriginal" => ' . $exifData['DateTimeOriginal']);
-
-        // Store the date and time the image/video was recorded
-
-        /** @var string $exifDateTimeOriginal */
-        $exifDateTimeOriginal = $exifData['DateTimeOriginal'];
-
-        /** @var string $exifSubSecTimeOriginal */
-        $exifSubSecTimeOriginal = $exifData['SubSecTimeOriginal'] ?? '';
+        $exifDateTimeOriginal  = $exifData->getDateTimeOriginal();
+        $exifSubSecTimeOriginal = $exifData->getSubSecTimeOriginal() ?? '';
 
         try {
             $dateTimeOriginal = new DateTime($exifDateTimeOriginal);
@@ -115,10 +101,27 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
      *
      * @param SplFileInfo $splFileInfo The file information object representing the target file
      *
-     * @return array<string|mixed>|false Returns an associative array with EXIF data on success, or false on failure
+     * @return ExifData|null Typed EXIF data or null when no usable information is available
      */
-    private function getExifData(SplFileInfo $splFileInfo): false|array
+    private function getExifData(SplFileInfo $splFileInfo): ?ExifData
     {
-        return @exif_read_data($splFileInfo->getPathname());
+        $exifData = @exif_read_data($splFileInfo->getPathname());
+
+        if ($exifData === false || !isset($exifData['DateTimeOriginal'])) {
+            return null;
+        }
+
+        $dateTimeOriginal = $exifData['DateTimeOriginal'];
+        $subSecTimeOriginal = $exifData['SubSecTimeOriginal'] ?? null;
+
+        if (!is_string($dateTimeOriginal) || $dateTimeOriginal === '') {
+            return null;
+        }
+
+        if (!is_string($subSecTimeOriginal) || $subSecTimeOriginal === '') {
+            $subSecTimeOriginal = null;
+        }
+
+        return new ExifData($dateTimeOriginal, $subSecTimeOriginal);
     }
 }
