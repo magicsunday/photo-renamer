@@ -54,7 +54,8 @@ class RenameByExifDateCommand extends AbstractRenameCommand
         parent::configure();
 
         $this
-            ->setName('rename:exifdate')
+            ->setName('exif:date')
+            ->setAliases(['rename:exifdate'])
             ->setDescription(
                 'Renames files with EXIF data field "DateTimeOriginal" (incl. Apple Live Photos). '
                 . 'All files without EXIF data remain unchanged in the source directory.'
