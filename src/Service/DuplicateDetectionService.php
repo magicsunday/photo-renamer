@@ -376,18 +376,22 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
      */
     public function getTargetPathname(SplFileInfo $sourceFileInfo, string $targetFilename): string
     {
-        $targetPathname = $this->targetDirectory . DIRECTORY_SEPARATOR
-            . trim(
-                // Remove the source directory part from the current file path
-                str_replace(
-                    $this->sourceDirectory,
-                    '',
-                    $sourceFileInfo->getPath()
-                ),
-                DIRECTORY_SEPARATOR
-            );
+        $sourcePath = $sourceFileInfo->getPath();
+        $relativePath = $sourcePath;
 
-        return rtrim($targetPathname, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $targetFilename;
+        if (str_starts_with($sourcePath, $this->sourceDirectory)) {
+            $relativePath = substr($sourcePath, strlen($this->sourceDirectory));
+        }
+
+        $relativePath = trim((string) $relativePath, DIRECTORY_SEPARATOR);
+
+        $targetPath = rtrim($this->targetDirectory, DIRECTORY_SEPARATOR);
+
+        if ($relativePath !== '') {
+            $targetPath .= DIRECTORY_SEPARATOR . $relativePath;
+        }
+
+        return $targetPath . DIRECTORY_SEPARATOR . $targetFilename;
     }
 
     /**
