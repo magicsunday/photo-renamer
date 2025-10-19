@@ -58,8 +58,9 @@ class RenameByDatePatternCommand extends AbstractRenameCommand
         parent::configure();
 
         $this
-            ->setName('rename:date-pattern')
-            ->setDescription('Renames files by matching a date pattern.')
+            ->setName('pattern:date')
+            ->setAliases(['rename:date-pattern'])
+            ->setDescription('Renames files by matching date placeholders in filenames.')
             ->addOption(
                 'pattern',
                 'p',
