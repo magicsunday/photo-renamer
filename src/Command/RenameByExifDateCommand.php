@@ -15,6 +15,7 @@ use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Service\Dto\LivePhotoPairing;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
+use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\LivePhotoPairingService;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\DuplicateIdentifierStrategyInterface;
@@ -118,6 +119,7 @@ class RenameByExifDateCommand extends AbstractRenameCommand
         $this->io->newLine();
 
         $this->io->progressStart($this->fileSystemService->countFiles($iterator));
+        $this->io->progressSetFormat(FileSystemService::PROGRESS_BAR_FORMAT);
 
         $pairings = $this->livePhotoPairingService->pairByContentIdentifier(
             iterator: $iterator,
