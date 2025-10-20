@@ -229,9 +229,11 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             /** @var RenameList $renames */
             $renames = $fileDuplicate->getRenames();
 
-            // Remove elements where the source already equals the target (these don't need to be copied or moved)
+            // Remove the rename entry when the source already equals the canonical destination path
+            $canonicalTargetPath = $fileDuplicate->getTarget()->getPathname();
+
             foreach ($renames as $key => $rename) {
-                if ($rename->getSource()->getPathname() === $rename->getTarget()->getPathname()) {
+                if ($rename->getSource()->getPathname() === $canonicalTargetPath) {
                     $renames->remove($key);
                     break;
                 }
