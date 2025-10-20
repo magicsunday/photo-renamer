@@ -243,6 +243,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             $fileDuplicate->setRenames($renames);
 
             $duplicateCount = 1;
+            $hasAdditionalRenames = $renames->count() > 1;
 
             // Check if the target file already exists in the file system, so we need to adjust
             // the new target name again.
@@ -252,7 +253,8 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                         $rename->getSource(),
                         $rename->getTarget(),
                         $duplicateCount,
-                        $index === 0
+                        $index === 0,
+                        $hasAdditionalRenames,
                     )
                 );
             }
@@ -297,6 +299,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         SplFileInfo $target,
         int &$duplicateCount,
         bool $isFirst = false,
+        bool $hasAdditionalRenames = false,
     ): SplFileInfo {
         $duplicateBasename = $target->getBasename('.' . $target->getExtension());
 
@@ -305,23 +308,21 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 $source,
                 $target,
                 $duplicateBasename,
-                $duplicateCount
+                $duplicateCount,
+                false,
+                !$hasAdditionalRenames,
             );
         }
 
         if (!$isFirst) {
-            $duplicateTargetFileInfo = $this->getNewDuplicateTargetFileInfo(
+            return $this->getNewUniqueDuplicateTargetFileInfo(
                 $source,
                 $target,
                 $duplicateBasename,
-                $duplicateCount
+                $duplicateCount,
+                true,
+                !$hasAdditionalRenames,
             );
-
-            if ($duplicateTargetFileInfo->getPathname() !== $source->getPathname()) {
-                ++$duplicateCount;
-            }
-
-            return $duplicateTargetFileInfo;
         }
 
         return $target;
@@ -342,14 +343,12 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         SplFileInfo $target,
         string $targetBasename,
         int &$duplicateCount,
+        bool $forceDuplicateSuffix = false,
+        bool $allowSourceTargetMatch = false,
     ): SplFileInfo {
-        if ($target->getPathname() === $source->getPathname()) {
-            return $target;
-        }
-
         $duplicateFileInfo = $target;
 
-        while ($duplicateFileInfo->isFile() && $duplicateFileInfo->getPathname() !== $source->getPathname()) {
+        if ($forceDuplicateSuffix) {
             $duplicateFileInfo = $this->getNewDuplicateTargetFileInfo(
                 $source,
                 $target,
@@ -357,11 +356,30 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 $duplicateCount
             );
 
-            if ($duplicateFileInfo->getPathname() === $source->getPathname()) {
+            ++$duplicateCount;
+
+            if ($allowSourceTargetMatch && $duplicateFileInfo->getPathname() === $source->getPathname()) {
+                return $duplicateFileInfo;
+            }
+        }
+
+        while ($duplicateFileInfo->isFile() || (!$allowSourceTargetMatch && $duplicateFileInfo->getPathname() === $source->getPathname())) {
+            if ($allowSourceTargetMatch && $duplicateFileInfo->getPathname() === $source->getPathname()) {
                 break;
             }
 
+            $duplicateFileInfo = $this->getNewDuplicateTargetFileInfo(
+                $source,
+                $target,
+                $targetBasename,
+                $duplicateCount
+            );
+
             ++$duplicateCount;
+
+            if ($allowSourceTargetMatch && $duplicateFileInfo->getPathname() === $source->getPathname()) {
+                break;
+            }
         }
 
         return $duplicateFileInfo;
