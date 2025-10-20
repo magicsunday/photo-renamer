@@ -257,7 +257,7 @@ final class RenameByExifDateCommandTest extends TestCase
 
         $io = $this->createMock(SymfonyStyle::class);
         $io->expects(self::atLeastOnce())->method('text');
-        $io->expects(self::atLeast(2))->method('newLine');
+        $io->expects(self::exactly(2))->method('newLine');
         $io->expects(self::once())->method('progressStart')->with(2);
         $io->expects(self::exactly(2))->method('progressAdvance');
         $io->expects(self::once())->method('progressFinish');
