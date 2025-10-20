@@ -339,6 +339,51 @@ final class DuplicateDetectionServiceTest extends TestCase
     }
 
     #[Test]
+    public function createDuplicateFilenamesKeepsCanonicalEntriesWhenListAllEnabled(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $canonicalSource = $sourceDirectory . DIRECTORY_SEPARATOR . 'original.jpg';
+        $duplicateSource = $sourceDirectory . DIRECTORY_SEPARATOR . 'duplicate.jpg';
+        $targetPath      = $targetDirectory . DIRECTORY_SEPARATOR . 'renamed.jpg';
+
+        file_put_contents($canonicalSource, 'original');
+        file_put_contents($duplicateSource, 'duplicate');
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate
+            ->addFile(new SplFileInfo($canonicalSource))
+            ->addFile(new SplFileInfo($duplicateSource))
+            ->setTarget(new SplFileInfo($targetPath));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('identifier', $fileDuplicate);
+
+        $service
+            ->setSourceDirectory($sourceDirectory)
+            ->setTargetDirectory($targetDirectory)
+            ->setListAll(true);
+
+        $service->createDuplicateFilenames($collection);
+
+        $duplicate = $collection->get('identifier');
+        self::assertInstanceOf(FileDuplicate::class, $duplicate);
+
+        $renames = iterator_to_array($duplicate->getRenames());
+
+        self::assertCount(2, $renames);
+        self::assertSame($canonicalSource, $renames[0]->getSource()->getPathname());
+        self::assertSame($targetPath, $renames[0]->getTarget()->getPathname());
+        self::assertSame(
+            $targetDirectory . DIRECTORY_SEPARATOR . 'renamed-duplicate-001.jpg',
+            $renames[1]->getTarget()->getPathname(),
+        );
+    }
+
+    #[Test]
     public function createDuplicateFilenamesKeepsExistingDuplicateSuffixOnSubsequentRun(): void
     {
         [$service] = $this->createService();

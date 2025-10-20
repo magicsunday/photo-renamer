@@ -67,6 +67,12 @@ final class RenameLowerCaseCommandTest extends TestCase
 
         $duplicateDetectionService
             ->expects(self::once())
+            ->method('setListAll')
+            ->with(false)
+            ->willReturnSelf();
+
+        $duplicateDetectionService
+            ->expects(self::once())
             ->method('groupFilesByDuplicateIdentifier')
             ->with(
                 self::isInstanceOf(RecursiveIteratorIterator::class),
@@ -93,6 +99,7 @@ final class RenameLowerCaseCommandTest extends TestCase
             ->with(
                 self::identicalTo($duplicateCollection),
                 true,
+                false,
                 false,
                 false,
             );

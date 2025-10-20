@@ -204,12 +204,48 @@ final class FileSystemServiceTest extends TestCase
         $buffer     = $output->fetch();
         $normalized = str_replace("\r", "\n", $buffer);
 
-        $expectedLogLine = $sourceFile . ' → ' . $targetFile;
+        $expectedLogLine = '[R] ' . $sourceFile . ' → ' . $targetFile;
 
         self::assertMatchesRegularExpression(
             '/0\/1 [^\n]*\n\s*' . preg_quote($expectedLogLine, '/') . '/',
             $normalized,
         );
+    }
+
+    #[Test]
+    public function renameFilesDisplaysStatusPrefixesWhenListingAll(): void
+    {
+        [$service, $output] = $this->createService();
+
+        $sourceDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'source-status';
+        $targetDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'target-status';
+
+        mkdir($sourceDirectory);
+        mkdir($targetDirectory);
+
+        $canonicalPath = $targetDirectory . DIRECTORY_SEPARATOR . 'photo.jpg';
+        $renameSource  = $sourceDirectory . DIRECTORY_SEPARATOR . 'rename.jpg';
+        $renameTarget  = $targetDirectory . DIRECTORY_SEPARATOR . 'rename.jpg';
+        $duplicateSource = $sourceDirectory . DIRECTORY_SEPARATOR . 'duplicate.jpg';
+        $duplicateTarget = $targetDirectory . DIRECTORY_SEPARATOR . 'photo'
+            . FileSystemService::DUPLICATE_IDENTIFIER . '001.jpg';
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate->setTarget(new SplFileInfo($canonicalPath));
+        $fileDuplicate->addRename(new Rename(new SplFileInfo($canonicalPath), new SplFileInfo($canonicalPath)));
+        $fileDuplicate->addRename(new Rename(new SplFileInfo($renameSource), new SplFileInfo($renameTarget)));
+        $fileDuplicate->addRename(new Rename(new SplFileInfo($duplicateSource), new SplFileInfo($duplicateTarget)));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('status', $fileDuplicate);
+
+        $service->renameFiles($collection, dryRun: true, listAll: true);
+
+        $buffer = $output->fetch();
+
+        self::assertStringContainsString('[O] ' . $canonicalPath . ' → ' . $canonicalPath, $buffer);
+        self::assertStringContainsString('[R] ' . $renameSource . ' → ' . $renameTarget, $buffer);
+        self::assertStringContainsString('[D] ' . $duplicateSource . ' → ' . $duplicateTarget, $buffer);
     }
 
     #[Test]

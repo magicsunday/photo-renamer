@@ -106,6 +106,13 @@ abstract class AbstractRenameCommand extends Command
     protected bool $skipDuplicates = false;
 
     /**
+     * Set to TRUE to emit a full listing of originals and duplicates.
+     *
+     * @var bool
+     */
+    protected bool $listAll = false;
+
+    /**
      * Constructor.
      *
      * @param FileSystemServiceInterface         $fileSystemService
@@ -158,6 +165,12 @@ abstract class AbstractRenameCommand extends Command
                 's',
                 InputOption::VALUE_NONE,
                 'Skip duplicate files from copy/rename action. The files remain unchanged in the source directory.'
+            )
+            ->addOption(
+                'list-all',
+                null,
+                InputOption::VALUE_NONE,
+                'Display all files, including originals and duplicates, in the final output.'
             );
     }
 
@@ -208,6 +221,7 @@ abstract class AbstractRenameCommand extends Command
         $this->copyFiles      = (bool) $input->getOption('copy');
         $this->dryRun         = (bool) $input->getOption('dry-run');
         $this->skipDuplicates = (bool) $input->getOption('skip-duplicates');
+        $this->listAll        = (bool) $input->getOption('list-all');
 
         $sourceDirectory = $input->getArgument('source-directory');
         $targetDirectory = $input->getArgument('target-directory');
@@ -296,7 +310,8 @@ abstract class AbstractRenameCommand extends Command
         // PHPStan detects $this->targetDirectory as null, even though it is no longer null here.
         $this->duplicateDetectionService
             ->setSourceDirectory($this->sourceDirectory)
-            ->setTargetDirectory($this->targetDirectory);
+            ->setTargetDirectory($this->targetDirectory)
+            ->setListAll($this->listAll);
     }
 
     /**
@@ -334,7 +349,8 @@ abstract class AbstractRenameCommand extends Command
                 $fileDuplicateCollection,
                 $this->dryRun,
                 $this->skipDuplicates,
-                $this->copyFiles
+                $this->copyFiles,
+                $this->listAll
             );
     }
 

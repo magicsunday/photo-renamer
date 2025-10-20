@@ -61,6 +61,11 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     private bool $useFileExtensionFromSource = false;
 
     /**
+     * @var bool
+     */
+    private bool $listAll = false;
+
+    /**
      * Constructor.
      *
      * @param FileSystemService $fileSystemService
@@ -112,6 +117,18 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     public function setUseFileExtensionFromSource(bool $useFileExtensionFromSource): DuplicateDetectionService
     {
         $this->useFileExtensionFromSource = $useFileExtensionFromSource;
+
+        return $this;
+    }
+
+    /**
+     * @param bool $listAll
+     *
+     * @return DuplicateDetectionService
+     */
+    public function setListAll(bool $listAll): DuplicateDetectionService
+    {
+        $this->listAll = $listAll;
 
         return $this;
     }
@@ -229,13 +246,14 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             /** @var RenameList $renames */
             $renames = $fileDuplicate->getRenames();
 
-            // Remove the rename entry when the source already equals the canonical destination path
             $canonicalTargetPath = $fileDuplicate->getTarget()->getPathname();
 
-            foreach ($renames as $key => $rename) {
-                if ($rename->getSource()->getPathname() === $canonicalTargetPath) {
-                    $renames->remove($key);
-                    break;
+            if ($this->listAll === false) {
+                foreach ($renames as $key => $rename) {
+                    if ($rename->getSource()->getPathname() === $canonicalTargetPath) {
+                        $renames->remove($key);
+                        break;
+                    }
                 }
             }
 
@@ -243,20 +261,35 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             $fileDuplicate->setRenames($renames);
 
             $duplicateCount = 1;
-            $hasAdditionalRenames = $renames->count() > 1;
+            $duplicateEntries = 0;
+
+            foreach ($fileDuplicate->getRenames() as $rename) {
+                if ($rename->getSource()->getPathname() !== $canonicalTargetPath) {
+                    ++$duplicateEntries;
+                }
+            }
+
+            $hasAdditionalRenames = $duplicateEntries > 1;
+            $processedDuplicates = 0;
 
             // Check if the target file already exists in the file system, so we need to adjust
             // the new target name again.
-            foreach ($fileDuplicate->getRenames() as $index => $rename) {
+            foreach ($fileDuplicate->getRenames() as $rename) {
+                if ($rename->getSource()->getPathname() === $canonicalTargetPath) {
+                    continue;
+                }
+
                 $rename->setTarget(
                     $this->createDuplicateTargetFileInfo(
                         $rename->getSource(),
                         $rename->getTarget(),
                         $duplicateCount,
-                        $index === 0,
+                        $processedDuplicates === 0,
                         $hasAdditionalRenames,
                     )
                 );
+
+                ++$processedDuplicates;
             }
 
             $progressBar->advance();
