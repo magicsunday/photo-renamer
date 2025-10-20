@@ -4,18 +4,12 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Strategy\RenameStrategy\Dto;
 
-use function array_key_exists;
-use function is_string;
-
 /**
  * Immutable value object encapsulating raw EXIF metadata.
  */
 final class ExifRawMetadata
 {
-    /**
-     * @param array<string|int, mixed> $data
-     */
-    private function __construct(private readonly array $data)
+    private function __construct(private readonly ExifMetadataCollection $data)
     {
     }
 
@@ -24,30 +18,40 @@ final class ExifRawMetadata
      */
     public static function fromArray(array $data): self
     {
-        return new self($data);
+        return new self(ExifMetadataCollection::fromArray($data));
     }
 
     public function hasKey(string $key): bool
     {
-        return array_key_exists($key, $this->data);
+        return $this->data->has($key);
     }
 
-    public function get(string $key): mixed
+    public function get(string $key): ?ExifValue
     {
-        return $this->data[$key] ?? null;
+        return $this->data->get($key);
     }
 
     public function getString(string $key): ?string
     {
-        $value = $this->get($key);
-
-        return is_string($value) ? $value : null;
+        return $this->get($key)?->asString();
     }
 
-    /**
-     * @return array<string|int, mixed>
-     */
-    public function toArray(): array
+    public function getInt(string $key): ?int
+    {
+        return $this->get($key)?->asInt();
+    }
+
+    public function getFloat(string $key): ?float
+    {
+        return $this->get($key)?->asFloat();
+    }
+
+    public function getBool(string $key): ?bool
+    {
+        return $this->get($key)?->asBool();
+    }
+
+    public function values(): ExifMetadataCollection
     {
         return $this->data;
     }
