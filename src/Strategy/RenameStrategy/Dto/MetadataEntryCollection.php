@@ -23,12 +23,9 @@ final class MetadataEntryCollection
         $this->entries = $entries;
     }
 
-    /**
-     * @param array<string|int, mixed> $data
-     */
-    public static function fromArray(array $data): self
+    public static function fromArray(ExifRawMetadata $data): self
     {
-        return new self(self::buildEntries($data));
+        return new self(self::buildEntries($data->toArray()));
     }
 
     /**

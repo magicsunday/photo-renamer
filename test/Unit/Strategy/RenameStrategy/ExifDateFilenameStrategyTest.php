@@ -9,6 +9,7 @@ use MagicSunday\Renamer\Exception\FileReadException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Service\SafeExifReader;
 use MagicSunday\Renamer\Service\SafeFileReader;
+use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\ExifRawMetadata;
 use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\MetadataEntryCollection;
 use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\QuickTimeKey;
 use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\QuickTimeMetadata;
@@ -209,12 +210,12 @@ final class ExifDateFilenameStrategyTest extends TestCase
     #[Test]
     public function metadataCollectionFindsContentIdentifierCandidates(): void
     {
-        $collection = MetadataEntryCollection::fromArray([
+        $collection = MetadataEntryCollection::fromArray(ExifRawMetadata::fromArray([
             'DateTimeOriginal' => '2024:05:05 12:00:00',
             'Nested' => [
                 'ContentIdentifier' => 'COLLECTION-UUID',
             ],
-        ]);
+        ]));
 
         $entry = $collection->findContentIdentifier();
 
