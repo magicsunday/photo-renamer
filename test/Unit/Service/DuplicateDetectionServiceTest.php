@@ -28,6 +28,8 @@ use function file_put_contents;
 use function is_dir;
 use function iterator_to_array;
 use function mkdir;
+use function preg_match;
+use function preg_quote;
 use function rename;
 use function rmdir;
 use function sys_get_temp_dir;
@@ -278,16 +280,20 @@ final class DuplicateDetectionServiceTest extends TestCase
             self::fail('Failed to create nested directory: ' . $nestedDirectory);
         }
 
-        $rootFile     = $sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg';
-        $duplicateFile = $nestedDirectory . DIRECTORY_SEPARATOR . 'photo.jpg';
+        $rootFile             = $sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg';
+        $duplicateFile        = $nestedDirectory . DIRECTORY_SEPARATOR . 'photo.jpg';
+        $preRenamedDuplicate  = $nestedDirectory . DIRECTORY_SEPARATOR . 'photo'
+            . FileSystemService::DUPLICATE_IDENTIFIER . '001.jpg';
 
         file_put_contents($rootFile, 'root');
         file_put_contents($duplicateFile, 'duplicate');
+        file_put_contents($preRenamedDuplicate, 'duplicate-001');
 
         $fileDuplicate = new FileDuplicate();
         $fileDuplicate
             ->addFile(new SplFileInfo($rootFile))
             ->addFile(new SplFileInfo($duplicateFile))
+            ->addFile(new SplFileInfo($preRenamedDuplicate))
             ->setTarget(new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg'));
 
         $collection = new FileDuplicateCollection();
@@ -304,11 +310,31 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         $renames = iterator_to_array($duplicate->getRenames());
 
-        self::assertCount(1, $renames);
+        self::assertCount(2, $renames);
         self::assertSame($duplicateFile, $renames[0]->getSource()->getPathname());
-        self::assertSame(
-            $nestedDirectory . DIRECTORY_SEPARATOR . 'photo' . FileSystemService::DUPLICATE_IDENTIFIER . '001.jpg',
+        self::assertStringStartsWith(
+            $nestedDirectory . DIRECTORY_SEPARATOR,
             $renames[0]->getTarget()->getPathname(),
+        );
+        self::assertSame($preRenamedDuplicate, $renames[1]->getSource()->getPathname());
+        self::assertNotSame($preRenamedDuplicate, $renames[1]->getTarget()->getPathname());
+
+        $pattern = '/' . preg_quote(FileSystemService::DUPLICATE_IDENTIFIER, '/') . '(\d{3})\.jpg$/';
+
+        self::assertSame(
+            1,
+            preg_match($pattern, $renames[0]->getTarget()->getFilename(), $firstMatch),
+            'First duplicate rename should include a numeric duplicate suffix.',
+        );
+        self::assertSame(
+            1,
+            preg_match($pattern, $renames[1]->getTarget()->getFilename(), $secondMatch),
+            'Pre-renamed file should be reassigned a numeric duplicate suffix.',
+        );
+        self::assertNotSame(
+            $firstMatch[1],
+            $secondMatch[1],
+            'Duplicate suffixes must not collide.',
         );
     }
 
