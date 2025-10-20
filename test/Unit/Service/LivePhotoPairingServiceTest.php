@@ -64,7 +64,7 @@ final class LivePhotoPairingServiceTest extends TestCase
         self::assertInstanceOf(LivePhotoPairing::class, $pair);
         self::assertSame($video->getPathname(), $pair->getSourceFile()->getPathname());
         self::assertSame('/source/20240101_120000.MOV', $pair->getTargetFile()->getPathname());
-        self::assertSame('20240101_120000.MOV', $pair->getDuplicateIdentifier());
+        self::assertSame('live-photo:content-id', $pair->getDuplicateIdentifier());
         self::assertSame('content-id', $pair->getContentIdentifier());
     }
 
@@ -143,7 +143,7 @@ final class LivePhotoPairingServiceTest extends TestCase
 
         self::assertSame($video->getPathname(), $pair->getSourceFile()->getPathname());
         self::assertSame($expectedTargetPath, $pair->getTargetFile()->getPathname());
-        self::assertSame('20240101_120000.' . $video->getExtension(), $pair->getDuplicateIdentifier());
+        self::assertSame('live-photo:iphone', $pair->getDuplicateIdentifier());
         self::assertSame('UUID-IPHONE-LIVEPHOTO', $pair->getContentIdentifier());
     }
 }

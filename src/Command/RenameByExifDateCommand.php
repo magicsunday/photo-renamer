@@ -132,16 +132,15 @@ class RenameByExifDateCommand extends AbstractRenameCommand
         foreach ($pairings as $pairing) {
             $duplicateIdentifier = $pairing->getDuplicateIdentifier();
 
-            if ($fileDuplicateCollection->has($duplicateIdentifier)) {
-                /** @var FileDuplicate $fileDuplicate */
-                $fileDuplicate = $fileDuplicateCollection->get($duplicateIdentifier);
-                $fileDuplicate?->addFile($pairing->getSourceFile());
+            $fileDuplicate = $fileDuplicateCollection->get($duplicateIdentifier);
+
+            if ($fileDuplicate instanceof FileDuplicate) {
+                $fileDuplicate->addFile($pairing->getSourceFile());
 
                 continue;
             }
 
-            $fileDuplicate = new FileDuplicate();
-            $fileDuplicate
+            $fileDuplicate = (new FileDuplicate())
                 ->addFile($pairing->getSourceFile())
                 ->setTarget($pairing->getTargetFile());
 

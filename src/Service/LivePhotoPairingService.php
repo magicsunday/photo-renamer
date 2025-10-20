@@ -10,6 +10,7 @@ namespace MagicSunday\Renamer\Service;
 
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
+use MagicSunday\Renamer\Service\Dto\LivePhotoContentIdentifierTarget;
 use MagicSunday\Renamer\Service\Dto\LivePhotoContentIdentifierTargetMap;
 use MagicSunday\Renamer\Service\Dto\LivePhotoExistingFilePathnameIndex;
 use MagicSunday\Renamer\Service\Dto\LivePhotoPairing;
@@ -43,8 +44,12 @@ class LivePhotoPairingService
         $existingFilePathnames = new LivePhotoExistingFilePathnameIndex();
         $contentIdentifierTargets = new LivePhotoContentIdentifierTargetMap();
 
-        /** @var FileDuplicate $fileDuplicate */
-        foreach ($fileDuplicateCollection as $fileDuplicate) {
+        foreach ($fileDuplicateCollection->asArray() as $duplicateIdentifier => $fileDuplicate) {
+            if (!is_string($duplicateIdentifier)) {
+                continue;
+            }
+
+            /** @var FileDuplicate $fileDuplicate */
             foreach ($fileDuplicate->getFiles() as $existingFileInfo) {
                 $existingFilePathnames->remember($existingFileInfo);
 
@@ -54,7 +59,11 @@ class LivePhotoPairingService
                     continue;
                 }
 
-                $contentIdentifierTargets->remember($contentIdentifier, $fileDuplicate->getTarget());
+                $contentIdentifierTargets->remember(
+                    $contentIdentifier,
+                    $fileDuplicate->getTarget(),
+                    $duplicateIdentifier,
+                );
             }
         }
 
@@ -84,7 +93,8 @@ class LivePhotoPairingService
             }
 
             $targetPrototype = $contentIdentifierTargets->get($contentIdentifier);
-            $targetBasename = $targetPrototype->getBasename('.' . $targetPrototype->getExtension());
+            $targetFile = $targetPrototype->getTarget();
+            $targetBasename = $targetFile->getBasename('.' . $targetFile->getExtension());
 
             $targetFileInfo = new SplFileInfo(
                 $fileInfo->getPath()
@@ -94,7 +104,7 @@ class LivePhotoPairingService
                 . $fileInfo->getExtension(),
             );
 
-            $duplicateIdentifier = $targetBasename . '.' . $fileInfo->getExtension();
+            $duplicateIdentifier = $targetPrototype->getDuplicateIdentifier();
 
             $pairs->add(new LivePhotoPairing(
                 $fileInfo,
