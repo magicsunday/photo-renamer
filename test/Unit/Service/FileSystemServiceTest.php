@@ -378,7 +378,10 @@ final class FileSystemServiceTest extends TestCase
         $formatProperty = new ReflectionProperty($progressBar, 'format');
         $formatProperty->setAccessible(true);
 
-        self::assertSame(' %current%/%max% [%bar%] %percent:3s%% ETA %estimated:-6s%', $formatProperty->getValue($progressBar));
+        self::assertSame(
+            ' %current%/%max% [%bar%] %percent:3s%% | ETA: %estimated:-6s% | Remaining: %remaining:-6s%',
+            $formatProperty->getValue($progressBar),
+        );
     }
 
     /**

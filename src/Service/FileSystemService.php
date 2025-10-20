@@ -35,7 +35,7 @@ use function str_contains;
  */
 class FileSystemService implements FileSystemServiceInterface
 {
-    private const string PROGRESS_BAR_FORMAT = ' %current%/%max% [%bar%] %percent:3s%% ETA %estimated:-6s%';
+    public const string PROGRESS_BAR_FORMAT = ' %current%/%max% [%bar%] %percent:3s%% | ETA: %estimated:-6s% | Remaining: %remaining:-6s%';
 
     /**
      * Duplicate identifier pattern.
