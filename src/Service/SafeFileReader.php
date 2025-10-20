@@ -18,6 +18,13 @@ use function sprintf;
 
 class SafeFileReader
 {
+    /**
+     * Reads the contents of a file while translating PHP warnings into domain exceptions.
+     *
+     * @param SplFileInfo $file File to be read.
+     *
+     * @return string File contents as a string.
+     */
     public function read(SplFileInfo $file): string
     {
         $path = $file->getPathname();

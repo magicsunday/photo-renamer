@@ -18,6 +18,14 @@ use function sprintf;
 
 class SafeHashCalculator
 {
+    /**
+     * Calculates a hash for the given file while converting PHP warnings into domain exceptions.
+     *
+     * @param SplFileInfo $file      File whose contents should be hashed.
+     * @param string      $algorithm Hash algorithm identifier supported by {@see hash_file()}.
+     *
+     * @return string Hexadecimal hash produced by the selected algorithm.
+     */
     public function hashFile(SplFileInfo $file, string $algorithm): string
     {
         $path = $file->getPathname();
