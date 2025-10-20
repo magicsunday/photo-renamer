@@ -17,7 +17,7 @@ use function array_key_exists;
  */
 final class LivePhotoContentIdentifierTargetMap
 {
-    /** @var array<string, SplFileInfo> */
+    /** @var array<string, LivePhotoContentIdentifierTarget> */
     private array $targets = [];
 
     /**
@@ -25,10 +25,9 @@ final class LivePhotoContentIdentifierTargetMap
      *
      * @param string $contentIdentifier Identifier shared by all assets of a Live Photo.
      * @param SplFileInfo $target Target file associated with the identifier.
-     *
-     * @return void
+     * @param string $duplicateIdentifier Collection key referencing the FileDuplicate entry.
      */
-    public function remember(string $contentIdentifier, SplFileInfo $target): void
+    public function remember(string $contentIdentifier, SplFileInfo $target, string $duplicateIdentifier): void
     {
         if ($contentIdentifier === '') {
             return;
@@ -38,7 +37,7 @@ final class LivePhotoContentIdentifierTargetMap
             return;
         }
 
-        $this->targets[$contentIdentifier] = $target;
+        $this->targets[$contentIdentifier] = new LivePhotoContentIdentifierTarget($target, $duplicateIdentifier);
     }
 
     /**
@@ -58,9 +57,9 @@ final class LivePhotoContentIdentifierTargetMap
      *
      * @param string $contentIdentifier Identifier whose target should be returned.
      *
-     * @return SplFileInfo Target previously associated with the identifier.
+     * @return LivePhotoContentIdentifierTarget Target previously associated with the identifier.
      */
-    public function get(string $contentIdentifier): SplFileInfo
+    public function get(string $contentIdentifier): LivePhotoContentIdentifierTarget
     {
         return $this->targets[$contentIdentifier];
     }

@@ -244,7 +244,7 @@ final class RenameByExifDateCommandTest extends TestCase
                 $progressCallback();
 
                 return LivePhotoPairingCollection::fromPairings(
-                    new LivePhotoPairing($video, $pairedTarget, '20240101_120000.MOV', 'content-id'),
+                    new LivePhotoPairing($video, $pairedTarget, 'live-photo:content-id', 'content-id'),
                 );
             });
 
@@ -276,15 +276,149 @@ final class RenameByExifDateCommandTest extends TestCase
         /** @var FileDuplicateCollection $result */
         $result = $method->invoke($command, $iterator);
 
-        self::assertTrue($result->has('20240101_120000.MOV'));
+        self::assertTrue($result->has('live-photo:content-id'));
 
-        $newDuplicate = $result->get('20240101_120000.MOV');
-        self::assertInstanceOf(FileDuplicate::class, $newDuplicate);
+        $duplicate = $result->get('live-photo:content-id');
+        self::assertSame($existingDuplicate, $duplicate);
 
-        $files = iterator_to_array($newDuplicate->getFiles());
-        self::assertCount(1, $files);
-        self::assertSame($video->getPathname(), $files[0]->getPathname());
-        self::assertSame($pairedTarget->getPathname(), $newDuplicate->getTarget()->getPathname());
+        $files = iterator_to_array($duplicate->getFiles());
+        self::assertCount(2, $files);
+        self::assertSame($photo->getPathname(), $files[0]->getPathname());
+        self::assertSame($video->getPathname(), $files[1]->getPathname());
+        self::assertSame($target->getPathname(), $duplicate->getTarget()->getPathname());
+    }
+
+    #[Test]
+    public function groupFilesByDuplicateIdentifierAlignsDuplicateSuffixesForLivePhotoPairs(): void
+    {
+        $photo = new SplFileInfo('/source/IMG_0002.HEIC');
+        $video = new SplFileInfo('/source/IMG_0002.MOV');
+        $targetWithSuffix = new SplFileInfo('/target/20240101_120000-1.HEIC');
+
+        $existingDuplicate = (new FileDuplicate())
+            ->addFile($photo)
+            ->setTarget($targetWithSuffix);
+
+        $duplicateCollection = new FileDuplicateCollection();
+        $duplicateCollection->set('live-photo:content-id', $existingDuplicate);
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveArrayIterator([$photo, $video], RecursiveArrayIterator::CHILD_ARRAYS_ONLY),
+        );
+
+        /** @var FileSystemServiceInterface&MockObject $fileSystemService */
+        $fileSystemService = $this->createMock(FileSystemServiceInterface::class);
+        $fileSystemService
+            ->expects(self::once())
+            ->method('createFileIterator')
+            ->with('/source')
+            ->willReturn(
+                new RecursiveIteratorIterator(
+                    new RecursiveArrayIterator([$photo], RecursiveArrayIterator::CHILD_ARRAYS_ONLY),
+                ),
+            );
+
+        $fileSystemService
+            ->expects(self::once())
+            ->method('countFiles')
+            ->with(self::identicalTo($iterator))
+            ->willReturn(2);
+
+        /** @var DuplicateDetectionServiceInterface&MockObject $duplicateDetectionService */
+        $duplicateDetectionService = $this->createMock(DuplicateDetectionServiceInterface::class);
+        $duplicateDetectionService
+            ->expects(self::once())
+            ->method('groupFilesByDuplicateIdentifier')
+            ->with(
+                self::isInstanceOf(RecursiveIteratorIterator::class),
+                self::isInstanceOf(ExifDateFilenameStrategy::class),
+                self::isInstanceOf(LivePhotoContentIdentifierStrategy::class),
+            )
+            ->willReturn($duplicateCollection);
+
+        $capturedPairings = null;
+
+        /** @var LivePhotoPairingService&MockObject $livePhotoPairingService */
+        $livePhotoPairingService = $this->createMock(LivePhotoPairingService::class);
+        $livePhotoPairingService
+            ->expects(self::once())
+            ->method('pairByContentIdentifier')
+            ->with(
+                self::identicalTo($iterator),
+                self::identicalTo($duplicateCollection),
+                self::callback(static fn ($resolver): bool => is_callable($resolver)),
+                self::callback(static fn ($callback): bool => is_callable($callback)),
+            )
+            ->willReturnCallback(static function (
+                RecursiveIteratorIterator $iteratorArg,
+                FileDuplicateCollection $collection,
+                callable $resolver,
+                callable $progressCallback,
+            ) use (&$capturedPairings, $photo, $video): LivePhotoPairingCollection {
+                $service = new LivePhotoPairingService();
+
+                $capturedPairings = $service->pairByContentIdentifier(
+                    iterator: $iteratorArg,
+                    fileDuplicateCollection: $collection,
+                    contentIdentifierResolver: static function (SplFileInfo $file) use ($photo, $video): ?string {
+                        return match ($file->getPathname()) {
+                            $photo->getPathname(), $video->getPathname() => 'content-id',
+                            default => null,
+                        };
+                    },
+                    onFileInspected: $progressCallback,
+                );
+
+                return $capturedPairings;
+            });
+
+        $command = new RenameByExifDateCommand(
+            $fileSystemService,
+            $duplicateDetectionService,
+            $this->createExifMetadataProvider(),
+            $livePhotoPairingService,
+        );
+
+        $io = $this->createMock(SymfonyStyle::class);
+        $io->expects(self::atLeastOnce())->method('text');
+        $io->expects(self::exactly(2))->method('newLine');
+        $io->expects(self::once())->method('progressStart')->with(2);
+        $io->expects(self::exactly(2))->method('progressAdvance');
+        $io->expects(self::once())->method('progressFinish');
+
+        $ioProperty = new ReflectionProperty(RenameByExifDateCommand::class, 'io');
+        $ioProperty->setAccessible(true);
+        $ioProperty->setValue($command, $io);
+
+        $sourceDirectoryProperty = new ReflectionProperty(RenameByExifDateCommand::class, 'sourceDirectory');
+        $sourceDirectoryProperty->setAccessible(true);
+        $sourceDirectoryProperty->setValue($command, '/source');
+
+        $method = new ReflectionMethod(RenameByExifDateCommand::class, 'groupFilesByDuplicateIdentifier');
+        $method->setAccessible(true);
+
+        /** @var FileDuplicateCollection $result */
+        $result = $method->invoke($command, $iterator);
+
+        self::assertNotNull($capturedPairings);
+        $pairings = $capturedPairings->toList();
+        self::assertCount(1, $pairings);
+
+        /** @var LivePhotoPairing $pairing */
+        $pairing = $pairings[0];
+
+        $duplicate = $result->get('live-photo:content-id');
+        self::assertSame($existingDuplicate, $duplicate);
+
+        $files = iterator_to_array($duplicate->getFiles());
+        self::assertCount(2, $files);
+        self::assertSame($photo->getPathname(), $files[0]->getPathname());
+        self::assertSame($video->getPathname(), $files[1]->getPathname());
+
+        $canonicalBasename = $duplicate->getTarget()->getBasename('.' . $duplicate->getTarget()->getExtension());
+        $videoBasename = $pairing->getTargetFile()->getBasename('.' . $pairing->getTargetFile()->getExtension());
+
+        self::assertSame($canonicalBasename, $videoBasename);
     }
 
     private function createExifMetadataProvider(): ExifMetadataProvider
