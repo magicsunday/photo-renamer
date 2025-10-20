@@ -237,13 +237,14 @@ abstract class AbstractRenameCommand extends Command
             return self::FAILURE;
         }
 
-        if (
-            $this->skipDuplicates
-            && ($this->targetDirectory === null)
-        ) {
-            $this->io->error('Skipping duplicate file requires a target directory');
+        if ($this->skipDuplicates) {
+            $effectiveTargetDirectory = $this->targetDirectory ?? $this->sourceDirectory;
 
-            return self::FAILURE;
+            if ($effectiveTargetDirectory === '') {
+                $this->io->error('Skipping duplicate file requires a target directory');
+
+                return self::FAILURE;
+            }
         }
 
         return self::SUCCESS;
