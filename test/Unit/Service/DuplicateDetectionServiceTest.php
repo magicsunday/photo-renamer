@@ -28,6 +28,7 @@ use function file_put_contents;
 use function is_dir;
 use function iterator_to_array;
 use function mkdir;
+use function rename;
 use function rmdir;
 use function sys_get_temp_dir;
 use function uniqid;
@@ -263,6 +264,71 @@ final class DuplicateDetectionServiceTest extends TestCase
             $targetDirectory . DIRECTORY_SEPARATOR . 'renamed-duplicate-002.jpg',
             $renames[1]->getTarget()->getPathname(),
         );
+    }
+
+    #[Test]
+    public function createDuplicateFilenamesKeepsExistingDuplicateSuffixOnSubsequentRun(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $sourceFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'source.jpg';
+        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . 'target.jpg';
+
+        file_put_contents($sourceFile, 'source');
+        file_put_contents($targetFile, 'target');
+
+        $service
+            ->setSourceDirectory($sourceDirectory)
+            ->setTargetDirectory($targetDirectory);
+
+        $initialDuplicate = new FileDuplicate();
+        $initialDuplicate
+            ->addFile(new SplFileInfo($sourceFile))
+            ->setTarget(new SplFileInfo($targetFile));
+
+        $initialCollection = new FileDuplicateCollection();
+        $initialCollection->set('identifier', $initialDuplicate);
+
+        $service->createDuplicateFilenames($initialCollection);
+
+        $firstDuplicate = $initialCollection->get('identifier');
+        self::assertInstanceOf(FileDuplicate::class, $firstDuplicate);
+
+        $firstRenames = iterator_to_array($firstDuplicate->getRenames());
+        self::assertCount(1, $firstRenames);
+
+        $expectedTargetPath = $firstRenames[0]->getTarget()->getPathname();
+        self::assertStringContainsString(
+            FileSystemService::DUPLICATE_IDENTIFIER . '001',
+            $firstRenames[0]->getTarget()->getFilename(),
+        );
+
+        self::assertTrue(
+            rename($sourceFile, $expectedTargetPath),
+            'Failed to move source file to duplicate target path.',
+        );
+
+        $service->setSourceDirectory($targetDirectory);
+
+        $subsequentDuplicate = new FileDuplicate();
+        $subsequentDuplicate
+            ->addFile(new SplFileInfo($expectedTargetPath))
+            ->setTarget(new SplFileInfo($targetFile));
+
+        $subsequentCollection = new FileDuplicateCollection();
+        $subsequentCollection->set('identifier', $subsequentDuplicate);
+
+        $service->createDuplicateFilenames($subsequentCollection);
+
+        $secondDuplicate = $subsequentCollection->get('identifier');
+        self::assertInstanceOf(FileDuplicate::class, $secondDuplicate);
+
+        $renames = iterator_to_array($secondDuplicate->getRenames());
+        self::assertCount(1, $renames);
+        self::assertSame($expectedTargetPath, $renames[0]->getTarget()->getPathname());
     }
 
     #[Test]
