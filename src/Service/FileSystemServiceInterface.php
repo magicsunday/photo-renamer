@@ -51,6 +51,7 @@ interface FileSystemServiceInterface
      * @param bool                    $dryRun                  Whether to perform a dry run (no actual renaming)
      * @param bool                    $skipDuplicates          Whether to skip duplicate files
      * @param bool                    $copyFiles               Whether to copy files instead of renaming them
+     * @param bool                    $listAll                 Whether to emit a full listing of originals and duplicates
      *
      * @return void
      *
@@ -61,5 +62,6 @@ interface FileSystemServiceInterface
         bool $dryRun = false,
         bool $skipDuplicates = false,
         bool $copyFiles = false,
+        bool $listAll = false,
     ): void;
 }

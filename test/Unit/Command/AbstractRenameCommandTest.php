@@ -54,6 +54,12 @@ final class AbstractRenameCommandTest extends TestCase
 
         $duplicateDetectionService
             ->expects(self::once())
+            ->method('setListAll')
+            ->with(false)
+            ->willReturnSelf();
+
+        $duplicateDetectionService
+            ->expects(self::once())
             ->method('setUseFileExtensionFromSource')
             ->with(false)
             ->willReturnSelf();
@@ -80,6 +86,7 @@ final class AbstractRenameCommandTest extends TestCase
             ->with(
                 self::identicalTo($fileDuplicateCollection),
                 true,
+                false,
                 false,
                 false,
             );
@@ -155,6 +162,12 @@ final class AbstractRenameCommandTest extends TestCase
 
         $duplicateDetectionService
             ->expects(self::once())
+            ->method('setListAll')
+            ->with(false)
+            ->willReturnSelf();
+
+        $duplicateDetectionService
+            ->expects(self::once())
             ->method('setUseFileExtensionFromSource')
             ->with(false)
             ->willReturnSelf();
@@ -182,6 +195,7 @@ final class AbstractRenameCommandTest extends TestCase
                 self::identicalTo($fileDuplicateCollection),
                 true,
                 true,
+                false,
                 false,
             );
 
@@ -218,6 +232,108 @@ final class AbstractRenameCommandTest extends TestCase
             'source-directory' => '/source-directory',
             '--dry-run' => true,
             '--skip-duplicates' => true,
+        ]);
+
+        self::assertSame(Command::SUCCESS, $tester->getStatusCode());
+    }
+
+    #[Test]
+    public function executePropagatesListAllFlagToServices(): void
+    {
+        $fileSystemService = $this->createMock(FileSystemServiceInterface::class);
+        $duplicateDetectionService = $this->createMock(DuplicateDetectionServiceInterface::class);
+
+        $renameStrategy = $this->createStub(RenameStrategyInterface::class);
+        $duplicateIdentifierStrategy = $this->createStub(DuplicateIdentifierStrategyInterface::class);
+
+        $iterator = new RecursiveIteratorIterator(new RecursiveArrayIterator([]));
+        $fileDuplicateCollection = new FileDuplicateCollection();
+
+        $fileSystemService
+            ->expects(self::exactly(2))
+            ->method('createFileIterator')
+            ->with('/source-directory')
+            ->willReturn($iterator);
+
+        $duplicateDetectionService
+            ->expects(self::once())
+            ->method('setSourceDirectory')
+            ->with('/source-directory')
+            ->willReturnSelf();
+
+        $duplicateDetectionService
+            ->expects(self::once())
+            ->method('setTargetDirectory')
+            ->with('/target-directory')
+            ->willReturnSelf();
+
+        $duplicateDetectionService
+            ->expects(self::once())
+            ->method('setListAll')
+            ->with(true)
+            ->willReturnSelf();
+
+        $duplicateDetectionService
+            ->expects(self::once())
+            ->method('setUseFileExtensionFromSource')
+            ->with(false)
+            ->willReturnSelf();
+
+        $duplicateDetectionService
+            ->expects(self::once())
+            ->method('groupFilesByDuplicateIdentifier')
+            ->willReturn($fileDuplicateCollection);
+
+        $duplicateDetectionService
+            ->expects(self::once())
+            ->method('createDuplicateFilenames')
+            ->with(self::identicalTo($fileDuplicateCollection))
+            ->willReturn($fileDuplicateCollection);
+
+        $fileSystemService
+            ->expects(self::once())
+            ->method('renameFiles')
+            ->with(
+                self::identicalTo($fileDuplicateCollection),
+                false,
+                false,
+                false,
+                true,
+            );
+
+        $command = new class(
+            $fileSystemService,
+            $duplicateDetectionService,
+            $renameStrategy,
+            $duplicateIdentifierStrategy,
+        ) extends AbstractRenameCommand {
+            public function __construct(
+                FileSystemServiceInterface $fileSystemService,
+                DuplicateDetectionServiceInterface $duplicateDetectionService,
+                private readonly RenameStrategyInterface $renameStrategy,
+                private readonly DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy,
+            ) {
+                parent::__construct($fileSystemService, $duplicateDetectionService);
+
+                $this->setName('test:rename');
+            }
+
+            protected function getTargetFilenameProcessor(): RenameStrategyInterface
+            {
+                return $this->renameStrategy;
+            }
+
+            protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
+            {
+                return $this->duplicateIdentifierStrategy;
+            }
+        };
+
+        $tester = new CommandTester($command);
+        $tester->execute([
+            'source-directory' => '/source-directory',
+            'target-directory' => '/target-directory',
+            '--list-all' => true,
         ]);
 
         self::assertSame(Command::SUCCESS, $tester->getStatusCode());

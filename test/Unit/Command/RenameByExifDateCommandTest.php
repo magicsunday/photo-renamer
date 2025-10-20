@@ -88,6 +88,12 @@ final class RenameByExifDateCommandTest extends TestCase
             ->with('target-dir')
             ->willReturnSelf();
 
+        $duplicateDetectionService
+            ->expects(self::once())
+            ->method('setListAll')
+            ->with(false)
+            ->willReturnSelf();
+
         $capturedRenameStrategy = null;
         $capturedDuplicateStrategy = null;
 
@@ -138,6 +144,7 @@ final class RenameByExifDateCommandTest extends TestCase
             ->with(
                 self::identicalTo($duplicateCollection),
                 true,
+                false,
                 false,
                 false,
             );

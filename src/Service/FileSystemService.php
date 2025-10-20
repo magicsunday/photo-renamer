@@ -24,6 +24,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function sprintf;
 use function strlen;
+use function str_contains;
 
 /**
  * Service for file system operations.
@@ -106,12 +107,14 @@ class FileSystemService implements FileSystemServiceInterface
      * @param bool                    $dryRun                  When true no filesystem changes are performed
      * @param bool                    $skipDuplicates          Whether files marked as duplicates should be ignored
      * @param bool                    $copyFiles               When true, files are copied instead of moved
+     * @param bool                    $listAll                 When true each canonical/original file is printed alongside duplicates
      */
     public function renameFiles(
         FileDuplicateCollection $fileDuplicateCollection,
         bool $dryRun = false,
         bool $skipDuplicates = false,
         bool $copyFiles = false,
+        bool $listAll = false,
     ): void {
         $this->io->text(($copyFiles ? 'Copying' : 'Renaming') . ' files');
         $this->io->newLine();
@@ -147,20 +150,32 @@ class FileSystemService implements FileSystemServiceInterface
                     $this->io->newLine();
                 }
 
+                $isDuplicateTarget = str_contains($rename->getTarget()->getFilename(), self::DUPLICATE_IDENTIFIER);
+                $isCanonicalEntry  = $listAll
+                    && $rename->getSource()->getPathname() === $fileDuplicate->getTarget()->getPathname();
+
+                $status = '[R]';
+
+                if ($isCanonicalEntry) {
+                    $status = '[O]';
+                } elseif ($isDuplicateTarget) {
+                    $status = '[D]';
+                }
+
                 $this->io->text(
                     sprintf(
-                        '<fg=yellow>%-' . $maxFilenameLength . 's</> <fg=cyan>→</> <fg=green>%s</>',
+                        '%s <fg=yellow>%-' . $maxFilenameLength . 's</> <fg=cyan>→</> <fg=green>%s</>',
+                        $status,
                         $rename->getSource()->getPathname(),
                         $rename->getTarget()->getPathname()
                     )
                 );
 
-                if (str_contains($rename->getTarget()->getFilename(), self::DUPLICATE_IDENTIFIER)) {
+                if ($isDuplicateTarget) {
                     ++$duplicateCount;
                 }
 
-                $shouldSkip = $skipDuplicates
-                    && str_contains($rename->getTarget()->getFilename(), self::DUPLICATE_IDENTIFIER);
+                $shouldSkip = $skipDuplicates && $isDuplicateTarget;
 
                 if ($shouldSkip) {
                     if ($progressBar !== null) {
@@ -171,7 +186,9 @@ class FileSystemService implements FileSystemServiceInterface
                     $this->io->text('=> Duplicate! Skip "' . $rename->getSource()->getPathname() . '"');
                 }
 
-                if ($shouldSkip === false) {
+                $shouldPerformOperation = $shouldSkip === false && $isCanonicalEntry === false;
+
+                if ($shouldPerformOperation) {
                     ++$fileCount;
 
                     if ($dryRun === false) {
