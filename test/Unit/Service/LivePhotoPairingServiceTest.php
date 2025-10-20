@@ -9,6 +9,12 @@ use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Service\Dto\LivePhotoPairing;
 use MagicSunday\Renamer\Service\Dto\LivePhotoPairingCollection;
 use MagicSunday\Renamer\Service\LivePhotoPairingService;
+use MagicSunday\Renamer\Service\SafeExifReader;
+use MagicSunday\Renamer\Service\SafeFileReader;
+use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
+use MagicSunday\Renamer\Strategy\RenameStrategy\ExifMetadataProvider;
+use MagicSunday\Renamer\Strategy\RenameStrategy\QuickTime\QuickTimeContentIdentifierExtractor;
+use MagicSunday\Renamer\Test\Unit\Service\Fixtures\LivePhotoFixtureFactory;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -93,5 +99,51 @@ final class LivePhotoPairingServiceTest extends TestCase
         self::assertSame(3, $progressCalls);
         self::assertInstanceOf(LivePhotoPairingCollection::class, $pairs);
         self::assertSame([], $pairs->toList());
+    }
+
+    #[Test]
+    public function itPairsVideoUsingExifAndQuickTimeContentIdentifiers(): void
+    {
+        $photo = LivePhotoFixtureFactory::createJpeg();
+        $video = LivePhotoFixtureFactory::createMov();
+
+        $target = new SplFileInfo($photo->getPath() . DIRECTORY_SEPARATOR . '20240101_120000.jpg');
+
+        $existingDuplicate = (new FileDuplicate())
+            ->addFile($photo)
+            ->setTarget($target);
+
+        $duplicateCollection = new FileDuplicateCollection();
+        $duplicateCollection->set('live-photo:iphone', $existingDuplicate);
+
+        $safeExifReader = new SafeExifReader();
+        $quickTimeExtractor = new QuickTimeContentIdentifierExtractor(new SafeFileReader());
+        $metadataProvider = new ExifMetadataProvider($safeExifReader, $quickTimeExtractor);
+        $renameStrategy = new ExifDateFilenameStrategy('Ymd_His', $metadataProvider);
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveArrayIterator([$photo, $video], RecursiveArrayIterator::CHILD_ARRAYS_ONLY),
+        );
+
+        $service = new LivePhotoPairingService();
+
+        $pairs = $service->pairByContentIdentifier(
+            iterator: $iterator,
+            fileDuplicateCollection: $duplicateCollection,
+            contentIdentifierResolver: fn (SplFileInfo $file): ?string => $renameStrategy->getLivePhotoContentIdentifier($file),
+        );
+
+        $pairings = $pairs->toList();
+
+        self::assertCount(1, $pairings);
+
+        $pair = $pairings[0];
+
+        $expectedTargetPath = $video->getPath() . DIRECTORY_SEPARATOR . '20240101_120000.' . $video->getExtension();
+
+        self::assertSame($video->getPathname(), $pair->getSourceFile()->getPathname());
+        self::assertSame($expectedTargetPath, $pair->getTargetFile()->getPathname());
+        self::assertSame('20240101_120000.' . $video->getExtension(), $pair->getDuplicateIdentifier());
+        self::assertSame('UUID-IPHONE-LIVEPHOTO', $pair->getContentIdentifier());
     }
 }
