@@ -117,7 +117,6 @@ class FileSystemService implements FileSystemServiceInterface
         bool $listAll = false,
     ): void {
         $this->io->text(($copyFiles ? 'Copying' : 'Renaming') . ' files');
-        $this->io->newLine();
 
         $maxFilenameLength = 0;
         $fileCount         = 0;
@@ -207,7 +206,6 @@ class FileSystemService implements FileSystemServiceInterface
 
         if ($progressBar !== null) {
             $progressBar->finish();
-            $this->io->newLine();
         }
 
         $this->io->block($duplicateCount . ' possible duplicates found', 'INFO', 'fg=green');
