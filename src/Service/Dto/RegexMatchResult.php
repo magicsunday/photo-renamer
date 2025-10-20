@@ -10,14 +10,18 @@ namespace MagicSunday\Renamer\Service\Dto;
 final class RegexMatchResult implements RegexResultInterface
 {
     /**
-     * @param array<int|string, string> $matches
+     * Creates a value object from the result of a single preg_match call.
+     *
+     * @param array<int|string, string> $matches Match data returned by the regex engine.
      */
     public function __construct(private readonly array $matches)
     {
     }
 
     /**
-     * @return array<int|string, string>
+     * Returns the captured match data.
+     *
+     * @return array<int|string, string> Match data returned by the regex engine.
      */
     public function matches(): array
     {

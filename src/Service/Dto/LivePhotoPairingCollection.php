@@ -13,49 +13,81 @@ use IteratorAggregate;
 use Traversable;
 
 /**
- * Collection of Live Photo pairings.
+ * Mutable collection managing matched Live Photo pairings.
  */
 final class LivePhotoPairingCollection implements IteratorAggregate
 {
     /**
-     * @param list<LivePhotoPairing> $pairings
+     * Builds the collection from an initial list of pairings.
+     *
+     * @param list<LivePhotoPairing> $pairings Items that should be available from the start.
      */
     private function __construct(
         private array $pairings,
     ) {
     }
 
+    /**
+     * Creates an empty collection.
+     *
+     * @return self Collection without any pairings.
+     */
     public static function empty(): self
     {
         return new self([]);
     }
 
+    /**
+     * Creates a collection from the provided pairings.
+     *
+     * @param LivePhotoPairing ...$pairings Pairings that should populate the collection.
+     *
+     * @return self Collection containing the provided pairings.
+     */
     public static function fromPairings(LivePhotoPairing ...$pairings): self
     {
         return new self($pairings);
     }
 
     /**
-     * @param list<LivePhotoPairing> $pairings
+     * Creates a collection from an existing list of pairings.
+     *
+     * @param list<LivePhotoPairing> $pairings Items to seed the collection with.
+     *
+     * @return self Collection containing the supplied pairings.
      */
     public static function fromList(array $pairings): self
     {
         return new self($pairings);
     }
 
+    /**
+     * Appends a pairing to the collection.
+     *
+     * @param LivePhotoPairing $pairing Pairing that should be tracked.
+     *
+     * @return void
+     */
     public function add(LivePhotoPairing $pairing): void
     {
         $this->pairings[] = $pairing;
     }
 
     /**
-     * @return list<LivePhotoPairing>
+     * Exposes the collection contents as a list.
+     *
+     * @return list<LivePhotoPairing> Items currently stored in the collection.
      */
     public function toList(): array
     {
         return $this->pairings;
     }
 
+    /**
+     * Creates an iterator for the collection.
+     *
+     * @return Traversable Iterator over the contained pairings.
+     */
     public function getIterator(): Traversable
     {
         return new ArrayIterator($this->pairings);
