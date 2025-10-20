@@ -10,6 +10,7 @@ use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Service\Dto\LivePhotoPairing;
 use MagicSunday\Renamer\Service\Dto\LivePhotoPairingCollection;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
+use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\LivePhotoPairingService;
 use MagicSunday\Renamer\Service\SafeExifReader;
@@ -259,6 +260,7 @@ final class RenameByExifDateCommandTest extends TestCase
         $io->expects(self::atLeastOnce())->method('text');
         $io->expects(self::exactly(2))->method('newLine');
         $io->expects(self::once())->method('progressStart')->with(2);
+        $io->expects(self::once())->method('progressSetFormat')->with(FileSystemService::PROGRESS_BAR_FORMAT);
         $io->expects(self::exactly(2))->method('progressAdvance');
         $io->expects(self::once())->method('progressFinish');
 
@@ -383,6 +385,7 @@ final class RenameByExifDateCommandTest extends TestCase
         $io->expects(self::atLeastOnce())->method('text');
         $io->expects(self::exactly(2))->method('newLine');
         $io->expects(self::once())->method('progressStart')->with(2);
+        $io->expects(self::once())->method('progressSetFormat')->with(FileSystemService::PROGRESS_BAR_FORMAT);
         $io->expects(self::exactly(2))->method('progressAdvance');
         $io->expects(self::once())->method('progressFinish');
 
