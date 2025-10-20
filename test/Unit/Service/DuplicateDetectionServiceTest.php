@@ -267,6 +267,52 @@ final class DuplicateDetectionServiceTest extends TestCase
     }
 
     #[Test]
+    public function createDuplicateFilenamesPreservesRelativePathForNestedDuplicates(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $nestedDirectory = $sourceDirectory . DIRECTORY_SEPARATOR . 'nested';
+
+        if (!mkdir($nestedDirectory, 0777, true) && !is_dir($nestedDirectory)) {
+            self::fail('Failed to create nested directory: ' . $nestedDirectory);
+        }
+
+        $rootFile     = $sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg';
+        $duplicateFile = $nestedDirectory . DIRECTORY_SEPARATOR . 'photo.jpg';
+
+        file_put_contents($rootFile, 'root');
+        file_put_contents($duplicateFile, 'duplicate');
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate
+            ->addFile(new SplFileInfo($rootFile))
+            ->addFile(new SplFileInfo($duplicateFile))
+            ->setTarget(new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg'));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('identifier', $fileDuplicate);
+
+        $service
+            ->setSourceDirectory($sourceDirectory)
+            ->setTargetDirectory($sourceDirectory);
+
+        $service->createDuplicateFilenames($collection);
+
+        $duplicate = $collection->get('identifier');
+        self::assertInstanceOf(FileDuplicate::class, $duplicate);
+
+        $renames = iterator_to_array($duplicate->getRenames());
+
+        self::assertCount(1, $renames);
+        self::assertSame($duplicateFile, $renames[0]->getSource()->getPathname());
+        self::assertSame(
+            $nestedDirectory . DIRECTORY_SEPARATOR . 'photo' . FileSystemService::DUPLICATE_IDENTIFIER . '001.jpg',
+            $renames[0]->getTarget()->getPathname(),
+        );
+    }
+
+    #[Test]
     public function createDuplicateFilenamesKeepsExistingDuplicateSuffixOnSubsequentRun(): void
     {
         [$service] = $this->createService();
