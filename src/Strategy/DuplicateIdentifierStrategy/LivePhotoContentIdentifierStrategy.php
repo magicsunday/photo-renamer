@@ -20,11 +20,22 @@ use SplFileInfo;
  */
 class LivePhotoContentIdentifierStrategy implements DuplicateIdentifierStrategyInterface
 {
+    /**
+     * @param ExifDateFilenameStrategy $renameStrategy Strategy providing access to Live Photo metadata helpers.
+     */
     public function __construct(
         private readonly ExifDateFilenameStrategy $renameStrategy,
     ) {
     }
 
+    /**
+     * Generates an identifier based on the Live Photo content identifier or falls back to the target filename.
+     *
+     * @param SplFileInfo $sourceFileInfo Source file inspected for Live Photo metadata.
+     * @param SplFileInfo $targetFileInfo Target file used as fallback identifier.
+     *
+     * @return string|false
+     */
     #[Override]
     public function generateIdentifier(SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo): string|false
     {
