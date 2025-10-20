@@ -13,13 +13,19 @@ namespace MagicSunday\Renamer\Strategy\RenameStrategy;
 
 use DateTime;
 use Exception;
+use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\ContentIdentifier;
 use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\ExifData;
+use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\MetadataEntryCollection;
+use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\QuickTimeKey;
+use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\QuickTimeMetadata;
+use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\QuickTimeValue;
 use Override;
 use SplFileInfo;
+use SplObjectStorage;
 
-use function array_key_exists;
 use function in_array;
 use function is_array;
+use function is_int;
 use function is_string;
 use function rtrim;
 use function strlen;
@@ -43,16 +49,16 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
     /**
      * Cached EXIF data per file path.
      *
-     * @var array<string, ExifData|null>
+     * @var SplObjectStorage<SplFileInfo, ExifData|null>
      */
-    private array $exifDataCache = [];
+    private SplObjectStorage $exifDataCache;
 
     /**
      * Cached Live Photo content identifier per file path.
      *
-     * @var array<string, string|null>
+     * @var SplObjectStorage<SplFileInfo, ContentIdentifier|null>
      */
-    private array $contentIdentifierCache = [];
+    private SplObjectStorage $contentIdentifierCache;
 
     /**
      * Constructor.
@@ -62,6 +68,8 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
     public function __construct(string $targetFilenamePattern)
     {
         $this->targetFilenamePattern = $targetFilenamePattern;
+        $this->exifDataCache = new SplObjectStorage();
+        $this->contentIdentifierCache = new SplObjectStorage();
     }
 
     #[Override]
@@ -81,7 +89,13 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
     {
         $this->getExifData($splFileInfo);
 
-        return $this->contentIdentifierCache[$splFileInfo->getPathname()] ?? null;
+        if (!$this->contentIdentifierCache->offsetExists($splFileInfo)) {
+            return null;
+        }
+
+        $identifier = $this->contentIdentifierCache[$splFileInfo];
+
+        return $identifier?->getValue();
     }
 
     /**
@@ -134,13 +148,13 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
      */
     private function getExifData(SplFileInfo $splFileInfo): ?ExifData
     {
-        $pathname = $splFileInfo->getPathname();
-
-        if (!array_key_exists($pathname, $this->exifDataCache)) {
-            $this->exifDataCache[$pathname] = $this->createExifData($splFileInfo);
+        if (!$this->exifDataCache->offsetExists($splFileInfo)) {
+            $this->exifDataCache[$splFileInfo] = $this->createExifData($splFileInfo);
         }
 
-        return $this->exifDataCache[$pathname];
+        $exifData = $this->exifDataCache[$splFileInfo];
+
+        return $exifData instanceof ExifData ? $exifData : null;
     }
 
     /**
@@ -152,20 +166,20 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
      */
     private function createExifData(SplFileInfo $splFileInfo): ?ExifData
     {
-        $pathname = $splFileInfo->getPathname();
-        $rawExifData = @exif_read_data($pathname);
+        $rawExifData = @exif_read_data($splFileInfo->getPathname());
 
         $contentIdentifier = null;
 
         if (is_array($rawExifData)) {
-            $contentIdentifier = $this->extractContentIdentifierFromArray($rawExifData);
+            $metadataEntries = MetadataEntryCollection::fromArray($rawExifData);
+            $contentIdentifier = $this->extractContentIdentifierFromMetadata($metadataEntries);
         }
 
         if ($contentIdentifier === null) {
             $contentIdentifier = $this->extractContentIdentifierFromQuickTimeIfApplicable($splFileInfo);
         }
 
-        $this->contentIdentifierCache[$pathname] = $contentIdentifier;
+        $this->contentIdentifierCache[$splFileInfo] = $contentIdentifier;
 
         if (!is_array($rawExifData) || !isset($rawExifData['DateTimeOriginal'])) {
             return null;
@@ -186,31 +200,17 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
     }
 
     /**
-     * Recursively searches the EXIF metadata array for a non-empty content identifier.
-     *
-     * @param array<string|int, mixed> $exifData Raw EXIF metadata
-     *
-     * @return string|null The first matching content identifier or null when none is present
+     * Extracts a Live Photo content identifier from metadata entries.
      */
-    private function extractContentIdentifierFromArray(array $exifData): ?string
+    private function extractContentIdentifierFromMetadata(MetadataEntryCollection $entries): ?ContentIdentifier
     {
-        foreach ($exifData as $key => $value) {
-            if (is_string($key) && stripos($key, 'content') !== false && stripos($key, 'identifier') !== false) {
-                if (is_string($value) && $value !== '') {
-                    return $value;
-                }
-            }
+        $match = $entries->findContentIdentifier();
 
-            if (is_array($value)) {
-                $nested = $this->extractContentIdentifierFromArray($value);
-
-                if ($nested !== null) {
-                    return $nested;
-                }
-            }
+        if ($match === null) {
+            return null;
         }
 
-        return null;
+        return new ContentIdentifier($match->getValue());
     }
 
     /**
@@ -218,9 +218,9 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
      *
      * @param SplFileInfo $splFileInfo Potential QuickTime container to inspect
      *
-     * @return string|null The embedded content identifier or null when the file is not supported or no identifier was found
+     * @return ContentIdentifier|null The embedded content identifier or null when the file is not supported or no identifier was found
      */
-    private function extractContentIdentifierFromQuickTimeIfApplicable(SplFileInfo $splFileInfo): ?string
+    private function extractContentIdentifierFromQuickTimeIfApplicable(SplFileInfo $splFileInfo): ?ContentIdentifier
     {
         if (!$this->isQuickTimeFile($splFileInfo)) {
             return null;
@@ -251,9 +251,9 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
      *
      * @param SplFileInfo $splFileInfo QuickTime container to parse
      *
-     * @return string|null Extracted identifier or null when parsing fails
+     * @return ContentIdentifier|null Extracted identifier or null when parsing fails
      */
-    private function extractContentIdentifierFromQuickTime(SplFileInfo $splFileInfo): ?string
+    private function extractContentIdentifierFromQuickTime(SplFileInfo $splFileInfo): ?ContentIdentifier
     {
         $data = @file_get_contents($splFileInfo->getPathname());
 
@@ -288,20 +288,16 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
             return null;
         }
 
-        $keyMap    = $this->parseQuickTimeKeysAtom($keys);
-        $valueMap  = $this->parseQuickTimeIlstAtom($ilst);
+        $metadata = $this->parseQuickTimeKeysAtom($keys);
+        $metadata = $this->parseQuickTimeIlstAtom($ilst, $metadata);
 
-        foreach ($keyMap as $index => $key) {
-            if (stripos($key, 'content.identifier') !== false) {
-                $value = $valueMap[$index] ?? null;
+        $identifier = $metadata->findValueByKeyFragment('content.identifier');
 
-                if (is_string($value) && $value !== '') {
-                    return $value;
-                }
-            }
+        if ($identifier === null || $identifier->getValue() === '') {
+            return null;
         }
 
-        return null;
+        return new ContentIdentifier($identifier->getValue());
     }
 
     /**
@@ -356,34 +352,26 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
      *
      * @param string $data Raw payload of the `keys` atom
      *
-     * @return array<int, string> Map of atom index to UTF-8 key name
+     * @return QuickTimeMetadata Map of atom index to UTF-8 key name encapsulated in metadata value objects
      */
-    private function parseQuickTimeKeysAtom(string $data): array
+    private function parseQuickTimeKeysAtom(string $data): QuickTimeMetadata
     {
         $length = strlen($data);
 
         if ($length < 8) {
-            return [];
+            return QuickTimeMetadata::empty();
         }
 
         $offset = 0;
 
         $offset += 4; // version and flags
 
-        if ($offset + 4 > $length) {
-            return [];
-        }
-
         $entryCount = $this->unpackUInt32(substr($data, $offset, 4));
         $offset += 4;
 
-        $keys = [];
+        $metadata = QuickTimeMetadata::empty();
 
         for ($index = 1; $index <= $entryCount; ++$index) {
-            if ($offset + 8 > $length) {
-                break;
-            }
-
             $size = $this->unpackUInt32(substr($data, $offset, 4));
 
             if ($size === 0 || $offset + $size > $length) {
@@ -395,12 +383,12 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
             }
 
             $key = substr($data, $offset + 8, $size - 8);
-            $keys[$index] = rtrim($key, "\0");
+            $metadata = $metadata->withKey(new QuickTimeKey($index, rtrim($key, "\0")));
 
             $offset += $size;
         }
 
-        return $keys;
+        return $metadata;
     }
 
     /**
@@ -408,13 +396,12 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
      *
      * @param string $data Raw payload of the `ilst` atom
      *
-     * @return array<int, string> Map of atom index to decoded metadata value
+     * @return QuickTimeMetadata Metadata augmented with parsed values
      */
-    private function parseQuickTimeIlstAtom(string $data): array
+    private function parseQuickTimeIlstAtom(string $data, QuickTimeMetadata $metadata): QuickTimeMetadata
     {
         $length = strlen($data);
         $offset = 0;
-        $values = [];
 
         while ($offset + 8 <= $length) {
             $size = $this->unpackUInt32(substr($data, $offset, 4));
@@ -430,26 +417,27 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
             $index = $this->unpackUInt32(substr($data, $offset + 4, 4));
             $itemData = substr($data, $offset + 8, $size - 8);
 
-            $value = $this->parseQuickTimeMetadataItem($itemData);
+            $value = $this->parseQuickTimeMetadataItem($itemData, $index);
 
             if ($value !== null) {
-                $values[$index] = $value;
+                $metadata = $metadata->withValue($value);
             }
 
             $offset += $size;
         }
 
-        return $values;
+        return $metadata;
     }
 
     /**
      * Extracts the string payload from a QuickTime metadata item within an `ilst` entry.
      *
-     * @param string $data Binary representation of the metadata item
+     * @param string $data  Binary representation of the metadata item
+     * @param int    $index Index of the metadata entry
      *
-     * @return string|null Decoded string value or null when the item cannot be parsed
+     * @return QuickTimeValue|null Decoded string value or null when the item cannot be parsed
      */
-    private function parseQuickTimeMetadataItem(string $data): ?string
+    private function parseQuickTimeMetadataItem(string $data, int $index): ?QuickTimeValue
     {
         $length = strlen($data);
         $offset = 0;
@@ -469,12 +457,12 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
 
             if ($type === 'data') {
                 if ($size <= 16) {
-                    return '';
+                    return new QuickTimeValue($index, '');
                 }
 
                 $payload = substr($data, $offset + 16, $size - 16);
 
-                return rtrim($payload, "\0");
+                return new QuickTimeValue($index, rtrim($payload, "\0"));
             }
 
             $offset += $size;
@@ -492,7 +480,14 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
      */
     private function unpackUInt32(string $bytes): int
     {
-        return unpack('N', $bytes)[1];
+        $result = unpack('N', $bytes);
+        $value = $result[1] ?? null;
+
+        if (!is_int($value)) {
+            return 0;
+        }
+
+        return $value;
     }
 
     /**
@@ -505,7 +500,13 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
     private function unpackUInt64(string $bytes): int
     {
         $parts = unpack('N2', $bytes);
+        $high = $parts[1] ?? null;
+        $low = $parts[2] ?? null;
 
-        return ($parts[1] << 32) | $parts[2];
+        if (!is_int($high) || !is_int($low)) {
+            return 0;
+        }
+
+        return ($high << 32) | $low;
     }
 }

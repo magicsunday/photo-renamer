@@ -122,6 +122,10 @@ namespace MagicSunday\Renamer\Strategy\RenameStrategy {
 }
 
 namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy {
+    use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\MetadataEntryCollection;
+    use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\QuickTimeKey;
+    use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\QuickTimeMetadata;
+    use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\QuickTimeValue;
     use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
     use MagicSunday\Renamer\Strategy\RenameStrategy\ExifReadDataStub;
     use MagicSunday\Renamer\Strategy\RenameStrategy\FileGetContentsStub;
@@ -258,9 +262,6 @@ namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy {
             $file = new SplFileInfo($path);
             $strategy = new ExifDateFilenameStrategy('Y-m-d_H-i-s');
 
-            // Trigger metadata extraction to populate the cache
-            $strategy->generateFilename($file);
-
             self::assertSame('A1B2C3D4-EXIF-UUID', $strategy->getLivePhotoContentIdentifier($file));
         }
 
@@ -279,6 +280,38 @@ namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy {
                 '550E8400-E29B-41D4-A716-446655440000',
                 $strategy->getLivePhotoContentIdentifier($file),
             );
+        }
+
+        #[Test]
+        public function quickTimeMetadataMatchesKeysWithValues(): void
+        {
+            $metadata = QuickTimeMetadata::empty()
+                ->withKey(new QuickTimeKey(1, 'com.apple.quicktime.content.identifier'))
+                ->withKey(new QuickTimeKey(2, 'com.apple.quicktime.location'))
+                ->withValue(new QuickTimeValue(2, 'Berlin'))
+                ->withValue(new QuickTimeValue(1, 'IDENTIFIER-1234'));
+
+            $identifier = $metadata->findValueByKeyFragment('content.identifier');
+
+            self::assertNotNull($identifier);
+            self::assertSame('IDENTIFIER-1234', $identifier->getValue());
+        }
+
+        #[Test]
+        public function metadataCollectionFindsContentIdentifierCandidates(): void
+        {
+            $collection = MetadataEntryCollection::fromArray([
+                'DateTimeOriginal' => '2024:05:05 12:00:00',
+                'Nested' => [
+                    'ContentIdentifier' => 'COLLECTION-UUID',
+                ],
+            ]);
+
+            $entry = $collection->findContentIdentifier();
+
+            self::assertNotNull($entry);
+            self::assertSame('Nested.ContentIdentifier', $entry->getPath());
+            self::assertSame('COLLECTION-UUID', $entry->getValue());
         }
 
         private static function createQuickTimeSample(string $identifier): string
