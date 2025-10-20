@@ -247,6 +247,15 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             $renames = $fileDuplicate->getRenames();
 
             $canonicalTargetPath = $fileDuplicate->getTarget()->getPathname();
+            /** @var Rename|null $canonicalRename */
+            $canonicalRename = null;
+
+            foreach ($renames as $rename) {
+                if ($rename->getSource()->getPathname() === $canonicalTargetPath) {
+                    $canonicalRename = $rename;
+                    break;
+                }
+            }
 
             if ($this->listAll === false) {
                 foreach ($renames as $key => $rename) {
@@ -290,6 +299,10 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 );
 
                 ++$processedDuplicates;
+            }
+
+            if ($canonicalRename instanceof Rename) {
+                $fileDuplicate->setTarget($canonicalRename->getTarget());
             }
 
             $progressBar->advance();
