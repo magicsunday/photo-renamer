@@ -95,9 +95,10 @@ class DatePatternFilenameStrategy extends InheritFilenameStrategy
 
             $suffixIndex = $filePartMatches->count() > 0 ? $filePartMatches->count() - 1 : 0;
 
-            return $this->regex->replaceCallback(
-                $this->pattern,
-                static function (array $matches) use ($dateFormatCharacters, $targetFilenamePattern, $suffixIndex): string {
+            return $this->regex
+                ->replaceCallback(
+                    $this->pattern,
+                    static function (array $matches) use ($dateFormatCharacters, $targetFilenamePattern, $suffixIndex): string {
                     $dateParts = [];
 
                     foreach ($dateFormatCharacters as $key => $dateFormatCharacter) {
@@ -124,10 +125,11 @@ class DatePatternFilenameStrategy extends InheritFilenameStrategy
                     $suffix = $matches[$suffixIndex] ?? '';
 
                     return $dateTimeCreated->format($targetFilenamePattern) . $suffix;
-                },
-                $targetFilename,
-                'executing preg_replace_callback for date pattern',
-            );
+                    },
+                    $targetFilename,
+                    'executing preg_replace_callback for date pattern',
+                )
+                ->result();
         } catch (RegexExecutionException $exception) {
             throw new TargetFilenameException(
                 'Date pattern error: ' . $exception->getMessage(),

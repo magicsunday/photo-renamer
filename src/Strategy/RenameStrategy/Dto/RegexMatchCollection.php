@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Strategy\RenameStrategy\Dto;
 
+use MagicSunday\Renamer\Service\Dto\RegexMatchAllResult;
+use MagicSunday\Renamer\Service\Dto\RegexMatchResult;
+
 use function array_key_last;
-use function is_array;
 use function is_int;
-use function is_string;
 
 /**
  * Immutable collection representing regex match groups.
@@ -23,15 +24,13 @@ final class RegexMatchCollection
 
     /**
      * Builds a collection from a single `preg_match` call.
-     *
-     * @param array<int|string, string> $matches
      */
-    public static function fromMatch(array $matches): self
+    public static function fromMatch(RegexMatchResult $result): self
     {
         $groups = [];
 
-        foreach ($matches as $key => $value) {
-            if (!is_int($key) || !is_string($value)) {
+        foreach ($result->matches() as $key => $value) {
+            if (!is_int($key)) {
                 continue;
             }
 
@@ -44,14 +43,13 @@ final class RegexMatchCollection
     /**
      * Builds a collection from a `preg_match_all` call.
      *
-     * @param array<int, array<int|string, string>> $matches
      */
-    public static function fromMatchAll(array $matches): self
+    public static function fromMatchAll(RegexMatchAllResult $result): self
     {
         $groups = [];
 
-        foreach ($matches as $key => $groupMatches) {
-            if (!is_int($key) || !is_array($groupMatches)) {
+        foreach ($result->matches() as $key => $groupMatches) {
+            if (!is_int($key)) {
                 continue;
             }
 

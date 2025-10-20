@@ -9,6 +9,9 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service;
 
 use MagicSunday\Renamer\Exception\RegexExecutionException;
+use MagicSunday\Renamer\Service\Dto\RegexMatchAllResult;
+use MagicSunday\Renamer\Service\Dto\RegexMatchResult;
+use MagicSunday\Renamer\Service\Dto\RegexReplaceResult;
 
 use function preg_last_error_msg;
 use function preg_match;
@@ -24,12 +27,14 @@ final class SafeRegex
     /**
      * Executes a regular expression operation while converting PHP warnings into exceptions.
      *
-     * @param callable $operation          Callback that performs the actual regular expression work.
-     * @param string   $pattern            Regular expression pattern applied by the callback.
-     * @param bool     $nullIndicatesError Whether a null result should be treated as an error.
-     * @param string   $context            Short description inserted into error messages.
+     * @template T
      *
-     * @return mixed Result of the executed operation.
+     * @param callable():T $operation          Callback that performs the actual regular expression work.
+     * @param string       $pattern            Regular expression pattern applied by the callback.
+     * @param bool         $nullIndicatesError Whether a null result should be treated as an error.
+     * @param string       $context            Short description inserted into error messages.
+     *
+     * @return T Result of the executed operation.
      */
     private function execute(callable $operation, string $pattern, bool $nullIndicatesError, string $context): mixed
     {
@@ -68,9 +73,9 @@ final class SafeRegex
      * @param string $replacement Replacement string used when the pattern matches.
      * @param string $subject     Input string being modified.
      *
-     * @return string Resulting string after replacements.
+     * @return RegexReplaceResult Resulting string after replacements.
      */
-    public function replace(string $pattern, string $replacement, string $subject): string
+    public function replace(string $pattern, string $replacement, string $subject): RegexReplaceResult
     {
         /** @var string $result */
         $result = $this->execute(
@@ -82,7 +87,7 @@ final class SafeRegex
             'executing preg_replace',
         );
 
-        return $result;
+        return new RegexReplaceResult($result);
     }
 
     /**
@@ -93,9 +98,9 @@ final class SafeRegex
      * @param string   $subject            Input string being modified.
      * @param string   $contextDescription Description inserted into error messages on failure.
      *
-     * @return string Resulting string after replacements.
+     * @return RegexReplaceResult Resulting string after replacements.
      */
-    public function replaceCallback(string $pattern, callable $callback, string $subject, string $contextDescription): string
+    public function replaceCallback(string $pattern, callable $callback, string $subject, string $contextDescription): RegexReplaceResult
     {
         /** @var string $result */
         $result = $this->execute(
@@ -107,7 +112,7 @@ final class SafeRegex
             $contextDescription,
         );
 
-        return $result;
+        return new RegexReplaceResult($result);
     }
 
     /**
@@ -117,9 +122,9 @@ final class SafeRegex
      * @param string $subject            Input string being matched.
      * @param string $contextDescription Description inserted into error messages on failure.
      *
-     * @return array<int|string, string> Captured matches indexed by offsets.
+     * @return RegexMatchResult Captured matches indexed by offsets.
      */
-    public function match(string $pattern, string $subject, string $contextDescription): array
+    public function match(string $pattern, string $subject, string $contextDescription): RegexMatchResult
     {
         $matches = [];
 
@@ -132,7 +137,7 @@ final class SafeRegex
             $contextDescription,
         );
 
-        return $matches;
+        return new RegexMatchResult($matches);
     }
 
     /**
@@ -142,9 +147,9 @@ final class SafeRegex
      * @param string $subject            Input string being matched.
      * @param string $contextDescription Description inserted into error messages on failure.
      *
-     * @return array<int, array<int, string>> Captured matches grouped by pattern index.
+     * @return RegexMatchAllResult Captured matches grouped by pattern index.
      */
-    public function matchAll(string $pattern, string $subject, string $contextDescription): array
+    public function matchAll(string $pattern, string $subject, string $contextDescription): RegexMatchAllResult
     {
         $matches = [];
 
@@ -157,6 +162,6 @@ final class SafeRegex
             $contextDescription,
         );
 
-        return $matches;
+        return new RegexMatchAllResult($matches);
     }
 }
