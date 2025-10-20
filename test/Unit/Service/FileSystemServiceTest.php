@@ -25,9 +25,11 @@ use function file_get_contents;
 use function file_put_contents;
 use function is_dir;
 use function mkdir;
+use function preg_quote;
 use function rmdir;
 use function scandir;
 use function sprintf;
+use function str_replace;
 use function sys_get_temp_dir;
 use function uniqid;
 use function unlink;
@@ -175,6 +177,39 @@ final class FileSystemServiceTest extends TestCase
         $buffer = $output->fetch();
         self::assertStringContainsString('1 files renamed', $buffer);
         self::assertStringContainsString('0 possible duplicates found', $buffer);
+    }
+
+    #[Test]
+    public function renameFilesSeparatesProgressBarFromPerFileLogs(): void
+    {
+        [$service, $output] = $this->createService();
+
+        $sourceDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'source-progress-format';
+        $targetDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'target-progress-format';
+
+        mkdir($sourceDirectory);
+
+        $sourceFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
+        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
+
+        file_put_contents($sourceFile, 'format');
+
+        $fileDuplicateCollection = $this->createFileDuplicateCollection(
+            $sourceFile,
+            $targetFile,
+        );
+
+        $service->renameFiles($fileDuplicateCollection, dryRun: true);
+
+        $buffer     = $output->fetch();
+        $normalized = str_replace("\r", "\n", $buffer);
+
+        $expectedLogLine = $sourceFile . ' → ' . $targetFile;
+
+        self::assertMatchesRegularExpression(
+            '/0\/1 [^\n]*\n\s*' . preg_quote($expectedLogLine, '/') . '/',
+            $normalized,
+        );
     }
 
     #[Test]
