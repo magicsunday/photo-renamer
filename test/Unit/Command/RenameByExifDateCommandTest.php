@@ -8,6 +8,7 @@ use MagicSunday\Renamer\Command\RenameByExifDateCommand;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Service\Dto\LivePhotoPairing;
+use MagicSunday\Renamer\Service\Dto\LivePhotoPairingCollection;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\LivePhotoPairingService;
@@ -129,7 +130,7 @@ final class RenameByExifDateCommandTest extends TestCase
                 self::callback(static fn ($resolver): bool => is_callable($resolver)),
                 self::callback(static fn ($callback): bool => $callback === null || is_callable($callback)),
             )
-            ->willReturn([]);
+            ->willReturn(LivePhotoPairingCollection::empty());
 
         $fileSystemService
             ->expects(self::once())
@@ -231,13 +232,13 @@ final class RenameByExifDateCommandTest extends TestCase
                 self::callback(static fn ($resolver): bool => is_callable($resolver)),
                 self::callback(static fn ($callback): bool => is_callable($callback)),
             )
-            ->willReturnCallback(static function ($iteratorArg, $collection, $resolver, $progressCallback) use ($video, $pairedTarget): array {
+            ->willReturnCallback(static function ($iteratorArg, $collection, $resolver, $progressCallback) use ($video, $pairedTarget): LivePhotoPairingCollection {
                 $progressCallback();
                 $progressCallback();
 
-                return [
+                return LivePhotoPairingCollection::fromPairings(
                     new LivePhotoPairing($video, $pairedTarget, '20240101_120000.MOV', 'content-id'),
-                ];
+                );
             });
 
         $command = new RenameByExifDateCommand(
