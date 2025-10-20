@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy;
 
+use MagicSunday\Renamer\Service\SafeHashCalculator;
 use Override;
 use SplFileInfo;
 
@@ -23,6 +24,11 @@ use SplFileInfo;
  */
 class ContentHashStrategy implements DuplicateIdentifierStrategyInterface
 {
+    public function __construct(
+        private readonly SafeHashCalculator $hashCalculator,
+    ) {
+    }
+
     /**
      * Generates a unique identifier for a file based on its content hash.
      *
@@ -34,8 +40,6 @@ class ContentHashStrategy implements DuplicateIdentifierStrategyInterface
     #[Override]
     public function generateIdentifier(SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo): string|false
     {
-        // We want to find duplicates across all directories based on a hash of the file contents.
-        // Suppress: Failed to open stream: No such file or directory
-        return @hash_file('xxh128', $sourceFileInfo->getPathname());
+        return $this->hashCalculator->hashFile($sourceFileInfo, 'xxh128');
     }
 }

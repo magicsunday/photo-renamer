@@ -13,6 +13,10 @@ namespace MagicSunday\Renamer\Command;
 
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
+use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
+use MagicSunday\Renamer\Service\FileSystemServiceInterface;
+use MagicSunday\Renamer\Service\SafeExifReader;
+use MagicSunday\Renamer\Service\SafeFileReader;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\LivePhotoContentIdentifierStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
@@ -34,6 +38,15 @@ use function strlen;
  */
 class RenameByExifDateCommand extends AbstractRenameCommand
 {
+    public function __construct(
+        FileSystemServiceInterface $fileSystemService,
+        DuplicateDetectionServiceInterface $duplicateDetectionService,
+        private readonly SafeExifReader $safeExifReader,
+        private readonly SafeFileReader $safeFileReader,
+    ) {
+        parent::__construct($fileSystemService, $duplicateDetectionService);
+    }
+
     /**
      * @var string
      */
@@ -235,7 +248,11 @@ class RenameByExifDateCommand extends AbstractRenameCommand
     private function getExifDateFilenameStrategy(): ExifDateFilenameStrategy
     {
         if ($this->exifDateFilenameStrategy === null) {
-            $this->exifDateFilenameStrategy = new ExifDateFilenameStrategy($this->targetFilenamePattern);
+            $this->exifDateFilenameStrategy = new ExifDateFilenameStrategy(
+                $this->targetFilenamePattern,
+                $this->safeExifReader,
+                $this->safeFileReader,
+            );
         }
 
         return $this->exifDateFilenameStrategy;

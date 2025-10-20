@@ -15,6 +15,9 @@ use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\ContentHashStrategy
 use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\InheritFilenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
+use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
+use MagicSunday\Renamer\Service\FileSystemServiceInterface;
+use MagicSunday\Renamer\Service\SafeHashCalculator;
 use Override;
 
 /**
@@ -26,6 +29,14 @@ use Override;
  */
 class RenameByHashCommand extends AbstractRenameCommand
 {
+    public function __construct(
+        FileSystemServiceInterface $fileSystemService,
+        DuplicateDetectionServiceInterface $duplicateDetectionService,
+        private readonly SafeHashCalculator $hashCalculator,
+    ) {
+        parent::__construct($fileSystemService, $duplicateDetectionService);
+    }
+
     /**
      * Configures the current command.
      *
@@ -53,6 +64,6 @@ class RenameByHashCommand extends AbstractRenameCommand
     #[Override]
     protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
     {
-        return new ContentHashStrategy();
+        return new ContentHashStrategy($this->hashCalculator);
     }
 }

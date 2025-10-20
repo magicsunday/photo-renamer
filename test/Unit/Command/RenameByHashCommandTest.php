@@ -8,6 +8,7 @@ use MagicSunday\Renamer\Command\RenameByHashCommand;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
+use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\ContentHashStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\InheritFilenameStrategy;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -28,6 +29,7 @@ final class RenameByHashCommandTest extends TestCase
         $command = new RenameByHashCommand(
             $this->createMock(FileSystemServiceInterface::class),
             $this->createMock(DuplicateDetectionServiceInterface::class),
+            new SafeHashCalculator(),
         );
 
         self::assertSame('hash', $command->getName());
@@ -97,7 +99,7 @@ final class RenameByHashCommandTest extends TestCase
                 true,
             );
 
-        $command = new RenameByHashCommand($fileSystemService, $duplicateDetectionService);
+        $command = new RenameByHashCommand($fileSystemService, $duplicateDetectionService, new SafeHashCalculator());
 
         $tester = new CommandTester($command);
         $exitCode = $tester->execute([
