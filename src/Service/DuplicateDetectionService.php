@@ -250,6 +250,13 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         return $fileDuplicateCollection;
     }
 
+    /**
+     * Creates and starts a Symfony progress bar tailored to the current workload.
+     *
+     * @param int $max Maximum number of steps the progress bar should represent
+     *
+     * @return ProgressBar Configured progress bar instance ready for updates
+     */
     private function startProgressBar(int $max): ProgressBar
     {
         $progressBar = $this->io->createProgressBar($max);

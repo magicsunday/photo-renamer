@@ -22,6 +22,13 @@ use SplFileInfo;
 class LowerCaseFilenameStrategy extends InheritFilenameStrategy
 {
     #[Override]
+    /**
+     * Generates a lowercase version of the filename produced by the parent strategy.
+     *
+     * @param SplFileInfo $splFileInfo File information describing the source asset
+     *
+     * @return string Lowercase filename preserving the original extension casing rules from the base strategy
+     */
     public function generateFilename(SplFileInfo $splFileInfo): string
     {
         $targetFilename = parent::generateFilename($splFileInfo);
