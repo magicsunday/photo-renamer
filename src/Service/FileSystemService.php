@@ -19,6 +19,7 @@ use RecursiveIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
 use SplFileInfo;
+use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function sprintf;
@@ -33,6 +34,8 @@ use function strlen;
  */
 class FileSystemService implements FileSystemServiceInterface
 {
+    private const string PROGRESS_BAR_FORMAT = ' %current%/%max% [%bar%] %percent:3s%% ETA %estimated:-6s%';
+
     /**
      * Duplicate identifier pattern.
      */
@@ -116,13 +119,24 @@ class FileSystemService implements FileSystemServiceInterface
         $maxFilenameLength = 0;
         $fileCount         = 0;
         $duplicateCount    = 0;
+        $totalOperations   = 0;
 
         foreach ($fileDuplicateCollection as $fileDuplicate) {
             foreach ($fileDuplicate->getRenames() as $rename) {
                 if (strlen($rename->getSource()->getPathname()) > $maxFilenameLength) {
                     $maxFilenameLength = strlen($rename->getSource()->getPathname());
                 }
+
+                ++$totalOperations;
             }
+        }
+
+        $progressBar = null;
+
+        if ($totalOperations > 0) {
+            $progressBar = $this->io->createProgressBar($totalOperations);
+            $progressBar->setFormat(self::PROGRESS_BAR_FORMAT);
+            $progressBar->start();
         }
 
         /** @var FileDuplicate $fileDuplicate */
@@ -140,24 +154,34 @@ class FileSystemService implements FileSystemServiceInterface
                     ++$duplicateCount;
                 }
 
-                if (
-                    $skipDuplicates
-                    && str_contains($rename->getTarget()->getFilename(), self::DUPLICATE_IDENTIFIER)
-                ) {
+                $shouldSkip = $skipDuplicates
+                    && str_contains($rename->getTarget()->getFilename(), self::DUPLICATE_IDENTIFIER);
+
+                if ($shouldSkip) {
                     $this->io->text('=> Duplicate! Skip "' . $rename->getSource()->getPathname() . '"');
-                    continue;
                 }
 
-                ++$fileCount;
+                if ($shouldSkip === false) {
+                    ++$fileCount;
 
-                if ($dryRun === false) {
-                    $this->copyOrMoveFile(
-                        $rename->getSource(),
-                        $rename->getTarget(),
-                        $copyFiles
-                    );
+                    if ($dryRun === false) {
+                        $this->copyOrMoveFile(
+                            $rename->getSource(),
+                            $rename->getTarget(),
+                            $copyFiles
+                        );
+                    }
+                }
+
+                if ($progressBar !== null) {
+                    $progressBar->advance();
                 }
             }
+        }
+
+        if ($progressBar !== null) {
+            $progressBar->finish();
+            $this->io->newLine(2);
         }
 
         $this->io->block($duplicateCount . ' possible duplicates found', 'INFO', 'fg=green');

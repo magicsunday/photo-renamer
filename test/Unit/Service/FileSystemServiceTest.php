@@ -13,9 +13,11 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use SplFileInfo;
+use ReflectionProperty;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Console\Helper\ProgressBar;
 
 use function chmod;
 use function file_exists;
@@ -266,15 +268,67 @@ final class FileSystemServiceTest extends TestCase
         $service->renameFiles($fileDuplicateCollection, copyFiles: true);
     }
 
+    #[Test]
+    public function renameFilesInitializesProgressBarWithPlannedOperations(): void
+    {
+        [$service,, $style] = $this->createService();
+
+        $sourceDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'source-progress';
+        $targetDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'target-progress';
+
+        mkdir($sourceDirectory);
+        mkdir($targetDirectory);
+
+        $firstSource = $sourceDirectory . DIRECTORY_SEPARATOR . 'first.jpg';
+        $firstTarget = $targetDirectory . DIRECTORY_SEPARATOR . 'first.jpg';
+        $secondSource = $sourceDirectory . DIRECTORY_SEPARATOR . 'second.jpg';
+        $secondTarget = $targetDirectory . DIRECTORY_SEPARATOR . 'second.jpg';
+
+        file_put_contents($firstSource, 'first');
+        file_put_contents($secondSource, 'second');
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate->addRename(new Rename(new SplFileInfo($firstSource), new SplFileInfo($firstTarget)));
+        $fileDuplicate->addRename(new Rename(new SplFileInfo($secondSource), new SplFileInfo($secondTarget)));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('progress', $fileDuplicate);
+
+        $service->renameFiles($collection, dryRun: true);
+
+        self::assertNotNull($style->capturedProgressBar);
+
+        $progressBar = $style->capturedProgressBar;
+        \assert($progressBar instanceof ProgressBar);
+
+        self::assertSame(2, $progressBar->getMaxSteps());
+        self::assertSame(2, $progressBar->getProgress());
+
+        $formatProperty = new ReflectionProperty($progressBar, 'format');
+        $formatProperty->setAccessible(true);
+
+        self::assertSame(' %current%/%max% [%bar%] %percent:3s%% ETA %estimated:-6s%', $formatProperty->getValue($progressBar));
+    }
+
     /**
-     * @return array{FileSystemService, BufferedOutput}
+     * @return array{FileSystemService, BufferedOutput, SymfonyStyle&object{capturedProgressBar: ?ProgressBar}}
      */
     private function createService(): array
     {
         $output = new BufferedOutput();
-        $io     = new SymfonyStyle(new ArrayInput([]), $output);
+        $io     = new class(new ArrayInput([]), $output) extends SymfonyStyle {
+            public ?ProgressBar $capturedProgressBar = null;
 
-        return [new FileSystemService($io), $output];
+            public function createProgressBar(int $max = 0): ProgressBar
+            {
+                $progressBar = parent::createProgressBar($max);
+                $this->capturedProgressBar = $progressBar;
+
+                return $progressBar;
+            }
+        };
+
+        return [new FileSystemService($io), $output, $io];
     }
 
     private function createFileDuplicateCollection(string $sourceFile, string $targetFile): FileDuplicateCollection
