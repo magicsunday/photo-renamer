@@ -119,20 +119,23 @@ class RenameByExifDateCommand extends AbstractRenameCommand
         $this->io->text('Perform a second pass to find all remaining files that share the same base name');
         $this->io->newLine();
 
-        $this->io->progressStart($this->fileSystemService->countFiles($iterator));
+        $fileCount = $this->fileSystemService->countFiles($iterator);
 
-        $progressBar = $this->io->getProgressBar();
+        /** @var ProgressBar|null $progressBar */
+        $progressBar = null;
 
-        if ($progressBar instanceof ProgressBar) {
+        if ($fileCount > 0) {
+            $progressBar = $this->io->createProgressBar($fileCount);
             $progressBar->setFormat(FileSystemService::PROGRESS_BAR_FORMAT);
+            $progressBar->start();
         }
 
         $pairings = $this->livePhotoPairingService->pairByContentIdentifier(
             iterator: $iterator,
             fileDuplicateCollection: $fileDuplicateCollection,
             contentIdentifierResolver: [$this->getExifDateFilenameStrategy(), 'getLivePhotoContentIdentifier'],
-            onFileInspected: function (): void {
-                $this->io->progressAdvance();
+            onFileInspected: function () use ($progressBar): void {
+                $progressBar?->advance();
             },
         );
 
@@ -155,7 +158,7 @@ class RenameByExifDateCommand extends AbstractRenameCommand
             $fileDuplicateCollection->set($duplicateIdentifier, $fileDuplicate);
         }
 
-        $this->io->progressFinish();
+        $progressBar?->finish();
         $this->io->newLine();
 
         return $fileDuplicateCollection;
