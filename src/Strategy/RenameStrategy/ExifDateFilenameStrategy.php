@@ -29,7 +29,6 @@ use SplFileInfo;
 use SplObjectStorage;
 
 use function in_array;
-use function is_array;
 use function is_int;
 use function rtrim;
 use function strlen;
@@ -172,14 +171,13 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
      */
     private function createExifData(SplFileInfo $splFileInfo): ?ExifData
     {
-        $rawExifData = $this->safeExifReader->read($splFileInfo);
+        $metadataResult = $this->safeExifReader->read($splFileInfo);
 
         $contentIdentifier = null;
-        $metadata = null;
+        $metadata = $metadataResult->metadata();
 
-        if (is_array($rawExifData)) {
-            $metadata = ExifRawMetadata::fromArray($rawExifData);
-            $metadataEntries = MetadataEntryCollection::fromArray($metadata);
+        if ($metadata !== null) {
+            $metadataEntries = MetadataEntryCollection::fromMetadata($metadata);
             $contentIdentifier = $this->extractContentIdentifierFromMetadata($metadataEntries);
         }
 

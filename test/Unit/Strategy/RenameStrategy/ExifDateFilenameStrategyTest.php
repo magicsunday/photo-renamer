@@ -7,6 +7,7 @@ namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Exception\FileReadException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
+use MagicSunday\Renamer\Service\Dto\ExifMetadataResult;
 use MagicSunday\Renamer\Service\SafeExifReader;
 use MagicSunday\Renamer\Service\SafeFileReader;
 use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\ExifRawMetadata;
@@ -30,7 +31,7 @@ use function uniqid;
 final class StubSafeExifReader extends SafeExifReader
 {
     /**
-     * @var array<string, array|false|Throwable>
+     * @var array<string, array<string, mixed>|false|Throwable>
      */
     private array $responses = [];
 
@@ -39,12 +40,12 @@ final class StubSafeExifReader extends SafeExifReader
         $this->responses[$path] = $response;
     }
 
-    public function read(SplFileInfo $file): ?array
+    public function read(SplFileInfo $file): ExifMetadataResult
     {
         $path = $file->getPathname();
 
         if (!array_key_exists($path, $this->responses)) {
-            return null;
+            return ExifMetadataResult::withoutMetadata();
         }
 
         $response = $this->responses[$path];
@@ -54,10 +55,10 @@ final class StubSafeExifReader extends SafeExifReader
         }
 
         if ($response === false) {
-            return null;
+            return ExifMetadataResult::withoutMetadata();
         }
 
-        return $response;
+        return ExifMetadataResult::withMetadata(ExifRawMetadata::fromArray($response));
     }
 }
 
@@ -210,7 +211,7 @@ final class ExifDateFilenameStrategyTest extends TestCase
     #[Test]
     public function metadataCollectionFindsContentIdentifierCandidates(): void
     {
-        $collection = MetadataEntryCollection::fromArray(ExifRawMetadata::fromArray([
+        $collection = MetadataEntryCollection::fromMetadata(ExifRawMetadata::fromArray([
             'DateTimeOriginal' => '2024:05:05 12:00:00',
             'Nested' => [
                 'ContentIdentifier' => 'COLLECTION-UUID',

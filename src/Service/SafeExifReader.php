@@ -9,6 +9,8 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service;
 
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
+use MagicSunday\Renamer\Service\Dto\ExifMetadataResult;
+use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\ExifRawMetadata;
 use SplFileInfo;
 use ValueError;
 
@@ -25,9 +27,9 @@ class SafeExifReader
      *
      * @param SplFileInfo $file File whose EXIF data should be read.
      *
-     * @return array<string, mixed>|null Returns null when no EXIF metadata is present.
+     * @return ExifMetadataResult Returns an empty result when no EXIF metadata is present.
      */
-    public function read(SplFileInfo $file): ?array
+    public function read(SplFileInfo $file): ExifMetadataResult
     {
         $filename = $file->getPathname();
 
@@ -51,7 +53,7 @@ class SafeExifReader
         }
 
         if ($data === false) {
-            return null;
+            return ExifMetadataResult::withoutMetadata();
         }
 
         if (!is_array($data)) {
@@ -60,6 +62,6 @@ class SafeExifReader
             );
         }
 
-        return $data;
+        return ExifMetadataResult::withMetadata(ExifRawMetadata::fromArray($data));
     }
 }

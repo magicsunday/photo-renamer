@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Strategy\RenameStrategy\Dto;
 
 use function array_merge;
-use function is_array;
 use function is_string;
 use function stripos;
 use function strlen;
@@ -23,31 +22,35 @@ final class MetadataEntryCollection
         $this->entries = $entries;
     }
 
-    public static function fromArray(ExifRawMetadata $data): self
+    public static function fromMetadata(ExifRawMetadata $data): self
     {
-        return new self(self::buildEntries($data->toArray()));
+        return new self(self::buildEntries($data->values()));
     }
 
     /**
-     * @param array<string|int, mixed> $data
-     * @param string                   $prefix
+     * @param ExifMetadataCollection $data
+     * @param string                 $prefix
      *
      * @return list<MetadataEntry>
      */
-    private static function buildEntries(array $data, string $prefix = ''): array
+    private static function buildEntries(ExifMetadataCollection $data, string $prefix = ''): array
     {
         $entries = [];
 
-        foreach ($data as $key => $value) {
+        foreach ($data->all() as $key => $value) {
             $keyPart = is_string($key) ? $key : (string) $key;
             $path = $prefix === '' ? $keyPart : $prefix . '.' . $keyPart;
 
-            if (is_string($value) && $value !== '') {
-                $entries[] = new MetadataEntry($path, $value);
+            $stringValue = $value->asString();
+
+            if ($stringValue !== null && $stringValue !== '') {
+                $entries[] = new MetadataEntry($path, $stringValue);
             }
 
-            if (is_array($value)) {
-                $entries = array_merge($entries, self::buildEntries($value, $path));
+            $childCollection = $value->asArray();
+
+            if ($childCollection !== null) {
+                $entries = array_merge($entries, self::buildEntries($childCollection, $path));
             }
         }
 

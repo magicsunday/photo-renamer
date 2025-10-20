@@ -49,7 +49,9 @@ class PatternFilenameStrategy extends InheritFilenameStrategy
         $targetFilename = parent::generateFilename($splFileInfo);
 
         try {
-            return $this->regex->replace($this->pattern, $this->replacement, $targetFilename);
+            return $this->regex
+                ->replace($this->pattern, $this->replacement, $targetFilename)
+                ->result();
         } catch (RegexExecutionException $exception) {
             throw new TargetFilenameException(
                 'Regular expression error: ' . $exception->getMessage(),
