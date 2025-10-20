@@ -24,12 +24,12 @@ final class SafeRegex
     /**
      * Executes a regular expression operation while converting PHP warnings into exceptions.
      *
-     * @param callable       $operation       Operation to execute.
-     * @param string         $pattern         Pattern used in the operation.
-     * @param bool           $nullIndicatesError Whether a null result indicates an error condition.
-     * @param string         $context         Additional context used in error messages.
+     * @param callable $operation          Callback that performs the actual regular expression work.
+     * @param string   $pattern            Regular expression pattern applied by the callback.
+     * @param bool     $nullIndicatesError Whether a null result should be treated as an error.
+     * @param string   $context            Short description inserted into error messages.
      *
-     * @return mixed
+     * @return mixed Result of the executed operation.
      */
     private function execute(callable $operation, string $pattern, bool $nullIndicatesError, string $context): mixed
     {
@@ -62,7 +62,13 @@ final class SafeRegex
     }
 
     /**
-     * Wrapper for preg_replace.
+     * Wrapper for {@see preg_replace()} that converts warnings into exceptions.
+     *
+     * @param string $pattern     Regular expression pattern to search for.
+     * @param string $replacement Replacement string used when the pattern matches.
+     * @param string $subject     Input string being modified.
+     *
+     * @return string Resulting string after replacements.
      */
     public function replace(string $pattern, string $replacement, string $subject): string
     {
@@ -80,7 +86,14 @@ final class SafeRegex
     }
 
     /**
-     * Wrapper for preg_replace_callback.
+     * Wrapper for {@see preg_replace_callback()} that converts warnings into exceptions.
+     *
+     * @param string   $pattern            Regular expression pattern to search for.
+     * @param callable $callback           Callback invoked for each match.
+     * @param string   $subject            Input string being modified.
+     * @param string   $contextDescription Description inserted into error messages on failure.
+     *
+     * @return string Resulting string after replacements.
      */
     public function replaceCallback(string $pattern, callable $callback, string $subject, string $contextDescription): string
     {
@@ -98,9 +111,13 @@ final class SafeRegex
     }
 
     /**
-     * Wrapper for preg_match.
+     * Wrapper for {@see preg_match()} that converts warnings into exceptions.
      *
-     * @return array<int|string, string>
+     * @param string $pattern            Regular expression pattern to search for.
+     * @param string $subject            Input string being matched.
+     * @param string $contextDescription Description inserted into error messages on failure.
+     *
+     * @return array<int|string, string> Captured matches indexed by offsets.
      */
     public function match(string $pattern, string $subject, string $contextDescription): array
     {
@@ -119,9 +136,13 @@ final class SafeRegex
     }
 
     /**
-     * Wrapper for preg_match_all.
+     * Wrapper for {@see preg_match_all()} that converts warnings into exceptions.
      *
-     * @return array<int, array<int, string>>
+     * @param string $pattern            Regular expression pattern to search for.
+     * @param string $subject            Input string being matched.
+     * @param string $contextDescription Description inserted into error messages on failure.
+     *
+     * @return array<int, array<int, string>> Captured matches grouped by pattern index.
      */
     public function matchAll(string $pattern, string $subject, string $contextDescription): array
     {

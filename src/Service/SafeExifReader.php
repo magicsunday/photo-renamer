@@ -23,6 +23,8 @@ class SafeExifReader
     /**
      * Reads EXIF metadata and converts PHP warnings into domain exceptions.
      *
+     * @param SplFileInfo $file File whose EXIF data should be read.
+     *
      * @return array<string, mixed>|null Returns null when no EXIF metadata is present.
      */
     public function read(SplFileInfo $file): ?array
