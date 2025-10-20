@@ -44,7 +44,7 @@ class RenameByExifDateCommand extends AbstractRenameCommand
     private ?DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy = null;
 
     /**
-     * Configures the current command.
+     * Configures the EXIF date rename command with its name, description, and options.
      *
      * @return void
      */
@@ -69,6 +69,11 @@ class RenameByExifDateCommand extends AbstractRenameCommand
             );
     }
 
+    /**
+     * Executes the command and resets cached strategies when the filename pattern changes.
+     *
+     * @return int
+     */
     #[Override]
     protected function executeCommand(): int
     {
@@ -85,6 +90,13 @@ class RenameByExifDateCommand extends AbstractRenameCommand
         return parent::executeCommand();
     }
 
+    /**
+     * Groups files by their duplicate identifier and performs a second pass for Live Photo matches.
+     *
+     * @param RecursiveIteratorIterator $iterator Iterator with all files that should be processed.
+     *
+     * @return FileDuplicateCollection
+     */
     #[Override]
     protected function groupFilesByDuplicateIdentifier(RecursiveIteratorIterator $iterator): FileDuplicateCollection
     {
@@ -170,12 +182,22 @@ class RenameByExifDateCommand extends AbstractRenameCommand
         return $fileDuplicateCollection;
     }
 
+    /**
+     * Returns the strategy that builds the target filename based on EXIF dates.
+     *
+     * @return RenameStrategyInterface
+     */
     #[Override]
     protected function getTargetFilenameProcessor(): RenameStrategyInterface
     {
         return $this->getExifDateFilenameStrategy();
     }
 
+    /**
+     * Provides the duplicate identifier strategy capable of handling Live Photos.
+     *
+     * @return DuplicateIdentifierStrategyInterface
+     */
     #[Override]
     protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
     {
@@ -205,6 +227,11 @@ class RenameByExifDateCommand extends AbstractRenameCommand
         );
     }
 
+    /**
+     * Creates the EXIF date rename strategy using the configured filename pattern.
+     *
+     * @return ExifDateFilenameStrategy
+     */
     private function getExifDateFilenameStrategy(): ExifDateFilenameStrategy
     {
         if ($this->exifDateFilenameStrategy === null) {
