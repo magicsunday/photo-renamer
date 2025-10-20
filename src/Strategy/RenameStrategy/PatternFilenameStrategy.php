@@ -11,7 +11,9 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Strategy\RenameStrategy;
 
+use MagicSunday\Renamer\Exception\RegexExecutionException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
+use MagicSunday\Renamer\Service\SafeRegex;
 use Override;
 use SplFileInfo;
 
@@ -32,14 +34,11 @@ class PatternFilenameStrategy extends InheritFilenameStrategy
      */
     private readonly string $replacement;
 
-    /**
-     * Constructor.
-     *
-     * @param string $pattern
-     * @param string $replacement
-     */
-    public function __construct(string $pattern, string $replacement)
-    {
+    public function __construct(
+        string $pattern,
+        string $replacement,
+        private readonly SafeRegex $regex,
+    ) {
         $this->pattern     = $pattern;
         $this->replacement = $replacement;
     }
@@ -49,21 +48,13 @@ class PatternFilenameStrategy extends InheritFilenameStrategy
     {
         $targetFilename = parent::generateFilename($splFileInfo);
 
-        // Perform the regular expression replacement
-        $targetFilename = @preg_replace(
-            $this->pattern,
-            $this->replacement,
-            $targetFilename
-        );
-
-        if ($targetFilename === null) {
+        try {
+            return $this->regex->replace($this->pattern, $this->replacement, $targetFilename);
+        } catch (RegexExecutionException $exception) {
             throw new TargetFilenameException(
-                'Regular expression error: ' . preg_last_error_msg() . '. ' .
-                'Check your pattern syntax "' . $this->pattern . '". ' .
-                'Make sure it is a valid PCRE pattern enclosed in delimiters (e.g., /pattern/).'
+                'Regular expression error: ' . $exception->getMessage(),
+                previous: $exception,
             );
         }
-
-        return $targetFilename;
     }
 }

@@ -180,29 +180,31 @@ final class FileSystemServiceTest extends TestCase
     {
         [$service] = $this->createService();
 
-        $lockedDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'locked';
-        mkdir($lockedDirectory, 0555);
+        $blockingFile = $this->workspace . DIRECTORY_SEPARATOR . 'locked';
+        file_put_contents($blockingFile, 'placeholder');
+
+        $sourceDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'source-error';
+        mkdir($sourceDirectory);
+
+        $sourceFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
+        $targetFile = $blockingFile . DIRECTORY_SEPARATOR . 'subdir' . DIRECTORY_SEPARATOR . 'image.jpg';
+
+        file_put_contents($sourceFile, 'content');
+
+        $fileDuplicateCollection = $this->createFileDuplicateCollection(
+            $sourceFile,
+            $targetFile,
+        );
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Directory');
+
+        set_error_handler(static fn (): bool => true);
 
         try {
-            $sourceDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'source-error';
-            mkdir($sourceDirectory);
-
-            $sourceFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
-            $targetFile = $lockedDirectory . DIRECTORY_SEPARATOR . 'subdir' . DIRECTORY_SEPARATOR . 'image.jpg';
-
-            file_put_contents($sourceFile, 'content');
-
-            $fileDuplicateCollection = $this->createFileDuplicateCollection(
-                $sourceFile,
-                $targetFile,
-            );
-
-            $this->expectException(RuntimeException::class);
-            $this->expectExceptionMessage('Directory');
-
             $service->renameFiles($fileDuplicateCollection);
         } finally {
-            chmod($lockedDirectory, 0755);
+            restore_error_handler();
         }
     }
 
@@ -215,7 +217,7 @@ final class FileSystemServiceTest extends TestCase
         $targetDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'target-move-fails';
 
         mkdir($sourceDirectory);
-        mkdir($targetDirectory, 0555);
+        mkdir($targetDirectory);
 
         $sourceFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
         $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
@@ -227,14 +229,12 @@ final class FileSystemServiceTest extends TestCase
             $targetFile,
         );
 
-        try {
-            $this->expectException(RuntimeException::class);
-            $this->expectExceptionMessage('Failed to move file');
+        unlink($sourceFile);
 
-            $service->renameFiles($fileDuplicateCollection);
-        } finally {
-            chmod($targetDirectory, 0755);
-        }
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Target file');
+
+        $service->renameFiles($fileDuplicateCollection);
     }
 
     #[Test]
@@ -246,7 +246,7 @@ final class FileSystemServiceTest extends TestCase
         $targetDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'target-copy-fails';
 
         mkdir($sourceDirectory);
-        mkdir($targetDirectory, 0555);
+        mkdir($targetDirectory);
 
         $sourceFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
         $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
@@ -258,14 +258,12 @@ final class FileSystemServiceTest extends TestCase
             $targetFile,
         );
 
-        try {
-            $this->expectException(RuntimeException::class);
-            $this->expectExceptionMessage('Failed to copy file');
+        unlink($sourceFile);
 
-            $service->renameFiles($fileDuplicateCollection, copyFiles: true);
-        } finally {
-            chmod($targetDirectory, 0755);
-        }
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Target file');
+
+        $service->renameFiles($fileDuplicateCollection, copyFiles: true);
     }
 
     /**

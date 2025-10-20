@@ -16,6 +16,9 @@ use MagicSunday\Renamer\Command\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Model\Pattern\DatePlaceholderExpressionMap;
 use MagicSunday\Renamer\Model\Pattern\PatternExpression;
 use MagicSunday\Renamer\Model\Pattern\PatternMatchSet;
+use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
+use MagicSunday\Renamer\Service\FileSystemServiceInterface;
+use MagicSunday\Renamer\Service\SafeRegex;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\TargetPathnameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\DatePatternFilenameStrategy;
@@ -38,6 +41,14 @@ use function is_string;
  */
 class RenameByDatePatternCommand extends AbstractRenameCommand
 {
+    public function __construct(
+        FileSystemServiceInterface $fileSystemService,
+        DuplicateDetectionServiceInterface $duplicateDetectionService,
+        private readonly SafeRegex $safeRegex,
+    ) {
+        parent::__construct($fileSystemService, $duplicateDetectionService);
+    }
+
     private ?PatternExpression $patternExpression = null;
 
     private ?PatternMatchSet $patternMatchSet = null;
@@ -135,7 +146,8 @@ class RenameByDatePatternCommand extends AbstractRenameCommand
         return new DatePatternFilenameStrategy(
             $this->patternExpression->getRegex(),
             $this->replacement,
-            $this->patternMatchSet
+            $this->patternMatchSet,
+            $this->safeRegex,
         );
     }
 

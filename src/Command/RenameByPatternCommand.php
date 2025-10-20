@@ -17,6 +17,9 @@ use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\DuplicateIdentifier
 use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\TargetPathnameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\PatternFilenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
+use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
+use MagicSunday\Renamer\Service\FileSystemServiceInterface;
+use MagicSunday\Renamer\Service\SafeRegex;
 use Override;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -33,6 +36,14 @@ use function is_string;
  */
 class RenameByPatternCommand extends AbstractRenameCommand
 {
+    public function __construct(
+        FileSystemServiceInterface $fileSystemService,
+        DuplicateDetectionServiceInterface $duplicateDetectionService,
+        private readonly SafeRegex $safeRegex,
+    ) {
+        parent::__construct($fileSystemService, $duplicateDetectionService);
+    }
+
     /**
      * @var string
      */
@@ -117,7 +128,8 @@ class RenameByPatternCommand extends AbstractRenameCommand
     {
         return new PatternFilenameStrategy(
             $this->pattern,
-            $this->replacement
+            $this->replacement,
+            $this->safeRegex,
         );
     }
 

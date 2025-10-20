@@ -11,6 +11,8 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Strategy\DuplicateIdentifierStrategy;
 
+use MagicSunday\Renamer\Exception\HashComputationException;
+use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\ContentHashStrategy;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -66,7 +68,7 @@ class ContentHashStrategyTest extends TestCase
         );
 
         // Initialize strategy and generate identifier
-        $strategy = new ContentHashStrategy();
+        $strategy = new ContentHashStrategy(new SafeHashCalculator());
         $result   = $strategy->generateIdentifier(
             $sourceFile,
             $targetFile
@@ -113,14 +115,15 @@ class ContentHashStrategyTest extends TestCase
         $targetFile = $this->createMock(SplFileInfo::class);
 
         // Attempt to generate an identifier for a non-existent file
-        $strategy = new ContentHashStrategy();
-        $result   = $strategy->generateIdentifier(
+        $strategy = new ContentHashStrategy(new SafeHashCalculator());
+
+        $this->expectException(HashComputationException::class);
+        $this->expectExceptionMessageMatches('/Failed to compute xxh128 hash/');
+
+        $strategy->generateIdentifier(
             $sourceFile,
             $targetFile
         );
-
-        // Verify that false is returned for missing files
-        self::assertFalse($result);
     }
 
     /**
@@ -153,7 +156,7 @@ class ContentHashStrategyTest extends TestCase
         );
 
         // Generate identifier for an empty file
-        $strategy = new ContentHashStrategy();
+        $strategy = new ContentHashStrategy(new SafeHashCalculator());
         $result   = $strategy->generateIdentifier(
             $sourceFile,
             $targetFile

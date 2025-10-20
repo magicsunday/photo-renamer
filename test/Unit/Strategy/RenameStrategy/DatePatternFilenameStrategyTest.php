@@ -15,6 +15,7 @@ use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Model\Pattern\PatternMatch;
 use MagicSunday\Renamer\Model\Pattern\PatternMatchSet;
 use MagicSunday\Renamer\Strategy\RenameStrategy\DatePatternFilenameStrategy;
+use MagicSunday\Renamer\Service\SafeRegex;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -65,7 +66,8 @@ class DatePatternFilenameStrategyTest extends TestCase
         $strategy = new DatePatternFilenameStrategy(
             '/[',  // Invalid regex - unclosed bracket
             '{Y}-{m}-{d}',
-            $this->createPatternMatchSet(['Y'])
+            $this->createPatternMatchSet(['Y']),
+            new SafeRegex()
         );
 
         // Expect a TargetFilenameException to be thrown
@@ -96,7 +98,8 @@ class DatePatternFilenameStrategyTest extends TestCase
         $strategy = new DatePatternFilenameStrategy(
             '/IMG_(\d{4})(\d{2})(\d{2})/',
             '{Y}-{m}-{d}',
-            $this->createPatternMatchSet(['Y', 'm', 'd'])
+            $this->createPatternMatchSet(['Y', 'm', 'd']),
+            new SafeRegex()
         );
 
         // Get the result
@@ -127,7 +130,8 @@ class DatePatternFilenameStrategyTest extends TestCase
         $strategy = new DatePatternFilenameStrategy(
             '/IMG_(\d{4})(\d{2})(\d{2})/',
             '{Y}-{m}-{d}',
-            $this->createPatternMatchSet(['Y', 'm', 'd'])
+            $this->createPatternMatchSet(['Y', 'm', 'd']),
+            new SafeRegex()
         );
 
         // Get the result
@@ -155,7 +159,8 @@ class DatePatternFilenameStrategyTest extends TestCase
         $strategy = new DatePatternFilenameStrategy(
             '/photo_(\d{2})(\d{2})(\d{2})/',
             '{Y}',
-            $this->createPatternMatchSet(['y', 'm', 'd'])  // Note: lowercase 'y' for 2-digit year
+            $this->createPatternMatchSet(['y', 'm', 'd']),  // Note: lowercase 'y' for 2-digit year
+            new SafeRegex()
         );
 
         $result = $strategy->generateFilename($file);
@@ -168,7 +173,8 @@ class DatePatternFilenameStrategyTest extends TestCase
         $strategy2 = new DatePatternFilenameStrategy(
             '/photo_(\d{2})(\d{2})(\d{2})/',
             '{Y}',
-            $this->createPatternMatchSet(['y', 'm', 'd'])
+            $this->createPatternMatchSet(['y', 'm', 'd']),
+            new SafeRegex()
         );
 
         $result2 = $strategy2->generateFilename($file2);
@@ -195,7 +201,8 @@ class DatePatternFilenameStrategyTest extends TestCase
         $strategy = new DatePatternFilenameStrategy(
             '/file_(\d{2})-(\d{2})-(\d{4})/',
             '{Y}-{m}-{d}',
-            $this->createPatternMatchSet(['d', 'm', 'Y'])  // Note: mapping order is d, m, Y
+            $this->createPatternMatchSet(['d', 'm', 'Y']),  // Note: mapping order is d, m, Y
+            new SafeRegex()
         );
 
         $result = $strategy->generateFilename($file);
@@ -225,7 +232,8 @@ class DatePatternFilenameStrategyTest extends TestCase
         $strategy = new DatePatternFilenameStrategy(
             '/README_(\d{4})(\d{2})(\d{2})/',
             '{Y}-{m}-{d}',
-            $this->createPatternMatchSet(['Y', 'm', 'd'])
+            $this->createPatternMatchSet(['Y', 'm', 'd']),
+            new SafeRegex()
         );
 
         $result = $strategy->generateFilename($file);

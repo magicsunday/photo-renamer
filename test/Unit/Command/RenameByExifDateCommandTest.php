@@ -8,6 +8,8 @@ use MagicSunday\Renamer\Command\RenameByExifDateCommand;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
+use MagicSunday\Renamer\Service\SafeExifReader;
+use MagicSunday\Renamer\Service\SafeFileReader;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\LivePhotoContentIdentifierStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -29,6 +31,8 @@ final class RenameByExifDateCommandTest extends TestCase
         $command = new RenameByExifDateCommand(
             $this->createMock(FileSystemServiceInterface::class),
             $this->createMock(DuplicateDetectionServiceInterface::class),
+            new SafeExifReader(),
+            new SafeFileReader(),
         );
 
         self::assertSame('exif:date', $command->getName());
@@ -115,7 +119,12 @@ final class RenameByExifDateCommandTest extends TestCase
                 false,
             );
 
-        $command = new RenameByExifDateCommand($fileSystemService, $duplicateDetectionService);
+        $command = new RenameByExifDateCommand(
+            $fileSystemService,
+            $duplicateDetectionService,
+            new SafeExifReader(),
+            new SafeFileReader(),
+        );
 
         $tester = new CommandTester($command);
         $exitCode = $tester->execute([
