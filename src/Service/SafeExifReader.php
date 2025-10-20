@@ -19,6 +19,8 @@ use function is_array;
 use function restore_error_handler;
 use function set_error_handler;
 use function sprintf;
+use function str_contains;
+use function strtolower;
 
 class SafeExifReader
 {
@@ -48,6 +50,12 @@ class SafeExifReader
                 sprintf('Failed to read EXIF metadata from "%s": %s', $filename, $error->getMessage()),
                 previous: $error,
             );
+        } catch (ExifMetadataReadException $error) {
+            if ($this->isUnsupportedFormatMessage($error->getMessage())) {
+                return ExifMetadataResult::withoutMetadata();
+            }
+
+            throw $error;
         } finally {
             restore_error_handler();
         }
@@ -63,5 +71,10 @@ class SafeExifReader
         }
 
         return ExifMetadataResult::withMetadata(ExifRawMetadata::fromArray($data));
+    }
+
+    private function isUnsupportedFormatMessage(string $message): bool
+    {
+        return str_contains(strtolower($message), 'not supported');
     }
 }
