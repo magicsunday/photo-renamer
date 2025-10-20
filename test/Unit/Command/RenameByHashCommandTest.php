@@ -69,6 +69,12 @@ final class RenameByHashCommandTest extends TestCase
 
         $duplicateDetectionService
             ->expects(self::once())
+            ->method('setListAll')
+            ->with(false)
+            ->willReturnSelf();
+
+        $duplicateDetectionService
+            ->expects(self::once())
             ->method('groupFilesByDuplicateIdentifier')
             ->with(
                 self::isInstanceOf(RecursiveIteratorIterator::class),
@@ -97,6 +103,7 @@ final class RenameByHashCommandTest extends TestCase
                 true,
                 true,
                 true,
+                false,
             );
 
         $command = new RenameByHashCommand($fileSystemService, $duplicateDetectionService, new SafeHashCalculator());
