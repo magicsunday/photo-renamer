@@ -65,6 +65,11 @@ final class ProviderQuickTimeExtractorStub extends QuickTimeContentIdentifierExt
      */
     private array $responses = [];
 
+    /**
+     * @var list<string>
+     */
+    private array $invocations = [];
+
     public function __construct()
     {
         parent::__construct(new SafeFileReader());
@@ -79,7 +84,14 @@ final class ProviderQuickTimeExtractorStub extends QuickTimeContentIdentifierExt
     {
         $path = $splFileInfo->getPathname();
 
+        $this->invocations[] = $path;
+
         return $this->responses[$path] ?? null;
+    }
+
+    public function wasInvokedFor(string $path): bool
+    {
+        return in_array($path, $this->invocations, true);
     }
 }
 
@@ -141,6 +153,36 @@ final class ExifMetadataProviderTest extends TestCase
 
         self::assertInstanceOf(ContentIdentifier::class, $identifier);
         self::assertSame('UUID-5678', $identifier->getValue());
+    }
+
+    #[Test]
+    public function itSkipsUnsupportedMovWhileExtractingQuickTimeIdentifier(): void
+    {
+        $basePath = tempnam(sys_get_temp_dir(), 'provider_mov_');
+
+        self::assertNotFalse($basePath);
+
+        $path = $basePath . '.mov';
+
+        self::assertTrue(rename($basePath, $path));
+        self::assertNotFalse(file_put_contents($path, hex2bin('89504E470D0A1A0A')));
+
+        $quickTimeExtractor = new ProviderQuickTimeExtractorStub();
+        $quickTimeExtractor->withResponse($path, new ContentIdentifier('UUID-9012'));
+
+        $provider = new ExifMetadataProvider(new SafeExifReader(), $quickTimeExtractor);
+
+        try {
+            self::assertNull($provider->getExifData(new SplFileInfo($path)));
+
+            $identifier = $provider->getContentIdentifier(new SplFileInfo($path));
+
+            self::assertInstanceOf(ContentIdentifier::class, $identifier);
+            self::assertSame('UUID-9012', $identifier->getValue());
+            self::assertTrue($quickTimeExtractor->wasInvokedFor($path));
+        } finally {
+            @unlink($path);
+        }
     }
 
     #[Test]
