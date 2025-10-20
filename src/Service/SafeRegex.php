@@ -9,10 +9,13 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service;
 
 use MagicSunday\Renamer\Exception\RegexExecutionException;
+use MagicSunday\Renamer\Service\Dto\RegexExecutionOutcome;
 use MagicSunday\Renamer\Service\Dto\RegexMatchAllResult;
 use MagicSunday\Renamer\Service\Dto\RegexMatchResult;
 use MagicSunday\Renamer\Service\Dto\RegexReplaceResult;
+use MagicSunday\Renamer\Service\Dto\RegexResultInterface;
 
+use function is_string;
 use function preg_last_error_msg;
 use function preg_match;
 use function preg_match_all;
@@ -27,16 +30,13 @@ final class SafeRegex
     /**
      * Executes a regular expression operation while converting PHP warnings into exceptions.
      *
-     * @template T
+     * @param callable():RegexExecutionOutcome $operation Callback that performs the actual regular expression work.
+     * @param string                            $pattern   Regular expression pattern applied by the callback.
+     * @param string                            $context   Short description inserted into error messages.
      *
-     * @param callable():T $operation          Callback that performs the actual regular expression work.
-     * @param string       $pattern            Regular expression pattern applied by the callback.
-     * @param bool         $nullIndicatesError Whether a null result should be treated as an error.
-     * @param string       $context            Short description inserted into error messages.
-     *
-     * @return T Result of the executed operation.
+     * @return RegexResultInterface Result of the executed operation.
      */
-    private function execute(callable $operation, string $pattern, bool $nullIndicatesError, string $context): mixed
+    private function execute(callable $operation, string $pattern, string $context): RegexResultInterface
     {
         set_error_handler(
             static function (int $severity, string $message) use ($pattern, $context): never {
@@ -47,12 +47,12 @@ final class SafeRegex
         );
 
         try {
-            $result = $operation();
+            $outcome = $operation();
         } finally {
             restore_error_handler();
         }
 
-        if ($result === false || ($nullIndicatesError && $result === null)) {
+        if (!$outcome->isSuccessful()) {
             throw new RegexExecutionException(
                 sprintf(
                     'Regex failure while %s with pattern "%s": %s',
@@ -63,7 +63,7 @@ final class SafeRegex
             );
         }
 
-        return $result;
+        return $outcome->result();
     }
 
     /**
@@ -77,17 +77,22 @@ final class SafeRegex
      */
     public function replace(string $pattern, string $replacement, string $subject): RegexReplaceResult
     {
-        /** @var string $result */
+        /** @var RegexReplaceResult $result */
         $result = $this->execute(
-            static function () use ($pattern, $replacement, $subject) {
-                return preg_replace($pattern, $replacement, $subject);
+            static function () use ($pattern, $replacement, $subject): RegexExecutionOutcome {
+                $replaceResult = preg_replace($pattern, $replacement, $subject);
+
+                if (!is_string($replaceResult)) {
+                    return RegexExecutionOutcome::failure();
+                }
+
+                return RegexExecutionOutcome::success(new RegexReplaceResult($replaceResult));
             },
             $pattern,
-            true,
             'executing preg_replace',
         );
 
-        return new RegexReplaceResult($result);
+        return $result;
     }
 
     /**
@@ -102,17 +107,22 @@ final class SafeRegex
      */
     public function replaceCallback(string $pattern, callable $callback, string $subject, string $contextDescription): RegexReplaceResult
     {
-        /** @var string $result */
+        /** @var RegexReplaceResult $result */
         $result = $this->execute(
-            static function () use ($pattern, $callback, $subject) {
-                return preg_replace_callback($pattern, $callback, $subject);
+            static function () use ($pattern, $callback, $subject): RegexExecutionOutcome {
+                $replaceResult = preg_replace_callback($pattern, $callback, $subject);
+
+                if (!is_string($replaceResult)) {
+                    return RegexExecutionOutcome::failure();
+                }
+
+                return RegexExecutionOutcome::success(new RegexReplaceResult($replaceResult));
             },
             $pattern,
-            true,
             $contextDescription,
         );
 
-        return new RegexReplaceResult($result);
+        return $result;
     }
 
     /**
@@ -126,18 +136,23 @@ final class SafeRegex
      */
     public function match(string $pattern, string $subject, string $contextDescription): RegexMatchResult
     {
-        $matches = [];
+        /** @var RegexMatchResult $result */
+        $result = $this->execute(
+            static function () use ($pattern, $subject): RegexExecutionOutcome {
+                $matches = [];
+                $matchResult = preg_match($pattern, $subject, $matches);
 
-        $this->execute(
-            static function () use ($pattern, $subject, &$matches) {
-                return preg_match($pattern, $subject, $matches);
+                if ($matchResult === false) {
+                    return RegexExecutionOutcome::failure();
+                }
+
+                return RegexExecutionOutcome::success(new RegexMatchResult($matches));
             },
             $pattern,
-            false,
             $contextDescription,
         );
 
-        return new RegexMatchResult($matches);
+        return $result;
     }
 
     /**
@@ -151,17 +166,23 @@ final class SafeRegex
      */
     public function matchAll(string $pattern, string $subject, string $contextDescription): RegexMatchAllResult
     {
-        $matches = [];
+        /** @var RegexMatchAllResult $result */
+        $result = $this->execute(
+            static function () use ($pattern, $subject): RegexExecutionOutcome {
+                $matches = [];
+                $matchResult = preg_match_all($pattern, $subject, $matches);
 
-        $this->execute(
-            static function () use ($pattern, $subject, &$matches) {
-                return preg_match_all($pattern, $subject, $matches);
+                if ($matchResult === false) {
+                    return RegexExecutionOutcome::failure();
+                }
+
+                /** @var array<int, array<int|string, string>> $matches */
+                return RegexExecutionOutcome::success(new RegexMatchAllResult($matches));
             },
             $pattern,
-            false,
             $contextDescription,
         );
 
-        return new RegexMatchAllResult($matches);
+        return $result;
     }
 }

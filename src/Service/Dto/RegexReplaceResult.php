@@ -7,7 +7,7 @@ namespace MagicSunday\Renamer\Service\Dto;
 /**
  * Immutable wrapper containing the output of a regex replacement operation.
  */
-final class RegexReplaceResult
+final class RegexReplaceResult implements RegexResultInterface
 {
     public function __construct(private readonly string $result)
     {
