@@ -29,6 +29,7 @@ use ReflectionMethod;
 use ReflectionProperty;
 use SplFileInfo;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Tester\CommandTester;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
@@ -260,7 +261,19 @@ final class RenameByExifDateCommandTest extends TestCase
         $io->expects(self::atLeastOnce())->method('text');
         $io->expects(self::exactly(2))->method('newLine');
         $io->expects(self::once())->method('progressStart')->with(2);
-        $io->expects(self::once())->method('progressSetFormat')->with(FileSystemService::PROGRESS_BAR_FORMAT);
+
+        /** @var ProgressBar&MockObject $progressBar */
+        $progressBar = $this->createMock(ProgressBar::class);
+        $progressBar
+            ->expects(self::once())
+            ->method('setFormat')
+            ->with(FileSystemService::PROGRESS_BAR_FORMAT);
+
+        $io
+            ->expects(self::once())
+            ->method('getProgressBar')
+            ->willReturn($progressBar);
+
         $io->expects(self::exactly(2))->method('progressAdvance');
         $io->expects(self::once())->method('progressFinish');
 
@@ -385,7 +398,19 @@ final class RenameByExifDateCommandTest extends TestCase
         $io->expects(self::atLeastOnce())->method('text');
         $io->expects(self::exactly(2))->method('newLine');
         $io->expects(self::once())->method('progressStart')->with(2);
-        $io->expects(self::once())->method('progressSetFormat')->with(FileSystemService::PROGRESS_BAR_FORMAT);
+
+        /** @var ProgressBar&MockObject $progressBar */
+        $progressBar = $this->createMock(ProgressBar::class);
+        $progressBar
+            ->expects(self::once())
+            ->method('setFormat')
+            ->with(FileSystemService::PROGRESS_BAR_FORMAT);
+
+        $io
+            ->expects(self::once())
+            ->method('getProgressBar')
+            ->willReturn($progressBar);
+
         $io->expects(self::exactly(2))->method('progressAdvance');
         $io->expects(self::once())->method('progressFinish');
 
