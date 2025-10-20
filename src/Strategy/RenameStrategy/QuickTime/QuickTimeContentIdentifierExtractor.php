@@ -30,10 +30,20 @@ use function unpack;
 
 class QuickTimeContentIdentifierExtractor
 {
+    /**
+     * Initializes the extractor with a reader that safely loads binary file contents.
+     */
     public function __construct(private readonly SafeFileReader $safeFileReader)
     {
     }
 
+    /**
+     * Extracts the QuickTime content identifier from the provided media file, if available.
+     *
+     * @param SplFileInfo $splFileInfo The QuickTime-based file to inspect.
+     *
+     * @return ContentIdentifier|null The extracted identifier or null when the metadata is missing.
+     */
     public function extractContentIdentifier(SplFileInfo $splFileInfo): ?ContentIdentifier
     {
         if (!$this->supports($splFileInfo)) {
