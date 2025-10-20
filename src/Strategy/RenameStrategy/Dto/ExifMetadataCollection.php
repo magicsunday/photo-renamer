@@ -15,6 +15,10 @@ use function array_key_exists;
 final class ExifMetadataCollection implements \IteratorAggregate
 {
     /**
+     * @phpstan-import-type ExifNativeData from ExifValueFactory
+     */
+
+    /**
      * @param array<int|string, ExifValue> $values
      */
     private function __construct(private readonly array $values)
@@ -22,7 +26,7 @@ final class ExifMetadataCollection implements \IteratorAggregate
     }
 
     /**
-     * @param array<int|string, mixed> $data
+     * @param ExifNativeData $data
      */
     public static function fromArray(array $data): self
     {

@@ -20,13 +20,17 @@ use PHPUnit\Framework\TestCase;
 use SplFileInfo;
 use Throwable;
 
+/** @phpstan-import-type ExifNativeData from MagicSunday\Renamer\Strategy\RenameStrategy\Dto\ExifValueFactory */
 final class ProviderSafeExifReaderStub extends SafeExifReader
 {
     /**
-     * @var array<string, array<string, mixed>|false|Throwable>
+     * @var array<string, ExifNativeData|false|Throwable>
      */
     private array $responses = [];
 
+    /**
+     * @param ExifNativeData|false|Throwable $response
+     */
     public function withResponse(string $path, array|false|Throwable $response): void
     {
         $this->responses[$path] = $response;

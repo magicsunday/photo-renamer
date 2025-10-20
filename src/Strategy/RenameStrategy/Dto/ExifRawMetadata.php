@@ -9,12 +9,16 @@ namespace MagicSunday\Renamer\Strategy\RenameStrategy\Dto;
  */
 final class ExifRawMetadata
 {
+    /**
+     * @phpstan-import-type ExifNativeData from ExifValueFactory
+     */
+
     private function __construct(private readonly ExifMetadataCollection $data)
     {
     }
 
     /**
-     * @param array<string|int, mixed> $data
+     * @param ExifNativeData $data
      */
     public static function fromArray(array $data): self
     {
