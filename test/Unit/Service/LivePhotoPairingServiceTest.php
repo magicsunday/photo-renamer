@@ -7,6 +7,7 @@ namespace MagicSunday\Renamer\Test\Unit\Service;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Service\Dto\LivePhotoPairing;
+use MagicSunday\Renamer\Service\Dto\LivePhotoPairingCollection;
 use MagicSunday\Renamer\Service\LivePhotoPairingService;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -49,9 +50,11 @@ final class LivePhotoPairingServiceTest extends TestCase
             },
         );
 
-        self::assertCount(1, $pairs);
+        $pairings = $pairs->toList();
 
-        $pair = $pairs[0];
+        self::assertCount(1, $pairings);
+
+        $pair = $pairings[0];
         self::assertInstanceOf(LivePhotoPairing::class, $pair);
         self::assertSame($video->getPathname(), $pair->getSourceFile()->getPathname());
         self::assertSame('/source/20240101_120000.MOV', $pair->getTargetFile()->getPathname());
@@ -88,6 +91,7 @@ final class LivePhotoPairingServiceTest extends TestCase
         );
 
         self::assertSame(3, $progressCalls);
-        self::assertSame([], $pairs);
+        self::assertInstanceOf(LivePhotoPairingCollection::class, $pairs);
+        self::assertSame([], $pairs->toList());
     }
 }
