@@ -16,6 +16,8 @@ use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\QuickTimeKey;
 use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\QuickTimeMetadata;
 use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\QuickTimeValue;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
+use MagicSunday\Renamer\Strategy\RenameStrategy\ExifMetadataProvider;
+use MagicSunday\Renamer\Strategy\RenameStrategy\QuickTime\QuickTimeContentIdentifierExtractor;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
@@ -118,7 +120,7 @@ final class ExifDateFilenameStrategyTest extends TestCase
 
         $fileReader = new StubSafeFileReader();
 
-        $strategy = new ExifDateFilenameStrategy($pattern, $exifReader, $fileReader);
+        $strategy = $this->createStrategy($pattern, $exifReader, $fileReader);
 
         self::assertSame(
             $expected,
@@ -132,7 +134,7 @@ final class ExifDateFilenameStrategyTest extends TestCase
     {
         $path = '/virtual/' . uniqid('missing_', true) . '.jpg';
 
-        $strategy = new ExifDateFilenameStrategy(
+        $strategy = $this->createStrategy(
             'Y-m-d_H-i-s',
             new StubSafeExifReader(),
             new StubSafeFileReader(),
@@ -149,7 +151,7 @@ final class ExifDateFilenameStrategyTest extends TestCase
         $exifReader = new StubSafeExifReader();
         $exifReader->withResponse($path, ['DateTimeOriginal' => 'not a valid date']);
 
-        $strategy = new ExifDateFilenameStrategy('Y-m-d_H-i-s', $exifReader, new StubSafeFileReader());
+        $strategy = $this->createStrategy('Y-m-d_H-i-s', $exifReader, new StubSafeFileReader());
 
         self::assertNull($strategy->generateFilename(new SplFileInfo($path)));
     }
@@ -165,7 +167,7 @@ final class ExifDateFilenameStrategyTest extends TestCase
             'Nested' => ['ContentIdentifier' => 'EXIF-UUID'],
         ]);
 
-        $strategy = new ExifDateFilenameStrategy('Y-m-d_H-i-s', $exifReader, new StubSafeFileReader());
+        $strategy = $this->createStrategy('Y-m-d_H-i-s', $exifReader, new StubSafeFileReader());
 
         self::assertSame('EXIF-UUID', $strategy->getLivePhotoContentIdentifier(new SplFileInfo($path)));
     }
@@ -181,7 +183,7 @@ final class ExifDateFilenameStrategyTest extends TestCase
         $fileReader = new StubSafeFileReader();
         $fileReader->withResponse($path, self::createQuickTimeSample('550E8400-E29B-41D4-A716-446655440000'));
 
-        $strategy = new ExifDateFilenameStrategy('Y-m-d_H-i-s', $exifReader, $fileReader);
+        $strategy = $this->createStrategy('Y-m-d_H-i-s', $exifReader, $fileReader);
 
         self::assertSame(
             '550E8400-E29B-41D4-A716-446655440000',
@@ -200,7 +202,7 @@ final class ExifDateFilenameStrategyTest extends TestCase
         $fileReader = new StubSafeFileReader();
         $fileReader->withResponse($path, new FileReadException('I/O failure'));
 
-        $strategy = new ExifDateFilenameStrategy('Y-m-d_H-i-s', $exifReader, $fileReader);
+        $strategy = $this->createStrategy('Y-m-d_H-i-s', $exifReader, $fileReader);
 
         $this->expectException(TargetFilenameException::class);
         $this->expectExceptionMessage('Unable to read QuickTime metadata: I/O failure');
@@ -248,12 +250,25 @@ final class ExifDateFilenameStrategyTest extends TestCase
         $exifReader = new StubSafeExifReader();
         $exifReader->withResponse($path, new ExifMetadataReadException('EXIF extension missing'));
 
-        $strategy = new ExifDateFilenameStrategy('Y-m-d_H-i-s', $exifReader, new StubSafeFileReader());
+        $strategy = $this->createStrategy('Y-m-d_H-i-s', $exifReader, new StubSafeFileReader());
 
         $this->expectException(TargetFilenameException::class);
         $this->expectExceptionMessage('EXIF extension missing');
 
         $strategy->generateFilename(new SplFileInfo($path));
+    }
+
+    private function createStrategy(
+        string $pattern,
+        StubSafeExifReader $exifReader,
+        StubSafeFileReader $fileReader,
+    ): ExifDateFilenameStrategy {
+        $provider = new ExifMetadataProvider(
+            $exifReader,
+            new QuickTimeContentIdentifierExtractor($fileReader),
+        );
+
+        return new ExifDateFilenameStrategy($pattern, $provider);
     }
 
     /**
