@@ -14,6 +14,7 @@ use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\ExifData;
 use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\ExifRawMetadata;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifMetadataProvider;
 use MagicSunday\Renamer\Strategy\RenameStrategy\QuickTime\QuickTimeContentIdentifierExtractor;
+use MagicSunday\Renamer\Test\Unit\Service\Fixtures\LivePhotoFixtureFactory;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -205,6 +206,21 @@ final class ExifMetadataProviderTest extends TestCase
 
             throw $throwable;
         }
+    }
+
+    #[Test]
+    public function itExtractsContentIdentifierFromXmpMetadata(): void
+    {
+        $photo = LivePhotoFixtureFactory::createJpeg();
+        $path = $photo->getPathname();
+        $quickTimeExtractor = new ProviderQuickTimeExtractorStub();
+        $provider = new ExifMetadataProvider(new SafeExifReader(), $quickTimeExtractor);
+
+        $identifier = $provider->getContentIdentifier($photo);
+
+        self::assertInstanceOf(ContentIdentifier::class, $identifier);
+        self::assertSame('UUID-IPHONE-LIVEPHOTO', $identifier->getValue());
+        self::assertFalse($quickTimeExtractor->wasInvokedFor($path));
     }
 }
 
