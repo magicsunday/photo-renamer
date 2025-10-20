@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy;
 
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Strategy\RenameStrategy\PatternFilenameStrategy;
+use MagicSunday\Renamer\Service\SafeRegex;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
@@ -93,7 +94,7 @@ class PatternFilenameStrategyTest extends TestCase
         $file = new SplFileInfo($originalFilename);
 
         // Initialize the strategy with the pattern and replacement
-        $strategy = new PatternFilenameStrategy($pattern, $replacement);
+        $strategy = new PatternFilenameStrategy($pattern, $replacement, new SafeRegex());
 
         // Assert that the generated filename matches expectations
         self::assertSame(
@@ -142,7 +143,7 @@ class PatternFilenameStrategyTest extends TestCase
         $file = new SplFileInfo($filename);
 
         // Initialize the strategy with the invalid pattern
-        $strategy = new PatternFilenameStrategy($pattern, $replacement);
+        $strategy = new PatternFilenameStrategy($pattern, $replacement, new SafeRegex());
 
         // Expect a TargetFilenameException to be thrown
         $this->expectException(TargetFilenameException::class);

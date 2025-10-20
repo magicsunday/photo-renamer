@@ -13,12 +13,16 @@ namespace MagicSunday\Renamer\Strategy\RenameStrategy;
 
 use DateTime;
 use Exception;
+use MagicSunday\Renamer\Exception\ExifMetadataReadException;
+use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\ContentIdentifier;
 use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\ExifData;
 use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\MetadataEntryCollection;
 use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\QuickTimeKey;
 use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\QuickTimeMetadata;
 use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\QuickTimeValue;
+use MagicSunday\Renamer\Service\SafeExifReader;
+use MagicSunday\Renamer\Service\SafeFileReader;
 use Override;
 use SplFileInfo;
 use SplObjectStorage;
@@ -60,13 +64,11 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
      */
     private SplObjectStorage $contentIdentifierCache;
 
-    /**
-     * Constructor.
-     *
-     * @param string $targetFilenamePattern
-     */
-    public function __construct(string $targetFilenamePattern)
-    {
+    public function __construct(
+        string $targetFilenamePattern,
+        private readonly SafeExifReader $safeExifReader,
+        private readonly SafeFileReader $safeFileReader,
+    ) {
         $this->targetFilenamePattern = $targetFilenamePattern;
         $this->exifDataCache = new SplObjectStorage();
         $this->contentIdentifierCache = new SplObjectStorage();
@@ -149,7 +151,11 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
     private function getExifData(SplFileInfo $splFileInfo): ?ExifData
     {
         if (!$this->exifDataCache->offsetExists($splFileInfo)) {
-            $this->exifDataCache[$splFileInfo] = $this->createExifData($splFileInfo);
+            try {
+                $this->exifDataCache[$splFileInfo] = $this->createExifData($splFileInfo);
+            } catch (ExifMetadataReadException $exception) {
+                throw new TargetFilenameException($exception->getMessage(), previous: $exception);
+            }
         }
 
         $exifData = $this->exifDataCache[$splFileInfo];
@@ -166,7 +172,7 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
      */
     private function createExifData(SplFileInfo $splFileInfo): ?ExifData
     {
-        $rawExifData = @exif_read_data($splFileInfo->getPathname());
+        $rawExifData = $this->safeExifReader->read($splFileInfo);
 
         $contentIdentifier = null;
 
@@ -255,10 +261,13 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
      */
     private function extractContentIdentifierFromQuickTime(SplFileInfo $splFileInfo): ?ContentIdentifier
     {
-        $data = @file_get_contents($splFileInfo->getPathname());
-
-        if ($data === false) {
-            return null;
+        try {
+            $data = $this->safeFileReader->read($splFileInfo);
+        } catch (Exception $exception) {
+            throw new ExifMetadataReadException(
+                'Unable to read QuickTime metadata: ' . $exception->getMessage(),
+                previous: $exception,
+            );
         }
 
         $moov = $this->findAtom($data, 'moov');

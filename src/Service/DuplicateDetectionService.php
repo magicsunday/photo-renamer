@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service;
 
+use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\Collection\RenameList;
@@ -141,10 +142,18 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 continue;
             }
 
-            $duplicateIdentifier = $duplicateIdentifierStrategy->generateIdentifier(
-                $sourceFileInfo,
-                $targetFileInfo
-            );
+            try {
+                $duplicateIdentifier = $duplicateIdentifierStrategy->generateIdentifier(
+                    $sourceFileInfo,
+                    $targetFileInfo
+                );
+            } catch (HashComputationException $exception) {
+                $this->io->error($exception->getMessage());
+
+                $progressBar->advance();
+
+                continue;
+            }
 
             if ($duplicateIdentifier === false) {
                 continue;
