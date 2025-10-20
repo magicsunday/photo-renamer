@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Strategy\RenameStrategy\Dto;
 
+use InvalidArgumentException;
+use Stringable;
 use function is_array;
 use function is_bool;
 use function is_float;
@@ -16,8 +18,17 @@ final class ExifValueFactory
     {
     }
 
-    public static function fromNative(mixed $value): ExifValue
+    public static function fromNative(mixed $value): ExifArrayValue
+    | ExifBooleanValue
+    | ExifFloatValue
+    | ExifIntegerValue
+    | ExifNullValue
+    | ExifStringValue
     {
+        if ($value instanceof Stringable) {
+            return new ExifStringValue((string) $value);
+        }
+
         if (is_string($value)) {
             return new ExifStringValue($value);
         }
@@ -34,14 +45,14 @@ final class ExifValueFactory
             return new ExifBooleanValue($value);
         }
 
-        if (is_array($value)) {
-            return new ExifArrayValue(ExifMetadataCollection::fromArray($value));
-        }
-
         if ($value === null) {
             return new ExifNullValue();
         }
 
-        return new ExifStringValue((string) $value);
+        if (is_array($value)) {
+            return new ExifArrayValue(ExifMetadataCollection::fromArray($value));
+        }
+
+        throw new InvalidArgumentException('Unsupported EXIF value type.');
     }
 }
