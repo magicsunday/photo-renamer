@@ -206,5 +206,28 @@ final class ExifMetadataProviderTest extends TestCase
             throw $throwable;
         }
     }
+
+    #[Test]
+    public function itExtractsContentIdentifierFromXmpMetadata(): void
+    {
+        $path = '/virtual/live-photo.jpg';
+
+        $exifReader = new ProviderSafeExifReaderStub();
+        $exifReader->withResponse($path, [
+            'DateTimeOriginal' => '2024:01:01 12:00:00',
+            'SubSecTimeOriginal' => '123',
+            'XMP' => [
+                'xmp:ContentIdentifier' => 'UUID-LIVE-PHOTO-1234',
+            ],
+        ]);
+
+        $quickTimeExtractor = new ProviderQuickTimeExtractorStub();
+        $provider = new ExifMetadataProvider($exifReader, $quickTimeExtractor);
+
+        $identifier = $provider->getContentIdentifier(new SplFileInfo($path));
+
+        self::assertInstanceOf(ContentIdentifier::class, $identifier);
+        self::assertSame('UUID-LIVE-PHOTO-1234', $identifier->getValue());
+    }
 }
 
