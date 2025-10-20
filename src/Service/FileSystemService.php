@@ -147,7 +147,6 @@ class FileSystemService implements FileSystemServiceInterface
             foreach ($fileDuplicate->getRenames() as $rename) {
                 if ($progressBar !== null) {
                     $progressBar->clear();
-                    $this->io->newLine();
                 }
 
                 $isDuplicateTarget = str_contains($rename->getTarget()->getFilename(), self::DUPLICATE_IDENTIFIER);
@@ -180,7 +179,6 @@ class FileSystemService implements FileSystemServiceInterface
                 if ($shouldSkip) {
                     if ($progressBar !== null) {
                         $progressBar->clear();
-                        $this->io->newLine();
                     }
 
                     $this->io->text('=> Duplicate! Skip "' . $rename->getSource()->getPathname() . '"');
@@ -209,7 +207,7 @@ class FileSystemService implements FileSystemServiceInterface
 
         if ($progressBar !== null) {
             $progressBar->finish();
-            $this->io->newLine(2);
+            $this->io->newLine();
         }
 
         $this->io->block($duplicateCount . ' possible duplicates found', 'INFO', 'fg=green');
