@@ -13,8 +13,10 @@ namespace MagicSunday\Renamer\Command;
 
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
+use MagicSunday\Renamer\Service\Dto\LivePhotoPairing;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
+use MagicSunday\Renamer\Service\LivePhotoPairingService;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\LivePhotoContentIdentifierStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
@@ -22,11 +24,9 @@ use MagicSunday\Renamer\Strategy\RenameStrategy\ExifMetadataProvider;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use Override;
 use RecursiveIteratorIterator;
-use SplFileInfo;
 use Symfony\Component\Console\Input\InputOption;
 
 use function is_string;
-use function strlen;
 
 /**
  * Recursively renames all files using the EXIF attribute "DateTimeOriginal".
@@ -41,6 +41,7 @@ class RenameByExifDateCommand extends AbstractRenameCommand
         FileSystemServiceInterface $fileSystemService,
         DuplicateDetectionServiceInterface $duplicateDetectionService,
         private readonly ExifMetadataProvider $exifMetadataProvider,
+        private readonly LivePhotoPairingService $livePhotoPairingService,
     ) {
         parent::__construct($fileSystemService, $duplicateDetectionService);
     }
@@ -115,77 +116,37 @@ class RenameByExifDateCommand extends AbstractRenameCommand
 
         $this->io->text('Perform a second pass to find all remaining files that share the same base name');
         $this->io->newLine();
+
         $this->io->progressStart($this->fileSystemService->countFiles($iterator));
 
-        // Perform a second iteration over all files and now add all files that are not yet included in the list
+        $pairings = $this->livePhotoPairingService->pairByContentIdentifier(
+            iterator: $iterator,
+            fileDuplicateCollection: $fileDuplicateCollection,
+            contentIdentifierResolver: [$this->getExifDateFilenameStrategy(), 'getLivePhotoContentIdentifier'],
+            onFileInspected: function (): void {
+                $this->io->progressAdvance();
+            },
+        );
 
-        /** @var SplFileInfo $sourceFileInfo */
-        foreach ($iterator as $sourceFileInfo) {
-            foreach ($fileDuplicateCollection as $duplicateIdentifier => $fileDuplicate) {
-                foreach ($fileDuplicate->getFiles() as $duplicateSplFileInfo) {
-                    if ($sourceFileInfo->getPathname() === $duplicateSplFileInfo->getPathname()) {
-                        break 2;
-                    }
+        /** @var LivePhotoPairing $pairing */
+        foreach ($pairings as $pairing) {
+            $duplicateIdentifier = $pairing->getDuplicateIdentifier();
 
-                    $sourceWithoutExtension = $this->getPathNameWithoutExtension($sourceFileInfo);
-                    $targetWithoutExtension = $this->getPathNameWithoutExtension($duplicateSplFileInfo);
+            if ($fileDuplicateCollection->has($duplicateIdentifier)) {
+                /** @var FileDuplicate $fileDuplicate */
+                $fileDuplicate = $fileDuplicateCollection->get($duplicateIdentifier);
+                $fileDuplicate?->addFile($pairing->getSourceFile());
 
-                    if ($sourceWithoutExtension === $targetWithoutExtension) {
-                        $targetFileInfo = new SplFileInfo(
-                            $sourceFileInfo->getPath()
-                            . DIRECTORY_SEPARATOR
-                            . $fileDuplicate->getTarget()->getBasename('.' . $fileDuplicate->getTarget()->getExtension())
-                            . '.'
-                            . $sourceFileInfo->getExtension(),
-                        );
-
-                        // Create duplicate object storing relevant data
-                        $fileDuplicate = new FileDuplicate();
-                        $fileDuplicate
-                            ->addFile($sourceFileInfo)
-                            ->setTarget($targetFileInfo);
-
-                        $duplicateIdentifier = substr($duplicateIdentifier, 0, -strlen('.' . $sourceFileInfo->getExtension()))
-                            . '.' . $targetFileInfo->getExtension();
-
-                        if ($fileDuplicateCollection->has($duplicateIdentifier)) {
-                            /** @var FileDuplicate $fileDuplicate */
-                            $fileDuplicate = $fileDuplicateCollection->get($duplicateIdentifier);
-                            $fileDuplicate->addFile($sourceFileInfo);
-                        } else {
-                            $fileDuplicateCollection->set($duplicateIdentifier, $fileDuplicate);
-                        }
-
-                        break 2;
-                    }
-                }
+                continue;
             }
 
-            $this->io->progressAdvance();
-        }
+            $fileDuplicate = new FileDuplicate();
+            $fileDuplicate
+                ->addFile($pairing->getSourceFile())
+                ->setTarget($pairing->getTargetFile());
 
-        //        // Perform a second iteration over all files and now add all files that are not yet included in the list
-        //        foreach ($iterator as $sourceFileInfo) {
-        //            $fileFound     = false;
-        //            $duplicateIdentifier = $this->getPathNameWithoutExtension($sourceFileInfo);
-        //
-        //            if ($fileDuplicateCollection->offsetExists($duplicateIdentifier)) {
-        //                /** @var FileDuplicate $fileDuplicate */
-        //                $fileDuplicate = $fileDuplicateCollection->offsetGet($duplicateIdentifier);
-        //
-        //                foreach ($fileDuplicate->getFiles() as $duplicateSplFileInfo) {
-        //                    if ($sourceFileInfo->getPathname() === $duplicateSplFileInfo->getPathname()) {
-        //                        $fileFound = true;
-        //                        break;
-        //                    }
-        //                }
-        //
-        //                if ($fileFound === false) {
-        //                    // Add the file to the list of files to be renamed
-        //                    $fileDuplicate->addFile($sourceFileInfo);
-        //                }
-        //            }
-        //        }
+            $fileDuplicateCollection->set($duplicateIdentifier, $fileDuplicate);
+        }
 
         $this->io->progressFinish();
         $this->io->newLine();
@@ -219,23 +180,6 @@ class RenameByExifDateCommand extends AbstractRenameCommand
         }
 
         return $this->duplicateIdentifierStrategy;
-    }
-
-    /**
-     * Removes the file extension from the pathname.
-     *
-     * @param SplFileInfo $fileInfo
-     *
-     * @return string
-     */
-    private function getPathNameWithoutExtension(SplFileInfo $fileInfo): string
-    {
-        // Remove the file extension from the pathname
-        return substr(
-            $fileInfo->getPathname(),
-            0,
-            -strlen('.' . $fileInfo->getExtension())
-        );
     }
 
     /**
