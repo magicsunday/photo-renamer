@@ -12,13 +12,22 @@ use function is_float;
 use function is_int;
 use function is_string;
 
+/**
+ * @phpstan-type ExifNativeValue Stringable|float|int|bool|string|null|array<int|string, ExifNativeValue>
+ * @phpstan-type ExifNativeData array<int|string, ExifNativeValue>
+ */
 final class ExifValueFactory
 {
     private function __construct()
     {
     }
 
-    public static function fromNative(mixed $value): ExifArrayValue
+    /**
+     * @param ExifNativeValue $value
+     *
+     * @return ExifArrayValue|ExifBooleanValue|ExifFloatValue|ExifIntegerValue|ExifNullValue|ExifStringValue
+     */
+    public static function fromNative(Stringable|string|int|float|bool|null|array $value): ExifArrayValue
     | ExifBooleanValue
     | ExifFloatValue
     | ExifIntegerValue
@@ -50,6 +59,7 @@ final class ExifValueFactory
         }
 
         if (is_array($value)) {
+            /** @var ExifNativeData $value */
             return new ExifArrayValue(ExifMetadataCollection::fromArray($value));
         }
 
