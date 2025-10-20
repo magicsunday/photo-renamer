@@ -299,15 +299,6 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         $duplicateBasename = $target->getBasename('.' . $target->getExtension());
 
         if ($target->isFile()) {
-            if ($source->getPathname() !== $target->getPathname()) {
-                return $this->getNewUniqueDuplicateTargetFileInfo(
-                    $source,
-                    $target,
-                    $duplicateBasename,
-                    $duplicateCount
-                );
-            }
-
             return $this->getNewUniqueDuplicateTargetFileInfo(
                 $source,
                 $target,
@@ -317,12 +308,18 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         }
 
         if (!$isFirst) {
-            return $this->getNewDuplicateTargetFileInfo(
+            $duplicateTargetFileInfo = $this->getNewDuplicateTargetFileInfo(
                 $source,
                 $target,
                 $duplicateBasename,
                 $duplicateCount
             );
+
+            if ($duplicateTargetFileInfo->getPathname() !== $source->getPathname()) {
+                ++$duplicateCount;
+            }
+
+            return $duplicateTargetFileInfo;
         }
 
         return $target;
@@ -344,15 +341,25 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         string $targetBasename,
         int &$duplicateCount,
     ): SplFileInfo {
+        if ($target->getPathname() === $source->getPathname()) {
+            return $target;
+        }
+
         $duplicateFileInfo = $target;
 
-        while ($duplicateFileInfo->isFile()) {
+        while ($duplicateFileInfo->isFile() && $duplicateFileInfo->getPathname() !== $source->getPathname()) {
             $duplicateFileInfo = $this->getNewDuplicateTargetFileInfo(
                 $source,
                 $target,
                 $targetBasename,
                 $duplicateCount
             );
+
+            if ($duplicateFileInfo->getPathname() === $source->getPathname()) {
+                break;
+            }
+
+            ++$duplicateCount;
         }
 
         return $duplicateFileInfo;
@@ -384,8 +391,6 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             $source,
             $newTargetBasename . '.' . $target->getExtension()
         );
-
-        ++$duplicateCount;
 
         return new SplFileInfo($targetPathname);
     }
