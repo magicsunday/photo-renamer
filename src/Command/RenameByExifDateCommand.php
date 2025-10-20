@@ -25,6 +25,7 @@ use MagicSunday\Renamer\Strategy\RenameStrategy\ExifMetadataProvider;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use Override;
 use RecursiveIteratorIterator;
+use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Input\InputOption;
 
 use function is_string;
@@ -119,7 +120,12 @@ class RenameByExifDateCommand extends AbstractRenameCommand
         $this->io->newLine();
 
         $this->io->progressStart($this->fileSystemService->countFiles($iterator));
-        $this->io->progressSetFormat(FileSystemService::PROGRESS_BAR_FORMAT);
+
+        $progressBar = $this->io->getProgressBar();
+
+        if ($progressBar instanceof ProgressBar) {
+            $progressBar->setFormat(FileSystemService::PROGRESS_BAR_FORMAT);
+        }
 
         $pairings = $this->livePhotoPairingService->pairByContentIdentifier(
             iterator: $iterator,
