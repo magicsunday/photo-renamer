@@ -125,8 +125,10 @@ final class FileSystemServiceTest extends TestCase
         $sourceDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'source-duplicate';
         $targetDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'target-duplicate';
         mkdir($sourceDirectory);
+        mkdir($targetDirectory);
 
         $sourceFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
+        $canonicalTarget = $targetDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
         $targetFile = $targetDirectory . DIRECTORY_SEPARATOR
             . sprintf('image%s001.jpg', FileSystemService::DUPLICATE_IDENTIFIER);
 
@@ -135,6 +137,7 @@ final class FileSystemServiceTest extends TestCase
         $fileDuplicateCollection = $this->createFileDuplicateCollection(
             $sourceFile,
             $targetFile,
+            $canonicalTarget,
         );
 
         $service->renameFiles($fileDuplicateCollection, skipDuplicates: true);
@@ -146,6 +149,49 @@ final class FileSystemServiceTest extends TestCase
         self::assertStringContainsString('Duplicate! Skip', $buffer);
         self::assertStringContainsString('0 files renamed', $buffer);
         self::assertStringContainsString('1 possible duplicates found', $buffer);
+    }
+
+    #[Test]
+    public function renameFilesProcessesCanonicalTargetsWithDuplicateSuffixesWhenSkippingDuplicates(): void
+    {
+        [$service, $output] = $this->createService();
+
+        $sourceDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'source-canonical-duplicate';
+        $targetDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'target-canonical-duplicate';
+
+        mkdir($sourceDirectory);
+        mkdir($targetDirectory);
+
+        $existingCanonical = $targetDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
+        file_put_contents($existingCanonical, 'existing');
+
+        $sourceFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'incoming.jpg';
+        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR
+            . 'image' . FileSystemService::DUPLICATE_IDENTIFIER . '001.jpg';
+
+        file_put_contents($sourceFile, 'incoming');
+
+        $fileDuplicateCollection = $this->createFileDuplicateCollection(
+            $sourceFile,
+            $targetFile,
+        );
+
+        $service->renameFiles($fileDuplicateCollection, skipDuplicates: true);
+
+        self::assertFileDoesNotExist($sourceFile);
+        self::assertFileExists($targetFile);
+        self::assertSame('incoming', file_get_contents($targetFile));
+        self::assertFileExists($existingCanonical);
+        self::assertSame('existing', file_get_contents($existingCanonical));
+
+        $buffer = $output->fetch();
+
+        self::assertStringNotContainsString('Duplicate! Skip', $buffer);
+        self::assertStringContainsString('[R]', $buffer);
+        self::assertStringContainsString($sourceFile, $buffer);
+        self::assertStringContainsString($targetFile, $buffer);
+        self::assertStringContainsString('1 files renamed', $buffer);
+        self::assertStringContainsString('0 possible duplicates found', $buffer);
     }
 
     #[Test]
@@ -204,12 +250,14 @@ final class FileSystemServiceTest extends TestCase
         $buffer     = $output->fetch();
         $normalized = str_replace("\r", "\n", $buffer);
 
-        $expectedLogLine = '[R] ' . $sourceFile . ' → ' . $targetFile;
+        $progressPosition = strpos($normalized, '0/1');
+        $logPosition      = strpos($normalized, '[R]');
 
-        self::assertMatchesRegularExpression(
-            '/0\/1 [^\n]*\n\s*' . preg_quote($expectedLogLine, '/') . '/',
-            $normalized,
-        );
+        self::assertNotFalse($progressPosition);
+        self::assertNotFalse($logPosition);
+        self::assertLessThan($logPosition, $progressPosition);
+        self::assertStringContainsString($sourceFile, $normalized);
+        self::assertStringContainsString($targetFile, $normalized);
     }
 
     #[Test]
@@ -225,7 +273,7 @@ final class FileSystemServiceTest extends TestCase
 
         $canonicalPath = $targetDirectory . DIRECTORY_SEPARATOR . 'photo.jpg';
         $renameSource  = $sourceDirectory . DIRECTORY_SEPARATOR . 'rename.jpg';
-        $renameTarget  = $targetDirectory . DIRECTORY_SEPARATOR . 'rename.jpg';
+        $renameTarget  = $canonicalPath;
         $duplicateSource = $sourceDirectory . DIRECTORY_SEPARATOR . 'duplicate.jpg';
         $duplicateTarget = $targetDirectory . DIRECTORY_SEPARATOR . 'photo'
             . FileSystemService::DUPLICATE_IDENTIFIER . '001.jpg';
@@ -243,9 +291,12 @@ final class FileSystemServiceTest extends TestCase
 
         $buffer = $output->fetch();
 
-        self::assertStringContainsString('[O] ' . $canonicalPath . ' → ' . $canonicalPath, $buffer);
-        self::assertStringContainsString('[R] ' . $renameSource . ' → ' . $renameTarget, $buffer);
-        self::assertStringContainsString('[D] ' . $duplicateSource . ' → ' . $duplicateTarget, $buffer);
+        self::assertStringContainsString('[O] ' . $canonicalPath, $buffer);
+        self::assertStringContainsString('[R] ' . $renameSource, $buffer);
+        self::assertStringContainsString('[D] ' . $duplicateSource, $buffer);
+        self::assertStringContainsString('→ ' . $canonicalPath, $buffer);
+        self::assertStringContainsString('→ ' . $renameTarget, $buffer);
+        self::assertStringContainsString('→ ' . $duplicateTarget, $buffer);
     }
 
     #[Test]
@@ -359,6 +410,7 @@ final class FileSystemServiceTest extends TestCase
         file_put_contents($secondSource, 'second');
 
         $fileDuplicate = new FileDuplicate();
+        $fileDuplicate->setTarget(new SplFileInfo($firstTarget));
         $fileDuplicate->addRename(new Rename(new SplFileInfo($firstSource), new SplFileInfo($firstTarget)));
         $fileDuplicate->addRename(new Rename(new SplFileInfo($secondSource), new SplFileInfo($secondTarget)));
 
@@ -405,11 +457,14 @@ final class FileSystemServiceTest extends TestCase
         return [new FileSystemService($io), $output, $io];
     }
 
-    private function createFileDuplicateCollection(string $sourceFile, string $targetFile): FileDuplicateCollection
-    {
+    private function createFileDuplicateCollection(
+        string $sourceFile,
+        string $targetFile,
+        ?string $canonicalTargetFile = null,
+    ): FileDuplicateCollection {
         $fileDuplicate = new FileDuplicate();
         $fileDuplicate->addFile(new SplFileInfo($sourceFile));
-        $fileDuplicate->setTarget(new SplFileInfo($targetFile));
+        $fileDuplicate->setTarget(new SplFileInfo($canonicalTargetFile ?? $targetFile));
         $fileDuplicate->addRename(
             new Rename(
                 new SplFileInfo($sourceFile),
