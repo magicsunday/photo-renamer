@@ -30,13 +30,17 @@ use function sprintf;
 use function strlen;
 use function uniqid;
 
+/** @phpstan-import-type ExifNativeData from MagicSunday\Renamer\Strategy\RenameStrategy\Dto\ExifValueFactory */
 final class StubSafeExifReader extends SafeExifReader
 {
     /**
-     * @var array<string, array<string, mixed>|false|Throwable>
+     * @var array<string, ExifNativeData|false|Throwable>
      */
     private array $responses = [];
 
+    /**
+     * @param ExifNativeData|false|Throwable $response
+     */
     public function withResponse(string $path, array|false|Throwable $response): void
     {
         $this->responses[$path] = $response;
