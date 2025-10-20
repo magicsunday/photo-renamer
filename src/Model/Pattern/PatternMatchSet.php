@@ -24,6 +24,13 @@ use function preg_match_all;
  */
 final class PatternMatchSet extends AbstractCollection
 {
+    /**
+     * Creates a set of pattern matches for every placeholder token in the given pattern string.
+     *
+     * @param string $pattern Pattern string containing placeholder tokens (e.g. `{placeholder}`)
+     *
+     * @return self Collection populated with {@see PatternMatch} instances for each discovered token
+     */
     public static function fromPattern(string $pattern): self
     {
         $matches = [];

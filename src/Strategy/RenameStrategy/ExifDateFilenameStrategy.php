@@ -143,6 +143,13 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
         return $this->exifDataCache[$pathname];
     }
 
+    /**
+     * Builds a typed EXIF data object for the given file and caches the Live Photo identifier when present.
+     *
+     * @param SplFileInfo $splFileInfo File to inspect
+     *
+     * @return ExifData|null Structured EXIF data or null when the file lacks the required tags
+     */
     private function createExifData(SplFileInfo $splFileInfo): ?ExifData
     {
         $pathname = $splFileInfo->getPathname();
@@ -178,6 +185,13 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
         return new ExifData($dateTimeOriginal, $subSecTimeOriginal, $contentIdentifier);
     }
 
+    /**
+     * Recursively searches the EXIF metadata array for a non-empty content identifier.
+     *
+     * @param array<string|int, mixed> $exifData Raw EXIF metadata
+     *
+     * @return string|null The first matching content identifier or null when none is present
+     */
     private function extractContentIdentifierFromArray(array $exifData): ?string
     {
         foreach ($exifData as $key => $value) {
@@ -199,6 +213,13 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
         return null;
     }
 
+    /**
+     * Extracts a Live Photo content identifier from QuickTime containers when EXIF metadata did not provide one.
+     *
+     * @param SplFileInfo $splFileInfo Potential QuickTime container to inspect
+     *
+     * @return string|null The embedded content identifier or null when the file is not supported or no identifier was found
+     */
     private function extractContentIdentifierFromQuickTimeIfApplicable(SplFileInfo $splFileInfo): ?string
     {
         if (!$this->isQuickTimeFile($splFileInfo)) {
@@ -208,6 +229,13 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
         return $this->extractContentIdentifierFromQuickTime($splFileInfo);
     }
 
+    /**
+     * Checks whether the given file uses a QuickTime-based container format.
+     *
+     * @param SplFileInfo $splFileInfo File to validate
+     *
+     * @return bool True when the extension matches a known QuickTime container
+     */
     private function isQuickTimeFile(SplFileInfo $splFileInfo): bool
     {
         $extension = strtolower($splFileInfo->getExtension());
@@ -215,6 +243,16 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
         return in_array($extension, ['mov', 'mp4', 'm4v', 'qt'], true);
     }
 
+    /**
+     * Reads the QuickTime file structure to locate the Live Photo content identifier stored in metadata atoms.
+     *
+     * The method traverses the container hierarchy (moov → udta → meta) before pairing `keys` entries with the
+     * corresponding `ilst` values to discover the `content.identifier` string.
+     *
+     * @param SplFileInfo $splFileInfo QuickTime container to parse
+     *
+     * @return string|null Extracted identifier or null when parsing fails
+     */
     private function extractContentIdentifierFromQuickTime(SplFileInfo $splFileInfo): ?string
     {
         $data = @file_get_contents($splFileInfo->getPathname());
@@ -266,6 +304,14 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
         return null;
     }
 
+    /**
+     * Searches the provided byte sequence for the specified QuickTime atom and returns its payload.
+     *
+     * @param string $data Binary data to scan
+     * @param string $type Four-character atom type to locate
+     *
+     * @return string|null Atom payload without the header or null when the atom is missing or truncated
+     */
     private function findAtom(string $data, string $type): ?string
     {
         $offset = 0;
@@ -306,7 +352,11 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
     }
 
     /**
-     * @return array<int, string>
+     * Parses the `keys` atom and builds an index-based map of metadata key names.
+     *
+     * @param string $data Raw payload of the `keys` atom
+     *
+     * @return array<int, string> Map of atom index to UTF-8 key name
      */
     private function parseQuickTimeKeysAtom(string $data): array
     {
@@ -354,7 +404,11 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
     }
 
     /**
-     * @return array<int, string>
+     * Parses the `ilst` atom and returns the decoded metadata values keyed by their index.
+     *
+     * @param string $data Raw payload of the `ilst` atom
+     *
+     * @return array<int, string> Map of atom index to decoded metadata value
      */
     private function parseQuickTimeIlstAtom(string $data): array
     {
@@ -388,6 +442,13 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
         return $values;
     }
 
+    /**
+     * Extracts the string payload from a QuickTime metadata item within an `ilst` entry.
+     *
+     * @param string $data Binary representation of the metadata item
+     *
+     * @return string|null Decoded string value or null when the item cannot be parsed
+     */
     private function parseQuickTimeMetadataItem(string $data): ?string
     {
         $length = strlen($data);
@@ -422,11 +483,25 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
         return null;
     }
 
+    /**
+     * Unpacks a big-endian unsigned 32-bit integer from binary data.
+     *
+     * @param string $bytes Big-endian binary representation (4 bytes)
+     *
+     * @return int Unsigned integer value
+     */
     private function unpackUInt32(string $bytes): int
     {
         return unpack('N', $bytes)[1];
     }
 
+    /**
+     * Unpacks a big-endian unsigned 64-bit integer from binary data.
+     *
+     * @param string $bytes Big-endian binary representation (8 bytes)
+     *
+     * @return int Unsigned integer value
+     */
     private function unpackUInt64(string $bytes): int
     {
         $parts = unpack('N2', $bytes);

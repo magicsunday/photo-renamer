@@ -53,6 +53,14 @@ class FileSystemService implements FileSystemServiceInterface
         $this->io = $io;
     }
 
+    /**
+     * Creates an iterator for traversing files in the given directory.
+     *
+     * @param string               $directory         The directory that should be scanned
+     * @param RecursiveIterator|null $recursiveIterator Optional preconfigured iterator to use instead of instantiating a default one
+     *
+     * @return RecursiveIteratorIterator Iterator yielding only leaf nodes (files)
+     */
     public function createFileIterator(
         string $directory,
         ?RecursiveIterator $recursiveIterator = null,
@@ -70,6 +78,13 @@ class FileSystemService implements FileSystemServiceInterface
         );
     }
 
+    /**
+     * Counts how many files the provided iterator will yield.
+     *
+     * @param RecursiveIteratorIterator $iterator Iterator created by {@see createFileIterator()}
+     *
+     * @return int Number of files encountered while iterating
+     */
     public function countFiles(RecursiveIteratorIterator $iterator): int
     {
         $fileCount = 0;
@@ -81,6 +96,14 @@ class FileSystemService implements FileSystemServiceInterface
         return $fileCount;
     }
 
+    /**
+     * Renames or copies files represented by the provided duplicate collection.
+     *
+     * @param FileDuplicateCollection $fileDuplicateCollection Collection describing source/target file pairs grouped by duplicate identifier
+     * @param bool                    $dryRun                  When true no filesystem changes are performed
+     * @param bool                    $skipDuplicates          Whether files marked as duplicates should be ignored
+     * @param bool                    $copyFiles               When true, files are copied instead of moved
+     */
     public function renameFiles(
         FileDuplicateCollection $fileDuplicateCollection,
         bool $dryRun = false,
