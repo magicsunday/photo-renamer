@@ -10,11 +10,13 @@ namespace MagicSunday\Renamer\Service;
 
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
+use MagicSunday\Renamer\Service\Dto\LivePhotoContentIdentifierTargetMap;
+use MagicSunday\Renamer\Service\Dto\LivePhotoExistingFilePathnameIndex;
 use MagicSunday\Renamer\Service\Dto\LivePhotoPairing;
+use MagicSunday\Renamer\Service\Dto\LivePhotoPairingCollection;
 use RecursiveIteratorIterator;
 use SplFileInfo;
 
-use function array_key_exists;
 use function is_callable;
 
 /**
@@ -30,21 +32,21 @@ class LivePhotoPairingService
      * @param callable(SplFileInfo): ?string    $contentIdentifierResolver Callback resolving the Live Photo content identifier.
      * @param callable(): void|null             $onFileInspected          Optional callback invoked after each inspected file.
      *
-     * @return list<LivePhotoPairing>
+     * @return LivePhotoPairingCollection
      */
     public function pairByContentIdentifier(
         RecursiveIteratorIterator $iterator,
         FileDuplicateCollection $fileDuplicateCollection,
         callable $contentIdentifierResolver,
         ?callable $onFileInspected = null,
-    ): array {
-        $existingFilePathnames = [];
-        $contentIdentifierMap = [];
+    ): LivePhotoPairingCollection {
+        $existingFilePathnames = new LivePhotoExistingFilePathnameIndex();
+        $contentIdentifierTargets = new LivePhotoContentIdentifierTargetMap();
 
         /** @var FileDuplicate $fileDuplicate */
         foreach ($fileDuplicateCollection as $fileDuplicate) {
             foreach ($fileDuplicate->getFiles() as $existingFileInfo) {
-                $existingFilePathnames[$existingFileInfo->getPathname()] = true;
+                $existingFilePathnames->remember($existingFileInfo);
 
                 $contentIdentifier = $contentIdentifierResolver($existingFileInfo);
 
@@ -52,15 +54,11 @@ class LivePhotoPairingService
                     continue;
                 }
 
-                if (array_key_exists($contentIdentifier, $contentIdentifierMap)) {
-                    continue;
-                }
-
-                $contentIdentifierMap[$contentIdentifier] = $fileDuplicate->getTarget();
+                $contentIdentifierTargets->remember($contentIdentifier, $fileDuplicate->getTarget());
             }
         }
 
-        $pairs = [];
+        $pairs = LivePhotoPairingCollection::empty();
 
         foreach ($iterator as $fileInfo) {
             if (!($fileInfo instanceof SplFileInfo)) {
@@ -71,7 +69,7 @@ class LivePhotoPairingService
                 $onFileInspected();
             }
 
-            if (isset($existingFilePathnames[$fileInfo->getPathname()])) {
+            if ($existingFilePathnames->contains($fileInfo)) {
                 continue;
             }
 
@@ -81,11 +79,11 @@ class LivePhotoPairingService
                 continue;
             }
 
-            if (!array_key_exists($contentIdentifier, $contentIdentifierMap)) {
+            if (!$contentIdentifierTargets->has($contentIdentifier)) {
                 continue;
             }
 
-            $targetPrototype = $contentIdentifierMap[$contentIdentifier];
+            $targetPrototype = $contentIdentifierTargets->get($contentIdentifier);
             $targetBasename = $targetPrototype->getBasename('.' . $targetPrototype->getExtension());
 
             $targetFileInfo = new SplFileInfo(
@@ -98,12 +96,12 @@ class LivePhotoPairingService
 
             $duplicateIdentifier = $targetBasename . '.' . $fileInfo->getExtension();
 
-            $pairs[] = new LivePhotoPairing(
+            $pairs->add(new LivePhotoPairing(
                 $fileInfo,
                 $targetFileInfo,
                 $duplicateIdentifier,
                 $contentIdentifier,
-            );
+            ));
         }
 
         return $pairs;
