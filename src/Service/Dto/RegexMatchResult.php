@@ -7,7 +7,7 @@ namespace MagicSunday\Renamer\Service\Dto;
 /**
  * Immutable wrapper around the result of a single regular expression match.
  */
-final class RegexMatchResult
+final class RegexMatchResult implements RegexResultInterface
 {
     /**
      * @param array<int|string, string> $matches
