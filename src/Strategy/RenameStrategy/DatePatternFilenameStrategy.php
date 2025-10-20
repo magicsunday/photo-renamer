@@ -16,6 +16,7 @@ use MagicSunday\Renamer\Exception\RegexExecutionException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Model\Pattern\PatternMatchSet;
 use MagicSunday\Renamer\Service\SafeRegex;
+use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\RegexMatchCollection;
 use Override;
 use SplFileInfo;
 
@@ -65,28 +66,38 @@ class DatePatternFilenameStrategy extends InheritFilenameStrategy
     {
         $targetFilename = parent::generateFilename($splFileInfo);
         try {
-            $filePartMatches = $this->regex->match(
-                $this->pattern,
-                $targetFilename,
-                'matching date pattern',
+            $filePartMatches = RegexMatchCollection::fromMatch(
+                $this->regex->match(
+                    $this->pattern,
+                    $targetFilename,
+                    'matching date pattern',
+                ),
             );
 
-            $replacementMatches = $this->regex->matchAll(
-                '/{(\w+)}/',
-                $this->replacement . '$1',
-                'resolving date pattern placeholders',
+            $replacementMatches = RegexMatchCollection::fromMatchAll(
+                $this->regex->matchAll(
+                    '/{(\w+)}/',
+                    $this->replacement . '$1',
+                    'resolving date pattern placeholders',
+                ),
             );
 
             $dateFormatCharacters = $this->patternMatches->placeholders();
             $targetFilenamePattern = $this->replacement;
 
-            if (isset($replacementMatches[0], $replacementMatches[1])) {
-                $targetFilenamePattern = str_replace($replacementMatches[0], $replacementMatches[1], $this->replacement);
+            if ($replacementMatches->hasGroup(0) && $replacementMatches->hasGroup(1)) {
+                $targetFilenamePattern = str_replace(
+                    $replacementMatches->group(0)?->values() ?? [],
+                    $replacementMatches->group(1)?->values() ?? [],
+                    $this->replacement,
+                );
             }
+
+            $suffixIndex = $filePartMatches->count() > 0 ? $filePartMatches->count() - 1 : 0;
 
             return $this->regex->replaceCallback(
                 $this->pattern,
-                static function (array $matches) use ($dateFormatCharacters, $targetFilenamePattern, $filePartMatches): string {
+                static function (array $matches) use ($dateFormatCharacters, $targetFilenamePattern, $suffixIndex): string {
                     $dateParts = [];
 
                     foreach ($dateFormatCharacters as $key => $dateFormatCharacter) {
@@ -110,7 +121,9 @@ class DatePatternFilenameStrategy extends InheritFilenameStrategy
                         ->setDate($dateParts['Y'] ?? 0, $dateParts['m'] ?? 1, $dateParts['d'] ?? 1)
                         ->setTime($dateParts['H'] ?? 0, $dateParts['i'] ?? 0, $dateParts['s'] ?? 0);
 
-                    return $dateTimeCreated->format($targetFilenamePattern) . $matches[count($filePartMatches) - 1];
+                    $suffix = $matches[$suffixIndex] ?? '';
+
+                    return $dateTimeCreated->format($targetFilenamePattern) . $suffix;
                 },
                 $targetFilename,
                 'executing preg_replace_callback for date pattern',

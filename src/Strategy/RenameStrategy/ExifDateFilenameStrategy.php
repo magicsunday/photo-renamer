@@ -17,6 +17,7 @@ use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\ContentIdentifier;
 use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\ExifData;
+use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\ExifRawMetadata;
 use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\MetadataEntryCollection;
 use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\QuickTimeKey;
 use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\QuickTimeMetadata;
@@ -30,7 +31,6 @@ use SplObjectStorage;
 use function in_array;
 use function is_array;
 use function is_int;
-use function is_string;
 use function rtrim;
 use function strlen;
 use function stripos;
@@ -175,9 +175,11 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
         $rawExifData = $this->safeExifReader->read($splFileInfo);
 
         $contentIdentifier = null;
+        $metadata = null;
 
         if (is_array($rawExifData)) {
-            $metadataEntries = MetadataEntryCollection::fromArray($rawExifData);
+            $metadata = ExifRawMetadata::fromArray($rawExifData);
+            $metadataEntries = MetadataEntryCollection::fromArray($metadata);
             $contentIdentifier = $this->extractContentIdentifierFromMetadata($metadataEntries);
         }
 
@@ -187,18 +189,19 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
 
         $this->contentIdentifierCache[$splFileInfo] = $contentIdentifier;
 
-        if (!is_array($rawExifData) || !isset($rawExifData['DateTimeOriginal'])) {
+        if ($metadata === null) {
             return null;
         }
 
-        $dateTimeOriginal = $rawExifData['DateTimeOriginal'];
-        $subSecTimeOriginal = $rawExifData['SubSecTimeOriginal'] ?? null;
+        $dateTimeOriginal = $metadata->getString('DateTimeOriginal');
 
-        if (!is_string($dateTimeOriginal) || $dateTimeOriginal === '') {
+        if ($dateTimeOriginal === null || $dateTimeOriginal === '') {
             return null;
         }
 
-        if (!is_string($subSecTimeOriginal) || $subSecTimeOriginal === '') {
+        $subSecTimeOriginal = $metadata->getString('SubSecTimeOriginal');
+
+        if ($subSecTimeOriginal === null || $subSecTimeOriginal === '') {
             $subSecTimeOriginal = null;
         }
 
