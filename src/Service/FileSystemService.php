@@ -24,7 +24,6 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function sprintf;
 use function strlen;
-use function str_contains;
 
 /**
  * Service for file system operations.
@@ -143,14 +142,16 @@ class FileSystemService implements FileSystemServiceInterface
 
         /** @var FileDuplicate $fileDuplicate */
         foreach ($fileDuplicateCollection as $fileDuplicate) {
+            $canonicalTargetPath = $fileDuplicate->getTarget()->getPathname();
+
             foreach ($fileDuplicate->getRenames() as $rename) {
                 if ($progressBar !== null) {
                     $progressBar->clear();
                 }
 
-                $isDuplicateTarget = str_contains($rename->getTarget()->getFilename(), self::DUPLICATE_IDENTIFIER);
+                $isDuplicateTarget = $rename->getTarget()->getPathname() !== $canonicalTargetPath;
                 $isCanonicalEntry  = $listAll
-                    && $rename->getSource()->getPathname() === $fileDuplicate->getTarget()->getPathname();
+                    && $rename->getSource()->getPathname() === $canonicalTargetPath;
 
                 $status = '[R]';
 
