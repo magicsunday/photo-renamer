@@ -121,6 +121,8 @@ class RenameByExifDateCommand extends AbstractRenameCommand
 
         $fileCount = $this->fileSystemService->countFiles($iterator);
 
+        $iterator->rewind();
+
         /** @var ProgressBar|null $progressBar */
         $progressBar = null;
 
