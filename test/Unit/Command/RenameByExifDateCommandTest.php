@@ -32,6 +32,7 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Tester\CommandTester;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Console\Output\NullOutput;
 
 #[CoversClass(RenameByExifDateCommand::class)]
 final class RenameByExifDateCommandTest extends TestCase
@@ -257,25 +258,20 @@ final class RenameByExifDateCommandTest extends TestCase
             $livePhotoPairingService,
         );
 
+        $capturedProgressBar = null;
+
         $io = $this->createMock(SymfonyStyle::class);
         $io->expects(self::atLeastOnce())->method('text');
         $io->expects(self::exactly(2))->method('newLine');
-        $io->expects(self::once())->method('progressStart')->with(2);
-
-        /** @var ProgressBar&MockObject $progressBar */
-        $progressBar = $this->createMock(ProgressBar::class);
-        $progressBar
-            ->expects(self::once())
-            ->method('setFormat')
-            ->with(FileSystemService::PROGRESS_BAR_FORMAT);
-
         $io
             ->expects(self::once())
-            ->method('getProgressBar')
-            ->willReturn($progressBar);
+            ->method('createProgressBar')
+            ->with(2)
+            ->willReturnCallback(static function (int $max) use (&$capturedProgressBar): ProgressBar {
+                $capturedProgressBar = new ProgressBar(new NullOutput(), $max);
 
-        $io->expects(self::exactly(2))->method('progressAdvance');
-        $io->expects(self::once())->method('progressFinish');
+                return $capturedProgressBar;
+            });
 
         $ioProperty = new ReflectionProperty(RenameByExifDateCommand::class, 'io');
         $ioProperty->setAccessible(true);
@@ -301,6 +297,103 @@ final class RenameByExifDateCommandTest extends TestCase
         self::assertSame($photo->getPathname(), $files[0]->getPathname());
         self::assertSame($video->getPathname(), $files[1]->getPathname());
         self::assertSame($target->getPathname(), $duplicate->getTarget()->getPathname());
+        self::assertInstanceOf(ProgressBar::class, $capturedProgressBar);
+        self::assertSame(2, $capturedProgressBar?->getProgress());
+    }
+
+    #[Test]
+    public function groupFilesByDuplicateIdentifierRewindsIteratorBeforePairing(): void
+    {
+        $iterator = new class(new RecursiveArrayIterator([])) extends RecursiveIteratorIterator {
+            public int $rewindCalls = 0;
+
+            public function __construct(RecursiveArrayIterator $iterator)
+            {
+                parent::__construct($iterator);
+            }
+
+            public function rewind(): void
+            {
+                ++$this->rewindCalls;
+
+                parent::rewind();
+            }
+        };
+
+        $duplicateCollection = new FileDuplicateCollection();
+
+        /** @var FileSystemServiceInterface&MockObject $fileSystemService */
+        $fileSystemService = $this->createMock(FileSystemServiceInterface::class);
+        $fileSystemService
+            ->expects(self::once())
+            ->method('createFileIterator')
+            ->with('/source')
+            ->willReturn(
+                new RecursiveIteratorIterator(
+                    new RecursiveArrayIterator([], RecursiveArrayIterator::CHILD_ARRAYS_ONLY),
+                ),
+            );
+
+        $fileSystemService
+            ->expects(self::once())
+            ->method('countFiles')
+            ->with(self::identicalTo($iterator))
+            ->willReturn(0);
+
+        /** @var DuplicateDetectionServiceInterface&MockObject $duplicateDetectionService */
+        $duplicateDetectionService = $this->createMock(DuplicateDetectionServiceInterface::class);
+        $duplicateDetectionService
+            ->expects(self::once())
+            ->method('groupFilesByDuplicateIdentifier')
+            ->with(
+                self::isInstanceOf(RecursiveIteratorIterator::class),
+                self::isInstanceOf(ExifDateFilenameStrategy::class),
+                self::isInstanceOf(LivePhotoContentIdentifierStrategy::class),
+            )
+            ->willReturn($duplicateCollection);
+
+        /** @var LivePhotoPairingService&MockObject $livePhotoPairingService */
+        $livePhotoPairingService = $this->createMock(LivePhotoPairingService::class);
+        $livePhotoPairingService
+            ->expects(self::once())
+            ->method('pairByContentIdentifier')
+            ->with(
+                self::identicalTo($iterator),
+                self::identicalTo($duplicateCollection),
+                self::callback(static fn ($resolver): bool => is_callable($resolver)),
+                self::callback(static fn ($callback): bool => is_callable($callback)),
+            )
+            ->willReturnCallback(static function () use ($iterator): LivePhotoPairingCollection {
+                self::assertSame(1, $iterator->rewindCalls);
+
+                return LivePhotoPairingCollection::empty();
+            });
+
+        $command = new RenameByExifDateCommand(
+            $fileSystemService,
+            $duplicateDetectionService,
+            $this->createExifMetadataProvider(),
+            $livePhotoPairingService,
+        );
+
+        $io = $this->createMock(SymfonyStyle::class);
+        $io->expects(self::atLeastOnce())->method('text');
+        $io->expects(self::exactly(2))->method('newLine');
+
+        $ioProperty = new ReflectionProperty(RenameByExifDateCommand::class, 'io');
+        $ioProperty->setAccessible(true);
+        $ioProperty->setValue($command, $io);
+
+        $sourceDirectoryProperty = new ReflectionProperty(RenameByExifDateCommand::class, 'sourceDirectory');
+        $sourceDirectoryProperty->setAccessible(true);
+        $sourceDirectoryProperty->setValue($command, '/source');
+
+        $method = new ReflectionMethod(RenameByExifDateCommand::class, 'groupFilesByDuplicateIdentifier');
+        $method->setAccessible(true);
+
+        $result = $method->invoke($command, $iterator);
+
+        self::assertSame($duplicateCollection, $result);
     }
 
     #[Test]
@@ -394,25 +487,20 @@ final class RenameByExifDateCommandTest extends TestCase
             $livePhotoPairingService,
         );
 
+        $capturedProgressBar = null;
+
         $io = $this->createMock(SymfonyStyle::class);
         $io->expects(self::atLeastOnce())->method('text');
         $io->expects(self::exactly(2))->method('newLine');
-        $io->expects(self::once())->method('progressStart')->with(2);
-
-        /** @var ProgressBar&MockObject $progressBar */
-        $progressBar = $this->createMock(ProgressBar::class);
-        $progressBar
-            ->expects(self::once())
-            ->method('setFormat')
-            ->with(FileSystemService::PROGRESS_BAR_FORMAT);
-
         $io
             ->expects(self::once())
-            ->method('getProgressBar')
-            ->willReturn($progressBar);
+            ->method('createProgressBar')
+            ->with(2)
+            ->willReturnCallback(static function (int $max) use (&$capturedProgressBar): ProgressBar {
+                $capturedProgressBar = new ProgressBar(new NullOutput(), $max);
 
-        $io->expects(self::exactly(2))->method('progressAdvance');
-        $io->expects(self::once())->method('progressFinish');
+                return $capturedProgressBar;
+            });
 
         $ioProperty = new ReflectionProperty(RenameByExifDateCommand::class, 'io');
         $ioProperty->setAccessible(true);
@@ -442,6 +530,8 @@ final class RenameByExifDateCommandTest extends TestCase
         self::assertCount(2, $files);
         self::assertSame($photo->getPathname(), $files[0]->getPathname());
         self::assertSame($video->getPathname(), $files[1]->getPathname());
+        self::assertInstanceOf(ProgressBar::class, $capturedProgressBar);
+        self::assertSame(2, $capturedProgressBar?->getProgress());
 
         $canonicalBasename = $duplicate->getTarget()->getBasename('.' . $duplicate->getTarget()->getExtension());
         $videoBasename = $pairing->getTargetFile()->getBasename('.' . $pairing->getTargetFile()->getExtension());
