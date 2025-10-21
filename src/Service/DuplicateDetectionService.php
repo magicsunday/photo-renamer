@@ -24,7 +24,9 @@ use RecursiveIteratorIterator;
 use SplFileInfo;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
+use function in_array;
 use function sprintf;
+use function strtolower;
 
 /**
  * Service for duplicate detection operations.
@@ -35,6 +37,15 @@ use function sprintf;
  */
 class DuplicateDetectionService implements DuplicateDetectionServiceInterface
 {
+    private const string LIVE_PHOTO_IDENTIFIER_PREFIX = 'live-photo:';
+
+    /**
+     * Extensions that identify still image assets within Live Photo groups.
+     *
+     * @var array<int, string>
+     */
+    private const array LIVE_PHOTO_STILL_EXTENSIONS = ['heic', 'heif', 'jpg', 'jpeg'];
+
     /**
      * @var FileSystemService
      */
@@ -191,6 +202,13 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             if ($fileDuplicateCollection->has($duplicateIdentifier)) {
                 /** @var FileDuplicate $fileDuplicate */
                 $fileDuplicate = $fileDuplicateCollection->get($duplicateIdentifier);
+
+                $this->promoteLivePhotoTargetIfNecessary(
+                    $duplicateIdentifier,
+                    $fileDuplicate,
+                    $targetFileInfo,
+                );
+
                 $fileDuplicate->addFile($sourceFileInfo);
             } else {
                 $fileDuplicateCollection->set($duplicateIdentifier, $fileDuplicate);
@@ -516,5 +534,36 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         }
 
         return null;
+    }
+
+    private function promoteLivePhotoTargetIfNecessary(
+        string $duplicateIdentifier,
+        FileDuplicate $fileDuplicate,
+        SplFileInfo $candidateTarget,
+    ): void {
+        if (!str_starts_with($duplicateIdentifier, self::LIVE_PHOTO_IDENTIFIER_PREFIX)) {
+            return;
+        }
+
+        if (!$this->isLivePhotoStill($candidateTarget)) {
+            return;
+        }
+
+        if ($this->isLivePhotoStill($fileDuplicate->getTarget())) {
+            return;
+        }
+
+        $fileDuplicate->setTarget($candidateTarget);
+    }
+
+    private function isLivePhotoStill(SplFileInfo $fileInfo): bool
+    {
+        $extension = strtolower($fileInfo->getExtension());
+
+        if ($extension === '') {
+            return false;
+        }
+
+        return in_array($extension, self::LIVE_PHOTO_STILL_EXTENSIONS, true);
     }
 }

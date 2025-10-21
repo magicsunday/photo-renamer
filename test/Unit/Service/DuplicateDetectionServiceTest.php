@@ -17,12 +17,14 @@ use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use RecursiveArrayIterator;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use RuntimeException;
 
 use function file_put_contents;
 use function is_dir;
@@ -172,6 +174,68 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         self::assertSame(0, $collection->count());
         self::assertStringContainsString('boom', $progressOutput);
+    }
+
+    #[Test]
+    public function groupFilesByDuplicateIdentifierPrefersStillTargetForLivePhotos(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $videoPath = $sourceDirectory . DIRECTORY_SEPARATOR . '0001.MOV';
+        $photoPath = $sourceDirectory . DIRECTORY_SEPARATOR . '9999.HEIC';
+
+        file_put_contents($videoPath, 'video');
+        file_put_contents($photoPath, 'photo');
+
+        $service
+            ->setSourceDirectory($sourceDirectory)
+            ->setTargetDirectory($targetDirectory);
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveArrayIterator([
+                new SplFileInfo($videoPath),
+                new SplFileInfo($photoPath),
+            ], RecursiveArrayIterator::CHILD_ARRAYS_ONLY),
+        );
+
+        $renameStrategy = $this->createMock(RenameStrategyInterface::class);
+        $renameStrategy
+            ->expects(self::exactly(2))
+            ->method('generateFilename')
+            ->willReturnCallback(static function (SplFileInfo $file) use ($videoPath, $photoPath): string {
+                return match ($file->getPathname()) {
+                    $videoPath => 'video-target.mov',
+                    $photoPath => 'photo-target.heic',
+                    default => throw new RuntimeException('Unexpected file: ' . $file->getPathname()),
+                };
+            });
+
+        $duplicateIdentifierStrategy = $this->createMock(DuplicateIdentifierStrategyInterface::class);
+        $duplicateIdentifierStrategy
+            ->expects(self::exactly(2))
+            ->method('generateIdentifier')
+            ->willReturn('live-photo:content-id');
+
+        $collection = $service->groupFilesByDuplicateIdentifier(
+            $iterator,
+            $renameStrategy,
+            $duplicateIdentifierStrategy,
+        );
+
+        $duplicate = $collection->get('live-photo:content-id');
+        self::assertInstanceOf(FileDuplicate::class, $duplicate);
+        self::assertSame(
+            $targetDirectory . DIRECTORY_SEPARATOR . 'photo-target.heic',
+            $duplicate->getTarget()->getPathname(),
+        );
+
+        $files = iterator_to_array($duplicate->getFiles());
+        self::assertCount(2, $files);
+        self::assertSame($videoPath, $files[0]->getPathname());
+        self::assertSame($photoPath, $files[1]->getPathname());
     }
 
     #[Test]
