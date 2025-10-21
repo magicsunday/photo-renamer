@@ -545,6 +545,35 @@ final class DuplicateDetectionServiceTest extends TestCase
         );
     }
 
+    #[Test]
+    public function getTargetPathnamePreservesRelativeDepthForAbsoluteDirectories(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $nestedSource = $sourceDirectory . DIRECTORY_SEPARATOR . 'nested';
+
+        if (!mkdir($nestedSource) && !is_dir($nestedSource)) {
+            self::fail('Failed to create nested source directory: ' . $nestedSource);
+        }
+
+        $sourceFile = $nestedSource . DIRECTORY_SEPARATOR . 'example.jpg';
+        file_put_contents($sourceFile, 'example');
+
+        $service
+            ->setSourceDirectory($sourceDirectory)
+            ->setTargetDirectory($targetDirectory);
+
+        $targetPathname = $service->getTargetPathname(new SplFileInfo($sourceFile), 'renamed.jpg');
+
+        self::assertSame(
+            $targetDirectory . DIRECTORY_SEPARATOR . 'nested' . DIRECTORY_SEPARATOR . 'renamed.jpg',
+            $targetPathname,
+        );
+    }
+
     /**
      * @return array{DuplicateDetectionService, BufferedOutput}
      */

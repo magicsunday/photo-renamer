@@ -26,8 +26,15 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
+use function getcwd;
 use function is_string;
+use function ltrim;
+use function preg_match;
+use function rtrim;
 use function sprintf;
+use function str_contains;
+use function str_ends_with;
+use function str_starts_with;
 
 /**
  * @author  Rico Sonntag <mail@ricosonntag.de>
@@ -291,13 +298,116 @@ abstract class AbstractRenameCommand extends Command
      */
     private function normalizeDirectoryPaths(): void
     {
-        // Remove the trailing directory separator
-        $this->sourceDirectory = rtrim($this->sourceDirectory, DIRECTORY_SEPARATOR);
+        $this->sourceDirectory = $this->canonicalizeDirectoryPath($this->sourceDirectory);
 
-        // If the target directory is empty, use source directory as target
-        $this->targetDirectory = $this->targetDirectory !== null
-            ? rtrim($this->targetDirectory, DIRECTORY_SEPARATOR)
-            : $this->sourceDirectory;
+        if ($this->targetDirectory === null || $this->targetDirectory === '') {
+            $this->targetDirectory = $this->sourceDirectory;
+
+            return;
+        }
+
+        $this->targetDirectory = $this->canonicalizeDirectoryPath(
+            $this->targetDirectory,
+            $this->sourceDirectory,
+        );
+    }
+
+    /**
+     * Converts a directory path to an absolute canonical form.
+     */
+    private function canonicalizeDirectoryPath(string $directory, ?string $fallbackBase = null): string
+    {
+        if ($directory === '') {
+            return $directory;
+        }
+
+        if (!$this->isAbsolutePath($directory)) {
+            $baseDirectory = getcwd();
+
+            if (!is_string($baseDirectory) || $baseDirectory === '') {
+                $baseDirectory = $fallbackBase;
+            }
+
+            if (is_string($baseDirectory) && $baseDirectory !== '') {
+                $baseDirectory = $this->trimTrailingDirectorySeparator($baseDirectory);
+
+                $directory = $this->combinePath($baseDirectory, $directory);
+            }
+        }
+
+        return $this->trimTrailingDirectorySeparator($directory);
+    }
+
+    /**
+     * Determines if the provided path is absolute (supports Unix, Windows drive letters, and UNC paths).
+     */
+    private function isAbsolutePath(string $path): bool
+    {
+        if ($path === '') {
+            return false;
+        }
+
+        if (str_starts_with($path, '/')) {
+            return true;
+        }
+
+        if (str_starts_with($path, '\\')) {
+            return true;
+        }
+
+        if (preg_match('#^[A-Za-z]:[\\/]#', $path) === 1) {
+            return true;
+        }
+
+        return preg_match('#^[A-Za-z]:$#', $path) === 1;
+    }
+
+    /**
+     * Removes trailing directory separators while keeping root semantics intact.
+     */
+    private function trimTrailingDirectorySeparator(string $path): string
+    {
+        if ($path === '') {
+            return $path;
+        }
+
+        if ($this->isWindowsDriveRoot($path)) {
+            $separator = str_contains($path, '\\') ? '\\' : (str_contains($path, '/') ? '/' : DIRECTORY_SEPARATOR);
+
+            return rtrim($path, '/\\') . $separator;
+        }
+
+        $trimmed = rtrim($path, '/\\');
+
+        return $trimmed === '' ? DIRECTORY_SEPARATOR : $trimmed;
+    }
+
+    /**
+     * Combines a base directory with a relative path segment.
+     */
+    private function combinePath(string $baseDirectory, string $relativePath): string
+    {
+        $relativePath = ltrim($relativePath, '/\\');
+
+        if ($relativePath === '') {
+            return $baseDirectory;
+        }
+
+        if (str_ends_with($baseDirectory, '/') || str_ends_with($baseDirectory, '\\')) {
+            return $baseDirectory . $relativePath;
+        }
+
+        $separator = str_contains($baseDirectory, '\\') ? '\\' : DIRECTORY_SEPARATOR;
+
+        return $baseDirectory . $separator . $relativePath;
+    }
+
+    /**
+     * Detects whether the given path points to a Windows drive root (e.g. "C:\").
+     */
+    private function isWindowsDriveRoot(string $path): bool
+    {
+        return preg_match('#^[A-Za-z]:[\\/]?$#', $path) === 1;
     }
 
     /**
