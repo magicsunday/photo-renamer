@@ -150,7 +150,7 @@ final class RenameByExifDateCommandTest extends TestCase
                 self::identicalTo($duplicateCollection),
                 self::callback(static fn ($resolver): bool => is_callable($resolver)),
                 self::callback(static fn ($callback): bool => $callback === null || is_callable($callback)),
-                self::isFalse(),
+                self::isTrue(),
             )
             ->willReturn(LivePhotoPairingCollection::empty());
 
@@ -199,7 +199,12 @@ final class RenameByExifDateCommandTest extends TestCase
     public function groupFilesByDuplicateIdentifierUsesFallbackPairsFromService(): void
     {
         $photo = new SplFileInfo('/source/IMG_0001.HEIC');
-        $video = new SplFileInfo('/source/IMG_0001.MOV');
+        $video = new SplFileInfo('/source/fullsizeoutput_1.MOV');
+
+        self::assertNotSame(
+            $photo->getBasename('.' . $photo->getExtension()),
+            $video->getBasename('.' . $video->getExtension()),
+        );
         $target = new SplFileInfo('/target/20240101_120000.HEIC');
         $pairedTarget = new SplFileInfo('/source/20240101_120000.MOV');
 
@@ -244,7 +249,7 @@ final class RenameByExifDateCommandTest extends TestCase
                 self::identicalTo($duplicateCollection),
                 self::callback(static fn ($resolver): bool => is_callable($resolver)),
                 self::callback(static fn ($callback): bool => is_callable($callback)),
-                self::isFalse(),
+                self::isTrue(),
             )
             ->willReturnCallback(static function (
                 $iteratorArg,
@@ -253,7 +258,7 @@ final class RenameByExifDateCommandTest extends TestCase
                 $progressCallback,
                 bool $matchByContentIdentifier,
             ) use ($video, $pairedTarget): LivePhotoPairingCollection {
-                self::assertFalse($matchByContentIdentifier);
+                self::assertTrue($matchByContentIdentifier);
 
                 $progressCallback();
                 $progressCallback();
@@ -430,7 +435,7 @@ final class RenameByExifDateCommandTest extends TestCase
                 self::identicalTo($duplicateCollection),
                 self::callback(static fn ($resolver): bool => is_callable($resolver)),
                 self::callback(static fn ($callback): bool => is_callable($callback)),
-                self::isFalse(),
+                self::isTrue(),
             )
             ->willReturn(LivePhotoPairingCollection::empty());
 
@@ -595,7 +600,7 @@ final class RenameByExifDateCommandTest extends TestCase
                 self::identicalTo($duplicateCollection),
                 self::callback(static fn ($resolver): bool => is_callable($resolver)),
                 self::callback(static fn ($callback): bool => is_callable($callback)),
-                self::isFalse(),
+                self::isTrue(),
             )
             ->willReturnCallback(static function (
                 RecursiveIteratorIterator $iteratorArg,
@@ -605,7 +610,7 @@ final class RenameByExifDateCommandTest extends TestCase
                 bool $matchByContentIdentifier,
             ) use ($iterator): LivePhotoPairingCollection {
                 self::assertSame($iterator, $iteratorArg);
-                self::assertFalse($matchByContentIdentifier);
+                self::assertTrue($matchByContentIdentifier);
                 self::assertSame(1, $iterator->rewindCalls);
 
                 return LivePhotoPairingCollection::empty();
@@ -639,10 +644,15 @@ final class RenameByExifDateCommandTest extends TestCase
     }
 
     #[Test]
-    public function groupFilesByDuplicateIdentifierAlignsDuplicateSuffixesForLivePhotoPairs(): void
+    public function groupFilesByDuplicateIdentifierPairsMismatchedBasenameVideoByContentIdentifier(): void
     {
         $photo = new SplFileInfo('/source/IMG_0002.HEIC');
-        $video = new SplFileInfo('/source/IMG_0002.MOV');
+        $video = new SplFileInfo('/source/PXL_20240101_000002.MOV');
+
+        self::assertNotSame(
+            $photo->getBasename('.' . $photo->getExtension()),
+            $video->getBasename('.' . $video->getExtension()),
+        );
         $targetWithSuffix = new SplFileInfo('/target/20240101_120000-1.HEIC');
 
         $existingDuplicate = (new FileDuplicate())
@@ -688,7 +698,7 @@ final class RenameByExifDateCommandTest extends TestCase
                 self::identicalTo($duplicateCollection),
                 self::callback(static fn ($resolver): bool => is_callable($resolver)),
                 self::callback(static fn ($callback): bool => is_callable($callback)),
-                self::isFalse(),
+                self::isTrue(),
             )
             ->willReturnCallback(static function (
                 RecursiveIteratorIterator $iteratorArg,
@@ -697,7 +707,7 @@ final class RenameByExifDateCommandTest extends TestCase
                 callable $progressCallback,
                 bool $matchByContentIdentifier,
             ) use (&$capturedPairings, $photo, $video): LivePhotoPairingCollection {
-                self::assertFalse($matchByContentIdentifier);
+                self::assertTrue($matchByContentIdentifier);
 
                 $service = new LivePhotoPairingService();
 
@@ -711,7 +721,7 @@ final class RenameByExifDateCommandTest extends TestCase
                         };
                     },
                     onFileInspected: $progressCallback,
-                    matchByContentIdentifier: false,
+                    matchByContentIdentifier: true,
                 );
 
                 return $capturedPairings;

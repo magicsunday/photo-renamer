@@ -139,7 +139,7 @@ class RenameByExifDateCommand extends AbstractRenameCommand
             onFileInspected: function () use ($progressBar): void {
                 $progressBar?->advance();
             },
-            matchByContentIdentifier: false,
+            matchByContentIdentifier: true,
         );
 
         /** @var LivePhotoPairing $pairing */
