@@ -19,6 +19,7 @@ use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Helper\ProgressBar;
 
+use function basename;
 use function chmod;
 use function file_exists;
 use function file_get_contents;
@@ -364,16 +365,17 @@ final class FileSystemServiceTest extends TestCase
 
         $buffer = $output->fetch();
 
-        $relativeCanonical = $this->relativizePath($canonicalPath, $targetDirectory);
+        $relativeCanonicalSource = $this->relativizePath($canonicalPath, $sourceDirectory);
+        $relativeCanonicalTarget = $this->relativizePath($canonicalPath, $targetDirectory);
         $relativeRenameSource = $this->relativizePath($renameSource, $sourceDirectory);
         $relativeDuplicateSource = $this->relativizePath($duplicateSource, $sourceDirectory);
         $relativeRenameTarget = $this->relativizePath($renameTarget, $targetDirectory);
         $relativeDuplicateTarget = $this->relativizePath($duplicateTarget, $targetDirectory);
 
-        self::assertStringContainsString('[O] ' . $relativeCanonical, $buffer);
+        self::assertStringContainsString('[O] ' . $relativeCanonicalSource, $buffer);
         self::assertStringContainsString('[R] ' . $relativeRenameSource, $buffer);
         self::assertStringContainsString('[D] ' . $relativeDuplicateSource, $buffer);
-        self::assertStringContainsString('→ ' . $relativeCanonical, $buffer);
+        self::assertStringContainsString('→ ' . $relativeCanonicalTarget, $buffer);
         self::assertStringContainsString('→ ' . $relativeRenameTarget, $buffer);
         self::assertStringContainsString('→ ' . $relativeDuplicateTarget, $buffer);
     }
@@ -530,7 +532,14 @@ final class FileSystemServiceTest extends TestCase
         $prefix = $normalizedBase . DIRECTORY_SEPARATOR;
 
         if (str_starts_with($path, $prefix)) {
-            return substr($path, strlen($prefix));
+            $relativePath = substr($path, strlen($prefix));
+            $baseName     = basename($normalizedBase);
+
+            if ($baseName === '' || $baseName === DIRECTORY_SEPARATOR) {
+                return $relativePath;
+            }
+
+            return $baseName . DIRECTORY_SEPARATOR . $relativePath;
         }
 
         return $path;
