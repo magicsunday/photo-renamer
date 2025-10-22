@@ -22,8 +22,16 @@ use RecursiveIteratorIterator;
 use SplFileInfo;
 use Symfony\Component\Console\Input\InputOption;
 
+use Throwable;
+use function function_exists;
+use function is_array;
+use function is_scalar;
 use function is_string;
 use function strlen;
+use function str_contains;
+use function str_replace;
+use function strtolower;
+use function trim;
 
 /**
  * Recursively renames all files using the EXIF attribute "DateTimeOriginal".
@@ -87,44 +95,107 @@ class RenameByExifDateCommand extends AbstractRenameCommand
         $this->io->newLine();
         $this->io->progressStart($this->fileSystemService->countFiles($iterator));
 
+        $identifierLookup = [];
+        $processedFiles   = [];
+
+        foreach ($fileDuplicateCollection as $fileDuplicate) {
+            $targetBasename = $fileDuplicate->getTarget()->getBasename('.' . $fileDuplicate->getTarget()->getExtension());
+
+            foreach ($fileDuplicate->getFiles() as $duplicateSplFileInfo) {
+                $processedFiles[$duplicateSplFileInfo->getPathname()] = true;
+
+                $contentIdentifier = $this->getLivePhotoContentIdentifier($duplicateSplFileInfo);
+
+                if ($contentIdentifier !== null && !isset($identifierLookup[$contentIdentifier])) {
+                    $identifierLookup[$contentIdentifier] = [
+                        'targetBasename' => $targetBasename,
+                    ];
+                }
+            }
+        }
+
         // Perform a second iteration over all files and now add all files that are not yet included in the list
 
         /** @var SplFileInfo $sourceFileInfo */
         foreach ($iterator as $sourceFileInfo) {
-            foreach ($fileDuplicateCollection as $duplicateIdentifier => $fileDuplicate) {
-                foreach ($fileDuplicate->getFiles() as $duplicateSplFileInfo) {
-                    if ($sourceFileInfo->getPathname() === $duplicateSplFileInfo->getPathname()) {
-                        break 2;
-                    }
+            $sourcePathname = $sourceFileInfo->getPathname();
 
-                    $sourceWithoutExtension = $this->getPathNameWithoutExtension($sourceFileInfo);
-                    $targetWithoutExtension = $this->getPathNameWithoutExtension($duplicateSplFileInfo);
+            if (isset($processedFiles[$sourcePathname])) {
+                $this->io->progressAdvance();
 
-                    if ($sourceWithoutExtension === $targetWithoutExtension) {
-                        $targetFileInfo = new SplFileInfo(
+                continue;
+            }
+
+            $fileMatched         = false;
+            $contentIdentifier   = $this->getLivePhotoContentIdentifier($sourceFileInfo);
+            $sourceFileExtension = $sourceFileInfo->getExtension();
+
+            if ($contentIdentifier !== null && isset($identifierLookup[$contentIdentifier])) {
+                $fileMatched = true;
+
+                $lookupEntry    = $identifierLookup[$contentIdentifier];
+                $targetBasename = $lookupEntry['targetBasename'];
+
+                $targetFileInfo = new SplFileInfo(
+                    $sourceFileInfo->getPath()
+                    . DIRECTORY_SEPARATOR
+                    . $targetBasename
+                    . '.'
+                    . $sourceFileExtension,
+                );
+
+                $duplicateIdentifier = $targetBasename . '.' . $sourceFileExtension;
+
+                if ($fileDuplicateCollection->offsetExists($duplicateIdentifier)) {
+                    /** @var FileDuplicate $duplicate */
+                    $duplicate = $fileDuplicateCollection->offsetGet($duplicateIdentifier);
+                    $duplicate->addFile($sourceFileInfo);
+                } else {
+                    $duplicate = new FileDuplicate();
+                    $duplicate
+                        ->addFile($sourceFileInfo)
+                        ->setTarget($targetFileInfo);
+
+                    $fileDuplicateCollection->offsetSet($duplicateIdentifier, $duplicate);
+                }
+
+                $processedFiles[$sourcePathname] = true;
+            }
+
+            if ($fileMatched === false) {
+                $sourceWithoutExtension = $this->getPathNameWithoutExtension($sourceFileInfo);
+
+                foreach ($fileDuplicateCollection as $fileDuplicate) {
+                    foreach ($fileDuplicate->getFiles() as $duplicateSplFileInfo) {
+                        if ($sourceWithoutExtension !== $this->getPathNameWithoutExtension($duplicateSplFileInfo)) {
+                            continue;
+                        }
+
+                        $fileMatched     = true;
+                        $targetBasename  = $fileDuplicate->getTarget()->getBasename('.' . $fileDuplicate->getTarget()->getExtension());
+                        $targetFileInfo  = new SplFileInfo(
                             $sourceFileInfo->getPath()
                             . DIRECTORY_SEPARATOR
-                            . $fileDuplicate->getTarget()->getBasename('.' . $fileDuplicate->getTarget()->getExtension())
+                            . $targetBasename
                             . '.'
-                            . $sourceFileInfo->getExtension(),
+                            . $sourceFileExtension,
                         );
+                        $newIdentifier   = $targetBasename . '.' . $sourceFileExtension;
 
-                        // Create duplicate object storing relevant data
-                        $fileDuplicate = new FileDuplicate();
-                        $fileDuplicate
-                            ->addFile($sourceFileInfo)
-                            ->setTarget($targetFileInfo);
-
-                        $duplicateIdentifier = substr($duplicateIdentifier, 0, -strlen('.' . $sourceFileInfo->getExtension()))
-                            . '.' . $targetFileInfo->getExtension();
-
-                        if ($fileDuplicateCollection->offsetExists($duplicateIdentifier)) {
-                            /** @var FileDuplicate $fileDuplicate */
-                            $fileDuplicate = $fileDuplicateCollection->offsetGet($duplicateIdentifier);
-                            $fileDuplicate->addFile($sourceFileInfo);
+                        if ($fileDuplicateCollection->offsetExists($newIdentifier)) {
+                            /** @var FileDuplicate $duplicate */
+                            $duplicate = $fileDuplicateCollection->offsetGet($newIdentifier);
+                            $duplicate->addFile($sourceFileInfo);
                         } else {
-                            $fileDuplicateCollection->offsetSet($duplicateIdentifier, $fileDuplicate);
+                            $duplicate = new FileDuplicate();
+                            $duplicate
+                                ->addFile($sourceFileInfo)
+                                ->setTarget($targetFileInfo);
+
+                            $fileDuplicateCollection->offsetSet($newIdentifier, $duplicate);
                         }
+
+                        $processedFiles[$sourcePathname] = true;
 
                         break 2;
                     }
@@ -133,29 +204,6 @@ class RenameByExifDateCommand extends AbstractRenameCommand
 
             $this->io->progressAdvance();
         }
-
-        //        // Perform a second iteration over all files and now add all files that are not yet included in the list
-        //        foreach ($iterator as $sourceFileInfo) {
-        //            $fileFound     = false;
-        //            $duplicateIdentifier = $this->getPathNameWithoutExtension($sourceFileInfo);
-        //
-        //            if ($fileDuplicateCollection->offsetExists($duplicateIdentifier)) {
-        //                /** @var FileDuplicate $fileDuplicate */
-        //                $fileDuplicate = $fileDuplicateCollection->offsetGet($duplicateIdentifier);
-        //
-        //                foreach ($fileDuplicate->getFiles() as $duplicateSplFileInfo) {
-        //                    if ($sourceFileInfo->getPathname() === $duplicateSplFileInfo->getPathname()) {
-        //                        $fileFound = true;
-        //                        break;
-        //                    }
-        //                }
-        //
-        //                if ($fileFound === false) {
-        //                    // Add the file to the list of files to be renamed
-        //                    $fileDuplicate->addFile($sourceFileInfo);
-        //                }
-        //            }
-        //        }
 
         $this->io->progressFinish();
         $this->io->newLine();
@@ -192,5 +240,80 @@ class RenameByExifDateCommand extends AbstractRenameCommand
             0,
             -strlen('.' . $fileInfo->getExtension())
         );
+    }
+
+    /**
+     * Returns the live photo content identifier from supported metadata blocks, if available.
+     *
+     * @param SplFileInfo $fileInfo
+     *
+     * @return string|null
+     */
+    private function getLivePhotoContentIdentifier(SplFileInfo $fileInfo): ?string
+    {
+        if (function_exists('exif_read_data') === false) {
+            return null;
+        }
+
+        try {
+            $metadata = @exif_read_data($fileInfo->getPathname(), null, true, false);
+        } catch (Throwable) {
+            return null;
+        }
+
+        if (!is_array($metadata)) {
+            return null;
+        }
+
+        foreach ($metadata as $section) {
+            if (!is_array($section)) {
+                continue;
+            }
+
+            foreach ($section as $key => $value) {
+                $normalizedKey = strtolower((string) $key);
+                $normalizedKey = str_replace(['_', '-', '.', ':'], '', $normalizedKey);
+
+                if (!str_contains($normalizedKey, 'contentidentifier')) {
+                    continue;
+                }
+
+                $scalarValue = $this->extractScalarMetadataValue($value);
+
+                if ($scalarValue !== null) {
+                    return $scalarValue;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Extracts the first scalar value from nested metadata value structures.
+     *
+     * @param mixed $value
+     *
+     * @return string|null
+     */
+    private function extractScalarMetadataValue(mixed $value): ?string
+    {
+        if (is_scalar($value)) {
+            $scalarValue = trim((string) $value);
+
+            return $scalarValue === '' ? null : $scalarValue;
+        }
+
+        if (is_array($value)) {
+            foreach ($value as $nestedValue) {
+                $scalarValue = $this->extractScalarMetadataValue($nestedValue);
+
+                if ($scalarValue !== null) {
+                    return $scalarValue;
+                }
+            }
+        }
+
+        return null;
     }
 }
