@@ -161,6 +161,25 @@ final class ExifDateFilenameStrategyTest extends TestCase
     }
 
     #[Test]
+    public function itIgnoresNonNumericSubSecondValues(): void
+    {
+        $path = '/virtual/' . uniqid('subsec_', true) . '.jpg';
+
+        $exifReader = new StubSafeExifReader();
+        $exifReader->withResponse($path, [
+            'DateTimeOriginal' => '2024:05:05 12:00:00',
+            'SubSecTimeOriginal' => 'L',
+        ]);
+
+        $strategy = $this->createStrategy('Y-m-d_H-i-s', $exifReader, new StubSafeFileReader());
+
+        self::assertSame(
+            '2024-05-05_12-00-00.jpg',
+            $strategy->generateFilename(new SplFileInfo($path)),
+        );
+    }
+
+    #[Test]
     public function itExtractsLivePhotoContentIdentifierFromExifData(): void
     {
         $path = '/virtual/' . uniqid('live_', true) . '.jpg';
