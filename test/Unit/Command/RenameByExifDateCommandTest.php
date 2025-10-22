@@ -9,8 +9,10 @@ use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
+use MagicSunday\Renamer\Service\Dto\ExifMetadataResult;
 use MagicSunday\Renamer\Service\Dto\LivePhotoPairing;
 use MagicSunday\Renamer\Service\Dto\LivePhotoPairingCollection;
+use MagicSunday\Renamer\Service\DuplicateDetectionService;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
@@ -18,6 +20,7 @@ use MagicSunday\Renamer\Service\LivePhotoPairingService;
 use MagicSunday\Renamer\Service\SafeExifReader;
 use MagicSunday\Renamer\Service\SafeFileReader;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\LivePhotoContentIdentifierStrategy;
+use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\ExifRawMetadata;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifMetadataProvider;
 use MagicSunday\Renamer\Strategy\RenameStrategy\QuickTime\QuickTimeContentIdentifierExtractor;
@@ -439,6 +442,96 @@ final class RenameByExifDateCommandTest extends TestCase
 
         $output = $bufferedOutput->fetch();
         self::assertStringContainsString('20240101_120000.MOV', $output);
+    }
+
+    #[Test]
+    public function executeWithRealServicesListsLivePhotoVideoRenames(): void
+    {
+        $workspace = sys_get_temp_dir() . DIRECTORY_SEPARATOR . uniqid('live_photo_', true);
+
+        if (!mkdir($workspace, 0o755) && !is_dir($workspace)) {
+            self::fail('Unable to create temporary workspace.');
+        }
+
+        $photoPath = $workspace . DIRECTORY_SEPARATOR . '2-image.HEIC';
+        $videoPath = $workspace . DIRECTORY_SEPARATOR . 'movie.MOV';
+
+        file_put_contents($photoPath, 'photo');
+        file_put_contents($videoPath, 'video');
+
+        try {
+            $output = new BufferedOutput();
+            $style  = new SymfonyStyle(new ArrayInput([]), $output);
+
+            $fileSystemService = new FileSystemService($style);
+
+            $exifReader = new class($photoPath) extends SafeExifReader {
+                public function __construct(private readonly string $photoPath)
+                {
+                }
+
+                #[Override]
+                public function read(SplFileInfo $file): ExifMetadataResult
+                {
+                    if ($file->getPathname() !== $this->photoPath) {
+                        return ExifMetadataResult::withoutMetadata();
+                    }
+
+                    return ExifMetadataResult::withMetadata(ExifRawMetadata::fromArray([
+                        'DateTimeOriginal' => '2024:01:01 12:00:00',
+                        'SubSecTimeOriginal' => '123',
+                        'ContentIdentifier' => 'UUID-IPHONE-LIVEPHOTO',
+                    ]));
+                }
+            };
+
+            $fileReader = new class($videoPath) extends SafeFileReader {
+                public function __construct(private readonly string $videoPath)
+                {
+                }
+
+                #[Override]
+                public function read(SplFileInfo $file): string
+                {
+                    if ($file->getPathname() !== $this->videoPath) {
+                        return '';
+                    }
+
+                    return base64_decode('AAAAj21vb3YAAACHdWR0YQAAAH9tZXRhAAAAAAAAAD5rZXlzAAAAAAAAAAEAAAAuAAAAAGNvbS5hcHBsZS5xdWlja3RpbWUuY29udGVudC5pZGVudGlmaWVyAAAANWlsc3QAAAAtAAAAAQAAACVkYXRhAAAAAQAAAABVVUlELUlQSE9ORS1MSVZFUEhPVE8=', true) ?: '';
+                }
+            };
+
+            $metadataProvider = new ExifMetadataProvider(
+                $exifReader,
+                new QuickTimeContentIdentifierExtractor($fileReader),
+            );
+
+            $duplicateDetectionService = new DuplicateDetectionService($fileSystemService, $style);
+            $livePhotoPairingService   = new LivePhotoPairingService();
+
+            $command = new RenameByExifDateCommand(
+                $fileSystemService,
+                $duplicateDetectionService,
+                $metadataProvider,
+                $livePhotoPairingService,
+            );
+
+            $tester = new CommandTester($command);
+            $exitCode = $tester->execute([
+                'source-directory' => $workspace,
+                '--dry-run' => true,
+                '--list-all' => true,
+            ]);
+
+            self::assertSame(Command::SUCCESS, $exitCode);
+
+            $consoleOutput = $output->fetch();
+            self::assertStringContainsString('2024-01-01_12-00-00-123.MOV', $consoleOutput);
+        } finally {
+            @unlink($photoPath);
+            @unlink($videoPath);
+            @rmdir($workspace);
+        }
     }
 
     #[Test]
