@@ -43,6 +43,7 @@ class LivePhotoPairingService
         FileDuplicateCollection $fileDuplicateCollection,
         callable $contentIdentifierResolver,
         ?callable $onFileInspected = null,
+        bool $matchByContentIdentifier = true,
     ): LivePhotoPairingCollection {
         $existingFilePathnames = new LivePhotoExistingFilePathnameIndex();
         $contentIdentifierTargets = new LivePhotoContentIdentifierTargetMap();
@@ -61,7 +62,7 @@ class LivePhotoPairingService
 
                 $normalizedContentIdentifier = $this->normalizeContentIdentifier($contentIdentifier);
 
-                if ($normalizedContentIdentifier !== null) {
+                if ($matchByContentIdentifier && $normalizedContentIdentifier !== null) {
                     $contentIdentifierTargets->remember(
                         $normalizedContentIdentifier,
                         $fileDuplicate->getTarget(),
@@ -99,7 +100,8 @@ class LivePhotoPairingService
             $pairingIdentifier = $normalizedContentIdentifier;
 
             if (
-                $normalizedContentIdentifier !== null
+                $matchByContentIdentifier
+                && $normalizedContentIdentifier !== null
                 && $contentIdentifierTargets->has($normalizedContentIdentifier)
             ) {
                 $targetPrototype = $contentIdentifierTargets->get($normalizedContentIdentifier);
