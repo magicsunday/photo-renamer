@@ -75,7 +75,7 @@ final class QuickTimeContentIdentifierExtractorTest extends TestCase
         $identifier = $extractor->extractContentIdentifier(new SplFileInfo($path));
 
         self::assertInstanceOf(ContentIdentifier::class, $identifier);
-        self::assertSame('UUID-1234', $identifier->getValue());
+        self::assertSame('uuid-1234', $identifier->getValue());
     }
 
     #[Test]
@@ -91,7 +91,7 @@ final class QuickTimeContentIdentifierExtractorTest extends TestCase
         $identifier = $extractor->extractContentIdentifier(new SplFileInfo($path));
 
         self::assertInstanceOf(ContentIdentifier::class, $identifier);
-        self::assertSame('UUID-5678', $identifier->getValue());
+        self::assertSame('uuid-5678', $identifier->getValue());
     }
 
     #[Test]

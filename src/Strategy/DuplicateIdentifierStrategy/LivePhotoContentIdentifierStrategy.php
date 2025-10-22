@@ -15,6 +15,9 @@ use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use Override;
 use SplFileInfo;
 
+use function strtolower;
+use function trim;
+
 /**
  * Strategy that prefers the Apple Live Photo content identifier to group duplicates.
  */
@@ -41,10 +44,25 @@ class LivePhotoContentIdentifierStrategy implements DuplicateIdentifierStrategyI
     {
         $contentIdentifier = $this->renameStrategy->getLivePhotoContentIdentifier($sourceFileInfo);
 
-        if (is_string($contentIdentifier) && $contentIdentifier !== '') {
-            return 'live-photo:' . $contentIdentifier;
+        if (is_string($contentIdentifier)) {
+            $normalizedContentIdentifier = $this->normalizeContentIdentifier($contentIdentifier);
+
+            if ($normalizedContentIdentifier !== null) {
+                return 'live-photo:' . $normalizedContentIdentifier;
+            }
         }
 
         return $targetFileInfo->getFilename();
+    }
+
+    private function normalizeContentIdentifier(string $contentIdentifier): ?string
+    {
+        $normalized = strtolower(trim($contentIdentifier));
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        return $normalized;
     }
 }

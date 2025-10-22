@@ -254,7 +254,7 @@ final class AbstractRenameCommandTest extends TestCase
         $fileDuplicateCollection = new FileDuplicateCollection();
 
         $fileSystemService
-            ->expects(self::exactly(2))
+            ->expects(self::once())
             ->method('createFileIterator')
             ->with('/source-directory')
             ->willReturn($iterator);

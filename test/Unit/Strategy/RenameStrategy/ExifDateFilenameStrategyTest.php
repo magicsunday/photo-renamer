@@ -192,7 +192,7 @@ final class ExifDateFilenameStrategyTest extends TestCase
 
         $strategy = $this->createStrategy('Y-m-d_H-i-s', $exifReader, new StubSafeFileReader());
 
-        self::assertSame('EXIF-UUID', $strategy->getLivePhotoContentIdentifier(new SplFileInfo($path)));
+        self::assertSame('exif-uuid', $strategy->getLivePhotoContentIdentifier(new SplFileInfo($path)));
     }
 
     #[Test]
@@ -209,7 +209,7 @@ final class ExifDateFilenameStrategyTest extends TestCase
         $strategy = $this->createStrategy('Y-m-d_H-i-s', $exifReader, $fileReader);
 
         self::assertSame(
-            '550E8400-E29B-41D4-A716-446655440000',
+            '550e8400-e29b-41d4-a716-446655440000',
             $strategy->getLivePhotoContentIdentifier(new SplFileInfo($path)),
         );
     }

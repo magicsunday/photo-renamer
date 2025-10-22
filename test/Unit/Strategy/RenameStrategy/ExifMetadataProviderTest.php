@@ -153,7 +153,7 @@ final class ExifMetadataProviderTest extends TestCase
         $identifier = $provider->getContentIdentifier(new SplFileInfo($path));
 
         self::assertInstanceOf(ContentIdentifier::class, $identifier);
-        self::assertSame('UUID-5678', $identifier->getValue());
+        self::assertSame('uuid-5678', $identifier->getValue());
     }
 
     #[Test]
@@ -179,7 +179,7 @@ final class ExifMetadataProviderTest extends TestCase
             $identifier = $provider->getContentIdentifier(new SplFileInfo($path));
 
             self::assertInstanceOf(ContentIdentifier::class, $identifier);
-            self::assertSame('UUID-9012', $identifier->getValue());
+            self::assertSame('uuid-9012', $identifier->getValue());
             self::assertTrue($quickTimeExtractor->wasInvokedFor($path));
         } finally {
             @unlink($path);
@@ -219,7 +219,7 @@ final class ExifMetadataProviderTest extends TestCase
         $identifier = $provider->getContentIdentifier($photo);
 
         self::assertInstanceOf(ContentIdentifier::class, $identifier);
-        self::assertSame('UUID-IPHONE-LIVEPHOTO', $identifier->getValue());
+        self::assertSame('uuid-iphone-livephoto', $identifier->getValue());
         self::assertFalse($quickTimeExtractor->wasInvokedFor($path));
     }
 }
