@@ -79,6 +79,22 @@ final class QuickTimeContentIdentifierExtractorTest extends TestCase
     }
 
     #[Test]
+    public function itTrimsWhitespaceFromContentIdentifier(): void
+    {
+        $reader = new StubSafeFileReader();
+        $path = '/tmp/' . uniqid('quicktime_', true) . '.mov';
+        $identifierWithWhitespace = 'UUID-5678   ' . "\0\0";
+        $reader->withResponse($path, $this->createQuickTimeSample($identifierWithWhitespace));
+
+        $extractor = new QuickTimeContentIdentifierExtractor($reader);
+
+        $identifier = $extractor->extractContentIdentifier(new SplFileInfo($path));
+
+        self::assertInstanceOf(ContentIdentifier::class, $identifier);
+        self::assertSame('UUID-5678', $identifier->getValue());
+    }
+
+    #[Test]
     public function itWrapsReadErrorsInExifMetadataException(): void
     {
         $reader = new StubSafeFileReader();

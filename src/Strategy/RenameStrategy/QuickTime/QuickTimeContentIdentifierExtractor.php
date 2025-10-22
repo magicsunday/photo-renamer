@@ -26,6 +26,7 @@ use function rtrim;
 use function strlen;
 use function strtolower;
 use function substr;
+use function trim;
 use function unpack;
 
 class QuickTimeContentIdentifierExtractor
@@ -251,8 +252,10 @@ class QuickTimeContentIdentifierExtractor
                 }
 
                 $payload = substr($data, $offset + 16, $size - 16);
+                $payload = rtrim($payload, "\0");
+                $payload = trim($payload, " \t\n\r\0\x0B");
 
-                return new QuickTimeValue($index, rtrim($payload, "\0"));
+                return new QuickTimeValue($index, $payload);
             }
 
             $offset += $size;
