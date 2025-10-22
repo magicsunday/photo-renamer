@@ -19,6 +19,8 @@ use RecursiveIteratorIterator;
 use SplFileInfo;
 
 use function is_callable;
+use function strtolower;
+use function trim;
 
 /**
  * Service that pairs Apple Live Photo still/video files by content identifier.
@@ -55,12 +57,14 @@ class LivePhotoPairingService
 
                 $contentIdentifier = $contentIdentifierResolver($existingFileInfo);
 
-                if ($contentIdentifier === null || $contentIdentifier === '') {
+                $normalizedContentIdentifier = $this->normalizeContentIdentifier($contentIdentifier);
+
+                if ($normalizedContentIdentifier === null) {
                     continue;
                 }
 
                 $contentIdentifierTargets->remember(
-                    $contentIdentifier,
+                    $normalizedContentIdentifier,
                     $fileDuplicate->getTarget(),
                     $duplicateIdentifier,
                 );
@@ -83,16 +87,17 @@ class LivePhotoPairingService
             }
 
             $contentIdentifier = $contentIdentifierResolver($fileInfo);
+            $normalizedContentIdentifier = $this->normalizeContentIdentifier($contentIdentifier);
 
-            if ($contentIdentifier === null || $contentIdentifier === '') {
+            if ($normalizedContentIdentifier === null) {
                 continue;
             }
 
-            if (!$contentIdentifierTargets->has($contentIdentifier)) {
+            if (!$contentIdentifierTargets->has($normalizedContentIdentifier)) {
                 continue;
             }
 
-            $targetPrototype = $contentIdentifierTargets->get($contentIdentifier);
+            $targetPrototype = $contentIdentifierTargets->get($normalizedContentIdentifier);
             $targetFile = $targetPrototype->getTarget();
             $targetBasename = $targetFile->getBasename('.' . $targetFile->getExtension());
 
@@ -110,10 +115,25 @@ class LivePhotoPairingService
                 $fileInfo,
                 $targetFileInfo,
                 $duplicateIdentifier,
-                $contentIdentifier,
+                $normalizedContentIdentifier,
             ));
         }
 
         return $pairs;
+    }
+
+    private function normalizeContentIdentifier(?string $contentIdentifier): ?string
+    {
+        if ($contentIdentifier === null) {
+            return null;
+        }
+
+        $normalized = strtolower(trim($contentIdentifier));
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        return $normalized;
     }
 }
