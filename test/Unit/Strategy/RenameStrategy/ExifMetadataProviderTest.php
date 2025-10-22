@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy;
 
+use DateTimeImmutable;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Service\Dto\ExifMetadataResult;
@@ -67,9 +68,19 @@ final class ProviderQuickTimeExtractorStub extends QuickTimeContentIdentifierExt
     private array $responses = [];
 
     /**
+     * @var array<string, DateTimeImmutable|null>
+     */
+    private array $creationDateResponses = [];
+
+    /**
      * @var list<string>
      */
     private array $invocations = [];
+
+    /**
+     * @var list<string>
+     */
+    private array $creationDateInvocations = [];
 
     public function __construct()
     {
@@ -81,6 +92,11 @@ final class ProviderQuickTimeExtractorStub extends QuickTimeContentIdentifierExt
         $this->responses[$path] = $identifier;
     }
 
+    public function withCreationDateResponse(string $path, ?DateTimeImmutable $creationDate): void
+    {
+        $this->creationDateResponses[$path] = $creationDate;
+    }
+
     public function extractContentIdentifier(SplFileInfo $splFileInfo): ?ContentIdentifier
     {
         $path = $splFileInfo->getPathname();
@@ -90,9 +106,22 @@ final class ProviderQuickTimeExtractorStub extends QuickTimeContentIdentifierExt
         return $this->responses[$path] ?? null;
     }
 
+    public function extractCreationDate(SplFileInfo $splFileInfo): ?DateTimeImmutable
+    {
+        $path = $splFileInfo->getPathname();
+        $this->creationDateInvocations[] = $path;
+
+        return $this->creationDateResponses[$path] ?? null;
+    }
+
     public function wasInvokedFor(string $path): bool
     {
         return in_array($path, $this->invocations, true);
+    }
+
+    public function wasCreationDateInvokedFor(string $path): bool
+    {
+        return in_array($path, $this->creationDateInvocations, true);
     }
 }
 
@@ -137,6 +166,45 @@ final class ExifMetadataProviderTest extends TestCase
     }
 
     #[Test]
+    public function itUsesQuickTimeCreationDateWhenExifDateMissing(): void
+    {
+        $path = '/tmp/video.mov';
+        $exifReader = new ProviderSafeExifReaderStub();
+        $exifReader->withResponse($path, false);
+
+        $quickTimeExtractor = new ProviderQuickTimeExtractorStub();
+        $quickTimeExtractor->withCreationDateResponse($path, new DateTimeImmutable('2024-05-05T12:34:56.789+00:00'));
+
+        $provider = new ExifMetadataProvider($exifReader, $quickTimeExtractor);
+
+        $exifData = $provider->getExifData(new SplFileInfo($path));
+
+        self::assertInstanceOf(ExifData::class, $exifData);
+        self::assertSame('2024:05:05 12:34:56', $exifData->getDateTimeOriginal());
+        self::assertSame('789', $exifData->getSubSecTimeOriginal());
+        self::assertTrue($quickTimeExtractor->wasCreationDateInvokedFor($path));
+    }
+
+    #[Test]
+    public function itNormalisesQuickTimeMicroseconds(): void
+    {
+        $path = '/tmp/video_micro.mov';
+        $exifReader = new ProviderSafeExifReaderStub();
+        $exifReader->withResponse($path, false);
+
+        $quickTimeExtractor = new ProviderQuickTimeExtractorStub();
+        $quickTimeExtractor->withCreationDateResponse($path, new DateTimeImmutable('2024-05-05T12:34:56.123456+00:00'));
+
+        $provider = new ExifMetadataProvider($exifReader, $quickTimeExtractor);
+
+        $exifData = $provider->getExifData(new SplFileInfo($path));
+
+        self::assertInstanceOf(ExifData::class, $exifData);
+        self::assertSame('2024:05:05 12:34:56', $exifData->getDateTimeOriginal());
+        self::assertSame('123456', $exifData->getSubSecTimeOriginal());
+    }
+
+    #[Test]
     public function itFallsBackToQuickTimeContentIdentifier(): void
     {
         $path = '/tmp/live.mov';
@@ -154,6 +222,27 @@ final class ExifMetadataProviderTest extends TestCase
 
         self::assertInstanceOf(ContentIdentifier::class, $identifier);
         self::assertSame('uuid-5678', $identifier->getValue());
+    }
+
+    #[Test]
+    public function itExtractsQuickTimeCreationDateFromFixture(): void
+    {
+        $video = LivePhotoFixtureFactory::createMov();
+        $path = $video->getPathname();
+
+        $exifReader = new ProviderSafeExifReaderStub();
+        $exifReader->withResponse($path, false);
+
+        $provider = new ExifMetadataProvider(
+            $exifReader,
+            new QuickTimeContentIdentifierExtractor(new SafeFileReader()),
+        );
+
+        $exifData = $provider->getExifData($video);
+
+        self::assertInstanceOf(ExifData::class, $exifData);
+        self::assertSame('2024:05:05 12:34:56', $exifData->getDateTimeOriginal());
+        self::assertSame('789', $exifData->getSubSecTimeOriginal());
     }
 
     #[Test]

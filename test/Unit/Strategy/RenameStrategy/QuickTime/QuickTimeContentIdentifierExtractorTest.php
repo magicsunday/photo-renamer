@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy\QuickTime;
 
+use DateTimeImmutable;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Exception\FileReadException;
 use MagicSunday\Renamer\Service\SafeFileReader;
@@ -95,6 +96,46 @@ final class QuickTimeContentIdentifierExtractorTest extends TestCase
     }
 
     #[Test]
+    public function itExtractsCreationDateFromQuickTimeMetadata(): void
+    {
+        $reader = new StubSafeFileReader();
+        $path = '/tmp/' . uniqid('quicktime_', true) . '.mov';
+        $creationDate = '2024-05-05T12:34:56.123456+02:00';
+
+        $reader->withResponse($path, $this->createQuickTimeSample(
+            'UUID-0000',
+            ['CreationDate' => $creationDate],
+        ));
+
+        $extractor = new QuickTimeContentIdentifierExtractor($reader);
+
+        $timestamp = $extractor->extractCreationDate(new SplFileInfo($path));
+
+        self::assertInstanceOf(DateTimeImmutable::class, $timestamp);
+        self::assertSame($creationDate, $timestamp->format('Y-m-d\TH:i:s.uP'));
+    }
+
+    #[Test]
+    public function itReturnsNullWhenCreationDateMissingOrInvalid(): void
+    {
+        $reader = new StubSafeFileReader();
+        $path = '/tmp/' . uniqid('quicktime_', true) . '.mov';
+        $reader->withResponse($path, $this->createQuickTimeSample('UUID-1111'));
+
+        $extractor = new QuickTimeContentIdentifierExtractor($reader);
+
+        self::assertNull($extractor->extractCreationDate(new SplFileInfo($path)));
+
+        $invalidPath = '/tmp/' . uniqid('quicktime_', true) . '.mov';
+        $reader->withResponse($invalidPath, $this->createQuickTimeSample(
+            'UUID-2222',
+            ['com.apple.quicktime.creationdate' => 'not-a-date'],
+        ));
+
+        self::assertNull($extractor->extractCreationDate(new SplFileInfo($invalidPath)));
+    }
+
+    #[Test]
     public function itWrapsReadErrorsInExifMetadataException(): void
     {
         $reader = new StubSafeFileReader();
@@ -109,35 +150,49 @@ final class QuickTimeContentIdentifierExtractorTest extends TestCase
         $extractor->extractContentIdentifier(new SplFileInfo($path));
     }
 
-    private function createQuickTimeSample(string $identifier): string
+    private function createQuickTimeSample(string $identifier, ?array $additionalMetadata = null): string
     {
-        $key = 'com.apple.quicktime.content.identifier';
+        $metadata = ['com.apple.quicktime.content.identifier' => $identifier];
 
-        $keyEntryPayload = pack('N', 8 + strlen($key))
-            . "\0\0\0\0"
-            . $key;
+        if ($additionalMetadata !== null) {
+            foreach ($additionalMetadata as $key => $value) {
+                $metadata[$key] = $value;
+            }
+        }
 
         $keysPayload = "\0\0\0\0"
-            . pack('N', 1)
-            . $keyEntryPayload;
+            . pack('N', count($metadata));
+
+        $ilstEntries = '';
+        $index = 1;
+
+        foreach ($metadata as $key => $value) {
+            $keyEntryPayload = pack('N', 8 + strlen($key))
+                . "\0\0\0\0"
+                . $key;
+
+            $keysPayload .= $keyEntryPayload;
+
+            $dataPayload = pack('N', 16 + strlen($value))
+                . 'data'
+                . "\0\0\0\1"
+                . "\0\0\0\0"
+                . $value;
+
+            $ilstEntries .= pack('N', 8 + strlen($dataPayload))
+                . pack('N', $index)
+                . $dataPayload;
+
+            ++$index;
+        }
 
         $keysAtom = pack('N', 8 + strlen($keysPayload))
             . 'keys'
             . $keysPayload;
 
-        $dataPayload = pack('N', 16 + strlen($identifier))
-            . 'data'
-            . "\0\0\0\1"
-            . "\0\0\0\0"
-            . $identifier;
-
-        $ilstEntry = pack('N', 8 + strlen($dataPayload))
-            . pack('N', 1)
-            . $dataPayload;
-
-        $ilstAtom = pack('N', 8 + strlen($ilstEntry))
+        $ilstAtom = pack('N', 8 + strlen($ilstEntries))
             . 'ilst'
-            . $ilstEntry;
+            . $ilstEntries;
 
         $metaPayload = "\0\0\0\0"
             . $keysAtom

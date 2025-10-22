@@ -18,6 +18,7 @@ use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\QuickTimeValue;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifMetadataProvider;
 use MagicSunday\Renamer\Strategy\RenameStrategy\QuickTime\QuickTimeContentIdentifierExtractor;
+use MagicSunday\Renamer\Test\Unit\Service\Fixtures\LivePhotoFixtureFactory;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
@@ -215,6 +216,64 @@ final class ExifDateFilenameStrategyTest extends TestCase
     }
 
     #[Test]
+    public function itFallsBackToQuickTimeCreationDateWhenExifMissing(): void
+    {
+        $path = '/virtual/' . uniqid('quicktime_date_', true) . '.mov';
+
+        $exifReader = new StubSafeExifReader();
+        $exifReader->withResponse($path, false);
+
+        $fileReader = new StubSafeFileReader();
+        $fileReader->withResponse($path, self::createQuickTimeSample(
+            'UUID-EXAMPLE',
+            ['com.apple.quicktime.creationdate' => '2024-05-05T12:34:56.789+00:00'],
+        ));
+
+        $strategy = $this->createStrategy('Y-m-d_H-i-s-v', $exifReader, $fileReader);
+
+        self::assertSame(
+            '2024-05-05_12-34-56-789.mov',
+            $strategy->generateFilename(new SplFileInfo($path)),
+        );
+    }
+
+    #[Test]
+    public function itHandlesQuickTimeMicroseconds(): void
+    {
+        $path = '/virtual/' . uniqid('quicktime_micro_', true) . '.mov';
+
+        $exifReader = new StubSafeExifReader();
+        $exifReader->withResponse($path, false);
+
+        $fileReader = new StubSafeFileReader();
+        $fileReader->withResponse($path, self::createQuickTimeSample(
+            'UUID-EXAMPLE',
+            ['CreationDate' => '2024-05-05T12:34:56.123456+00:00'],
+        ));
+
+        $strategy = $this->createStrategy('Y-m-d_H-i-s-u', $exifReader, $fileReader);
+
+        self::assertSame(
+            '2024-05-05_12-34-56-123456.mov',
+            $strategy->generateFilename(new SplFileInfo($path)),
+        );
+    }
+
+    #[Test]
+    public function itGeneratesFilenameFromQuickTimeFixture(): void
+    {
+        $video = LivePhotoFixtureFactory::createMov();
+        $path = $video->getPathname();
+
+        $exifReader = new StubSafeExifReader();
+        $exifReader->withResponse($path, false);
+
+        $strategy = $this->createStrategy('Y-m-d_H-i-s-v', $exifReader, new SafeFileReader());
+
+        self::assertSame('2024-05-05_12-34-56-789.mov', $strategy->generateFilename($video));
+    }
+
+    #[Test]
     public function quickTimeReadFailureIsReportedAsTargetFilenameException(): void
     {
         $path = '/virtual/' . uniqid('quicktime_failure_', true) . '.mov';
@@ -283,8 +342,8 @@ final class ExifDateFilenameStrategyTest extends TestCase
 
     private function createStrategy(
         string $pattern,
-        StubSafeExifReader $exifReader,
-        StubSafeFileReader $fileReader,
+        SafeExifReader $exifReader,
+        SafeFileReader $fileReader,
     ): ExifDateFilenameStrategy {
         $provider = new ExifMetadataProvider(
             $exifReader,
@@ -327,35 +386,49 @@ final class ExifDateFilenameStrategyTest extends TestCase
         ];
     }
 
-    private static function createQuickTimeSample(string $identifier): string
+    private static function createQuickTimeSample(string $identifier, ?array $additionalMetadata = null): string
     {
-        $key = 'com.apple.quicktime.content.identifier';
+        $metadata = ['com.apple.quicktime.content.identifier' => $identifier];
 
-        $keyEntryPayload = pack('N', 8 + strlen($key))
-            . "\0\0\0\0"
-            . $key;
+        if ($additionalMetadata !== null) {
+            foreach ($additionalMetadata as $key => $value) {
+                $metadata[$key] = $value;
+            }
+        }
 
         $keysPayload = "\0\0\0\0"
-            . pack('N', 1)
-            . $keyEntryPayload;
+            . pack('N', count($metadata));
+
+        $ilstEntries = '';
+        $index = 1;
+
+        foreach ($metadata as $key => $value) {
+            $keyEntryPayload = pack('N', 8 + strlen($key))
+                . "\0\0\0\0"
+                . $key;
+
+            $keysPayload .= $keyEntryPayload;
+
+            $dataPayload = pack('N', 16 + strlen($value))
+                . 'data'
+                . "\0\0\0\1"
+                . "\0\0\0\0"
+                . $value;
+
+            $ilstEntries .= pack('N', 8 + strlen($dataPayload))
+                . pack('N', $index)
+                . $dataPayload;
+
+            ++$index;
+        }
 
         $keysAtom = pack('N', 8 + strlen($keysPayload))
             . 'keys'
             . $keysPayload;
 
-        $dataPayload = pack('N', 16 + strlen($identifier))
-            . 'data'
-            . "\0\0\0\1"
-            . "\0\0\0\0"
-            . $identifier;
-
-        $ilstEntry = pack('N', 8 + strlen($dataPayload))
-            . pack('N', 1)
-            . $dataPayload;
-
-        $ilstAtom = pack('N', 8 + strlen($ilstEntry))
+        $ilstAtom = pack('N', 8 + strlen($ilstEntries))
             . 'ilst'
-            . $ilstEntry;
+            . $ilstEntries;
 
         $metaPayload = "\0\0\0\0"
             . $keysAtom
