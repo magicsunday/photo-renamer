@@ -269,18 +269,9 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             $canonicalRename = null;
 
             foreach ($renames as $rename) {
-                if ($rename->getSource()->getPathname() === $canonicalTargetPath) {
+                if ($rename->getTarget()->getPathname() === $canonicalTargetPath) {
                     $canonicalRename = $rename;
                     break;
-                }
-            }
-
-            if ($this->listAll === false) {
-                foreach ($renames as $key => $rename) {
-                    if ($rename->getSource()->getPathname() === $canonicalTargetPath) {
-                        $renames->remove($key);
-                        break;
-                    }
                 }
             }
 
@@ -291,9 +282,11 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             $duplicateEntries = 0;
 
             foreach ($fileDuplicate->getRenames() as $rename) {
-                if ($rename->getSource()->getPathname() !== $canonicalTargetPath) {
-                    ++$duplicateEntries;
+                if ($canonicalRename instanceof Rename && $rename === $canonicalRename) {
+                    continue;
                 }
+
+                ++$duplicateEntries;
             }
 
             $hasAdditionalRenames = $duplicateEntries > 1;
@@ -302,9 +295,9 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             // Check if the target file already exists in the file system, so we need to adjust
             // the new target name again.
             foreach ($fileDuplicate->getRenames() as $rename) {
-                if ($rename->getSource()->getPathname() === $canonicalTargetPath) {
-                    continue;
-                }
+                $isCanonicalRename = $canonicalRename instanceof Rename && $rename === $canonicalRename;
+                $requiresCanonicalDisambiguation = ($canonicalRename instanceof Rename && $rename !== $canonicalRename)
+                    && $rename->getTarget()->getPathname() === $canonicalTargetPath;
 
                 $rename->setTarget(
                     $this->createDuplicateTargetFileInfo(
@@ -313,6 +306,8 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                         $duplicateCount,
                         $processedDuplicates === 0,
                         $hasAdditionalRenames,
+                        $requiresCanonicalDisambiguation,
+                        $isCanonicalRename,
                     )
                 );
 
@@ -364,8 +359,12 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         int &$duplicateCount,
         bool $isFirst = false,
         bool $hasAdditionalRenames = false,
+        bool $requiresCanonicalDisambiguation = false,
+        bool $isCanonicalRename = false,
     ): SplFileInfo {
         $duplicateBasename = $target->getBasename('.' . $target->getExtension());
+
+        $allowSourceTargetMatch = $isCanonicalRename ? true : !$hasAdditionalRenames;
 
         if ($target->isFile()) {
             return $this->getNewUniqueDuplicateTargetFileInfo(
@@ -373,8 +372,8 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 $target,
                 $duplicateBasename,
                 $duplicateCount,
-                false,
-                !$hasAdditionalRenames,
+                $requiresCanonicalDisambiguation,
+                $allowSourceTargetMatch,
             );
         }
 
@@ -384,8 +383,19 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 $target,
                 $duplicateBasename,
                 $duplicateCount,
-                true,
-                !$hasAdditionalRenames,
+                $hasAdditionalRenames || $requiresCanonicalDisambiguation,
+                $allowSourceTargetMatch,
+            );
+        }
+
+        if ($hasAdditionalRenames || $requiresCanonicalDisambiguation) {
+            return $this->getNewUniqueDuplicateTargetFileInfo(
+                $source,
+                $target,
+                $duplicateBasename,
+                $duplicateCount,
+                $requiresCanonicalDisambiguation,
+                $allowSourceTargetMatch,
             );
         }
 
@@ -411,6 +421,10 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         bool $allowSourceTargetMatch = false,
     ): SplFileInfo {
         $duplicateFileInfo = $target;
+
+        if ($allowSourceTargetMatch && $duplicateFileInfo->getPathname() === $source->getPathname()) {
+            return $duplicateFileInfo;
+        }
 
         if ($forceDuplicateSuffix) {
             $duplicateFileInfo = $this->getNewDuplicateTargetFileInfo(

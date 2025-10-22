@@ -280,9 +280,90 @@ final class DuplicateDetectionServiceTest extends TestCase
             $renames[0]->getTarget()->getPathname(),
         );
         self::assertSame(
-            $targetDirectory . DIRECTORY_SEPARATOR . 'renamed-duplicate-001.png',
+            $targetDirectory . DIRECTORY_SEPARATOR . 'renamed.png',
             $renames[1]->getTarget()->getPathname(),
         );
+        self::assertStringNotContainsString(
+            FileSystemService::DUPLICATE_IDENTIFIER,
+            $renames[1]->getTarget()->getFilename(),
+        );
+    }
+
+    #[Test]
+    public function createDuplicateFilenamesKeepsLivePhotoVideoWithoutDuplicateSuffix(): void
+    {
+        [$service, $output, $fileSystemService] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $photoSource = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.HEIC';
+        $videoSource = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.MOV';
+        $canonicalTarget = $targetDirectory . DIRECTORY_SEPARATOR . '20240101_120000.HEIC';
+
+        file_put_contents($photoSource, 'photo');
+        file_put_contents($videoSource, 'video');
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate
+            ->addFile(new SplFileInfo($photoSource))
+            ->addFile(new SplFileInfo($videoSource))
+            ->setTarget(new SplFileInfo($canonicalTarget));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('live-photo:content-id', $fileDuplicate);
+
+        $service
+            ->setSourceDirectory($sourceDirectory)
+            ->setTargetDirectory($targetDirectory)
+            ->setUseFileExtensionFromSource(true);
+
+        $service->createDuplicateFilenames($collection);
+
+        $duplicate = $collection->get('live-photo:content-id');
+        self::assertInstanceOf(FileDuplicate::class, $duplicate);
+
+        $renames = iterator_to_array($duplicate->getRenames());
+
+        self::assertCount(2, $renames);
+
+        $expectedCanonicalTarget = $targetDirectory . DIRECTORY_SEPARATOR . '20240101_120000.HEIC';
+        $expectedVideoTarget     = $targetDirectory . DIRECTORY_SEPARATOR . '20240101_120000.MOV';
+
+        $canonicalRename = null;
+        $videoRename     = null;
+
+        foreach ($renames as $rename) {
+            if ($rename->getTarget()->getPathname() === $expectedCanonicalTarget) {
+                $canonicalRename = $rename;
+            }
+
+            if ($rename->getSource()->getPathname() === $videoSource) {
+                $videoRename = $rename;
+            }
+        }
+
+        self::assertInstanceOf(Rename::class, $canonicalRename);
+        self::assertSame($photoSource, $canonicalRename->getSource()->getPathname());
+        self::assertSame($expectedCanonicalTarget, $canonicalRename->getTarget()->getPathname());
+
+        self::assertInstanceOf(Rename::class, $videoRename);
+        self::assertSame($expectedVideoTarget, $videoRename->getTarget()->getPathname());
+        self::assertStringNotContainsString(
+            FileSystemService::DUPLICATE_IDENTIFIER,
+            $videoRename->getTarget()->getFilename(),
+        );
+
+        // Clear progress output from duplicate generation.
+        $output->fetch();
+
+        $fileSystemService->renameFiles($collection, true);
+
+        $renameOutput = $output->fetch();
+
+        self::assertStringContainsString('[R]', $renameOutput);
+        self::assertStringContainsString($expectedVideoTarget, $renameOutput);
+        self::assertStringNotContainsString(FileSystemService::DUPLICATE_IDENTIFIER, $renameOutput);
     }
 
     #[Test]
@@ -374,25 +455,42 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         $renames = iterator_to_array($duplicate->getRenames());
 
-        self::assertCount(2, $renames);
-        self::assertSame($duplicateFile, $renames[0]->getSource()->getPathname());
+        self::assertCount(3, $renames);
+
+        $renamesBySource = [];
+
+        foreach ($renames as $rename) {
+            $renamesBySource[$rename->getSource()->getPathname()] = $rename;
+        }
+
+        self::assertArrayHasKey($rootFile, $renamesBySource);
+        self::assertSame(
+            $sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg',
+            $renamesBySource[$rootFile]->getTarget()->getPathname(),
+        );
+
+        self::assertArrayHasKey($duplicateFile, $renamesBySource);
         self::assertStringStartsWith(
             $nestedDirectory . DIRECTORY_SEPARATOR,
-            $renames[0]->getTarget()->getPathname(),
+            $renamesBySource[$duplicateFile]->getTarget()->getPathname(),
         );
-        self::assertSame($preRenamedDuplicate, $renames[1]->getSource()->getPathname());
-        self::assertNotSame($preRenamedDuplicate, $renames[1]->getTarget()->getPathname());
+
+        self::assertArrayHasKey($preRenamedDuplicate, $renamesBySource);
+        self::assertNotSame(
+            $preRenamedDuplicate,
+            $renamesBySource[$preRenamedDuplicate]->getTarget()->getPathname(),
+        );
 
         $pattern = '/' . preg_quote(FileSystemService::DUPLICATE_IDENTIFIER, '/') . '(\d{3})\.jpg$/';
 
         self::assertSame(
             1,
-            preg_match($pattern, $renames[0]->getTarget()->getFilename(), $firstMatch),
+            preg_match($pattern, $renamesBySource[$duplicateFile]->getTarget()->getFilename(), $firstMatch),
             'First duplicate rename should include a numeric duplicate suffix.',
         );
         self::assertSame(
             1,
-            preg_match($pattern, $renames[1]->getTarget()->getFilename(), $secondMatch),
+            preg_match($pattern, $renamesBySource[$preRenamedDuplicate]->getTarget()->getFilename(), $secondMatch),
             'Pre-renamed file should be reassigned a numeric duplicate suffix.',
         );
         self::assertNotSame(
@@ -575,7 +673,7 @@ final class DuplicateDetectionServiceTest extends TestCase
     }
 
     /**
-     * @return array{DuplicateDetectionService, BufferedOutput}
+     * @return array{DuplicateDetectionService, BufferedOutput, FileSystemService}
      */
     private function createService(): array
     {
@@ -585,7 +683,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         $fileSystemService = new FileSystemService($io);
         $service            = new DuplicateDetectionService($fileSystemService, $io);
 
-        return [$service, $output];
+        return [$service, $output, $fileSystemService];
     }
 
     private function createTempDirectory(): string

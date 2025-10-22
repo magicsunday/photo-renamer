@@ -336,6 +336,7 @@ final class AbstractRenameCommandTest extends TestCase
         };
 
         $tester = new CommandTester($command);
+        $tester->setInputs(['yes']);
         $tester->execute([
             'source-directory' => '/source-directory',
             'target-directory' => '/target-directory',
