@@ -26,6 +26,7 @@ use function file_get_contents;
 use function file_put_contents;
 use function is_dir;
 use function mkdir;
+use function preg_match;
 use function preg_quote;
 use function rmdir;
 use function rtrim;
@@ -295,7 +296,7 @@ final class FileSystemServiceTest extends TestCase
     }
 
     #[Test]
-    public function renameFilesDisplaysRelativePathsWhenUsingSameBaseDirectory(): void
+    public function renameFilesDisplaysAbsolutePathsWhenBaseDirectoryIsAbsolute(): void
     {
         [$service, $output] = $this->createService();
 
@@ -321,11 +322,8 @@ final class FileSystemServiceTest extends TestCase
 
         $buffer = $output->fetch();
 
-        $relativeSource = $this->relativizePath($sourceFile, $directory);
-        $relativeTarget = $this->relativizePath($targetFile, $directory);
-
-        self::assertStringContainsString($relativeSource, $buffer);
-        self::assertStringContainsString($relativeTarget, $buffer);
+        self::assertStringContainsString($sourceFile, $buffer);
+        self::assertStringContainsString($targetFile, $buffer);
     }
 
     #[Test]
@@ -526,6 +524,14 @@ final class FileSystemServiceTest extends TestCase
         $normalizedBase = rtrim($baseDirectory, DIRECTORY_SEPARATOR);
 
         if ($normalizedBase === '') {
+            return $path;
+        }
+
+        if (
+            str_starts_with($normalizedBase, DIRECTORY_SEPARATOR)
+            || str_starts_with($normalizedBase, '\\')
+            || preg_match('/^[A-Za-z]:(?:[\\\/]|$)/', $normalizedBase) === 1
+        ) {
             return $path;
         }
 

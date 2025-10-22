@@ -23,6 +23,7 @@ use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function basename;
+use function preg_match;
 use function rtrim;
 use function sprintf;
 use function str_starts_with;
@@ -243,6 +244,14 @@ class FileSystemService implements FileSystemServiceInterface
         $normalizedBase = rtrim($baseDirectory, DIRECTORY_SEPARATOR);
 
         if ($normalizedBase === '') {
+            return $pathname;
+        }
+
+        if (
+            str_starts_with($normalizedBase, DIRECTORY_SEPARATOR)
+            || str_starts_with($normalizedBase, '\\')
+            || preg_match('/^[A-Za-z]:(?:[\\\/]|$)/', $normalizedBase) === 1
+        ) {
             return $pathname;
         }
 
