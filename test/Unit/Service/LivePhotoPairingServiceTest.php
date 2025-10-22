@@ -69,6 +69,49 @@ final class LivePhotoPairingServiceTest extends TestCase
     }
 
     #[Test]
+    public function itPairsVideoWhenResolverReturnsWhitespaceIdentifiers(): void
+    {
+        $photo = new SplFileInfo('/source/IMG_0002.HEIC');
+        $video = new SplFileInfo('/source/IMG_0002.MOV');
+        $target = new SplFileInfo('/target/20240102_120000.HEIC');
+
+        $existingDuplicate = (new FileDuplicate())
+            ->addFile($photo)
+            ->setTarget($target);
+
+        $duplicateCollection = new FileDuplicateCollection();
+        $duplicateCollection->set('live-photo:content-id', $existingDuplicate);
+
+        $service = new LivePhotoPairingService();
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveArrayIterator([$photo, $video], RecursiveArrayIterator::CHILD_ARRAYS_ONLY),
+        );
+
+        $pairs = $service->pairByContentIdentifier(
+            iterator: $iterator,
+            fileDuplicateCollection: $duplicateCollection,
+            contentIdentifierResolver: static function (SplFileInfo $file) use ($photo, $video): ?string {
+                return match ($file->getPathname()) {
+                    $photo->getPathname() => "  \tContent-ID  \n",
+                    $video->getPathname() => 'content-id',
+                    default => null,
+                };
+            },
+        );
+
+        $pairings = $pairs->toList();
+
+        self::assertCount(1, $pairings);
+
+        $pair = $pairings[0];
+        self::assertSame($video->getPathname(), $pair->getSourceFile()->getPathname());
+        self::assertSame('/source/20240102_120000.MOV', $pair->getTargetFile()->getPathname());
+        self::assertSame('live-photo:content-id', $pair->getDuplicateIdentifier());
+        self::assertSame('content-id', $pair->getContentIdentifier());
+    }
+
+    #[Test]
     public function itInvokesProgressCallbackForEachInspectedFile(): void
     {
         $iterator = new RecursiveIteratorIterator(
@@ -144,6 +187,6 @@ final class LivePhotoPairingServiceTest extends TestCase
         self::assertSame($video->getPathname(), $pair->getSourceFile()->getPathname());
         self::assertSame($expectedTargetPath, $pair->getTargetFile()->getPathname());
         self::assertSame('live-photo:iphone', $pair->getDuplicateIdentifier());
-        self::assertSame('UUID-IPHONE-LIVEPHOTO', $pair->getContentIdentifier());
+        self::assertSame('uuid-iphone-livephoto', $pair->getContentIdentifier());
     }
 }
