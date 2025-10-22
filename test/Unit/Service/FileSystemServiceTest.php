@@ -27,10 +27,14 @@ use function is_dir;
 use function mkdir;
 use function preg_quote;
 use function rmdir;
+use function rtrim;
 use function scandir;
 use function sprintf;
 use function str_replace;
+use function str_starts_with;
+use function strlen;
 use function sys_get_temp_dir;
+use function substr;
 use function uniqid;
 use function unlink;
 
@@ -108,7 +112,12 @@ final class FileSystemServiceTest extends TestCase
             $targetFile,
         );
 
-        $service->renameFiles($fileDuplicateCollection, dryRun: true);
+        $service->renameFiles(
+            $fileDuplicateCollection,
+            dryRun: true,
+            sourceBaseDirectory: $sourceDirectory,
+            targetBaseDirectory: $targetDirectory,
+        );
 
         self::assertFileExists($sourceFile);
         self::assertFileDoesNotExist($targetFile);
@@ -140,13 +149,20 @@ final class FileSystemServiceTest extends TestCase
             $canonicalTarget,
         );
 
-        $service->renameFiles($fileDuplicateCollection, skipDuplicates: true);
+        $service->renameFiles(
+            $fileDuplicateCollection,
+            skipDuplicates: true,
+            sourceBaseDirectory: $sourceDirectory,
+            targetBaseDirectory: $targetDirectory,
+        );
 
         self::assertFileExists($sourceFile);
         self::assertFileDoesNotExist($targetFile);
 
         $buffer = $output->fetch();
-        self::assertStringContainsString('Duplicate! Skip', $buffer);
+        $relativeSource = $this->relativizePath($sourceFile, $sourceDirectory);
+
+        self::assertStringContainsString('Duplicate! Skip "' . $relativeSource . '"', $buffer);
         self::assertStringContainsString('0 files renamed', $buffer);
         self::assertStringContainsString('1 possible duplicates found', $buffer);
     }
@@ -176,7 +192,12 @@ final class FileSystemServiceTest extends TestCase
             $targetFile,
         );
 
-        $service->renameFiles($fileDuplicateCollection, skipDuplicates: true);
+        $service->renameFiles(
+            $fileDuplicateCollection,
+            skipDuplicates: true,
+            sourceBaseDirectory: $sourceDirectory,
+            targetBaseDirectory: $targetDirectory,
+        );
 
         self::assertFileDoesNotExist($sourceFile);
         self::assertFileExists($targetFile);
@@ -188,8 +209,12 @@ final class FileSystemServiceTest extends TestCase
 
         self::assertStringNotContainsString('Duplicate! Skip', $buffer);
         self::assertStringContainsString('[R]', $buffer);
-        self::assertStringContainsString($sourceFile, $buffer);
-        self::assertStringContainsString($targetFile, $buffer);
+
+        $relativeSource = $this->relativizePath($sourceFile, $sourceDirectory);
+        $relativeTarget = $this->relativizePath($targetFile, $targetDirectory);
+
+        self::assertStringContainsString($relativeSource, $buffer);
+        self::assertStringContainsString($relativeTarget, $buffer);
         self::assertStringContainsString('1 files renamed', $buffer);
         self::assertStringContainsString('0 possible duplicates found', $buffer);
     }
@@ -245,7 +270,12 @@ final class FileSystemServiceTest extends TestCase
             $targetFile,
         );
 
-        $service->renameFiles($fileDuplicateCollection, dryRun: true);
+        $service->renameFiles(
+            $fileDuplicateCollection,
+            dryRun: true,
+            sourceBaseDirectory: $sourceDirectory,
+            targetBaseDirectory: $targetDirectory,
+        );
 
         $buffer     = $output->fetch();
         $normalized = str_replace("\r", "\n", $buffer);
@@ -256,8 +286,45 @@ final class FileSystemServiceTest extends TestCase
         self::assertNotFalse($progressPosition);
         self::assertNotFalse($logPosition);
         self::assertLessThan($logPosition, $progressPosition);
-        self::assertStringContainsString($sourceFile, $normalized);
-        self::assertStringContainsString($targetFile, $normalized);
+        $relativeSource = $this->relativizePath($sourceFile, $sourceDirectory);
+        $relativeTarget = $this->relativizePath($targetFile, $targetDirectory);
+
+        self::assertStringContainsString($relativeSource, $normalized);
+        self::assertStringContainsString($relativeTarget, $normalized);
+    }
+
+    #[Test]
+    public function renameFilesDisplaysRelativePathsWhenUsingSameBaseDirectory(): void
+    {
+        [$service, $output] = $this->createService();
+
+        $directory = $this->workspace . DIRECTORY_SEPARATOR . 'in-place';
+        mkdir($directory);
+
+        $sourceFile = $directory . DIRECTORY_SEPARATOR . 'original.jpg';
+        $targetFile = $directory . DIRECTORY_SEPARATOR . 'renamed.jpg';
+
+        file_put_contents($sourceFile, 'content');
+
+        $fileDuplicateCollection = $this->createFileDuplicateCollection(
+            $sourceFile,
+            $targetFile,
+        );
+
+        $service->renameFiles(
+            $fileDuplicateCollection,
+            dryRun: true,
+            sourceBaseDirectory: $directory,
+            targetBaseDirectory: $directory,
+        );
+
+        $buffer = $output->fetch();
+
+        $relativeSource = $this->relativizePath($sourceFile, $directory);
+        $relativeTarget = $this->relativizePath($targetFile, $directory);
+
+        self::assertStringContainsString($relativeSource, $buffer);
+        self::assertStringContainsString($relativeTarget, $buffer);
     }
 
     #[Test]
@@ -287,16 +354,28 @@ final class FileSystemServiceTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('status', $fileDuplicate);
 
-        $service->renameFiles($collection, dryRun: true, listAll: true);
+        $service->renameFiles(
+            $collection,
+            dryRun: true,
+            listAll: true,
+            sourceBaseDirectory: $sourceDirectory,
+            targetBaseDirectory: $targetDirectory,
+        );
 
         $buffer = $output->fetch();
 
-        self::assertStringContainsString('[O] ' . $canonicalPath, $buffer);
-        self::assertStringContainsString('[R] ' . $renameSource, $buffer);
-        self::assertStringContainsString('[D] ' . $duplicateSource, $buffer);
-        self::assertStringContainsString('→ ' . $canonicalPath, $buffer);
-        self::assertStringContainsString('→ ' . $renameTarget, $buffer);
-        self::assertStringContainsString('→ ' . $duplicateTarget, $buffer);
+        $relativeCanonical = $this->relativizePath($canonicalPath, $targetDirectory);
+        $relativeRenameSource = $this->relativizePath($renameSource, $sourceDirectory);
+        $relativeDuplicateSource = $this->relativizePath($duplicateSource, $sourceDirectory);
+        $relativeRenameTarget = $this->relativizePath($renameTarget, $targetDirectory);
+        $relativeDuplicateTarget = $this->relativizePath($duplicateTarget, $targetDirectory);
+
+        self::assertStringContainsString('[O] ' . $relativeCanonical, $buffer);
+        self::assertStringContainsString('[R] ' . $relativeRenameSource, $buffer);
+        self::assertStringContainsString('[D] ' . $relativeDuplicateSource, $buffer);
+        self::assertStringContainsString('→ ' . $relativeCanonical, $buffer);
+        self::assertStringContainsString('→ ' . $relativeRenameTarget, $buffer);
+        self::assertStringContainsString('→ ' . $relativeDuplicateTarget, $buffer);
     }
 
     #[Test]
@@ -434,6 +513,27 @@ final class FileSystemServiceTest extends TestCase
             ' %current%/%max% [%bar%] %percent:3s%% | ETA: %estimated:-6s% | Remaining: %remaining:-6s%',
             $formatProperty->getValue($progressBar),
         );
+    }
+
+    private function relativizePath(string $path, ?string $baseDirectory): string
+    {
+        if ($baseDirectory === null || $baseDirectory === '') {
+            return $path;
+        }
+
+        $normalizedBase = rtrim($baseDirectory, DIRECTORY_SEPARATOR);
+
+        if ($normalizedBase === '') {
+            return $path;
+        }
+
+        $prefix = $normalizedBase . DIRECTORY_SEPARATOR;
+
+        if (str_starts_with($path, $prefix)) {
+            return substr($path, strlen($prefix));
+        }
+
+        return $path;
     }
 
     /**
