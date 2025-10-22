@@ -77,12 +77,14 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
         }
 
         $exifDateTimeOriginal  = $exifData->getDateTimeOriginal();
-        $exifSubSecTimeOriginal = $exifData->getSubSecTimeOriginal() ?? '';
+        $exifSubSecTimeOriginal = $this->normaliseSubSecondValue(
+            $exifData->getSubSecTimeOriginal()
+        );
 
         try {
             $dateTimeOriginal = new DateTime($exifDateTimeOriginal);
 
-            if ($exifSubSecTimeOriginal !== '') {
+            if ($exifSubSecTimeOriginal !== null) {
                 if (strlen($exifSubSecTimeOriginal) > 4) {
                     $dateTimeOriginal->modify('+' . $exifSubSecTimeOriginal . ' Microseconds');
                 } else {
@@ -98,4 +100,18 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
         return $dateTimeOriginal->format($pattern);
     }
 
+    private function normaliseSubSecondValue(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $digits = preg_replace('/[^0-9]/', '', $value);
+
+        if ($digits === '') {
+            return null;
+        }
+
+        return $digits;
+    }
 }
