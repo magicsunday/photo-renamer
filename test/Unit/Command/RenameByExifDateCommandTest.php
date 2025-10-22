@@ -69,7 +69,7 @@ final class RenameByExifDateCommandTest extends TestCase
         $expectedTargetDirectory = $this->buildExpectedAbsolutePath('target-dir');
 
         $fileSystemService
-            ->expects(self::exactly(2))
+            ->expects(self::once())
             ->method('createFileIterator')
             ->with($expectedSourceDirectory)
             ->willReturn($iterator);
@@ -107,7 +107,7 @@ final class RenameByExifDateCommandTest extends TestCase
             ->expects(self::once())
             ->method('groupFilesByDuplicateIdentifier')
             ->with(
-                self::isInstanceOf(RecursiveIteratorIterator::class),
+                self::identicalTo($iterator),
                 self::callback(static function ($strategy) use (&$capturedRenameStrategy): bool {
                     $capturedRenameStrategy = $strategy;
 
@@ -208,16 +208,6 @@ final class RenameByExifDateCommandTest extends TestCase
         $fileSystemService = $this->createMock(FileSystemServiceInterface::class);
         $fileSystemService
             ->expects(self::once())
-            ->method('createFileIterator')
-            ->with('/source')
-            ->willReturn(
-                new RecursiveIteratorIterator(
-                    new RecursiveArrayIterator([$photo], RecursiveArrayIterator::CHILD_ARRAYS_ONLY),
-                ),
-            );
-
-        $fileSystemService
-            ->expects(self::once())
             ->method('countFiles')
             ->with(self::identicalTo($iterator))
             ->willReturn(2);
@@ -228,7 +218,7 @@ final class RenameByExifDateCommandTest extends TestCase
             ->expects(self::once())
             ->method('groupFilesByDuplicateIdentifier')
             ->with(
-                self::isInstanceOf(RecursiveIteratorIterator::class),
+                self::identicalTo($iterator),
                 self::isInstanceOf(ExifDateFilenameStrategy::class),
                 self::isInstanceOf(LivePhotoContentIdentifierStrategy::class),
             )
@@ -329,16 +319,6 @@ final class RenameByExifDateCommandTest extends TestCase
         $fileSystemService = $this->createMock(FileSystemServiceInterface::class);
         $fileSystemService
             ->expects(self::once())
-            ->method('createFileIterator')
-            ->with('/source')
-            ->willReturn(
-                new RecursiveIteratorIterator(
-                    new RecursiveArrayIterator([], RecursiveArrayIterator::CHILD_ARRAYS_ONLY),
-                ),
-            );
-
-        $fileSystemService
-            ->expects(self::once())
             ->method('countFiles')
             ->with(self::identicalTo($iterator))
             ->willReturn(0);
@@ -349,7 +329,7 @@ final class RenameByExifDateCommandTest extends TestCase
             ->expects(self::once())
             ->method('groupFilesByDuplicateIdentifier')
             ->with(
-                self::isInstanceOf(RecursiveIteratorIterator::class),
+                self::identicalTo($iterator),
                 self::isInstanceOf(ExifDateFilenameStrategy::class),
                 self::isInstanceOf(LivePhotoContentIdentifierStrategy::class),
             )
@@ -421,16 +401,6 @@ final class RenameByExifDateCommandTest extends TestCase
         $fileSystemService = $this->createMock(FileSystemServiceInterface::class);
         $fileSystemService
             ->expects(self::once())
-            ->method('createFileIterator')
-            ->with('/source')
-            ->willReturn(
-                new RecursiveIteratorIterator(
-                    new RecursiveArrayIterator([$photo], RecursiveArrayIterator::CHILD_ARRAYS_ONLY),
-                ),
-            );
-
-        $fileSystemService
-            ->expects(self::once())
             ->method('countFiles')
             ->with(self::identicalTo($iterator))
             ->willReturn(2);
@@ -441,7 +411,7 @@ final class RenameByExifDateCommandTest extends TestCase
             ->expects(self::once())
             ->method('groupFilesByDuplicateIdentifier')
             ->with(
-                self::isInstanceOf(RecursiveIteratorIterator::class),
+                self::identicalTo($iterator),
                 self::isInstanceOf(ExifDateFilenameStrategy::class),
                 self::isInstanceOf(LivePhotoContentIdentifierStrategy::class),
             )

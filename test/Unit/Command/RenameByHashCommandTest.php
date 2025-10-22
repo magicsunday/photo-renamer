@@ -51,7 +51,7 @@ final class RenameByHashCommandTest extends TestCase
         $expectedTargetDirectory = $this->buildExpectedAbsolutePath('target-dir');
 
         $fileSystemService
-            ->expects(self::exactly(2))
+            ->expects(self::once())
             ->method('createFileIterator')
             ->with($expectedSourceDirectory)
             ->willReturn($iterator);
@@ -80,7 +80,7 @@ final class RenameByHashCommandTest extends TestCase
             ->expects(self::once())
             ->method('groupFilesByDuplicateIdentifier')
             ->with(
-                self::isInstanceOf(RecursiveIteratorIterator::class),
+                self::identicalTo($iterator),
                 self::callback(static fn ($strategy) => $strategy instanceof InheritFilenameStrategy),
                 self::callback(static fn ($strategy) => $strategy instanceof ContentHashStrategy),
             )

@@ -492,7 +492,7 @@ abstract class AbstractRenameCommand extends Command
         // Process list of all files
         return $this->duplicateDetectionService
             ->groupFilesByDuplicateIdentifier(
-                iterator: $this->createFileIterator(),
+                iterator: $iterator,
                 renameStrategy: $this->getTargetFilenameProcessor(),
                 duplicateIdentifierStrategy: $this->getDuplicateIdentifierStrategy()
             );
