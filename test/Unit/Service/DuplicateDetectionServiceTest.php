@@ -239,6 +239,126 @@ final class DuplicateDetectionServiceTest extends TestCase
     }
 
     #[Test]
+    public function groupFilesByDuplicateIdentifierAddsPendingFilesWithSharedContentIdentifier(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $photoPath = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.HEIC';
+        $videoPath = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.MOV';
+
+        file_put_contents($photoPath, 'photo');
+        file_put_contents($videoPath, 'video');
+
+        $service
+            ->setSourceDirectory($sourceDirectory)
+            ->setTargetDirectory($targetDirectory);
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveArrayIterator([
+                new SplFileInfo($photoPath),
+                new SplFileInfo($videoPath),
+            ], RecursiveArrayIterator::CHILD_ARRAYS_ONLY),
+        );
+
+        $renameStrategy = new DummyLivePhotoRenameStrategy([
+            $photoPath => '20240101_120000.HEIC',
+            $videoPath => null,
+        ], [
+            $photoPath => 'content-id',
+            $videoPath => 'content-id',
+        ]);
+
+        $duplicateIdentifierStrategy = new DummyLivePhotoDuplicateIdentifierStrategy([
+            $photoPath => 'content-id',
+        ]);
+
+        $collection = $service->groupFilesByDuplicateIdentifier(
+            $iterator,
+            $renameStrategy,
+            $duplicateIdentifierStrategy,
+        );
+
+        self::assertTrue($collection->has('live-photo:content-id'));
+
+        $duplicate = $collection->get('live-photo:content-id');
+        self::assertInstanceOf(FileDuplicate::class, $duplicate);
+
+        $files = iterator_to_array($duplicate->getFiles());
+        self::assertCount(2, $files);
+
+        $paths = [
+            $files[0]->getPathname(),
+            $files[1]->getPathname(),
+        ];
+
+        self::assertContains($photoPath, $paths);
+        self::assertContains($videoPath, $paths);
+    }
+
+    #[Test]
+    public function groupFilesByDuplicateIdentifierAddsVideoEncounteredBeforePhoto(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $photoPath = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0002.HEIC';
+        $videoPath = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0002.MOV';
+
+        file_put_contents($photoPath, 'photo');
+        file_put_contents($videoPath, 'video');
+
+        $service
+            ->setSourceDirectory($sourceDirectory)
+            ->setTargetDirectory($targetDirectory);
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveArrayIterator([
+                new SplFileInfo($videoPath),
+                new SplFileInfo($photoPath),
+            ], RecursiveArrayIterator::CHILD_ARRAYS_ONLY),
+        );
+
+        $renameStrategy = new DummyLivePhotoRenameStrategy([
+            $photoPath => '20240101_130000.HEIC',
+            $videoPath => null,
+        ], [
+            $photoPath => 'content-id-2',
+            $videoPath => 'content-id-2',
+        ]);
+
+        $duplicateIdentifierStrategy = new DummyLivePhotoDuplicateIdentifierStrategy([
+            $photoPath => 'content-id-2',
+        ]);
+
+        $collection = $service->groupFilesByDuplicateIdentifier(
+            $iterator,
+            $renameStrategy,
+            $duplicateIdentifierStrategy,
+        );
+
+        self::assertTrue($collection->has('live-photo:content-id-2'));
+
+        $duplicate = $collection->get('live-photo:content-id-2');
+        self::assertInstanceOf(FileDuplicate::class, $duplicate);
+
+        $files = iterator_to_array($duplicate->getFiles());
+        self::assertCount(2, $files);
+
+        $paths = [
+            $files[0]->getPathname(),
+            $files[1]->getPathname(),
+        ];
+
+        self::assertContains($photoPath, $paths);
+        self::assertContains($videoPath, $paths);
+    }
+
+    #[Test]
     public function createDuplicateFilenamesUsesSourceExtensionWhenConfigured(): void
     {
         [$service] = $this->createService();
@@ -728,5 +848,55 @@ final class DuplicateDetectionServiceTest extends TestCase
         }
 
         rmdir($directory);
+    }
+}
+
+final class DummyLivePhotoRenameStrategy implements RenameStrategyInterface
+{
+    /**
+     * @param array<string, string|null> $filenameMap
+     * @param array<string, string|null> $identifierMap
+     */
+    public function __construct(
+        private readonly array $filenameMap,
+        private readonly array $identifierMap,
+    ) {
+    }
+
+    public function generateFilename(SplFileInfo $splFileInfo): ?string
+    {
+        $pathname = $splFileInfo->getPathname();
+
+        return $this->filenameMap[$pathname] ?? null;
+    }
+
+    public function getLivePhotoContentIdentifier(SplFileInfo $splFileInfo): ?string
+    {
+        $pathname = $splFileInfo->getPathname();
+
+        return $this->identifierMap[$pathname] ?? null;
+    }
+}
+
+final class DummyLivePhotoDuplicateIdentifierStrategy implements DuplicateIdentifierStrategyInterface
+{
+    /**
+     * @param array<string, string|null> $identifierMap
+     */
+    public function __construct(private readonly array $identifierMap)
+    {
+    }
+
+    public function generateIdentifier(SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo): string|false
+    {
+        $pathname = $sourceFileInfo->getPathname();
+
+        $identifier = $this->identifierMap[$pathname] ?? null;
+
+        if ($identifier === null) {
+            return $targetFileInfo->getFilename();
+        }
+
+        return 'live-photo:' . strtolower($identifier);
     }
 }

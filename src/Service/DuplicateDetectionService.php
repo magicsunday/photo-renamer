@@ -24,9 +24,13 @@ use RecursiveIteratorIterator;
 use SplFileInfo;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
+use function array_key_exists;
 use function in_array;
+use function is_string;
+use function method_exists;
 use function sprintf;
 use function strtolower;
+use function trim;
 
 /**
  * Service for duplicate detection operations.
@@ -163,6 +167,15 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         );
 
         $fileDuplicateCollection = new FileDuplicateCollection();
+        /**
+         * @var array<string, array{
+         *     duplicateIdentifier: string|null,
+         *     pendingFiles: list<SplFileInfo>,
+         *     target: SplFileInfo|null,
+         *     captureDate: string|null
+         * }> $contentIdentifierCache
+         */
+        $contentIdentifierCache = [];
 
         /** @var SplFileInfo $sourceFileInfo */
         foreach ($iterator as $sourceFileInfo) {
@@ -172,7 +185,58 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 $renameStrategy
             );
 
+            $normalizedContentIdentifier = $this->resolveNormalizedContentIdentifier(
+                $renameStrategy,
+                $sourceFileInfo,
+            );
+
+            $contentIdentifierCacheEntry = null;
+
+            if ($normalizedContentIdentifier !== null) {
+                if (!array_key_exists($normalizedContentIdentifier, $contentIdentifierCache)) {
+                    $contentIdentifierCache[$normalizedContentIdentifier] = [
+                        'duplicateIdentifier' => null,
+                        'pendingFiles' => [],
+                        'target' => null,
+                        'captureDate' => null,
+                    ];
+                }
+
+                $contentIdentifierCacheEntry = &$contentIdentifierCache[$normalizedContentIdentifier];
+            }
+
+            if ($targetFileInfo === null) {
+                if ($contentIdentifierCacheEntry !== null) {
+                    $cachedDuplicateIdentifier = $contentIdentifierCacheEntry['duplicateIdentifier'];
+
+                    if (
+                        is_string($cachedDuplicateIdentifier)
+                        && $fileDuplicateCollection->has($cachedDuplicateIdentifier)
+                    ) {
+                        $existingDuplicate = $fileDuplicateCollection->get($cachedDuplicateIdentifier);
+
+                        if ($existingDuplicate instanceof FileDuplicate) {
+                            $existingDuplicate->addFile($sourceFileInfo);
+                        }
+                    } else {
+                        $contentIdentifierCacheEntry['pendingFiles'][] = $sourceFileInfo;
+                    }
+                }
+
+                if (isset($contentIdentifierCacheEntry)) {
+                    unset($contentIdentifierCacheEntry);
+                }
+
+                $progressBar->advance();
+
+                continue;
+            }
+
             if (!($targetFileInfo instanceof SplFileInfo)) {
+                if (isset($contentIdentifierCacheEntry)) {
+                    unset($contentIdentifierCacheEntry);
+                }
+
                 continue;
             }
 
@@ -190,6 +254,15 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             }
 
             if ($duplicateIdentifier === false) {
+                if ($contentIdentifierCacheEntry !== null) {
+                    $contentIdentifierCacheEntry['pendingFiles'][] = $sourceFileInfo;
+                    $contentIdentifierCacheEntry['target'] = $targetFileInfo;
+                }
+
+                if (isset($contentIdentifierCacheEntry)) {
+                    unset($contentIdentifierCacheEntry);
+                }
+
                 continue;
             }
 
@@ -212,6 +285,23 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 $fileDuplicate->addFile($sourceFileInfo);
             } else {
                 $fileDuplicateCollection->set($duplicateIdentifier, $fileDuplicate);
+            }
+
+            if ($contentIdentifierCacheEntry !== null) {
+                $contentIdentifierCacheEntry['duplicateIdentifier'] = $duplicateIdentifier;
+                $contentIdentifierCacheEntry['target'] = $fileDuplicate->getTarget();
+                $contentIdentifierCacheEntry['captureDate'] = $fileDuplicate->getTarget()
+                    ->getBasename('.' . $fileDuplicate->getTarget()->getExtension());
+
+                foreach ($contentIdentifierCacheEntry['pendingFiles'] as $pendingFile) {
+                    $fileDuplicate->addFile($pendingFile);
+                }
+
+                $contentIdentifierCacheEntry['pendingFiles'] = [];
+            }
+
+            if (isset($contentIdentifierCacheEntry)) {
+                unset($contentIdentifierCacheEntry);
             }
 
             $progressBar->advance();
@@ -579,5 +669,28 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         }
 
         return in_array($extension, self::LIVE_PHOTO_STILL_EXTENSIONS, true);
+    }
+
+    private function resolveNormalizedContentIdentifier(
+        RenameStrategyInterface $renameStrategy,
+        SplFileInfo $sourceFileInfo,
+    ): ?string {
+        if (!method_exists($renameStrategy, 'getLivePhotoContentIdentifier')) {
+            return null;
+        }
+
+        $contentIdentifier = $renameStrategy->getLivePhotoContentIdentifier($sourceFileInfo);
+
+        if (!is_string($contentIdentifier)) {
+            return null;
+        }
+
+        $normalized = strtolower(trim($contentIdentifier));
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        return $normalized;
     }
 }

@@ -150,6 +150,7 @@ final class RenameByExifDateCommandTest extends TestCase
                 self::identicalTo($duplicateCollection),
                 self::callback(static fn ($resolver): bool => is_callable($resolver)),
                 self::callback(static fn ($callback): bool => $callback === null || is_callable($callback)),
+                self::isFalse(),
             )
             ->willReturn(LivePhotoPairingCollection::empty());
 
@@ -195,7 +196,7 @@ final class RenameByExifDateCommandTest extends TestCase
     }
 
     #[Test]
-    public function groupFilesByDuplicateIdentifierAddsLivePhotoPairsFromService(): void
+    public function groupFilesByDuplicateIdentifierUsesFallbackPairsFromService(): void
     {
         $photo = new SplFileInfo('/source/IMG_0001.HEIC');
         $video = new SplFileInfo('/source/IMG_0001.MOV');
@@ -243,8 +244,17 @@ final class RenameByExifDateCommandTest extends TestCase
                 self::identicalTo($duplicateCollection),
                 self::callback(static fn ($resolver): bool => is_callable($resolver)),
                 self::callback(static fn ($callback): bool => is_callable($callback)),
+                self::isFalse(),
             )
-            ->willReturnCallback(static function ($iteratorArg, $collection, $resolver, $progressCallback) use ($video, $pairedTarget): LivePhotoPairingCollection {
+            ->willReturnCallback(static function (
+                $iteratorArg,
+                $collection,
+                $resolver,
+                $progressCallback,
+                bool $matchByContentIdentifier,
+            ) use ($video, $pairedTarget): LivePhotoPairingCollection {
+                self::assertFalse($matchByContentIdentifier);
+
                 $progressCallback();
                 $progressCallback();
 
@@ -313,6 +323,7 @@ final class RenameByExifDateCommandTest extends TestCase
 
         $duplicate = (new FileDuplicate())
             ->addFile($photo)
+            ->addFile($video)
             ->setTarget($photoTarget);
 
         $duplicateCollection = new FileDuplicateCollection();
@@ -419,10 +430,9 @@ final class RenameByExifDateCommandTest extends TestCase
                 self::identicalTo($duplicateCollection),
                 self::callback(static fn ($resolver): bool => is_callable($resolver)),
                 self::callback(static fn ($callback): bool => is_callable($callback)),
+                self::isFalse(),
             )
-            ->willReturn(LivePhotoPairingCollection::fromPairings(
-                new LivePhotoPairing($video, $videoTarget, 'live-photo:content-id', 'content-id'),
-            ));
+            ->willReturn(LivePhotoPairingCollection::empty());
 
         $command = new RenameByExifDateCommand(
             $fileSystemService,
@@ -585,8 +595,17 @@ final class RenameByExifDateCommandTest extends TestCase
                 self::identicalTo($duplicateCollection),
                 self::callback(static fn ($resolver): bool => is_callable($resolver)),
                 self::callback(static fn ($callback): bool => is_callable($callback)),
+                self::isFalse(),
             )
-            ->willReturnCallback(static function () use ($iterator): LivePhotoPairingCollection {
+            ->willReturnCallback(static function (
+                RecursiveIteratorIterator $iteratorArg,
+                FileDuplicateCollection $collection,
+                callable $resolver,
+                callable $progressCallback,
+                bool $matchByContentIdentifier,
+            ) use ($iterator): LivePhotoPairingCollection {
+                self::assertSame($iterator, $iteratorArg);
+                self::assertFalse($matchByContentIdentifier);
                 self::assertSame(1, $iterator->rewindCalls);
 
                 return LivePhotoPairingCollection::empty();
@@ -669,13 +688,17 @@ final class RenameByExifDateCommandTest extends TestCase
                 self::identicalTo($duplicateCollection),
                 self::callback(static fn ($resolver): bool => is_callable($resolver)),
                 self::callback(static fn ($callback): bool => is_callable($callback)),
+                self::isFalse(),
             )
             ->willReturnCallback(static function (
                 RecursiveIteratorIterator $iteratorArg,
                 FileDuplicateCollection $collection,
                 callable $resolver,
                 callable $progressCallback,
+                bool $matchByContentIdentifier,
             ) use (&$capturedPairings, $photo, $video): LivePhotoPairingCollection {
+                self::assertFalse($matchByContentIdentifier);
+
                 $service = new LivePhotoPairingService();
 
                 $capturedPairings = $service->pairByContentIdentifier(
@@ -688,6 +711,7 @@ final class RenameByExifDateCommandTest extends TestCase
                         };
                     },
                     onFileInspected: $progressCallback,
+                    matchByContentIdentifier: false,
                 );
 
                 return $capturedPairings;

@@ -116,7 +116,7 @@ class RenameByExifDateCommand extends AbstractRenameCommand
     {
         $fileDuplicateCollection = parent::groupFilesByDuplicateIdentifier($iterator);
 
-        $this->io->text('Perform a second pass to find all remaining files that share the same base name');
+        $this->io->text('Perform a fallback pass to find remaining files that share the same base name');
         $this->io->newLine();
 
         $fileCount = $this->fileSystemService->countFiles($iterator);
@@ -139,6 +139,7 @@ class RenameByExifDateCommand extends AbstractRenameCommand
             onFileInspected: function () use ($progressBar): void {
                 $progressBar?->advance();
             },
+            matchByContentIdentifier: false,
         );
 
         /** @var LivePhotoPairing $pairing */
