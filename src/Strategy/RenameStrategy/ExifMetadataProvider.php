@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Strategy\RenameStrategy;
 
+use DateTimeInterface;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Service\SafeExifReader;
@@ -17,6 +18,8 @@ use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\MetadataEntryCollection;
 use MagicSunday\Renamer\Strategy\RenameStrategy\QuickTime\QuickTimeContentIdentifierExtractor;
 use SplFileInfo;
 use SplObjectStorage;
+
+use function sprintf;
 
 final class ExifMetadataProvider
 {
@@ -82,22 +85,35 @@ final class ExifMetadataProvider
             $contentIdentifier = $this->quickTimeContentIdentifierExtractor->extractContentIdentifier($splFileInfo);
         }
 
+        $dateTimeOriginal = null;
+        $subSecTimeOriginal = null;
+
+        if ($metadata !== null) {
+            $dateTimeOriginal = $metadata->getString('DateTimeOriginal');
+
+            if ($dateTimeOriginal !== null && $dateTimeOriginal !== '') {
+                $subSecTimeOriginal = $metadata->getString('SubSecTimeOriginal');
+
+                if ($subSecTimeOriginal === null || $subSecTimeOriginal === '') {
+                    $subSecTimeOriginal = null;
+                }
+            } else {
+                $dateTimeOriginal = null;
+            }
+        }
+
+        if ($dateTimeOriginal === null) {
+            $quickTimeDate = $this->quickTimeContentIdentifierExtractor->extractCreationDate($splFileInfo);
+
+            if ($quickTimeDate !== null) {
+                [$dateTimeOriginal, $subSecTimeOriginal] = $this->normaliseQuickTimeTimestamp($quickTimeDate);
+            }
+        }
+
         $this->contentIdentifierCache[$splFileInfo] = $contentIdentifier;
 
-        if ($metadata === null) {
+        if ($dateTimeOriginal === null) {
             return null;
-        }
-
-        $dateTimeOriginal = $metadata->getString('DateTimeOriginal');
-
-        if ($dateTimeOriginal === null || $dateTimeOriginal === '') {
-            return null;
-        }
-
-        $subSecTimeOriginal = $metadata->getString('SubSecTimeOriginal');
-
-        if ($subSecTimeOriginal === null || $subSecTimeOriginal === '') {
-            $subSecTimeOriginal = null;
         }
 
         return new ExifData($dateTimeOriginal, $subSecTimeOriginal, $contentIdentifier);
@@ -112,6 +128,27 @@ final class ExifMetadataProvider
         }
 
         return new ContentIdentifier($match->getValue());
+    }
+
+    /**
+     * @return array{0: string, 1: ?string}
+     */
+    private function normaliseQuickTimeTimestamp(DateTimeInterface $creationDate): array
+    {
+        $dateTimeOriginal = $creationDate->format('Y:m:d H:i:s');
+        $microseconds = (int) $creationDate->format('u');
+
+        if ($microseconds === 0) {
+            return [$dateTimeOriginal, null];
+        }
+
+        if ($microseconds % 1000 === 0) {
+            $milliseconds = (int) ($microseconds / 1000);
+
+            return [$dateTimeOriginal, sprintf('%03d', $milliseconds)];
+        }
+
+        return [$dateTimeOriginal, sprintf('%06d', $microseconds)];
     }
 }
 

@@ -8,13 +8,16 @@ use RuntimeException;
 use SplFileInfo;
 
 use function base64_decode;
+use function base64_encode;
 use function file_put_contents;
+use function pack;
 use function register_shutdown_function;
 use function rename;
 use function sprintf;
 use function sys_get_temp_dir;
 use function tempnam;
 use function unlink;
+use function strlen;
 
 final class LivePhotoFixtureFactory
 {
@@ -41,12 +44,6 @@ Y2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXG
 x8jJytLT1NXW19jZ2uLj5OXm5+jp6vLz9PX29/j5+v/aAAwDAQACEQMRAD8A/VOgD//Z
 BASE64;
 
-    private const MOV_BASE64 = <<<BASE64
-AAAAj21vb3YAAACHdWR0YQAAAH9tZXRhAAAAAAAAAD5rZXlzAAAAAAAAAAEAAAAuAAAAAGNvbS5h
-cHBsZS5xdWlja3RpbWUuY29udGVudC5pZGVudGlmaWVyAAAANWlsc3QAAAAtAAAAAQAAACVkYXRh
-AAAAAQAAAABVVUlELUlQSE9ORS1MSVZFUEhPVE8=
-BASE64;
-
     public static function createJpeg(): SplFileInfo
     {
         return self::createFixture(self::JPEG_BASE64, '.jpg');
@@ -54,7 +51,24 @@ BASE64;
 
     public static function createMov(): SplFileInfo
     {
-        return self::createFixture(self::MOV_BASE64, '.mov');
+        $payload = self::createQuickTimeMovPayload(
+            'UUID-IPHONE-LIVEPHOTO',
+            '2024-05-05T12:34:56.789+00:00',
+            'com.apple.quicktime.creationdate',
+        );
+
+        return self::createFixture(base64_encode($payload), '.mov');
+    }
+
+    public static function createMovWithCreationDate(string $creationDate, string $keyName = 'com.apple.quicktime.creationdate'): SplFileInfo
+    {
+        $payload = self::createQuickTimeMovPayload(
+            'UUID-IPHONE-LIVEPHOTO',
+            $creationDate,
+            $keyName,
+        );
+
+        return self::createFixture(base64_encode($payload), '.mov');
     }
 
     private static function createFixture(string $base64, string $extension): SplFileInfo
@@ -92,5 +106,62 @@ BASE64;
         });
 
         return new SplFileInfo($targetPath);
+    }
+
+    private static function createQuickTimeMovPayload(
+        string $identifier,
+        string $creationDate,
+        string $creationDateKey,
+    ): string {
+        $entries = [
+            ['key' => 'com.apple.quicktime.content.identifier', 'value' => $identifier],
+            ['key' => $creationDateKey, 'value' => $creationDate],
+        ];
+
+        $keysPayload = "\0\0\0\0" . pack('N', count($entries));
+        $ilstEntries = '';
+
+        foreach ($entries as $index => $entry) {
+            $keyPayload = pack('N', 8 + strlen($entry['key']))
+                . "\0\0\0\0"
+                . $entry['key'];
+
+            $keysPayload .= $keyPayload;
+
+            $value = $entry['value'];
+            $dataPayload = pack('N', 16 + strlen($value))
+                . 'data'
+                . "\0\0\0\1"
+                . "\0\0\0\0"
+                . $value;
+
+            $ilstEntries .= pack('N', 8 + strlen($dataPayload))
+                . pack('N', $index + 1)
+                . $dataPayload;
+        }
+
+        $keysAtom = pack('N', 8 + strlen($keysPayload))
+            . 'keys'
+            . $keysPayload;
+
+        $ilstAtom = pack('N', 8 + strlen($ilstEntries))
+            . 'ilst'
+            . $ilstEntries;
+
+        $metaPayload = "\0\0\0\0"
+            . $keysAtom
+            . $ilstAtom;
+
+        $metaAtom = pack('N', 8 + strlen($metaPayload))
+            . 'meta'
+            . $metaPayload;
+
+        $udtaAtom = pack('N', 8 + strlen($metaAtom))
+            . 'udta'
+            . $metaAtom;
+
+        return pack('N', 8 + strlen($udtaAtom))
+            . 'moov'
+            . $udtaAtom;
     }
 }
