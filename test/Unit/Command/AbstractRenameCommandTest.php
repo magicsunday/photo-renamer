@@ -37,14 +37,13 @@ final class AbstractRenameCommandTest extends TestCase
         $duplicateIdentifierStrategy = $this->createStub(DuplicateIdentifierStrategyInterface::class);
 
         $iteratorOne = new RecursiveIteratorIterator(new RecursiveArrayIterator([]));
-        $iteratorTwo = new RecursiveIteratorIterator(new RecursiveArrayIterator([]));
         $fileDuplicateCollection = new FileDuplicateCollection();
 
         $fileSystemService
-            ->expects(self::exactly(2))
+            ->expects(self::once())
             ->method('createFileIterator')
             ->with('/source-directory')
-            ->willReturnOnConsecutiveCalls($iteratorOne, $iteratorTwo);
+            ->willReturn($iteratorOne);
 
         $duplicateDetectionService
             ->expects(self::once())
@@ -74,7 +73,7 @@ final class AbstractRenameCommandTest extends TestCase
             ->expects(self::once())
             ->method('groupFilesByDuplicateIdentifier')
             ->with(
-                self::isInstanceOf(RecursiveIteratorIterator::class),
+                self::identicalTo($iteratorOne),
                 self::identicalTo($renameStrategy),
                 self::identicalTo($duplicateIdentifierStrategy),
             )
@@ -145,14 +144,13 @@ final class AbstractRenameCommandTest extends TestCase
         $duplicateIdentifierStrategy = $this->createStub(DuplicateIdentifierStrategyInterface::class);
 
         $iteratorOne = new RecursiveIteratorIterator(new RecursiveArrayIterator([]));
-        $iteratorTwo = new RecursiveIteratorIterator(new RecursiveArrayIterator([]));
         $fileDuplicateCollection = new FileDuplicateCollection();
 
         $fileSystemService
-            ->expects(self::exactly(2))
+            ->expects(self::once())
             ->method('createFileIterator')
             ->with('/source-directory')
-            ->willReturnOnConsecutiveCalls($iteratorOne, $iteratorTwo);
+            ->willReturn($iteratorOne);
 
         $duplicateDetectionService
             ->expects(self::once())
@@ -182,7 +180,7 @@ final class AbstractRenameCommandTest extends TestCase
             ->expects(self::once())
             ->method('groupFilesByDuplicateIdentifier')
             ->with(
-                self::isInstanceOf(RecursiveIteratorIterator::class),
+                self::identicalTo($iteratorOne),
                 self::identicalTo($renameStrategy),
                 self::identicalTo($duplicateIdentifierStrategy),
             )
@@ -356,17 +354,16 @@ final class AbstractRenameCommandTest extends TestCase
         $duplicateIdentifierStrategy = $this->createStub(DuplicateIdentifierStrategyInterface::class);
 
         $iteratorOne             = new RecursiveIteratorIterator(new RecursiveArrayIterator([]));
-        $iteratorTwo             = new RecursiveIteratorIterator(new RecursiveArrayIterator([]));
         $fileDuplicateCollection = new FileDuplicateCollection();
 
         $expectedSource = $this->buildExpectedAbsolutePath('relative-source');
         $expectedTarget = $this->buildExpectedAbsolutePath('relative-target');
 
         $fileSystemService
-            ->expects(self::exactly(2))
+            ->expects(self::once())
             ->method('createFileIterator')
             ->with($expectedSource)
-            ->willReturnOnConsecutiveCalls($iteratorOne, $iteratorTwo);
+            ->willReturn($iteratorOne);
 
         $duplicateDetectionService
             ->expects(self::once())
@@ -404,7 +401,7 @@ final class AbstractRenameCommandTest extends TestCase
             ->expects(self::once())
             ->method('groupFilesByDuplicateIdentifier')
             ->with(
-                self::isInstanceOf(RecursiveIteratorIterator::class),
+                self::identicalTo($iteratorOne),
                 self::identicalTo($renameStrategy),
                 self::identicalTo($duplicateIdentifierStrategy),
             )

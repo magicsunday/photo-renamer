@@ -48,7 +48,7 @@ final class RenameLowerCaseCommandTest extends TestCase
         $expectedSourceDirectory = $this->buildExpectedAbsolutePath('source-dir');
 
         $fileSystemService
-            ->expects(self::exactly(2))
+            ->expects(self::once())
             ->method('createFileIterator')
             ->with($expectedSourceDirectory)
             ->willReturn($iterator);
@@ -77,7 +77,7 @@ final class RenameLowerCaseCommandTest extends TestCase
             ->expects(self::once())
             ->method('groupFilesByDuplicateIdentifier')
             ->with(
-                self::isInstanceOf(RecursiveIteratorIterator::class),
+                self::identicalTo($iterator),
                 self::callback(static fn ($strategy) => $strategy instanceof LowerCaseFilenameStrategy),
                 self::callback(static fn ($strategy) => $strategy instanceof TargetPathnameStrategy),
             )
