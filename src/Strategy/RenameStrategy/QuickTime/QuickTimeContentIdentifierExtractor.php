@@ -11,6 +11,8 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Strategy\RenameStrategy\QuickTime;
 
+use DateTimeImmutable;
+use DateTimeInterface;
 use Exception;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Service\SafeFileReader;
@@ -64,6 +66,31 @@ class QuickTimeContentIdentifierExtractor
         }
 
         return new ContentIdentifier($identifier->getValue());
+    }
+
+    public function extractCreationDate(SplFileInfo $splFileInfo): ?DateTimeInterface
+    {
+        if (!$this->supports($splFileInfo)) {
+            return null;
+        }
+
+        $metadata = $this->extractMetadata($splFileInfo);
+
+        if ($metadata === null) {
+            return null;
+        }
+
+        $creationDate = $metadata->findValueByKeyFragment('creationdate');
+
+        if ($creationDate === null || $creationDate->getValue() === '') {
+            return null;
+        }
+
+        try {
+            return new DateTimeImmutable($creationDate->getValue());
+        } catch (Exception) {
+            return null;
+        }
     }
 
     private function supports(SplFileInfo $splFileInfo): bool
