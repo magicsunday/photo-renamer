@@ -10,6 +10,7 @@ namespace MagicSunday\Renamer\Service;
 
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
+use MagicSunday\Renamer\Service\Dto\LivePhotoBasenameTargetMap;
 use MagicSunday\Renamer\Service\Dto\LivePhotoContentIdentifierTarget;
 use MagicSunday\Renamer\Service\Dto\LivePhotoContentIdentifierTargetMap;
 use MagicSunday\Renamer\Service\Dto\LivePhotoExistingFilePathnameIndex;
@@ -45,6 +46,7 @@ class LivePhotoPairingService
     ): LivePhotoPairingCollection {
         $existingFilePathnames = new LivePhotoExistingFilePathnameIndex();
         $contentIdentifierTargets = new LivePhotoContentIdentifierTargetMap();
+        $basenameTargets = new LivePhotoBasenameTargetMap();
 
         foreach ($fileDuplicateCollection->asArray() as $duplicateIdentifier => $fileDuplicate) {
             if (!is_string($duplicateIdentifier)) {
@@ -59,12 +61,16 @@ class LivePhotoPairingService
 
                 $normalizedContentIdentifier = $this->normalizeContentIdentifier($contentIdentifier);
 
-                if ($normalizedContentIdentifier === null) {
-                    continue;
+                if ($normalizedContentIdentifier !== null) {
+                    $contentIdentifierTargets->remember(
+                        $normalizedContentIdentifier,
+                        $fileDuplicate->getTarget(),
+                        $duplicateIdentifier,
+                    );
                 }
 
-                $contentIdentifierTargets->remember(
-                    $normalizedContentIdentifier,
+                $basenameTargets->remember(
+                    $existingFileInfo,
                     $fileDuplicate->getTarget(),
                     $duplicateIdentifier,
                 );
@@ -89,15 +95,33 @@ class LivePhotoPairingService
             $contentIdentifier = $contentIdentifierResolver($fileInfo);
             $normalizedContentIdentifier = $this->normalizeContentIdentifier($contentIdentifier);
 
-            if ($normalizedContentIdentifier === null) {
+            $targetPrototype = null;
+            $pairingIdentifier = $normalizedContentIdentifier;
+
+            if (
+                $normalizedContentIdentifier !== null
+                && $contentIdentifierTargets->has($normalizedContentIdentifier)
+            ) {
+                $targetPrototype = $contentIdentifierTargets->get($normalizedContentIdentifier);
+            }
+
+            if ($targetPrototype === null) {
+                $basenameTarget = $basenameTargets->match($fileInfo);
+
+                if ($basenameTarget instanceof LivePhotoContentIdentifierTarget) {
+                    $targetPrototype = $basenameTarget;
+                    $basenameKey = $basenameTargets->getBasenameKey($fileInfo);
+
+                    if ($basenameKey !== null) {
+                        $pairingIdentifier = 'basename:' . $basenameKey;
+                    }
+                }
+            }
+
+            if (!($targetPrototype instanceof LivePhotoContentIdentifierTarget)) {
                 continue;
             }
 
-            if (!$contentIdentifierTargets->has($normalizedContentIdentifier)) {
-                continue;
-            }
-
-            $targetPrototype = $contentIdentifierTargets->get($normalizedContentIdentifier);
             $targetFile = $targetPrototype->getTarget();
             $targetBasename = $targetFile->getBasename('.' . $targetFile->getExtension());
 
@@ -115,7 +139,7 @@ class LivePhotoPairingService
                 $fileInfo,
                 $targetFileInfo,
                 $duplicateIdentifier,
-                $normalizedContentIdentifier,
+                $pairingIdentifier ?? $targetPrototype->getDuplicateIdentifier(),
             ));
         }
 

@@ -112,6 +112,88 @@ final class LivePhotoPairingServiceTest extends TestCase
     }
 
     #[Test]
+    public function itPairsVideoByBasenameWhenContentIdentifierIsMissing(): void
+    {
+        $photo = new SplFileInfo('/source/IMG_0004.HEIC');
+        $video = new SplFileInfo('/source/IMG_0004.MOV');
+        $target = new SplFileInfo('/target/20240104_120000.HEIC');
+
+        $existingDuplicate = (new FileDuplicate())
+            ->addFile($photo)
+            ->setTarget($target);
+
+        $duplicateCollection = new FileDuplicateCollection();
+        $duplicateCollection->set('live-photo:content-id', $existingDuplicate);
+
+        $service = new LivePhotoPairingService();
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveArrayIterator([$photo, $video], RecursiveArrayIterator::CHILD_ARRAYS_ONLY),
+        );
+
+        $pairs = $service->pairByContentIdentifier(
+            iterator: $iterator,
+            fileDuplicateCollection: $duplicateCollection,
+            contentIdentifierResolver: static function (SplFileInfo $file) use ($photo): ?string {
+                return $file->getPathname() === $photo->getPathname() ? 'content-id' : null;
+            },
+        );
+
+        $pairings = $pairs->toList();
+
+        self::assertCount(1, $pairings);
+
+        $pair = $pairings[0];
+        self::assertSame($video->getPathname(), $pair->getSourceFile()->getPathname());
+        self::assertSame('/source/20240104_120000.MOV', $pair->getTargetFile()->getPathname());
+        self::assertSame('live-photo:content-id', $pair->getDuplicateIdentifier());
+        self::assertSame('basename:img_0004', $pair->getContentIdentifier());
+    }
+
+    #[Test]
+    public function itSkipsBasenameFallbackForAmbiguousMatches(): void
+    {
+        $photoA = new SplFileInfo('/source/A/IMG_0005.HEIC');
+        $videoA = new SplFileInfo('/source/A/IMG_0005.MOV');
+        $targetA = new SplFileInfo('/target/A/20240105_120000.HEIC');
+
+        $photoB = new SplFileInfo('/source/B/IMG_0005.HEIC');
+        $targetB = new SplFileInfo('/target/B/20240106_120000.HEIC');
+
+        $duplicateA = (new FileDuplicate())
+            ->addFile($photoA)
+            ->setTarget($targetA);
+
+        $duplicateB = (new FileDuplicate())
+            ->addFile($photoB)
+            ->setTarget($targetB);
+
+        $duplicateCollection = new FileDuplicateCollection();
+        $duplicateCollection->set('live-photo:content-a', $duplicateA);
+        $duplicateCollection->set('live-photo:content-b', $duplicateB);
+
+        $service = new LivePhotoPairingService();
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveArrayIterator([$photoA, $photoB, $videoA], RecursiveArrayIterator::CHILD_ARRAYS_ONLY),
+        );
+
+        $pairs = $service->pairByContentIdentifier(
+            iterator: $iterator,
+            fileDuplicateCollection: $duplicateCollection,
+            contentIdentifierResolver: static function (SplFileInfo $file) use ($photoA, $photoB): ?string {
+                return match ($file->getPathname()) {
+                    $photoA->getPathname() => 'content-a',
+                    $photoB->getPathname() => 'content-b',
+                    default => null,
+                };
+            },
+        );
+
+        self::assertSame([], $pairs->toList());
+    }
+
+    #[Test]
     public function itInvokesProgressCallbackForEachInspectedFile(): void
     {
         $iterator = new RecursiveIteratorIterator(
