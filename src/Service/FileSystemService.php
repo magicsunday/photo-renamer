@@ -22,8 +22,11 @@ use SplFileInfo;
 use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
+use function rtrim;
 use function sprintf;
+use function str_starts_with;
 use function strlen;
+use function substr;
 
 /**
  * Service for file system operations.
@@ -107,6 +110,8 @@ class FileSystemService implements FileSystemServiceInterface
      * @param bool                    $skipDuplicates          Whether files marked as duplicates should be ignored
      * @param bool                    $copyFiles               When true, files are copied instead of moved
      * @param bool                    $listAll                 When true each canonical/original file is printed alongside duplicates
+     * @param string|null             $sourceBaseDirectory     Base directory used to render source paths relative to it
+     * @param string|null             $targetBaseDirectory     Base directory used to render target paths relative to it
      */
     public function renameFiles(
         FileDuplicateCollection $fileDuplicateCollection,
@@ -114,8 +119,13 @@ class FileSystemService implements FileSystemServiceInterface
         bool $skipDuplicates = false,
         bool $copyFiles = false,
         bool $listAll = false,
+        ?string $sourceBaseDirectory = null,
+        ?string $targetBaseDirectory = null,
     ): void {
         $this->io->text(($copyFiles ? 'Copying' : 'Renaming') . ' files');
+
+        $sourceBaseDirectory = $this->normalizeBaseDirectory($sourceBaseDirectory);
+        $targetBaseDirectory = $this->normalizeBaseDirectory($targetBaseDirectory);
 
         $maxFilenameLength = 0;
         $fileCount         = 0;
@@ -124,8 +134,10 @@ class FileSystemService implements FileSystemServiceInterface
 
         foreach ($fileDuplicateCollection as $fileDuplicate) {
             foreach ($fileDuplicate->getRenames() as $rename) {
-                if (strlen($rename->getSource()->getPathname()) > $maxFilenameLength) {
-                    $maxFilenameLength = strlen($rename->getSource()->getPathname());
+                $relativeSource = $this->getRelativePath($rename->getSource(), $sourceBaseDirectory);
+
+                if (strlen($relativeSource) > $maxFilenameLength) {
+                    $maxFilenameLength = strlen($relativeSource);
                 }
 
                 ++$totalOperations;
@@ -161,12 +173,15 @@ class FileSystemService implements FileSystemServiceInterface
                     $status = '[D]';
                 }
 
+                $sourcePath = $this->getRelativePath($rename->getSource(), $sourceBaseDirectory);
+                $targetPath = $this->getRelativePath($rename->getTarget(), $targetBaseDirectory);
+
                 $this->io->text(
                     sprintf(
                         '%s <fg=yellow>%-' . $maxFilenameLength . 's</> <fg=cyan>→</> <fg=green>%s</>',
                         $status,
-                        $rename->getSource()->getPathname(),
-                        $rename->getTarget()->getPathname()
+                        $sourcePath,
+                        $targetPath
                     )
                 );
 
@@ -181,7 +196,7 @@ class FileSystemService implements FileSystemServiceInterface
                         $progressBar->clear();
                     }
 
-                    $this->io->text('=> Duplicate! Skip "' . $rename->getSource()->getPathname() . '"');
+                    $this->io->text('=> Duplicate! Skip "' . $sourcePath . '"');
                 }
 
                 $shouldPerformOperation = $shouldSkip === false && $isCanonicalEntry === false;
@@ -211,6 +226,50 @@ class FileSystemService implements FileSystemServiceInterface
 
         $this->io->block($duplicateCount . ' possible duplicates found', 'INFO', 'fg=green');
         $this->io->block($fileCount . ' files renamed', 'INFO', 'fg=green');
+    }
+
+    /**
+     * Converts a path to be relative to the given base directory when possible.
+     */
+    private function getRelativePath(SplFileInfo $fileInfo, ?string $baseDirectory): string
+    {
+        $pathname = $fileInfo->getPathname();
+
+        if ($baseDirectory === null || $baseDirectory === '') {
+            return $pathname;
+        }
+
+        $normalizedBase = rtrim($baseDirectory, DIRECTORY_SEPARATOR);
+
+        if ($normalizedBase === '') {
+            return $pathname;
+        }
+
+        $prefix = $normalizedBase . DIRECTORY_SEPARATOR;
+
+        if (str_starts_with($pathname, $prefix)) {
+            return substr($pathname, strlen($prefix));
+        }
+
+        return $pathname;
+    }
+
+    /**
+     * Normalizes a base directory string for relative path conversion.
+     */
+    private function normalizeBaseDirectory(?string $baseDirectory): ?string
+    {
+        if ($baseDirectory === null) {
+            return null;
+        }
+
+        $normalized = rtrim($baseDirectory, DIRECTORY_SEPARATOR);
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        return $normalized;
     }
 
     /**

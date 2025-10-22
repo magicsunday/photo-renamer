@@ -52,6 +52,8 @@ interface FileSystemServiceInterface
      * @param bool                    $skipDuplicates          Whether to skip duplicate files
      * @param bool                    $copyFiles               Whether to copy files instead of renaming them
      * @param bool                    $listAll                 Whether to emit a full listing of originals and duplicates
+     * @param string|null             $sourceBaseDirectory     Base directory used to display source paths
+     * @param string|null             $targetBaseDirectory     Base directory used to display target paths
      *
      * @return void
      *
@@ -63,5 +65,7 @@ interface FileSystemServiceInterface
         bool $skipDuplicates = false,
         bool $copyFiles = false,
         bool $listAll = false,
+        ?string $sourceBaseDirectory = null,
+        ?string $targetBaseDirectory = null,
     ): void;
 }

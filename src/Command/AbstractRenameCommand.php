@@ -460,7 +460,9 @@ abstract class AbstractRenameCommand extends Command
                 $this->dryRun,
                 $this->skipDuplicates,
                 $this->copyFiles,
-                $this->listAll
+                $this->listAll,
+                $this->sourceDirectory,
+                $this->targetDirectory
             );
     }
 
