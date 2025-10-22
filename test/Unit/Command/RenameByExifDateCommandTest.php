@@ -65,10 +65,13 @@ final class RenameByExifDateCommandTest extends TestCase
 
         $iterator = new RecursiveIteratorIterator(new RecursiveArrayIterator([]));
 
+        $expectedSourceDirectory = $this->buildExpectedAbsolutePath('source-dir');
+        $expectedTargetDirectory = $this->buildExpectedAbsolutePath('target-dir');
+
         $fileSystemService
             ->expects(self::exactly(2))
             ->method('createFileIterator')
-            ->with('source-dir')
+            ->with($expectedSourceDirectory)
             ->willReturn($iterator);
 
         $fileSystemService
@@ -82,13 +85,13 @@ final class RenameByExifDateCommandTest extends TestCase
         $duplicateDetectionService
             ->expects(self::once())
             ->method('setSourceDirectory')
-            ->with('source-dir')
+            ->with($expectedSourceDirectory)
             ->willReturnSelf();
 
         $duplicateDetectionService
             ->expects(self::once())
             ->method('setTargetDirectory')
-            ->with('target-dir')
+            ->with($expectedTargetDirectory)
             ->willReturnSelf();
 
         $duplicateDetectionService
@@ -545,5 +548,28 @@ final class RenameByExifDateCommandTest extends TestCase
             new SafeExifReader(),
             new QuickTimeContentIdentifierExtractor(new SafeFileReader()),
         );
+    }
+
+    private function buildExpectedAbsolutePath(string $relativePath): string
+    {
+        $workingDirectory = getcwd();
+
+        if (!is_string($workingDirectory) || $workingDirectory === '') {
+            return $relativePath;
+        }
+
+        $trimmedWorkingDirectory = rtrim($workingDirectory, "\\/");
+
+        if ($trimmedWorkingDirectory === '') {
+            return $relativePath;
+        }
+
+        $normalizedRelativePath = ltrim($relativePath, "\\/");
+
+        if ($normalizedRelativePath === '') {
+            return $trimmedWorkingDirectory;
+        }
+
+        return $trimmedWorkingDirectory . DIRECTORY_SEPARATOR . $normalizedRelativePath;
     }
 }

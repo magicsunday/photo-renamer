@@ -45,10 +45,12 @@ final class RenameLowerCaseCommandTest extends TestCase
 
         $iterator = new RecursiveIteratorIterator(new RecursiveArrayIterator([]));
 
+        $expectedSourceDirectory = $this->buildExpectedAbsolutePath('source-dir');
+
         $fileSystemService
             ->expects(self::exactly(2))
             ->method('createFileIterator')
-            ->with('source-dir')
+            ->with($expectedSourceDirectory)
             ->willReturn($iterator);
 
         $duplicateCollection = new FileDuplicateCollection();
@@ -56,13 +58,13 @@ final class RenameLowerCaseCommandTest extends TestCase
         $duplicateDetectionService
             ->expects(self::once())
             ->method('setSourceDirectory')
-            ->with('source-dir')
+            ->with($expectedSourceDirectory)
             ->willReturnSelf();
 
         $duplicateDetectionService
             ->expects(self::once())
             ->method('setTargetDirectory')
-            ->with('source-dir')
+            ->with($expectedSourceDirectory)
             ->willReturnSelf();
 
         $duplicateDetectionService
@@ -113,5 +115,28 @@ final class RenameLowerCaseCommandTest extends TestCase
         ]);
 
         self::assertSame(Command::SUCCESS, $exitCode);
+    }
+
+    private function buildExpectedAbsolutePath(string $relativePath): string
+    {
+        $workingDirectory = getcwd();
+
+        if (!is_string($workingDirectory) || $workingDirectory === '') {
+            return $relativePath;
+        }
+
+        $trimmedWorkingDirectory = rtrim($workingDirectory, "\\/");
+
+        if ($trimmedWorkingDirectory === '') {
+            return $relativePath;
+        }
+
+        $normalizedRelativePath = ltrim($relativePath, "\\/");
+
+        if ($normalizedRelativePath === '') {
+            return $trimmedWorkingDirectory;
+        }
+
+        return $trimmedWorkingDirectory . DIRECTORY_SEPARATOR . $normalizedRelativePath;
     }
 }
