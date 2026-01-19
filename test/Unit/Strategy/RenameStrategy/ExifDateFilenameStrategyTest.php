@@ -9,13 +9,16 @@ use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Service\Dto\TemporalMetadata;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
+use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\ExifData;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifMetadataProvider;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use ReflectionProperty;
 use SplFileInfo;
+use SplObjectStorage;
 
 use function sprintf;
 use function uniqid;
@@ -94,6 +97,43 @@ final class ExifDateFilenameStrategyTest extends TestCase
         $strategy->generateFilename(new SplFileInfo($path));
     }
 
+    #[Test]
+    #[DataProvider('subSecondProvider')]
+    public function itFormatsSubSecondValuesAsMicroseconds(
+        string $subSecondValue,
+        string $expectedMicroseconds,
+    ): void {
+        $path = '/virtual/' . uniqid('subsec_', true) . '.jpg';
+        $file = new SplFileInfo($path);
+
+        $exifData = new ExifData('2024:05:05 12:34:56', $subSecondValue, null);
+        $strategy = $this->createStrategyWithExifData('Y-m-d_H-i-s-u', $file, $exifData);
+
+        self::assertSame(
+            '2024-05-05_12-34-56-' . $expectedMicroseconds . '.jpg',
+            $strategy->generateFilename($file),
+        );
+    }
+
+
+    private function createStrategyWithExifData(
+        string $pattern,
+        SplFileInfo $file,
+        ExifData $exifData,
+    ): ExifDateFilenameStrategy {
+        $metadataExtractor = new StubMetadataExtractor();
+        $provider = new ExifMetadataProvider($metadataExtractor);
+
+        $exifDataCache = new SplObjectStorage();
+        $exifDataCache[$file] = $exifData;
+
+        $cacheProperty = new ReflectionProperty(ExifMetadataProvider::class, 'exifDataCache');
+        $cacheProperty->setAccessible(true);
+        $cacheProperty->setValue($provider, $exifDataCache);
+
+        return new ExifDateFilenameStrategy($pattern, $provider);
+    }
+
     private function createStrategy(
         string $pattern,
         StubMetadataExtractor $metadataExtractor,
@@ -101,6 +141,39 @@ final class ExifDateFilenameStrategyTest extends TestCase
         $provider = new ExifMetadataProvider($metadataExtractor);
 
         return new ExifDateFilenameStrategy($pattern, $provider);
+    }
+
+    /**
+     * @return array<string, array{subSecondValue: string, expectedMicroseconds: string}>
+     */
+    public static function subSecondProvider(): array
+    {
+        return [
+            '1 digit' => [
+                'subSecondValue' => '1',
+                'expectedMicroseconds' => '100000',
+            ],
+            '2 digits' => [
+                'subSecondValue' => '12',
+                'expectedMicroseconds' => '120000',
+            ],
+            '3 digits' => [
+                'subSecondValue' => '123',
+                'expectedMicroseconds' => '123000',
+            ],
+            '4 digits' => [
+                'subSecondValue' => '1234',
+                'expectedMicroseconds' => '123400',
+            ],
+            '5 digits' => [
+                'subSecondValue' => '12345',
+                'expectedMicroseconds' => '123450',
+            ],
+            '6 digits' => [
+                'subSecondValue' => '123456',
+                'expectedMicroseconds' => '123456',
+            ],
+        ];
     }
 
     /**

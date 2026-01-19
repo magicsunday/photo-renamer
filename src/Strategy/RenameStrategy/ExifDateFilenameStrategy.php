@@ -11,12 +11,13 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Strategy\RenameStrategy;
 
-use DateTime;
+use DateTimeImmutable;
 use Exception;
 use Override;
 use SplFileInfo;
 
-use function strlen;
+use function str_pad;
+use function substr;
 
 /**
  * @author  Rico Sonntag <mail@ricosonntag.de>
@@ -82,14 +83,17 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
         );
 
         try {
-            $dateTimeOriginal = new DateTime($exifDateTimeOriginal);
+            $dateTimeOriginal = new DateTimeImmutable($exifDateTimeOriginal);
 
             if ($exifSubSecTimeOriginal !== null) {
-                if (strlen($exifSubSecTimeOriginal) > 4) {
-                    $dateTimeOriginal->modify('+' . $exifSubSecTimeOriginal . ' Microseconds');
-                } else {
-                    $dateTimeOriginal->modify('+' . $exifSubSecTimeOriginal . ' Milliseconds');
+                $microseconds = substr(str_pad($exifSubSecTimeOriginal, 6, '0'), 0, 6);
+                $modified = $dateTimeOriginal->modify('+' . $microseconds . ' microseconds');
+
+                if ($modified === false) {
+                    return null;
                 }
+
+                $dateTimeOriginal = $modified;
             }
         } catch (Exception) {
             // $this->io->warning('=> Invalid EXIF date format in "DateTimeOriginal".');
