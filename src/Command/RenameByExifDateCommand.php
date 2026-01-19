@@ -11,6 +11,8 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Command;
 
+use FilesystemIterator;
+use MagicSunday\Renamer\Command\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Service\Dto\LivePhotoPairing;
@@ -24,6 +26,7 @@ use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifMetadataProvider;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use Override;
+use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Input\InputOption;
@@ -102,6 +105,24 @@ class RenameByExifDateCommand extends AbstractRenameCommand
         }
 
         return parent::executeCommand();
+    }
+
+    #[Override]
+    protected function createFileIterator(): RecursiveIteratorIterator
+    {
+        $fileExtensionRegex = '/\.(jpe?g|heic|mov|mp4)$/i';
+
+        return $this->fileSystemService
+            ->createFileIterator(
+                $this->sourceDirectory,
+                new RecursiveRegexFileFilterIterator(
+                    new RecursiveDirectoryIterator(
+                        $this->sourceDirectory,
+                        FilesystemIterator::SKIP_DOTS
+                    ),
+                    $fileExtensionRegex
+                )
+            );
     }
 
     /**
