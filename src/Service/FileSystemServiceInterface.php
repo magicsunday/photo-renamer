@@ -54,6 +54,7 @@ interface FileSystemServiceInterface
      * @param bool                    $listAll                 Whether to emit a full listing of originals and duplicates
      * @param string|null             $sourceBaseDirectory     Base directory used to display source paths
      * @param string|null             $targetBaseDirectory     Base directory used to display target paths
+     * @param int|null                $scannedFiles            Number of files scanned during discovery
      *
      * @return void
      *
@@ -67,5 +68,6 @@ interface FileSystemServiceInterface
         bool $listAll = false,
         ?string $sourceBaseDirectory = null,
         ?string $targetBaseDirectory = null,
+        ?int $scannedFiles = null,
     ): void;
 }

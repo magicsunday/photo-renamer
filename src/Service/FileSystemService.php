@@ -23,7 +23,9 @@ use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function basename;
+use function is_string;
 use function preg_match;
+use function preg_quote;
 use function rtrim;
 use function sprintf;
 use function str_starts_with;
@@ -114,6 +116,7 @@ class FileSystemService implements FileSystemServiceInterface
      * @param bool                    $listAll                 When true each canonical/original file is printed alongside duplicates
      * @param string|null             $sourceBaseDirectory     Base directory used to render source paths relative to it
      * @param string|null             $targetBaseDirectory     Base directory used to render target paths relative to it
+     * @param int|null                $scannedFiles            Total files scanned during discovery
      */
     public function renameFiles(
         FileDuplicateCollection $fileDuplicateCollection,
@@ -123,6 +126,7 @@ class FileSystemService implements FileSystemServiceInterface
         bool $listAll = false,
         ?string $sourceBaseDirectory = null,
         ?string $targetBaseDirectory = null,
+        ?int $scannedFiles = null,
     ): void {
         $this->io->text(($copyFiles ? 'Copying' : 'Renaming') . ' files');
 
@@ -133,13 +137,27 @@ class FileSystemService implements FileSystemServiceInterface
         $fileCount         = 0;
         $duplicateCount    = 0;
         $totalOperations   = 0;
+        $plannedMoves      = 0;
+        $plannedCopies     = 0;
+        $plannedSkips      = 0;
+        $livePhotoGroups    = 0;
+        $maxCollisionSuffix = 0;
 
-        foreach ($fileDuplicateCollection as $fileDuplicate) {
+        foreach ($fileDuplicateCollection as $duplicateIdentifier => $fileDuplicate) {
+            if ($this->isLivePhotoIdentifier($duplicateIdentifier)) {
+                ++$livePhotoGroups;
+            }
             foreach ($fileDuplicate->getRenames() as $rename) {
                 $relativeSource = $this->getRelativePath($rename->getSource(), $sourceBaseDirectory);
 
                 if (strlen($relativeSource) > $maxFilenameLength) {
                     $maxFilenameLength = strlen($relativeSource);
+                }
+
+                $collisionSuffix = $this->extractCollisionSuffix($rename->getTarget());
+
+                if ($collisionSuffix > $maxCollisionSuffix) {
+                    $maxCollisionSuffix = $collisionSuffix;
                 }
 
                 ++$totalOperations;
@@ -203,7 +221,17 @@ class FileSystemService implements FileSystemServiceInterface
 
                 $shouldPerformOperation = $shouldSkip === false && $isCanonicalEntry === false;
 
+                if ($shouldSkip) {
+                    ++$plannedSkips;
+                }
+
                 if ($shouldPerformOperation) {
+                    if ($copyFiles) {
+                        ++$plannedCopies;
+                    } else {
+                        ++$plannedMoves;
+                    }
+
                     ++$fileCount;
 
                     if ($dryRun === false) {
@@ -226,8 +254,52 @@ class FileSystemService implements FileSystemServiceInterface
             $progressBar->finish();
         }
 
-        $this->io->block($duplicateCount . ' possible duplicates found', 'INFO', 'fg=green');
-        $this->io->block($fileCount . ' files renamed', 'INFO', 'fg=green');
+        $scannedFiles = $scannedFiles ?? $totalOperations;
+
+        $summaryLines = [
+            sprintf('Scanned files: %d', $scannedFiles),
+            sprintf('Planned moves: %d', $plannedMoves),
+            sprintf('Planned copies: %d', $plannedCopies),
+            sprintf('Planned skips: %d', $plannedSkips),
+            sprintf('Live Photo groups: %d', $livePhotoGroups),
+            sprintf('%d possible duplicates found', $duplicateCount),
+            sprintf('Max collision suffix: %d', $maxCollisionSuffix),
+            sprintf('%d files renamed', $fileCount),
+        ];
+
+        $this->io->block($summaryLines, 'SUMMARY', 'fg=cyan');
+    }
+
+    /**
+     * Determines if the duplicate identifier belongs to a Live Photo group.
+     */
+    private function isLivePhotoIdentifier(int|string $duplicateIdentifier): bool
+    {
+        if (!is_string($duplicateIdentifier)) {
+            return false;
+        }
+
+        return str_starts_with($duplicateIdentifier, 'live-photo:');
+    }
+
+    /**
+     * Extracts the numeric duplicate suffix from a target filename.
+     */
+    private function extractCollisionSuffix(SplFileInfo $target): int
+    {
+        $basename = $target->getBasename('.' . $target->getExtension());
+
+        if ($basename === '') {
+            return 0;
+        }
+
+        $pattern = '/' . preg_quote(self::DUPLICATE_IDENTIFIER, '/') . '(\d+)$/';
+
+        if (preg_match($pattern, $basename, $matches) !== 1) {
+            return 0;
+        }
+
+        return (int) $matches[1];
     }
 
     /**
