@@ -4,26 +4,24 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Command;
 
+use DateTimeImmutable;
 use MagicSunday\Renamer\Command\RenameByExifDateCommand;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
-use MagicSunday\Renamer\Service\Dto\ExifMetadataResult;
 use MagicSunday\Renamer\Service\Dto\LivePhotoPairing;
 use MagicSunday\Renamer\Service\Dto\LivePhotoPairingCollection;
+use MagicSunday\Renamer\Service\Dto\TemporalMetadata;
 use MagicSunday\Renamer\Service\DuplicateDetectionService;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\LivePhotoPairingService;
-use MagicSunday\Renamer\Service\SafeExifReader;
-use MagicSunday\Renamer\Service\SafeFileReader;
+use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\LivePhotoContentIdentifierStrategy;
-use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\ExifRawMetadata;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifMetadataProvider;
-use MagicSunday\Renamer\Strategy\RenameStrategy\QuickTime\QuickTimeContentIdentifierExtractor;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -480,46 +478,20 @@ final class RenameByExifDateCommandTest extends TestCase
 
             $fileSystemService = new FileSystemService($style);
 
-            $exifReader = new class($photoPath) extends SafeExifReader {
-                public function __construct(private readonly string $photoPath)
-                {
-                }
-
-                #[Override]
-                public function read(SplFileInfo $file): ExifMetadataResult
-                {
-                    if ($file->getPathname() !== $this->photoPath) {
-                        return ExifMetadataResult::withoutMetadata();
-                    }
-
-                    return ExifMetadataResult::withMetadata(ExifRawMetadata::fromArray([
-                        'DateTimeOriginal' => '2024:01:01 12:00:00',
-                        'SubSecTimeOriginal' => '123',
-                        'ContentIdentifier' => 'UUID-IPHONE-LIVEPHOTO',
-                    ]));
-                }
-            };
-
-            $fileReader = new class($videoPath) extends SafeFileReader {
-                public function __construct(private readonly string $videoPath)
-                {
-                }
-
-                #[Override]
-                public function read(SplFileInfo $file): string
-                {
-                    if ($file->getPathname() !== $this->videoPath) {
-                        return '';
-                    }
-
-                    return base64_decode('AAAAj21vb3YAAACHdWR0YQAAAH9tZXRhAAAAAAAAAD5rZXlzAAAAAAAAAAEAAAAuAAAAAGNvbS5hcHBsZS5xdWlja3RpbWUuY29udGVudC5pZGVudGlmaWVyAAAANWlsc3QAAAAtAAAAAQAAACVkYXRhAAAAAQAAAABVVUlELUlQSE9ORS1MSVZFUEhPVE8=', true) ?: '';
-                }
-            };
-
-            $metadataProvider = new ExifMetadataProvider(
-                $exifReader,
-                new QuickTimeContentIdentifierExtractor($fileReader),
+            $metadataExtractor = new StubMetadataExtractor();
+            $metadataExtractor->withResponse(
+                $photoPath,
+                new TemporalMetadata(
+                    new DateTimeImmutable('2024-01-01T12:00:00.123+00:00'),
+                    'UUID-IPHONE-LIVEPHOTO',
+                ),
             );
+            $metadataExtractor->withResponse(
+                $videoPath,
+                new TemporalMetadata(null, 'UUID-IPHONE-LIVEPHOTO'),
+            );
+
+            $metadataProvider = new ExifMetadataProvider($metadataExtractor);
 
             $duplicateDetectionService = new DuplicateDetectionService($fileSystemService, $style);
             $livePhotoPairingService   = new LivePhotoPairingService();
@@ -788,10 +760,7 @@ final class RenameByExifDateCommandTest extends TestCase
 
     private function createExifMetadataProvider(): ExifMetadataProvider
     {
-        return new ExifMetadataProvider(
-            new SafeExifReader(),
-            new QuickTimeContentIdentifierExtractor(new SafeFileReader()),
-        );
+        return new ExifMetadataProvider(new StubMetadataExtractor());
     }
 
     private function buildExpectedAbsolutePath(string $relativePath): string

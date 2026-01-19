@@ -31,6 +31,9 @@ use function substr;
 use function trim;
 use function unpack;
 
+/**
+ * @deprecated Use MetadataExtractor (ImageMeta) for temporal metadata instead.
+ */
 class QuickTimeContentIdentifierExtractor
 {
     /**
