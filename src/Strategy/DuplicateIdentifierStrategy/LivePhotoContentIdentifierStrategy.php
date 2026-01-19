@@ -32,7 +32,7 @@ class LivePhotoContentIdentifierStrategy implements DuplicateIdentifierStrategyI
     }
 
     /**
-     * Generates an identifier based on the Live Photo content identifier or falls back to the target filename.
+     * Generates an identifier based on the Live Photo content identifier or falls back to the target basename.
      *
      * @param SplFileInfo $sourceFileInfo Source file inspected for Live Photo metadata.
      * @param SplFileInfo $targetFileInfo Target file used as fallback identifier.
@@ -52,7 +52,7 @@ class LivePhotoContentIdentifierStrategy implements DuplicateIdentifierStrategyI
             }
         }
 
-        return $targetFileInfo->getFilename();
+        return $targetFileInfo->getBasename('.' . $targetFileInfo->getExtension());
     }
 
     private function normalizeContentIdentifier(string $contentIdentifier): ?string

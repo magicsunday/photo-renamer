@@ -36,7 +36,7 @@ class LivePhotoContentIdentifierStrategyTest extends TestCase
     }
 
     #[Test]
-    public function itFallsBackToTargetFilenameWhenIdentifierMissing(): void
+    public function itFallsBackToTargetBasenameWhenIdentifierMissing(): void
     {
         /** @var ExifDateFilenameStrategy&MockObject $renameStrategy */
         $renameStrategy = $this->createMock(ExifDateFilenameStrategy::class);
@@ -52,6 +52,6 @@ class LivePhotoContentIdentifierStrategyTest extends TestCase
             new SplFileInfo('/tmp/target.mov'),
         );
 
-        self::assertSame('target.mov', $identifier);
+        self::assertSame('target', $identifier);
     }
 }
