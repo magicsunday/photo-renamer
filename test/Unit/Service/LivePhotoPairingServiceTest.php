@@ -8,13 +8,12 @@ use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Service\Dto\LivePhotoPairing;
 use MagicSunday\Renamer\Service\Dto\LivePhotoPairingCollection;
+use MagicSunday\Renamer\Service\Dto\TemporalMetadata;
 use MagicSunday\Renamer\Service\LivePhotoPairingService;
-use MagicSunday\Renamer\Service\SafeExifReader;
-use MagicSunday\Renamer\Service\SafeFileReader;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifMetadataProvider;
-use MagicSunday\Renamer\Strategy\RenameStrategy\QuickTime\QuickTimeContentIdentifierExtractor;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\LivePhotoFixtureFactory;
+use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -227,7 +226,7 @@ final class LivePhotoPairingServiceTest extends TestCase
     }
 
     #[Test]
-    public function itPairsVideoUsingExifAndQuickTimeContentIdentifiers(): void
+    public function itPairsVideoUsingTemporalMetadataContentIdentifiers(): void
     {
         $photo = LivePhotoFixtureFactory::createJpeg();
         $video = LivePhotoFixtureFactory::createMov();
@@ -241,9 +240,17 @@ final class LivePhotoPairingServiceTest extends TestCase
         $duplicateCollection = new FileDuplicateCollection();
         $duplicateCollection->set('live-photo:iphone', $existingDuplicate);
 
-        $safeExifReader = new SafeExifReader();
-        $quickTimeExtractor = new QuickTimeContentIdentifierExtractor(new SafeFileReader());
-        $metadataProvider = new ExifMetadataProvider($safeExifReader, $quickTimeExtractor);
+        $metadataExtractor = new StubMetadataExtractor();
+        $metadataExtractor->withResponse(
+            $photo->getPathname(),
+            new TemporalMetadata(null, 'UUID-IPHONE-LIVEPHOTO'),
+        );
+        $metadataExtractor->withResponse(
+            $video->getPathname(),
+            new TemporalMetadata(null, 'UUID-IPHONE-LIVEPHOTO'),
+        );
+
+        $metadataProvider = new ExifMetadataProvider($metadataExtractor);
         $renameStrategy = new ExifDateFilenameStrategy('Ymd_His', $metadataProvider);
 
         $iterator = new RecursiveIteratorIterator(

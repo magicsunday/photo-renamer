@@ -14,6 +14,12 @@ services:
         resource: '../src/'
         exclude: ['../src/{Renamer,Dependencies,Constants}.php', '../src/Model/']
 
+    MagicSunday\ImageMeta\MetadataReader: ~
+
+    MagicSunday\Renamer\Service\MetadataExtractor:
+        arguments:
+            $metadataReader: '@MagicSunday\ImageMeta\MetadataReader'
+
     MagicSunday\Renamer\Application:
         public: true
         arguments:
