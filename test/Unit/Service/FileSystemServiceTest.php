@@ -91,6 +91,12 @@ final class FileSystemServiceTest extends TestCase
         self::assertSame('original', file_get_contents($targetFile));
 
         $buffer = $output->fetch();
+        self::assertStringContainsString('Scanned files: 1', $buffer);
+        self::assertStringContainsString('Planned moves: 1', $buffer);
+        self::assertStringContainsString('Planned copies: 0', $buffer);
+        self::assertStringContainsString('Planned skips: 0', $buffer);
+        self::assertStringContainsString('Live Photo groups: 0', $buffer);
+        self::assertStringContainsString('Max collision suffix: 0', $buffer);
         self::assertStringContainsString('1 files renamed', $buffer);
         self::assertStringContainsString('0 possible duplicates found', $buffer);
     }
@@ -248,6 +254,12 @@ final class FileSystemServiceTest extends TestCase
         self::assertSame('copy', file_get_contents($targetFile));
 
         $buffer = $output->fetch();
+        self::assertStringContainsString('Scanned files: 1', $buffer);
+        self::assertStringContainsString('Planned moves: 1', $buffer);
+        self::assertStringContainsString('Planned copies: 0', $buffer);
+        self::assertStringContainsString('Planned skips: 0', $buffer);
+        self::assertStringContainsString('Live Photo groups: 0', $buffer);
+        self::assertStringContainsString('Max collision suffix: 0', $buffer);
         self::assertStringContainsString('1 files renamed', $buffer);
         self::assertStringContainsString('0 possible duplicates found', $buffer);
     }
@@ -376,6 +388,52 @@ final class FileSystemServiceTest extends TestCase
         self::assertStringContainsString('→ ' . $relativeCanonicalTarget, $buffer);
         self::assertStringContainsString('→ ' . $relativeRenameTarget, $buffer);
         self::assertStringContainsString('→ ' . $relativeDuplicateTarget, $buffer);
+    }
+
+    #[Test]
+    public function renameFilesSummarisesLivePhotoGroupsAndCollisions(): void
+    {
+        [$service, $output] = $this->createService();
+
+        $sourceDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'source-summary';
+        $targetDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'target-summary';
+
+        mkdir($sourceDirectory);
+        mkdir($targetDirectory);
+
+        $sourceFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
+        $duplicateSource = $sourceDirectory . DIRECTORY_SEPARATOR . 'video.mov';
+        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
+        $duplicateTarget = $targetDirectory . DIRECTORY_SEPARATOR
+            . 'image' . FileSystemService::DUPLICATE_IDENTIFIER . '007.mov';
+
+        file_put_contents($sourceFile, 'original');
+        file_put_contents($duplicateSource, 'duplicate');
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate->setTarget(new SplFileInfo($targetFile));
+        $fileDuplicate->addRename(new Rename(new SplFileInfo($sourceFile), new SplFileInfo($targetFile)));
+        $fileDuplicate->addRename(new Rename(new SplFileInfo($duplicateSource), new SplFileInfo($duplicateTarget)));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('live-photo:content-id', $fileDuplicate);
+
+        $service->renameFiles(
+            $collection,
+            skipDuplicates: true,
+            copyFiles: true,
+            scannedFiles: 5,
+        );
+
+        $buffer = $output->fetch();
+
+        self::assertStringContainsString('Scanned files: 5', $buffer);
+        self::assertStringContainsString('Planned moves: 0', $buffer);
+        self::assertStringContainsString('Planned copies: 1', $buffer);
+        self::assertStringContainsString('Planned skips: 1', $buffer);
+        self::assertStringContainsString('Live Photo groups: 1', $buffer);
+        self::assertStringContainsString('Max collision suffix: 7', $buffer);
+        self::assertStringContainsString('1 possible duplicates found', $buffer);
     }
 
     #[Test]
