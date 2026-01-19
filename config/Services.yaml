@@ -14,16 +14,10 @@ services:
         resource: '../src/'
         exclude: ['../src/{Renamer,Dependencies,Constants}.php', '../src/Model/']
 
-    MagicSunday\ImageMeta\MetadataReader: ~
-
-    MagicSunday\Renamer\Service\MetadataExtractor:
-        arguments:
-            $metadataReader: '@MagicSunday\ImageMeta\MetadataReader'
-
     MagicSunday\Renamer\Application:
         public: true
         arguments:
-            $commands: !tagged command
+            $commands: !tagged_iterator command
 
     # Service interfaces and implementations
     MagicSunday\Renamer\Service\FileSystemServiceInterface:
@@ -34,3 +28,6 @@ services:
         arguments:
             $fileSystemService: '@MagicSunday\Renamer\Service\FileSystemServiceInterface'
             $io: '@Symfony\Component\Console\Style\SymfonyStyle'
+
+    MagicSunday\ImageMeta\MetadataReader:
+        autowire: true

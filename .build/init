@@ -3,7 +3,7 @@
 set -e # Instructs a shell to exit if a command fails, i.e., if it outputs a non-zero exit status.
 
 # Add only the PHP extensions that are really required to reduce the size of the final binary file
-PHP_EXTENSIONS="curl,dom,exif,filter,iconv,mbstring,openssl,pcntl,phar,posix,tokenizer,yaml,xml,xmlwriter,zlib"
+PHP_EXTENSIONS="curl,dom,exif,fileinfo,filter,iconv,mbstring,openssl,pcntl,phar,posix,tokenizer,yaml,xml,xmlreader,xmlwriter,zlib"
 #PHP_EXTENSIONS="curl,dom,exif,fileinfo,filter,intl,mbstring,opcache,openssl,pcntl,phar,posix,readline,session,tokenizer,yaml,zip,zlib"
 
 cd $(dirname "${BASH_SOURCE[0]}")

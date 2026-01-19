@@ -15,6 +15,7 @@ use Rector\DeadCode\Rector\ClassMethod\RemoveUnusedPrivateMethodParameterRector;
 use Rector\DeadCode\Rector\ClassMethod\RemoveUselessParamTagRector;
 use Rector\DeadCode\Rector\ClassMethod\RemoveUselessReturnTagRector;
 use Rector\DeadCode\Rector\Property\RemoveUselessVarTagRector;
+use Rector\DeadCode\Rector\Stmt\RemoveUnreachableStatementRector;
 use Rector\Php80\Rector\Class_\ClassPropertyAssignToConstructorPromotionRector;
 use Rector\Set\ValueObject\LevelSetList;
 use Rector\Set\ValueObject\SetList;
@@ -66,18 +67,17 @@ return static function (RectorConfig $rectorConfig): void {
         SetList::EARLY_RETURN,
         SetList::INSTANCEOF,
         SetList::PRIVATIZATION,
-        SetList::STRICT_BOOLEANS,
         SetList::TYPE_DECLARATION,
+        SetList::TYPE_DECLARATION_DOCBLOCKS,
         LevelSetList::UP_TO_PHP_84,
     ]);
 
     // Skip some rules
     $rectorConfig->skip([
         CatchExceptionNameMatchingTypeRector::class,
-        ClassPropertyAssignToConstructorPromotionRector::class,
+        RemoveUnreachableStatementRector::class,
         RemoveUselessParamTagRector::class,
         RemoveUselessReturnTagRector::class,
-        RemoveUselessVarTagRector::class,
-        RemoveUnusedPrivateMethodParameterRector::class,
+        NewMethodCallWithoutParenthesesRector::class,
     ]);
 };

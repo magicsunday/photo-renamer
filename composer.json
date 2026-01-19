@@ -1,12 +1,58 @@
 {
+    "name": "magicsunday/photo-renamer",
+    "description": "Renames photos using EXIF date, patterns, filesize, ...",
+    "license": "MIT",
+    "keywords": [
+        "rename",
+        "live",
+        "photo",
+        "live photos",
+        "Apple",
+        "videos"
+    ],
     "authors": [
         {
+            "name": "Rico Sonntag",
             "email": "mail@ricosonntag.de",
             "homepage": "https://ricosonntag.de",
-            "name": "Rico Sonntag",
             "role": "Developer"
         }
     ],
+    "config": {
+        "discard-changes": true,
+        "sort-packages": true,
+        "optimize-autoloader": true,
+        "platform-check": false
+    },
+    "repositories": {
+        "magicsunday/imagemeta": {
+            "type": "github",
+            "url": "git@github.com:magicsunday/imagemeta.git"
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "require": {
+        "php": "^8.4",
+        "ext-dom": "*",
+        "ext-exif": "*",
+        "symfony/config": "^7.0 || ^8.0",
+        "symfony/console": "^7.0 || ^8.0",
+        "symfony/dependency-injection": "^7.0 || ^8.0",
+        "symfony/yaml": "^7.0 || ^8.0",
+        "magicsunday/imagemeta": "dev-main"
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.85",
+        "overtrue/phplint": "^9.0",
+        "phpdocumentor/reflection-docblock": "^6.0",
+        "phpstan/phpstan": "^2.0",
+        "phpstan/phpstan-deprecation-rules": "^2.0",
+        "phpstan/phpstan-phpunit": "^2.0",
+        "phpstan/phpstan-strict-rules": "^2.0",
+        "phpunit/phpunit": "^12.0",
+        "rector/rector": "^2.0"
+    },
     "autoload": {
         "psr-4": {
             "MagicSunday\\Renamer\\": "src/"
@@ -17,57 +63,12 @@
             "MagicSunday\\Renamer\\Test\\": "test/"
         }
     },
-    "config": {
-        "discard-changes": true,
-        "optimize-autoloader": true,
-        "platform-check": false,
-        "sort-packages": true
-    },
-    "description": "Renames photos using EXIF date, patterns, filesize, ...",
-    "keywords": [
-        "rename",
-        "live",
-        "photo",
-        "live photos",
-        "Apple",
-        "videos"
-    ],
-    "license": "MIT",
-    "name": "magicsunday/photo-renamer",
-    "require": {
-        "ext-dom": "*",
-        "ext-exif": "*",
-        "magicsunday/imagemeta": "^1.0",
-        "php": "^8.4",
-        "symfony/config": "^7.0",
-        "symfony/console": "^7.0",
-        "symfony/dependency-injection": "^7.0",
-        "symfony/yaml": "^7.0"
-    },
-    "require-dev": {
-        "friendsofphp/php-cs-fixer": "^3.85",
-        "overtrue/phplint": "^9.0",
-        "phpdocumentor/reflection-docblock": "^5.0",
-        "phpstan/phpstan": "^2.0",
-        "phpstan/phpstan-deprecation-rules": "^2.0",
-        "phpstan/phpstan-phpunit": "^2.0",
-        "phpstan/phpstan-strict-rules": "^2.0",
-        "phpunit/phpunit": "^12.0",
-        "rector/rector": "^2.0"
-    },
     "scripts": {
         "ci:cgl": [
             "bin/php vendor/bin/php-cs-fixer fix --config .build/.php-cs-fixer.dist.php --diff --verbose"
         ],
         "ci:rector": [
             "bin/php vendor/bin/rector process --config .build/rector.php"
-        ],
-        "ci:test": [
-            "@ci:test:php:lint",
-            "@ci:test:php:phpstan",
-            "@ci:test:php:rector",
-            "@ci:test:php:cgl",
-            "@ci:test:php:unit"
         ],
         "ci:test:php:cgl": [
             "@ci:cgl --dry-run"
@@ -86,6 +87,13 @@
         ],
         "ci:test:php:unit": [
             "bin/php vendor/bin/phpunit --configuration .build/phpunit.xml"
+        ],
+        "ci:test": [
+            "@ci:test:php:lint",
+            "@ci:test:php:phpstan",
+            "@ci:test:php:rector",
+            "@ci:test:php:cgl",
+            "@ci:test:php:unit"
         ]
     }
 }

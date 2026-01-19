@@ -44,7 +44,10 @@ final class ExifMetadataProvider
             try {
                 $this->exifDataCache[$splFileInfo] = $this->createExifData($splFileInfo);
             } catch (ExifMetadataReadException $exception) {
-                throw new TargetFilenameException($exception->getMessage(), previous: $exception);
+                throw new TargetFilenameException(
+                    sprintf('Unable to read image metadata from "%s": %s', $splFileInfo->getPathname(), $exception->getMessage()),
+                    previous: $exception,
+                );
             }
         }
 

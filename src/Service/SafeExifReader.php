@@ -8,10 +8,13 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service;
 
+use MagicSunday\ImageMeta\Api\ExifReader;
+use MagicSunday\ImageMeta\MetadataReader;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Service\Dto\ExifMetadataResult;
 use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\ExifRawMetadata;
 use SplFileInfo;
+use Throwable;
 use ValueError;
 
 use function exif_read_data;
@@ -33,6 +36,10 @@ class SafeExifReader
 {
     private const XMP_SCAN_LENGTH = 524_288;
 
+    public function __construct(private readonly MetadataReader $metadataReader)
+    {
+    }
+
     /**
      * Reads EXIF metadata and converts PHP warnings into domain exceptions.
      *
@@ -52,8 +59,21 @@ class SafeExifReader
             },
         );
 
+        if (str_ends_with($filename, 'jpg')) {
+            try {
+                $meta = $this->metadataReader
+                    ->read($filename)
+                    ->structured();
+            } catch (Throwable $exception) {
+                throw new ExifMetadataReadException(
+                    sprintf('Unable to read image metadata from "%s": %s', $filename, $exception->getMessage()),
+                    previous: $exception,
+                );
+            }
+        }
+
         try {
-            $data = exif_read_data($filename);
+            $data = []; // exif_read_data($filename);
         } catch (ValueError $error) {
             throw new ExifMetadataReadException(
                 sprintf('Failed to read EXIF metadata from "%s": %s', $filename, $error->getMessage()),

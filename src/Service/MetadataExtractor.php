@@ -18,6 +18,7 @@ use function is_object;
 use function is_string;
 use function method_exists;
 use function property_exists;
+use function sprintf;
 use function trim;
 use function ucfirst;
 
@@ -33,7 +34,7 @@ final class MetadataExtractor
             $metadata = $this->metadataReader->read($file->getPathname());
         } catch (Throwable $exception) {
             throw new ExifMetadataReadException(
-                'Unable to read image metadata: ' . $exception->getMessage(),
+                sprintf('Unable to read image metadata from "%s": %s', $file->getPathname(), $exception->getMessage()),
                 previous: $exception,
             );
         }
