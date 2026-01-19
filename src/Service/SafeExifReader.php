@@ -26,6 +26,9 @@ use function str_contains;
 use function strtolower;
 use function trim;
 
+/**
+ * @deprecated Use MetadataExtractor (ImageMeta) for temporal metadata instead.
+ */
 class SafeExifReader
 {
     private const XMP_SCAN_LENGTH = 524_288;
