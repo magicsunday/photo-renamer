@@ -864,6 +864,64 @@ final class DuplicateDetectionServiceTest extends TestCase
     }
 
     #[Test]
+    public function createDuplicateFilenamesCompanionInheritsSubGroupNumber(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        // Image A (hash X) + companion MOV A + image B (hash Y)
+        $imageA = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.HEIC';
+        $movA   = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.MOV';
+        $imageB = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0002.HEIC';
+
+        file_put_contents($imageA, 'image-content-A');
+        file_put_contents($movA, 'video-content-A');
+        file_put_contents($imageB, 'image-content-B-different');
+
+        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28.HEIC';
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate
+            ->addFile(new SplFileInfo($imageA))
+            ->addFile(new SplFileInfo($movA))
+            ->addFile(new SplFileInfo($imageB))
+            ->setTarget(new SplFileInfo($targetFile));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('live-photo:content-id', $fileDuplicate);
+
+        $service
+            ->setSourceDirectory($sourceDirectory)
+            ->setTargetDirectory($targetDirectory)
+            ->setUseFileExtensionFromSource(true);
+
+        $service->createDuplicateFilenames($collection);
+
+        $duplicate = $collection->get('live-photo:content-id');
+        self::assertInstanceOf(FileDuplicate::class, $duplicate);
+
+        $renames       = iterator_to_array($duplicate->getRenames());
+        $renameTargets = [];
+
+        foreach ($renames as $rename) {
+            $renameTargets[$rename->getSource()->getPathname()] = $rename->getTarget()->getFilename();
+        }
+
+        self::assertCount(3, $renames);
+
+        // Image A → basename-001.heic (sub-group 1)
+        self::assertSame('2025-01-01_00-02-28-001.heic', $renameTargets[$imageA]);
+
+        // MOV A → basename-001.mov (companion inherits sub-group 1)
+        self::assertSame('2025-01-01_00-02-28-001.mov', $renameTargets[$movA]);
+
+        // Image B → basename-002.heic (sub-group 2)
+        self::assertSame('2025-01-01_00-02-28-002.heic', $renameTargets[$imageB]);
+    }
+
+    #[Test]
     public function createDuplicateFilenamesHandlesHashComputationFailure(): void
     {
         $hashCalculator = $this->createMock(SafeHashCalculator::class);
