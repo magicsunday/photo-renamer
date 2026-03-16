@@ -5,11 +5,13 @@ set -e # Instructs a shell to exit if a command fails, i.e., if it outputs a non
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 BUILD_DIR_NAME=".build/renamer/"
+BIN_DIR=".build/bin"
+SPC_DIR=".build/spc"
 BIN_NAME="renamer"
 
 echo "Compiling ${BIN_NAME}"
 
-if [ ! -f "bin/composer" ]; then
+if [ ! -f "${BIN_DIR}/composer" ]; then
     ./scripts/init
 fi
 
@@ -28,18 +30,18 @@ cp -r src $BUILD_DIR_NAME
 cp -r config $BUILD_DIR_NAME
 cp version $BUILD_DIR_NAME
 echo "Installing composer dependencies"
-bin/composer -d $BUILD_DIR_NAME install --no-dev --no-ansi --no-interaction --no-progress --no-scripts --classmap-authoritative
+${BIN_DIR}/composer -d $BUILD_DIR_NAME install --no-dev --no-ansi --no-interaction --no-progress --no-scripts --classmap-authoritative
 
 find $BUILD_DIR_NAME -type f -iname README.* -delete || :
 find $BUILD_DIR_NAME -type f -iname LICENSE -delete || :
 find $BUILD_DIR_NAME -type f -iname CHANGELOG* -delete || :
 
 echo "Creating phar archive"
-bin/php scripts/build.php
+${BIN_DIR}/php scripts/build.php
 
 echo "Cleaning up"
 rm -rf "${BUILD_DIR_NAME}"
 
 echo "Building self-containing binary"
-bin/spc micro:combine "${BIN_NAME}.phar" --output=${BIN_NAME} --with-micro=spc/buildroot/bin/micro.sfx
+${BIN_DIR}/spc micro:combine "${BIN_NAME}.phar" --output=${BIN_NAME} --with-micro=${SPC_DIR}/buildroot/bin/micro.sfx
 rm "${BIN_NAME}.phar"

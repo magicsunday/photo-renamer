@@ -13,6 +13,7 @@ RUN git config --global --add safe.directory /app
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 ENV COMPOSER_ALLOW_SUPERUSER=1
+ENV PATH="/app/.build/bin:${PATH}"
 
 WORKDIR /app
 

@@ -10,7 +10,7 @@ build: .logo ## Build a new renamer binary.
 	@bash scripts/build
 
 cleanup: .logo ## Removes build artifacts to free space.
-	@rm -rf spc/pkgroot/ spc/downloads/ spc/source/
+	@rm -rf .build/spc/pkgroot/ .build/spc/downloads/ .build/spc/source/
 
 init: .logo ## Initialize the SPC build environment.
 	@bash scripts/init

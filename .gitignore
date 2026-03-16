@@ -4,16 +4,11 @@
 # OS
 .DS_Store
 
-# Build artifacts
-bin/
-spc/
+# Build output
+.build/
 renamer
 renamer.phar
 renamer.md5
-
-# Cache
-.build/
-.php-cs-fixer.cache
 
 # Environment
 .env
@@ -25,7 +20,3 @@ images2/
 # Reports
 coverage-report/
 coverage-report-xdebug/
-
-# Logs
-log/
-logs/

@@ -6,48 +6,41 @@ set -e # Instructs a shell to exit if a command fails, i.e., if it outputs a non
 PHP_EXTENSIONS="curl,dom,exif,fileinfo,filter,iconv,mbstring,openssl,pcntl,phar,posix,tokenizer,yaml,xml,xmlreader,xmlwriter,zlib"
 #PHP_EXTENSIONS="curl,dom,exif,fileinfo,filter,intl,mbstring,opcache,openssl,pcntl,phar,posix,readline,session,tokenizer,yaml,zip,zlib"
 
-cd $(dirname "${BASH_SOURCE[0]}")
+cd $(dirname "${BASH_SOURCE[0]}")/..
 
-cd ..
+SPC_DIR=".build/spc"
+BIN_DIR=".build/bin"
 
-if [ -f 'spc/buildroot/bin/micro.sfx' ]; then
+if [ -f "${SPC_DIR}/buildroot/bin/micro.sfx" ]; then
     echo "Delete existing buildroot/ and source/ directories to start a new build from scratch"
-    rm -rf spc/buildroot spc/source
+    rm -rf "${SPC_DIR}/buildroot" "${SPC_DIR}/source"
 fi
 
-if [ ! -d "spc" ]; then
-    mkdir spc
-fi
+mkdir -p "${SPC_DIR}" "${BIN_DIR}"
 
-if [ ! -d "bin" ]; then
-    echo "Create bin directory"
-    mkdir -p bin
-fi
-
-if [ ! -f "bin/spc" ]; then
+if [ ! -f "${BIN_DIR}/spc" ]; then
     echo "Download SPC binary command"
-    curl -fsSL -o bin/spc https://dl.static-php.dev/static-php-cli/spc-bin/nightly/spc-linux-x86_64
-    # Add execute permission (Linux and macOS only)
-    chmod +x bin/spc
+    curl -fsSL -o "${BIN_DIR}/spc" https://dl.static-php.dev/static-php-cli/spc-bin/nightly/spc-linux-x86_64
+    chmod +x "${BIN_DIR}/spc"
 fi
 
-cd spc
+cd "${SPC_DIR}"
 
 echo "Check system tool dependencies, auto-fix them if possible"
-../bin/spc doctor --auto-fix
+../../${BIN_DIR}/spc doctor --auto-fix
 
-if [ ! -f "spc/pkgroot/bin/upx" ]; then
+if [ ! -f "pkgroot/bin/upx" ]; then
     echo "Download UPX command"
-    ../bin/spc install-pkg upx
+    ../../${BIN_DIR}/spc install-pkg upx
 fi
 
 echo "Download SPC extensions"
-../bin/spc download --with-php=8.4 --for-extensions "${PHP_EXTENSIONS}" --prefer-pre-built --without-suggestions
+../../${BIN_DIR}/spc download --with-php=8.4 --for-extensions "${PHP_EXTENSIONS}" --prefer-pre-built --without-suggestions
 
 echo "Compile SPC"
-../bin/spc build --build-cli --build-micro --with-micro-fake-cli --with-upx-pack "${PHP_EXTENSIONS}" -I "phar.readonly=Off" -I "memory_limit=-1" -I "error_reporting=-1"
+../../${BIN_DIR}/spc build --build-cli --build-micro --with-micro-fake-cli --with-upx-pack "${PHP_EXTENSIONS}" -I "phar.readonly=Off" -I "memory_limit=-1" -I "error_reporting=-1"
 
-ln -sf ../spc/buildroot/bin/php ../bin/php
+ln -sf "../spc/buildroot/bin/php" "../bin/php"
 
 echo "Install Composer"
 curl -fsSL -o composer-setup.php https://getcomposer.org/installer
@@ -57,8 +50,8 @@ if [ ! -f "composer-setup.php" ]; then
     exit 1
 fi
 
-EXPECTED_CHECKSUM="$(../bin/php -r 'copy("https://composer.github.io/installer.sig", "php://stdout");')"
-ACTUAL_CHECKSUM="$(../bin/php -r "echo hash_file('sha384', 'composer-setup.php');")"
+EXPECTED_CHECKSUM="$(../../${BIN_DIR}/php -r 'copy("https://composer.github.io/installer.sig", "php://stdout");')"
+ACTUAL_CHECKSUM="$(../../${BIN_DIR}/php -r "echo hash_file('sha384', 'composer-setup.php');")"
 
 if [ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]
 then
@@ -67,13 +60,13 @@ then
     exit 1
 fi
 
-../bin/php composer-setup.php && \
-../bin/php -r "unlink('composer-setup.php');"
+../../${BIN_DIR}/php composer-setup.php && \
+../../${BIN_DIR}/php -r "unlink('composer-setup.php');"
 
 if [ -f "composer.phar" ]; then
-    ../bin/spc micro:combine composer.phar --output=composer
+    ../../${BIN_DIR}/spc micro:combine composer.phar --output=composer
     rm composer.phar
-    mv composer ../bin/composer
+    mv composer "../../${BIN_DIR}/composer"
 else
     echo "Composer download failed"
     exit 1
