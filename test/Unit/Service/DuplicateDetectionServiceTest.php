@@ -863,6 +863,54 @@ final class DuplicateDetectionServiceTest extends TestCase
     }
 
     #[Test]
+    public function createDuplicateFilenamesSingleFileGroupSkipsHashing(): void
+    {
+        $hashCalculator = $this->createMock(SafeHashCalculator::class);
+        $hashCalculator
+            ->expects(self::never())
+            ->method('hashFile');
+
+        $output = new BufferedOutput();
+        $io     = new SymfonyStyle(new ArrayInput([]), $output);
+
+        $fileSystemService = new FileSystemService($io);
+        $service           = new DuplicateDetectionService($fileSystemService, $io, $hashCalculator);
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $sourceFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'only.jpg';
+        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . 'target.jpg';
+
+        file_put_contents($sourceFile, 'single');
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate
+            ->addFile(new SplFileInfo($sourceFile))
+            ->setTarget(new SplFileInfo($targetFile));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('identifier', $fileDuplicate);
+
+        $service
+            ->setSourceDirectory($sourceDirectory)
+            ->setTargetDirectory($targetDirectory);
+
+        $service->createDuplicateFilenames($collection);
+
+        $duplicate = $collection->get('identifier');
+        self::assertInstanceOf(FileDuplicate::class, $duplicate);
+
+        $renames = iterator_to_array($duplicate->getRenames());
+
+        self::assertCount(1, $renames);
+        self::assertSame(
+            $targetDirectory . DIRECTORY_SEPARATOR . 'target.jpg',
+            $renames[0]->getTarget()->getPathname(),
+        );
+    }
+
+    #[Test]
     public function createDuplicateFilenamesHandlesMixedDistinctAndDuplicateFiles(): void
     {
         [$service] = $this->createService();
