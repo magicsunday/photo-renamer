@@ -30,4 +30,4 @@ services:
             $io: '@Symfony\Component\Console\Style\SymfonyStyle'
 
     MagicSunday\ImageMeta\MetadataReader:
-        autowire: true
+        factory: ['MagicSunday\ImageMeta\MetadataReader', 'createDefault']

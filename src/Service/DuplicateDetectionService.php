@@ -391,7 +391,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
      */
     private function startProgressBar(int $max): ProgressBar
     {
-        $progressBar = $this->io->createProgressBar($max);
+        $progressBar = $this->io->createProgressBar(max($max, 1));
         $progressBar->setFormat(FileSystemService::PROGRESS_BAR_FORMAT);
         $progressBar->start();
 

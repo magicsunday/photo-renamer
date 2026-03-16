@@ -20,14 +20,9 @@ use SplFileInfo;
 use Stringable;
 use Throwable;
 
-use function is_array;
-use function is_object;
 use function is_string;
-use function method_exists;
-use function property_exists;
 use function sprintf;
 use function trim;
-use function ucfirst;
 
 final readonly class MetadataExtractor implements MetadataExtractorInterface
 {
@@ -40,18 +35,21 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         try {
             $metadata = $this->metadataReader->read($file->getPathname());
         } catch (Throwable $exception) {
-            throw new ExifMetadataReadException(sprintf('Unable to read image metadata from "%s": %s', $file->getPathname(), $exception->getMessage()), $exception->getCode(), previous: $exception);
+            throw new ExifMetadataReadException(
+                sprintf(
+                    'Unable to read image metadata from "%s": %s',
+                    $file->getPathname(),
+                    $exception->getMessage(),
+                ),
+                $exception->getCode(),
+                previous: $exception,
+            );
         }
 
         $structured = $metadata->structured();
-        $temporal   = $this->extractTemporalPayload($structured);
 
-        if ($temporal === null) {
-            return null;
-        }
-
-        $captureDateTime = $this->normaliseCaptureDateTime($this->readTemporalField($temporal, 'captureDateTime'));
-        $livePhotoId     = $this->normaliseLivePhotoId($this->readTemporalField($temporal, 'livePhotoId'));
+        $captureDateTime = $this->extractCaptureDateTime($structured);
+        $livePhotoId     = $this->extractContentIdentifier($structured);
 
         if (!$captureDateTime instanceof DateTimeInterface && $livePhotoId === null) {
             return null;
@@ -61,67 +59,86 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
     }
 
     /**
-     * @param mixed $structured
+     * Extracts the capture date/time from the structured metadata.
      *
-     * @return object|array<mixed, mixed>|null
+     * Reads from locationTime.temporal.original, falling back to
+     * locationTime.temporal.create, then locationTime.capture.dateTime.
      */
-    private function extractTemporalPayload(mixed $structured): object|array|null
+    private function extractCaptureDateTime(mixed $structured): ?DateTimeInterface
     {
-        if (is_array($structured)) {
-            $temporal = $structured['temporal'] ?? null;
+        $locationTime = $this->readProperty($structured, 'locationTime');
 
-            return is_array($temporal) || is_object($temporal) ? $temporal : null;
-        }
-
-        if (!is_object($structured)) {
+        if ($locationTime === null) {
             return null;
         }
 
-        if (property_exists($structured, 'temporal')) {
-            $temporal = $structured->temporal;
+        $temporal = $this->readProperty($locationTime, 'temporal');
 
-            return is_array($temporal) || is_object($temporal) ? $temporal : null;
+        if ($temporal !== null) {
+            $original = $this->readProperty($temporal, 'original');
+
+            if ($original instanceof DateTimeInterface) {
+                return $original;
+            }
+
+            $create = $this->readProperty($temporal, 'create');
+
+            if ($create instanceof DateTimeInterface) {
+                return $create;
+            }
         }
 
-        if (method_exists($structured, 'temporal')) {
-            $temporal = $structured->temporal();
+        $capture  = $this->readProperty($locationTime, 'capture');
+        $dateTime = $capture !== null ? $this->readProperty($capture, 'dateTime') : null;
 
-            return is_array($temporal) || is_object($temporal) ? $temporal : null;
+        if ($dateTime instanceof DateTimeInterface) {
+            return $dateTime;
         }
 
-        return null;
+        return $this->normaliseStringDateTime($dateTime);
     }
 
     /**
-     * @param object|array<mixed, mixed> $temporal
+     * Extracts the Apple Live Photo content identifier from the structured metadata.
+     *
+     * Reads from makerNotesApple.identity.contentIdentifier.
      */
-    private function readTemporalField(object|array $temporal, string $field): mixed
+    private function extractContentIdentifier(mixed $structured): ?string
     {
-        if (is_array($temporal)) {
-            return $temporal[$field] ?? null;
+        $makerNotesApple = $this->readProperty($structured, 'makerNotesApple');
+
+        if ($makerNotesApple === null) {
+            return null;
         }
 
-        if (property_exists($temporal, $field)) {
+        $identity = $this->readProperty($makerNotesApple, 'identity');
+
+        if ($identity === null) {
+            return null;
+        }
+
+        return $this->normaliseStringValue($this->readProperty($identity, 'contentIdentifier'));
+    }
+
+    /**
+     * Reads a property from an object, trying direct property access first,
+     * then getter method, then method with the same name.
+     */
+    private function readProperty(mixed $object, string $name): mixed
+    {
+        if (!is_object($object)) {
+            return null;
+        }
+
+        if (property_exists($object, $name)) {
             /** @phpstan-ignore property.dynamicName */
-            return $temporal->{$field};
-        }
-
-        $getter = 'get' . ucfirst($field);
-
-        if (method_exists($temporal, $getter)) {
-            /** @phpstan-ignore method.dynamicName */
-            return $temporal->{$getter}();
-        }
-
-        if (method_exists($temporal, $field)) {
-            /** @phpstan-ignore method.dynamicName */
-            return $temporal->{$field}();
+            return $object->{$name};
         }
 
         return null;
     }
 
-    private function normaliseCaptureDateTime(mixed $value): ?DateTimeInterface
+    private function normaliseStringDateTime(mixed $value): ?DateTimeInterface
     {
         if ($value instanceof DateTimeInterface) {
             return $value;
@@ -138,7 +155,7 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         return null;
     }
 
-    private function normaliseLivePhotoId(mixed $value): ?string
+    private function normaliseStringValue(mixed $value): ?string
     {
         if ($value === null) {
             return null;
