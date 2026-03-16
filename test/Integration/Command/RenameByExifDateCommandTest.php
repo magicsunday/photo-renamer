@@ -133,13 +133,6 @@ final class RenameByExifDateCommandTest extends TestCase
             // ---- Execute ----
             $mappings = $this->runDryRun($workspace, $metadataExtractor);
 
-            // Debug: dump all mappings on failure
-            $debugMappings = '';
-
-            foreach ($mappings as $src => $tgt) {
-                $debugMappings .= $src . ' => ' . $tgt . "\n";
-            }
-
             self::assertCount(13, $mappings);
 
             // ---- Live Photo group LP-1: canonical + companion ----
