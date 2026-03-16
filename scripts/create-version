@@ -1,28 +1,33 @@
 #!/usr/bin/env bash
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit
+set -e
 
-echo "Last version: $(cat version)"
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+CURRENT_VERSION="$(cat version)"
+echo "Last version: ${CURRENT_VERSION}"
 
 read -p "Enter new version: " VERSION
 
-if [ -z "$VERSION" ]; then
+if [ -z "${VERSION}" ]; then
     echo "Version is required"
     exit 1
 fi
 
-if [ -f "version" ]; then
-    CURRENT_VERSION=$(cat version)
-    if [ "$VERSION" == "$CURRENT_VERSION" ]; then
-        echo "Version $VERSION is already released"
-        exit 1
-    fi
+if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+    echo "Invalid version format. Expected: X.Y.Z or X.Y.Z-suffix"
+    exit 1
 fi
 
-echo "$VERSION" > version
+if [ "${VERSION}" == "${CURRENT_VERSION}" ]; then
+    echo "Version ${VERSION} is already released"
+    exit 1
+fi
+
+echo "${VERSION}" > version
 
 git add version
-git commit -m "[Release] $VERSION"
-git tag "$VERSION"
+git commit -m "release: ${VERSION}"
+git tag -- "${VERSION}"
 git push
 git push --tags
