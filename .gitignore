@@ -16,7 +16,7 @@ renamer.md5
 var/
 
 # Cache
-.build/cache/
+.build/
 .php-cs-fixer.cache
 
 # Environment

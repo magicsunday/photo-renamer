@@ -7,4 +7,4 @@ cd $(dirname "$0")/..
 #echo "USERID=$(id -u)" > .env
 #echo "GROUPID=$(id -g)" >> .env
 
-docker compose run --build --rm builder ./.build/init
+docker compose run --build --rm builder ./scripts/init

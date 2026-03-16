@@ -10,7 +10,7 @@ BIN_NAME="renamer"
 echo "Compiling ${BIN_NAME}"
 
 if [ ! -f "bin/composer" ]; then
-    ./.build/init
+    ./scripts/init
 fi
 
 if [ -d "${BUILD_DIR_NAME}" ]; then
@@ -35,7 +35,7 @@ find $BUILD_DIR_NAME -type f -iname LICENSE -delete || :
 find $BUILD_DIR_NAME -type f -iname CHANGELOG* -delete || :
 
 echo "Creating phar archive"
-bin/php .build/build.php
+bin/php scripts/build.php
 
 echo "Cleaning up"
 rm -rf "${BUILD_DIR_NAME}"
