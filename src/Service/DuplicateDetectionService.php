@@ -60,8 +60,11 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     /**
      * Constructor.
      */
-    public function __construct(private readonly FileSystemService $fileSystemService, private readonly SymfonyStyle $io)
-    {
+    public function __construct(
+        private readonly FileSystemService $fileSystemService,
+        private readonly SymfonyStyle $io,
+        private readonly SafeHashCalculator $hashCalculator,
+    ) {
     }
 
     /**

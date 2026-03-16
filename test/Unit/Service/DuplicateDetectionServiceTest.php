@@ -19,6 +19,7 @@ use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Service\DuplicateDetectionService;
 use MagicSunday\Renamer\Service\FileSystemService;
+use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -805,8 +806,9 @@ final class DuplicateDetectionServiceTest extends TestCase
         $output = new BufferedOutput();
         $io     = new SymfonyStyle(new ArrayInput([]), $output);
 
-        $fileSystemService = new FileSystemService($io);
-        $service           = new DuplicateDetectionService($fileSystemService, $io);
+        $fileSystemService  = new FileSystemService($io);
+        $hashCalculator     = new SafeHashCalculator();
+        $service            = new DuplicateDetectionService($fileSystemService, $io, $hashCalculator);
 
         return [$service, $output, $fileSystemService];
     }
