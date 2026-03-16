@@ -11,23 +11,20 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Metadata;
 
-use DateTimeImmutable;
 use DateTimeInterface;
 use MagicSunday\ImageMeta\MetadataReader;
+use MagicSunday\ImageMeta\Value\StructuredMetadata;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use SplFileInfo;
-use Stringable;
 use Throwable;
 
-use function is_string;
 use function sprintf;
 use function trim;
 
 /**
- * Reads raw EXIF/XMP/QuickTime metadata via the imagemeta MetadataReader library
- * and converts it into a TemporalMetadata value object containing capture date
- * and Live Photo content identifier. Navigates the structured metadata tree
- * produced by imagemeta with a fallback chain for different tag locations.
+ * Extracts capture date and Apple Live Photo content identifier from image/video
+ * files via the imagemeta {@see MetadataReader}. Accesses the typed
+ * {@see StructuredMetadata} tree directly (no dynamic property lookups).
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -40,12 +37,9 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
     }
 
     /**
-     * Extracts temporal metadata and Live Photo content identifier from the file.
-     * Returns null when neither a capture date nor a content identifier is present.
-     *
-     * @param SplFileInfo $file File to read metadata from
-     *
-     * @return TemporalMetadata|null Extracted metadata, or null when the file lacks relevant fields
+     * Reads metadata from the given file and returns a {@see TemporalMetadata}
+     * combining the capture timestamp and Live Photo content identifier.
+     * Returns null when the file contains neither.
      *
      * @throws ExifMetadataReadException When the underlying metadata reader fails
      */
@@ -65,8 +59,7 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
             );
         }
 
-        $structured = $metadata->structured();
-
+        $structured      = $metadata->structured();
         $captureDateTime = $this->extractCaptureDateTime($structured);
         $livePhotoId     = $this->extractContentIdentifier($structured);
 
@@ -78,136 +71,32 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
     }
 
     /**
-     * Extracts the capture date/time from the structured metadata.
-     *
-     * Reads from locationTime.temporal.original, falling back to
-     * locationTime.temporal.create, then locationTime.capture.dateTime.
+     * Returns the original capture timestamp, falling back to the creation
+     * timestamp and then the generic capture dateTime. All three are nullable
+     * {@see \DateTimeImmutable} properties on the imagemeta value objects.
      */
-    private function extractCaptureDateTime(mixed $structured): ?DateTimeInterface
+    private function extractCaptureDateTime(StructuredMetadata $structured): ?DateTimeInterface
     {
-        $locationTime = $this->readProperty($structured, 'locationTime');
-
-        if ($locationTime === null) {
-            return null;
-        }
-
-        $temporal = $this->readProperty($locationTime, 'temporal');
-
-        if ($temporal !== null) {
-            $original = $this->readProperty($temporal, 'original');
-
-            if ($original instanceof DateTimeInterface) {
-                return $original;
-            }
-
-            $create = $this->readProperty($temporal, 'create');
-
-            if ($create instanceof DateTimeInterface) {
-                return $create;
-            }
-        }
-
-        $capture  = $this->readProperty($locationTime, 'capture');
-        $dateTime = $capture !== null ? $this->readProperty($capture, 'dateTime') : null;
-
-        if ($dateTime instanceof DateTimeInterface) {
-            return $dateTime;
-        }
-
-        return $this->normaliseStringDateTime($dateTime);
+        return $structured->locationTime->temporal->original
+            ?? $structured->locationTime->temporal->create
+            ?? $structured->locationTime->capture->dateTime;
     }
 
     /**
-     * Extracts the Apple Live Photo content identifier from the structured metadata.
-     *
-     * Reads from makerNotesApple.identity.contentIdentifier.
+     * Returns the Apple Live Photo content identifier from the Apple maker notes,
+     * or null when the file is not part of a Live Photo pair. Empty/whitespace-only
+     * identifiers are normalised to null.
      */
-    private function extractContentIdentifier(mixed $structured): ?string
+    private function extractContentIdentifier(StructuredMetadata $structured): ?string
     {
-        $makerNotesApple = $this->readProperty($structured, 'makerNotesApple');
+        $contentIdentifier = $structured->makerNotesApple?->identity?->contentIdentifier;
 
-        if ($makerNotesApple === null) {
+        if ($contentIdentifier === null) {
             return null;
         }
 
-        $identity = $this->readProperty($makerNotesApple, 'identity');
+        $trimmed = trim($contentIdentifier);
 
-        if ($identity === null) {
-            return null;
-        }
-
-        return $this->normaliseStringValue($this->readProperty($identity, 'contentIdentifier'));
-    }
-
-    /**
-     * Reads a named property from an arbitrary object via direct property access.
-     * Returns null for non-objects or when the property does not exist.
-     *
-     * @param mixed  $object Object to read from
-     * @param string $name   Property name to access
-     *
-     * @return mixed Property value, or null when inaccessible
-     */
-    private function readProperty(mixed $object, string $name): mixed
-    {
-        if (!is_object($object)) {
-            return null;
-        }
-
-        if (property_exists($object, $name)) {
-            /** @phpstan-ignore property.dynamicName */
-            return $object->{$name};
-        }
-
-        return null;
-    }
-
-    /**
-     * Attempts to parse a mixed value as a DateTimeInterface. Accepts existing
-     * DateTimeInterface instances directly, or parses non-empty strings via
-     * DateTimeImmutable. Returns null for unparseable or empty values.
-     *
-     * @param mixed $value Raw value from the metadata tree
-     *
-     * @return DateTimeInterface|null Parsed date/time, or null on failure
-     */
-    private function normaliseStringDateTime(mixed $value): ?DateTimeInterface
-    {
-        if ($value instanceof DateTimeInterface) {
-            return $value;
-        }
-
-        if (is_string($value) && $value !== '') {
-            try {
-                return new DateTimeImmutable($value);
-            } catch (Throwable) {
-                return null;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Converts a mixed value to a trimmed non-empty string, or null.
-     * Accepts strings, integers and Stringable objects.
-     *
-     * @param mixed $value Raw value from the metadata tree
-     *
-     * @return string|null Trimmed string, or null when empty or unsupported type
-     */
-    private function normaliseStringValue(mixed $value): ?string
-    {
-        if ($value === null) {
-            return null;
-        }
-
-        if ($value instanceof Stringable || is_string($value) || is_int($value)) {
-            $stringValue = trim((string) $value);
-
-            return $stringValue !== '' ? $stringValue : null;
-        }
-
-        return null;
+        return $trimmed !== '' ? $trimmed : null;
     }
 }
