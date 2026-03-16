@@ -58,7 +58,12 @@ class FileSystemService implements FileSystemServiceInterface
     /**
      * Upper bound for the runtime duplicate suffix fallback loop.
      */
-    private const int MAX_DUPLICATE_SUFFIX = 9999;
+    public const int MAX_DUPLICATE_SUFFIX = 9999;
+
+    /**
+     * Prefix used to identify Live Photo groups by their duplicate identifier string.
+     */
+    public const string LIVE_PHOTO_IDENTIFIER_PREFIX = 'live-photo:';
 
     /**
      * @param SymfonyStyle $io Console IO for progress bars, status output and error messages
@@ -307,7 +312,7 @@ class FileSystemService implements FileSystemServiceInterface
             return false;
         }
 
-        return str_starts_with($duplicateIdentifier, 'live-photo:');
+        return str_starts_with($duplicateIdentifier, self::LIVE_PHOTO_IDENTIFIER_PREFIX);
     }
 
     /**

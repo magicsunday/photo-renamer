@@ -59,16 +59,6 @@ use function trim;
 class DuplicateDetectionService implements DuplicateDetectionServiceInterface
 {
     /**
-     * Legacy prefix used to identify Live Photo groups by their duplicate identifier string.
-     */
-    private const string LIVE_PHOTO_IDENTIFIER_PREFIX = 'live-photo:';
-
-    /**
-     * Upper bound for duplicate suffix numbers to prevent infinite loops.
-     */
-    private const int MAX_DUPLICATE_SUFFIX = 9999;
-
-    /**
      * Absolute path to the directory being scanned for source files.
      */
     private string $sourceDirectory;
@@ -767,9 +757,9 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         }
 
         while ($this->isTargetOccupied($duplicateFileInfo, $source, $groupSourcePaths)) {
-            if ($duplicateCount > self::MAX_DUPLICATE_SUFFIX) {
+            if ($duplicateCount > FileSystemService::MAX_DUPLICATE_SUFFIX) {
                 throw new RuntimeException(
-                    sprintf('Exceeded %d duplicate suffix attempts', self::MAX_DUPLICATE_SUFFIX)
+                    sprintf('Exceeded %d duplicate suffix attempts', FileSystemService::MAX_DUPLICATE_SUFFIX)
                 );
             }
 
@@ -899,7 +889,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         FileDuplicate $fileDuplicate,
         SplFileInfo $candidateTarget,
     ): void {
-        if (!str_starts_with($duplicateIdentifier, self::LIVE_PHOTO_IDENTIFIER_PREFIX)) {
+        if (!str_starts_with($duplicateIdentifier, FileSystemService::LIVE_PHOTO_IDENTIFIER_PREFIX)) {
             return;
         }
 
