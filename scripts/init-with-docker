@@ -1,16 +1,27 @@
 #!/usr/bin/env bash
 
-set -e # Instructs a shell to exit if a command fails, i.e., if it outputs a non-zero exit status.
+set -e
 
-cd $(dirname "$0")/..
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 echo "USERID=$(id -u)" > .env
 echo "GROUPID=$(id -g)" >> .env
 
 # Fix .build/ ownership (created as root by buildbox) so builder container can write to it
-docker compose run --rm buildbox chown -R "$(id -u):$(id -g)" /app/.build
+if [ -d ".build" ]; then
+    docker compose run --rm buildbox chown -R "$(id -u):$(id -g)" /app/.build
+fi
 
 # Pass GitHub token to avoid API rate limiting
-GITHUB_TOKEN="${GITHUB_TOKEN:-$(gh auth token 2>/dev/null || true)}"
+if [ -z "${GITHUB_TOKEN}" ]; then
+    if command -v gh >/dev/null 2>&1; then
+        GITHUB_TOKEN="$(gh auth token 2>/dev/null || true)"
+    fi
 
-docker compose run --build --rm -e GITHUB_TOKEN="${GITHUB_TOKEN}" builder ./scripts/init
+    if [ -z "${GITHUB_TOKEN}" ]; then
+        echo "Error: GITHUB_TOKEN is not set and 'gh' is not available or not authenticated"
+        exit 1
+    fi
+fi
+
+docker compose run --rm -e GITHUB_TOKEN="${GITHUB_TOKEN}" builder ./scripts/init
