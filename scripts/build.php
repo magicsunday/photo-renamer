@@ -11,8 +11,8 @@ declare(strict_types=1);
 
 try
 {
-    $pharFile = "renamer.phar";
-    $binName  = "renamer";
+    $pharFile  = "renamer.phar";
+    $buildDir  = __DIR__ . '/../.build/renamer';
 
     if (file_exists($pharFile)) {
         unlink($pharFile);
@@ -22,7 +22,7 @@ try
         unlink($pharFile . ".gz");
     }
 
-    require_once __DIR__ . '/renamer/src/Dependencies.php';
+    require_once $buildDir . '/src/Dependencies.php';
 
     $phar = new Phar($pharFile);
     $phar->startBuffering();
@@ -30,7 +30,7 @@ try
     // Create the default stub
     $defaultStub = Phar::createDefaultStub('src/Renamer.php');
 
-    $phar->buildFromDirectory(__DIR__ . "/renamer");
+    $phar->buildFromDirectory($buildDir);
     $phar->setStub("#!/usr/bin/env php \n" . $defaultStub);
     $phar->stopBuffering();
     $phar->compressFiles(Phar::GZ);
