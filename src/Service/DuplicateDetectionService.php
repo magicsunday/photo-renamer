@@ -386,24 +386,17 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             // Pre-assign targets for files that already have a correct duplicate suffix
             // from a previous run (idempotency). Process these first so their suffix
             // numbers are reserved before new duplicates are assigned.
-            $this->preAssignExistingDuplicateSuffixes(
-                $fileDuplicate,
-                $canonicalRename,
-                $companionRename,
-                $duplicateCountByExtension,
-            );
-
-            // Assign unique target filenames to remaining renames.
             /** @var array<int, true> $preAssigned */
             $preAssigned = [];
 
-            foreach ($fileDuplicate->getRenames() as $index => $rename) {
-                if ($rename->getSource()->getPathname() === $rename->getTarget()->getPathname()
-                    && str_contains($rename->getTarget()->getFilename(), FileSystemService::DUPLICATE_IDENTIFIER)
-                ) {
-                    $preAssigned[$index] = true;
-                }
-            }
+            $this->preAssignExistingDuplicateSuffixes(
+                $fileDuplicate,
+                $companionRename,
+                $duplicateCountByExtension,
+                $preAssigned,
+            );
+
+            // Assign unique target filenames to remaining renames.
 
             foreach ($fileDuplicate->getRenames() as $index => $rename) {
                 $isCanonicalRename = $canonicalRename instanceof Rename && $rename === $canonicalRename;
@@ -926,24 +919,27 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
      * and its expected base name is `photo`, we keep it and reserve suffix 001.
      *
      * @param array<string, int> $duplicateCountByExtension suffix counters per extension (modified by reference)
+     * @param array<int, true>   $preAssigned               indices of pre-assigned renames (modified by reference)
      */
     private function preAssignExistingDuplicateSuffixes(
         FileDuplicate $fileDuplicate,
-        ?Rename $canonicalRename,
         ?Rename $companionRename,
         array &$duplicateCountByExtension,
+        array &$preAssigned,
     ): void {
-        $canonicalBasename = $fileDuplicate->getTarget()->getBasename(
+        $canonicalBasename  = $fileDuplicate->getTarget()->getBasename(
             '.' . $fileDuplicate->getTarget()->getExtension()
         );
+        $quotedBasename     = preg_quote($canonicalBasename, '/');
+        $quotedDuplicateId  = preg_quote(FileSystemService::DUPLICATE_IDENTIFIER, '/');
 
-        $pattern = '/^' . preg_quote($canonicalBasename, '/') . preg_quote(FileSystemService::DUPLICATE_IDENTIFIER, '/') . '(\d+)$/';
+        // Match all suffix formats:
+        // - Legacy:   canonicalBasename-duplicate-NNN
+        // - Sequential: canonicalBasename-NNN
+        // - Compound: canonicalBasename-NNN-duplicate-NNN
+        $pattern = '/^' . $quotedBasename . '(?:' . $quotedDuplicateId . '(\d+)|-(\d+)(?:' . $quotedDuplicateId . '(\d+))?)$/';
 
-        foreach ($fileDuplicate->getRenames() as $rename) {
-            if ($canonicalRename instanceof Rename && $rename === $canonicalRename) {
-                continue;
-            }
-
+        foreach ($fileDuplicate->getRenames() as $index => $rename) {
             if ($companionRename instanceof Rename && $rename === $companionRename) {
                 continue;
             }
@@ -954,16 +950,29 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 continue;
             }
 
-            $ext          = strtolower($rename->getSource()->getExtension());
-            $suffixNumber = (int) $matches[1];
+            $ext = strtolower($rename->getSource()->getExtension());
+
+            // Determine the suffix number to reserve depending on the format matched.
+            if (($matches[1] ?? '') !== '') {
+                // Legacy: canonicalBasename-duplicate-NNN
+                $suffixNumber = (int) $matches[1];
+            } elseif (($matches[3] ?? '') !== '') {
+                // Compound: canonicalBasename-NNN-duplicate-NNN — reserve the duplicate number.
+                $suffixNumber = (int) $matches[3];
+            } else {
+                // Sequential: canonicalBasename-NNN — no duplicate suffix to reserve,
+                // but we mark the file as pre-assigned so it keeps its name.
+                $suffixNumber = 0;
+            }
 
             // Reserve this suffix number so new duplicates skip it.
-            if (!isset($duplicateCountByExtension[$ext]) || $duplicateCountByExtension[$ext] <= $suffixNumber) {
+            if ($suffixNumber > 0 && (!isset($duplicateCountByExtension[$ext]) || $duplicateCountByExtension[$ext] <= $suffixNumber)) {
                 $duplicateCountByExtension[$ext] = $suffixNumber + 1;
             }
 
             // Set the target to the source path (keep current name).
             $rename->setTarget($rename->getSource());
+            $preAssigned[$index] = true;
         }
     }
 

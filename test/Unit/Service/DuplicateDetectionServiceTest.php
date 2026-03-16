@@ -864,6 +864,120 @@ final class DuplicateDetectionServiceTest extends TestCase
     }
 
     #[Test]
+    public function createDuplicateFilenamesIdempotentForSequentialSuffix(): void
+    {
+        [$service] = $this->createService();
+
+        $directory = $this->createTempDirectory();
+
+        // File already named with sequential suffix from a previous run.
+        $sourceFile = $directory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28-001.jpg';
+        $targetFile = $directory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28.jpg';
+
+        file_put_contents($sourceFile, 'already-renamed');
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate
+            ->addFile(new SplFileInfo($sourceFile))
+            ->setTarget(new SplFileInfo($targetFile));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('identifier', $fileDuplicate);
+
+        $service
+            ->setSourceDirectory($directory)
+            ->setTargetDirectory($directory);
+
+        $service->createDuplicateFilenames($collection);
+
+        $duplicate = $collection->get('identifier');
+        self::assertInstanceOf(FileDuplicate::class, $duplicate);
+
+        $renames = iterator_to_array($duplicate->getRenames());
+
+        self::assertCount(1, $renames);
+
+        // Idempotency: target = source (no rename needed).
+        self::assertSame($sourceFile, $renames[0]->getTarget()->getPathname());
+    }
+
+    #[Test]
+    public function createDuplicateFilenamesIdempotentForCompoundSuffix(): void
+    {
+        [$service] = $this->createService();
+
+        $directory = $this->createTempDirectory();
+
+        // File already named with compound suffix from a previous run.
+        $sourceFile = $directory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28-001-duplicate-001.jpg';
+        $targetFile = $directory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28.jpg';
+
+        file_put_contents($sourceFile, 'already-renamed-compound');
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate
+            ->addFile(new SplFileInfo($sourceFile))
+            ->setTarget(new SplFileInfo($targetFile));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('identifier', $fileDuplicate);
+
+        $service
+            ->setSourceDirectory($directory)
+            ->setTargetDirectory($directory);
+
+        $service->createDuplicateFilenames($collection);
+
+        $duplicate = $collection->get('identifier');
+        self::assertInstanceOf(FileDuplicate::class, $duplicate);
+
+        $renames = iterator_to_array($duplicate->getRenames());
+
+        self::assertCount(1, $renames);
+
+        // Idempotency: target = source (no rename needed).
+        self::assertSame($sourceFile, $renames[0]->getTarget()->getPathname());
+    }
+
+    #[Test]
+    public function createDuplicateFilenamesIdempotentForLegacyDuplicateSuffix(): void
+    {
+        [$service] = $this->createService();
+
+        $directory = $this->createTempDirectory();
+
+        // File already named with legacy suffix from a previous run.
+        $sourceFile = $directory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28-duplicate-001.jpg';
+        $targetFile = $directory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28.jpg';
+
+        file_put_contents($sourceFile, 'already-renamed-legacy');
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate
+            ->addFile(new SplFileInfo($sourceFile))
+            ->setTarget(new SplFileInfo($targetFile));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('identifier', $fileDuplicate);
+
+        $service
+            ->setSourceDirectory($directory)
+            ->setTargetDirectory($directory);
+
+        $service->createDuplicateFilenames($collection);
+
+        $duplicate = $collection->get('identifier');
+        self::assertInstanceOf(FileDuplicate::class, $duplicate);
+
+        $renames = iterator_to_array($duplicate->getRenames());
+
+        self::assertCount(1, $renames);
+
+        // Idempotency: target = source (no rename needed).
+        self::assertSame($sourceFile, $renames[0]->getTarget()->getPathname());
+    }
+
+    #[Test]
     public function createDuplicateFilenamesCompanionInheritsSubGroupNumber(): void
     {
         [$service] = $this->createService();
