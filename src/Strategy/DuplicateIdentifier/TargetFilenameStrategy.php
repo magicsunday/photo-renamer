@@ -15,7 +15,10 @@ use Override;
 use SplFileInfo;
 
 /**
- * Strategy that identifies duplicates based on the target filename.
+ * Groups files by their full target filename including extension. Unlike
+ * TargetBasenameStrategy, files with different extensions but the same stem
+ * end up in separate groups. Used by rename commands that do not need
+ * cross-extension grouping (e.g. pattern-based or lowercase renames).
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -24,12 +27,12 @@ use SplFileInfo;
 class TargetFilenameStrategy implements DuplicateIdentifierStrategyInterface
 {
     /**
-     * Generates a unique identifier for a file based on its target filename.
+     * Returns the full target filename (including extension) as the grouping key.
      *
-     * @param SplFileInfo $sourceFileInfo The source file
-     * @param SplFileInfo $targetFileInfo The target file
+     * @param SplFileInfo $sourceFileInfo Unused by this strategy
+     * @param SplFileInfo $targetFileInfo Target file whose filename is used as key
      *
-     * @return string|false A unique identifier for the file or false in case of an error
+     * @return string|false Full target filename
      */
     #[Override]
     public function generateIdentifier(SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo): string|false

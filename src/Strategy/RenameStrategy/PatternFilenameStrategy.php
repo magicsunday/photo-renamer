@@ -18,16 +18,35 @@ use Override;
 use SplFileInfo;
 
 /**
+ * Applies a user-supplied regex search/replace to the inherited filename.
+ * Used by the rename:pattern command to perform arbitrary regex-based
+ * filename transformations.
+ *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 class PatternFilenameStrategy extends InheritFilenameStrategy
 {
+    /**
+     * @param string    $pattern     PCRE regex pattern to match against the filename
+     * @param string    $replacement Replacement string (may contain back-references)
+     * @param SafeRegex $regex       Safe wrapper around preg_* functions with error handling
+     */
     public function __construct(private readonly string $pattern, private readonly string $replacement, private readonly SafeRegex $regex)
     {
     }
 
+    /**
+     * Applies the regex replacement to the inherited filename. Throws
+     * TargetFilenameException when the regex pattern is invalid.
+     *
+     * @param SplFileInfo $splFileInfo Source file to derive the target name from
+     *
+     * @return string Transformed filename after regex replacement
+     *
+     * @throws TargetFilenameException When the regex execution fails
+     */
     #[Override]
     public function generateFilename(SplFileInfo $splFileInfo): string
     {

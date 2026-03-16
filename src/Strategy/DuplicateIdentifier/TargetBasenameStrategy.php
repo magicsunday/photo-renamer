@@ -15,19 +15,25 @@ use Override;
 use SplFileInfo;
 
 /**
- * Strategy that groups duplicates by target basename.
+ * Groups files by their target basename (filename without extension). All files
+ * sharing the same EXIF date produce the same basename and land in one unified
+ * group, regardless of file extension. Live Photo companion detection happens
+ * downstream via content identifiers, not during this grouping phase.
  *
- * All files with the same EXIF date end up in one unified group.
- * Live Photo content identifiers are handled during companion detection,
- * not during grouping.
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
  */
 class TargetBasenameStrategy implements DuplicateIdentifierStrategyInterface
 {
     /**
-     * @param SplFileInfo $sourceFileInfo source file inspected for Live Photo metadata
-     * @param SplFileInfo $targetFileInfo target file used as identifier source
+     * Extracts the target filename without its extension. For example,
+     * "20230101_120000.jpg" yields "20230101_120000" as the grouping key.
      *
-     * @return string|false
+     * @param SplFileInfo $sourceFileInfo Unused by this strategy
+     * @param SplFileInfo $targetFileInfo Target file whose basename (minus extension) is used
+     *
+     * @return string|false Basename without extension
      */
     #[Override]
     public function generateIdentifier(SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo): string|false

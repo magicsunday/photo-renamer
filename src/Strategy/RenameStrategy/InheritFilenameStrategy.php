@@ -16,8 +16,10 @@ use Override;
 use SplFileInfo;
 
 /**
- * Provides a strategy to rename files by inheriting their original filename
- * and removing any duplicate identifier present in the filename.
+ * Base rename strategy that keeps the original filename intact, only stripping
+ * any previously applied "-duplicate-NNN" suffix. Serves as the foundation for
+ * derived strategies (LowerCase, Pattern, DatePattern) that transform the
+ * cleaned filename further.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -26,7 +28,12 @@ use SplFileInfo;
 class InheritFilenameStrategy implements RenameStrategyInterface
 {
     /**
-     * Create a new filename based on the original filename, only with the duplicate identifier removed.
+     * Returns the original filename with any "-duplicate-NNN" suffix removed.
+     * Preserves the original extension.
+     *
+     * @param SplFileInfo $splFileInfo Source file to derive the target name from
+     *
+     * @return string Cleaned filename with extension
      */
     #[Override]
     public function generateFilename(SplFileInfo $splFileInfo): string
@@ -43,7 +50,12 @@ class InheritFilenameStrategy implements RenameStrategyInterface
     }
 
     /**
-     * Remove any existing "-duplicate-000" identifier.
+     * Strips an existing "-duplicate-NNN" suffix (with exactly 3 digits) from
+     * the basename. Used to ensure idempotent re-runs do not stack suffixes.
+     *
+     * @param string $filename Basename without extension
+     *
+     * @return string Basename with the duplicate suffix removed
      */
     protected function removeDuplicateFileIdentifier(string $filename): string
     {

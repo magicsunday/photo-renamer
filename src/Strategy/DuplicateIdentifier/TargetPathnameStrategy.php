@@ -15,7 +15,10 @@ use Override;
 use SplFileInfo;
 
 /**
- * Strategy that identifies duplicates based on the target pathname.
+ * Groups files by their full target pathname (directory + filename). Files in
+ * different subdirectories with the same filename are treated as distinct groups,
+ * making this strategy suitable for recursive directory renames where path
+ * context must be preserved.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -24,12 +27,13 @@ use SplFileInfo;
 class TargetPathnameStrategy implements DuplicateIdentifierStrategyInterface
 {
     /**
-     * Generates a unique identifier for a file based on its target pathname.
+     * Returns the full target pathname as the grouping key, ensuring files in
+     * different directories are never grouped together.
      *
-     * @param SplFileInfo $sourceFileInfo The source file
-     * @param SplFileInfo $targetFileInfo The target file
+     * @param SplFileInfo $sourceFileInfo Unused by this strategy
+     * @param SplFileInfo $targetFileInfo Target file whose full pathname is used as key
      *
-     * @return string|false A unique identifier for the file or false in case of an error
+     * @return string|false Full target pathname
      */
     #[Override]
     public function generateIdentifier(SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo): string|false

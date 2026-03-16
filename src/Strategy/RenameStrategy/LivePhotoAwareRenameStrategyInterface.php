@@ -14,7 +14,10 @@ namespace MagicSunday\Renamer\Strategy\RenameStrategy;
 use SplFileInfo;
 
 /**
- * Interface for rename strategies that can resolve Live Photo content identifiers.
+ * Extended rename strategy that additionally exposes Apple Live Photo content
+ * identifiers. Enables the duplicate detection pipeline to build a content
+ * identifier map for companion pairing (HEIC/JPG + MOV) without resorting
+ * to method_exists() checks.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -23,9 +26,12 @@ use SplFileInfo;
 interface LivePhotoAwareRenameStrategyInterface extends RenameStrategyInterface
 {
     /**
-     * Returns the Live Photo content identifier for the given file, if available.
+     * Returns the canonical Live Photo content identifier for the given file,
+     * or null when the file is not part of an Apple Live Photo pair.
      *
-     * @param SplFileInfo $splFileInfo The file info instance
+     * @param SplFileInfo $splFileInfo Source file to query
+     *
+     * @return string|null Lowercased content identifier, or null
      */
     public function getLivePhotoContentIdentifier(SplFileInfo $splFileInfo): ?string;
 }

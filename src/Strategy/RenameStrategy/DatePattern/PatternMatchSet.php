@@ -20,6 +20,14 @@ use function array_values;
 use function preg_match_all;
 
 /**
+ * Ordered collection of PatternMatch instances extracted from a date pattern template.
+ * Provides convenience methods to retrieve all placeholder names (for date format
+ * reconstruction) or all tokens (for string replacement).
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
+ *
  * @extends AbstractCollection<int, PatternMatch>
  */
 final class PatternMatchSet extends AbstractCollection
@@ -78,6 +86,10 @@ final class PatternMatchSet extends AbstractCollection
     }
 
     /**
+     * Returns all bare placeholder names (e.g. ["Y", "m", "d"]) in the order
+     * they appear in the original pattern. Used to map regex capture groups
+     * back to their date format characters.
+     *
      * @return string[]
      */
     public function placeholders(): array
@@ -91,6 +103,9 @@ final class PatternMatchSet extends AbstractCollection
     }
 
     /**
+     * Returns all full tokens (e.g. ["{Y}", "{m}", "{d}"]) in the order they
+     * appear in the original pattern. Used for string replacement operations.
+     *
      * @return string[]
      */
     public function tokens(): array

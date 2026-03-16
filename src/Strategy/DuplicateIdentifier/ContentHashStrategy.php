@@ -16,7 +16,9 @@ use Override;
 use SplFileInfo;
 
 /**
- * Strategy that identifies duplicates based on file content hash.
+ * Groups files by their binary content using xxh128 hashing. Two files with
+ * identical content produce the same identifier regardless of filename, enabling
+ * true duplicate detection within a target-basename group (hash sub-grouping).
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -30,12 +32,13 @@ class ContentHashStrategy implements DuplicateIdentifierStrategyInterface
     }
 
     /**
-     * Generates a unique identifier for a file based on its content hash.
+     * Computes an xxh128 hash of the source file's content. The target file info
+     * is unused because grouping is based on the actual binary data on disk.
      *
-     * @param SplFileInfo $sourceFileInfo The source file
-     * @param SplFileInfo $targetFileInfo The target file
+     * @param SplFileInfo $sourceFileInfo Source file whose content is hashed
+     * @param SplFileInfo $targetFileInfo Unused by this strategy
      *
-     * @return string|false A unique identifier for the file or false in case of an error
+     * @return string|false Hex-encoded xxh128 hash, or false on read failure
      */
     #[Override]
     public function generateIdentifier(SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo): string|false

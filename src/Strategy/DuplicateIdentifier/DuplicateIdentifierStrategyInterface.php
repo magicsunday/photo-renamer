@@ -14,7 +14,10 @@ namespace MagicSunday\Renamer\Strategy\DuplicateIdentifier;
 use SplFileInfo;
 
 /**
- * Interface for duplicate identifier strategies.
+ * Contract for strategies that produce a grouping key from a source/target
+ * file pair. Files sharing the same identifier end up in one FileDuplicate
+ * group. Different implementations enable grouping by target basename,
+ * full target filename, full target pathname or content hash.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -23,12 +26,14 @@ use SplFileInfo;
 interface DuplicateIdentifierStrategyInterface
 {
     /**
-     * Generates a unique identifier for a file to detect duplicates.
+     * Produces a grouping key for the given file pair. All files that return the
+     * same string will be placed into one FileDuplicate group. Returns false when
+     * the identifier cannot be computed (e.g. unreadable file for hash-based strategies).
      *
-     * @param SplFileInfo $sourceFileInfo The source file
-     * @param SplFileInfo $targetFileInfo The target file
+     * @param SplFileInfo $sourceFileInfo Original file on disk
+     * @param SplFileInfo $targetFileInfo Computed target file with the rename strategy applied
      *
-     * @return string|false A unique identifier for the file or false in case of an error
+     * @return string|false Grouping key, or false on failure
      */
     public function generateIdentifier(SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo): string|false;
 }

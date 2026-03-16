@@ -14,7 +14,9 @@ namespace MagicSunday\Renamer\Strategy\RenameStrategy;
 use SplFileInfo;
 
 /**
- * Interface for renaming strategies.
+ * Contract for strategies that compute a target filename from a source file.
+ * Each rename command selects the appropriate strategy (EXIF date, pattern match,
+ * lowercase, etc.) and passes it to the duplicate detection pipeline.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -23,9 +25,12 @@ use SplFileInfo;
 interface RenameStrategyInterface
 {
     /**
-     * Generates a unique identifier for a file to detect duplicates.
+     * Computes the target filename (including extension) for the given source file.
+     * Returns null when the strategy cannot produce a valid name (e.g. missing EXIF data).
      *
-     * @param SplFileInfo $splFileInfo The file info instance
+     * @param SplFileInfo $splFileInfo Source file to generate a target filename for
+     *
+     * @return string|null Target filename, or null when not applicable
      */
     public function generateFilename(SplFileInfo $splFileInfo): ?string;
 }

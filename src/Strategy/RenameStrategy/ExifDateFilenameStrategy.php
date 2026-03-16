@@ -23,16 +23,34 @@ use function str_pad;
 use function substr;
 
 /**
+ * Generates target filenames by formatting the EXIF DateTimeOriginal value
+ * according to a user-supplied PHP date() pattern (e.g. "Ymd_His"). Supports
+ * sub-second precision and exposes Live Photo content identifiers for
+ * companion pairing.
+ *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 class ExifDateFilenameStrategy implements LivePhotoAwareRenameStrategyInterface
 {
+    /**
+     * @param string                $targetFilenamePattern PHP date() format string defining the target basename
+     * @param ExifMetadataProvider  $exifMetadataProvider  Caching EXIF metadata accessor
+     */
     public function __construct(private readonly string $targetFilenamePattern, private readonly ExifMetadataProvider $exifMetadataProvider)
     {
     }
 
+    /**
+     * Formats the EXIF capture date into a target filename using the configured pattern.
+     * Returns null when the file has no usable EXIF date, causing it to be skipped
+     * by the pipeline.
+     *
+     * @param SplFileInfo $splFileInfo Source file to read EXIF data from
+     *
+     * @return string|null Target filename with extension, or null when EXIF date is absent
+     */
     #[Override]
     public function generateFilename(SplFileInfo $splFileInfo): ?string
     {
@@ -46,6 +64,9 @@ class ExifDateFilenameStrategy implements LivePhotoAwareRenameStrategyInterface
         return $targetBasename . '.' . $splFileInfo->getExtension();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     #[Override]
     public function getLivePhotoContentIdentifier(SplFileInfo $splFileInfo): ?string
     {
@@ -55,7 +76,14 @@ class ExifDateFilenameStrategy implements LivePhotoAwareRenameStrategyInterface
     }
 
     /**
-     * Returns the formatted EXIF date of the specified file, formatted according to the specified pattern.
+     * Reads the EXIF date from the file, combines it with sub-second precision,
+     * and formats the result using the given PHP date() pattern. Returns null when
+     * the file lacks EXIF data or the date string cannot be parsed.
+     *
+     * @param string      $pattern     PHP date() format string
+     * @param SplFileInfo $splFileInfo File to extract the EXIF date from
+     *
+     * @return string|null Formatted basename (without extension), or null on failure
      */
     private function getExifDateFormatted(
         string $pattern,
@@ -89,6 +117,15 @@ class ExifDateFilenameStrategy implements LivePhotoAwareRenameStrategyInterface
         return basename($dateTimeOriginal->format($pattern));
     }
 
+    /**
+     * Strips non-digit characters from the sub-second value. Some cameras embed
+     * whitespace or punctuation in the SubSecTimeOriginal tag; this ensures only
+     * numeric digits remain.
+     *
+     * @param string|null $value Raw sub-second string from EXIF metadata
+     *
+     * @return string|null Digits-only string, or null when input is null or empty
+     */
     private function normaliseSubSecondValue(?string $value): ?string
     {
         if ($value === null) {

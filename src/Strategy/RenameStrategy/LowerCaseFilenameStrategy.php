@@ -15,20 +15,24 @@ use Override;
 use SplFileInfo;
 
 /**
+ * Converts the inherited filename to lowercase using multibyte-safe conversion.
+ * Applied by the rename:lowercase command to normalize mixed-case filenames
+ * produced by cameras or operating systems.
+ *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 class LowerCaseFilenameStrategy extends InheritFilenameStrategy
 {
-    #[Override]
     /**
-     * Generates a lowercase version of the filename produced by the parent strategy.
+     * Returns the inherited filename converted to lowercase, including the extension.
      *
-     * @param SplFileInfo $splFileInfo File information describing the source asset
+     * @param SplFileInfo $splFileInfo Source file to derive the target name from
      *
-     * @return string Lowercase filename preserving the original extension casing rules from the base strategy
+     * @return string Fully lowercased filename
      */
+    #[Override]
     public function generateFilename(SplFileInfo $splFileInfo): string
     {
         $targetFilename = parent::generateFilename($splFileInfo);

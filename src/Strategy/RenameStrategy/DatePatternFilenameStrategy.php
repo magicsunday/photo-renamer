@@ -24,6 +24,11 @@ use function str_replace;
 use function strlen;
 
 /**
+ * Extracts date components from the existing filename via a regex pattern, then
+ * reconstructs a DateTime and formats it using the replacement template. Supports
+ * both 2-digit and 4-digit year tokens and preserves any trailing suffix that
+ * follows the date portion in the original filename.
+ *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
@@ -31,12 +36,26 @@ use function strlen;
 class DatePatternFilenameStrategy extends InheritFilenameStrategy
 {
     /**
-     * Constructor.
+     * @param string          $pattern        PCRE regex to extract date components from the filename
+     * @param string          $replacement    PHP date() format template with {placeholder} tokens
+     * @param PatternMatchSet $patternMatches Set of placeholder-to-date-format-character mappings
+     * @param SafeRegex       $regex          Safe wrapper around preg_* functions with error handling
      */
     public function __construct(private readonly string $pattern, private readonly string $replacement, private readonly PatternMatchSet $patternMatches, private readonly SafeRegex $regex)
     {
     }
 
+    /**
+     * Parses date components from the inherited filename, reconstructs a DateTime,
+     * and formats it using the replacement template. Preserves any trailing suffix
+     * (e.g. sequence numbers) from the original filename.
+     *
+     * @param SplFileInfo $splFileInfo Source file to derive the target name from
+     *
+     * @return string Reformatted filename based on the extracted date
+     *
+     * @throws TargetFilenameException When the regex pattern is invalid or does not match
+     */
     #[Override]
     public function generateFilename(SplFileInfo $splFileInfo): string
     {
