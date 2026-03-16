@@ -362,15 +362,39 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             $hasAdditionalRenames = $duplicateEntries > 0;
             $processedDuplicates  = 0;
 
-            // Check if the target file already exists in the file system, so we need to adjust
-            // the new target name again.
+            // Collect source paths of all files in this group so that on-disk collisions
+            // with group members (who will be moved) are treated as available.
+            $groupSourcePaths = [];
+
             foreach ($fileDuplicate->getRenames() as $rename) {
+                $groupSourcePaths[$rename->getSource()->getPathname()] = true;
+            }
+
+            // Pre-assign targets for files that already have a correct duplicate suffix
+            // from a previous run (idempotency). Process these first so their suffix
+            // numbers are reserved before new duplicates are assigned.
+            $this->preAssignExistingDuplicateSuffixes(
+                $fileDuplicate,
+                $canonicalRename,
+                $companionRename,
+                $duplicateCountByExtension,
+            );
+
+            // Assign unique target filenames to remaining renames.
+            /** @var array<int, true> $preAssigned */
+            $preAssigned = [];
+
+            foreach ($fileDuplicate->getRenames() as $index => $rename) {
+                if ($rename->getSource()->getPathname() === $rename->getTarget()->getPathname()
+                    && str_contains($rename->getTarget()->getFilename(), FileSystemService::DUPLICATE_IDENTIFIER)
+                ) {
+                    $preAssigned[$index] = true;
+                }
+            }
+
+            foreach ($fileDuplicate->getRenames() as $index => $rename) {
                 $isCanonicalRename = $canonicalRename instanceof Rename && $rename === $canonicalRename;
                 $isCompanionRename = $companionRename instanceof Rename && $rename === $companionRename;
-
-                $requiresCanonicalDisambiguation = ($canonicalRename instanceof Rename && $rename !== $canonicalRename)
-                    && !$isCompanionRename
-                    && $rename->getTarget()->getPathname() === $canonicalTargetPath;
 
                 // Live Photo companions are treated like canonicals: same base name, no suffix.
                 if ($isCompanionRename) {
@@ -378,6 +402,16 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
 
                     continue;
                 }
+
+                // Already pre-assigned (idempotency).
+                if (isset($preAssigned[$index])) {
+                    ++$processedDuplicates;
+
+                    continue;
+                }
+
+                $requiresCanonicalDisambiguation = ($canonicalRename instanceof Rename && $rename !== $canonicalRename)
+                    && $rename->getTarget()->getPathname() === $canonicalTargetPath;
 
                 $ext = strtolower($rename->getTarget()->getExtension());
 
@@ -394,6 +428,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                         $hasAdditionalRenames,
                         $requiresCanonicalDisambiguation,
                         $isCanonicalRename,
+                        $groupSourcePaths,
                     )
                 );
 
@@ -439,6 +474,9 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
      *
      * @return SplFileInfo file information pointing to the deduplicated target
      */
+    /**
+     * @param array<string, true> $groupSourcePaths source paths of all files in the current group
+     */
     private function createDuplicateTargetFileInfo(
         SplFileInfo $source,
         SplFileInfo $target,
@@ -447,19 +485,23 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         bool $hasAdditionalRenames = false,
         bool $requiresCanonicalDisambiguation = false,
         bool $isCanonicalRename = false,
+        array $groupSourcePaths = [],
     ): SplFileInfo {
         $duplicateBasename = $target->getBasename('.' . $target->getExtension());
 
-        $allowSourceTargetMatch = $isCanonicalRename ? true : !$hasAdditionalRenames;
+        // Canonical files may keep their current name even if the file exists on disk.
+        if ($isCanonicalRename && $target->getPathname() === $source->getPathname()) {
+            return $target;
+        }
 
-        if ($target->isFile()) {
+        if ($this->isTargetOccupied($target, $source, $groupSourcePaths)) {
             return $this->getNewUniqueDuplicateTargetFileInfo(
                 $source,
                 $target,
                 $duplicateBasename,
                 $duplicateCount,
                 $requiresCanonicalDisambiguation,
-                $allowSourceTargetMatch,
+                $groupSourcePaths,
             );
         }
 
@@ -470,7 +512,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 $duplicateBasename,
                 $duplicateCount,
                 $hasAdditionalRenames || $requiresCanonicalDisambiguation,
-                $allowSourceTargetMatch,
+                $groupSourcePaths,
             );
         }
 
@@ -481,10 +523,11 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 $duplicateBasename,
                 $duplicateCount,
                 $requiresCanonicalDisambiguation,
-                $allowSourceTargetMatch,
+                $groupSourcePaths,
             );
         }
 
+        // Canonical without additional renames: keep as-is.
         return $target;
     }
 
@@ -498,19 +541,18 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
      *
      * @return SplFileInfo newly generated file info pointing to a non-existing file
      */
+    /**
+     * @param array<string, true> $groupSourcePaths source paths of all files in the current group
+     */
     private function getNewUniqueDuplicateTargetFileInfo(
         SplFileInfo $source,
         SplFileInfo $target,
         string $targetBasename,
         int &$duplicateCount,
         bool $forceDuplicateSuffix = false,
-        bool $allowSourceTargetMatch = false,
+        array $groupSourcePaths = [],
     ): SplFileInfo {
         $duplicateFileInfo = $target;
-
-        if ($allowSourceTargetMatch && $duplicateFileInfo->getPathname() === $source->getPathname()) {
-            return $duplicateFileInfo;
-        }
 
         if ($forceDuplicateSuffix) {
             $duplicateFileInfo = $this->getNewDuplicateTargetFileInfo(
@@ -522,16 +564,12 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
 
             ++$duplicateCount;
 
-            if ($allowSourceTargetMatch && $duplicateFileInfo->getPathname() === $source->getPathname()) {
+            if ($duplicateFileInfo->getPathname() === $source->getPathname()) {
                 return $duplicateFileInfo;
             }
         }
 
-        while ($duplicateFileInfo->isFile() || (!$allowSourceTargetMatch && $duplicateFileInfo->getPathname() === $source->getPathname())) {
-            if ($allowSourceTargetMatch && $duplicateFileInfo->getPathname() === $source->getPathname()) {
-                break;
-            }
-
+        while ($this->isTargetOccupied($duplicateFileInfo, $source, $groupSourcePaths)) {
             $duplicateFileInfo = $this->getNewDuplicateTargetFileInfo(
                 $source,
                 $target,
@@ -541,7 +579,9 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
 
             ++$duplicateCount;
 
-            if ($allowSourceTargetMatch && $duplicateFileInfo->getPathname() === $source->getPathname()) {
+            // Idempotency: if a generated duplicate target (with suffix) matches the source,
+            // the file already has the correct name from a previous run.
+            if ($duplicateFileInfo->getPathname() === $source->getPathname()) {
                 break;
             }
         }
@@ -706,6 +746,84 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         }
 
         return in_array($extension, self::LIVE_PHOTO_STILL_EXTENSIONS, true);
+    }
+
+    /**
+     * Determines whether a target path is occupied by a file that is NOT part of the current group.
+     * Files within the group will be moved away during renaming, so their paths are available.
+     *
+     * @param SplFileInfo         $target           target file info to check
+     * @param SplFileInfo         $source           source file being renamed
+     * @param array<string, true> $groupSourcePaths source paths of all files in the current group
+     */
+    /**
+     * Pre-assigns targets for files that already carry a correct duplicate suffix.
+     *
+     * For idempotency: if a source file is already named `photo-duplicate-001.jpg`
+     * and its expected base name is `photo`, we keep it and reserve suffix 001.
+     *
+     * @param array<string, int> $duplicateCountByExtension suffix counters per extension (modified by reference)
+     */
+    private function preAssignExistingDuplicateSuffixes(
+        FileDuplicate $fileDuplicate,
+        ?Rename $canonicalRename,
+        ?Rename $companionRename,
+        array &$duplicateCountByExtension,
+    ): void {
+        $canonicalBasename = $fileDuplicate->getTarget()->getBasename(
+            '.' . $fileDuplicate->getTarget()->getExtension()
+        );
+
+        $pattern = '/^' . preg_quote($canonicalBasename, '/') . preg_quote(FileSystemService::DUPLICATE_IDENTIFIER, '/') . '(\d+)$/';
+
+        foreach ($fileDuplicate->getRenames() as $rename) {
+            if ($canonicalRename instanceof Rename && $rename === $canonicalRename) {
+                continue;
+            }
+
+            if ($companionRename instanceof Rename && $rename === $companionRename) {
+                continue;
+            }
+
+            $sourceBasename = $rename->getSource()->getBasename('.' . $rename->getSource()->getExtension());
+
+            if (preg_match($pattern, $sourceBasename, $matches) !== 1) {
+                continue;
+            }
+
+            $ext          = strtolower($rename->getSource()->getExtension());
+            $suffixNumber = (int) $matches[1];
+
+            // Reserve this suffix number so new duplicates skip it.
+            if (!isset($duplicateCountByExtension[$ext]) || $duplicateCountByExtension[$ext] <= $suffixNumber) {
+                $duplicateCountByExtension[$ext] = $suffixNumber + 1;
+            }
+
+            // Set the target to the source path (keep current name).
+            $rename->setTarget($rename->getSource());
+        }
+    }
+
+    /**
+     * @param array<string, true> $groupSourcePaths
+     */
+    private function isTargetOccupied(SplFileInfo $target, SplFileInfo $source, array $groupSourcePaths): bool
+    {
+        $targetPath = $target->getPathname();
+
+        // Target is the source itself — not occupied.
+        if ($targetPath === $source->getPathname()) {
+            return false;
+        }
+
+        // Target doesn't exist on disk — not occupied.
+        if (!$target->isFile()) {
+            return false;
+        }
+
+        // Target exists but belongs to another file in the same group — will be freed.
+        // Target exists and belongs to an external file — occupied.
+        return !isset($groupSourcePaths[$targetPath]);
     }
 
     private function resolveNormalizedContentIdentifier(

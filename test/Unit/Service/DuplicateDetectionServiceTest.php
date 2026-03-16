@@ -599,7 +599,9 @@ final class DuplicateDetectionServiceTest extends TestCase
         );
 
         self::assertArrayHasKey($preRenamedDuplicate, $renamesBySource);
-        self::assertNotSame(
+
+        // Idempotency: a file already named with a duplicate suffix keeps its name.
+        self::assertSame(
             $preRenamedDuplicate,
             $renamesBySource[$preRenamedDuplicate]->getTarget()->getPathname(),
         );
@@ -614,7 +616,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertSame(
             1,
             preg_match($pattern, $renamesBySource[$preRenamedDuplicate]->getTarget()->getFilename(), $secondMatch),
-            'Pre-renamed file should be reassigned a numeric duplicate suffix.',
+            'Pre-renamed file should keep its numeric duplicate suffix.',
         );
         self::assertNotSame(
             $firstMatch[1],
