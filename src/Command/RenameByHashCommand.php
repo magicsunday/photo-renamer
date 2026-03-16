@@ -50,7 +50,7 @@ class RenameByHashCommand extends AbstractRenameCommand
         $this
             ->setName('rename:hash')
             ->setDescription(
-                'Detects duplicate files by content hash.'
+                'Groups identical files by content hash and renames duplicates.'
             );
     }
 

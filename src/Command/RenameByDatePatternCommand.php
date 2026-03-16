@@ -69,7 +69,7 @@ class RenameByDatePatternCommand extends AbstractRenameCommand
 
         $this
             ->setName('rename:date')
-            ->setDescription('Renames files by matching date placeholders in filenames.')
+            ->setDescription('Renames files by extracting date components from filenames.')
             ->addOption(
                 'pattern',
                 'p',
