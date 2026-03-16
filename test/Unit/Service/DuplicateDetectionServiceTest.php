@@ -863,6 +863,71 @@ final class DuplicateDetectionServiceTest extends TestCase
     }
 
     #[Test]
+    public function createDuplicateFilenamesHandlesMixedDistinctAndDuplicateFiles(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        // 5 files: A (hash X), A' (hash X), B (hash Y), B' (hash Y), C (hash Z)
+        $fileA  = $sourceDirectory . DIRECTORY_SEPARATOR . 'a.jpg';
+        $fileA2 = $sourceDirectory . DIRECTORY_SEPARATOR . 'a_copy.jpg';
+        $fileB  = $sourceDirectory . DIRECTORY_SEPARATOR . 'b.jpg';
+        $fileB2 = $sourceDirectory . DIRECTORY_SEPARATOR . 'b_copy.jpg';
+        $fileC  = $sourceDirectory . DIRECTORY_SEPARATOR . 'c.jpg';
+
+        file_put_contents($fileA, 'content-hash-X');
+        file_put_contents($fileA2, 'content-hash-X');
+        file_put_contents($fileB, 'content-hash-Y');
+        file_put_contents($fileB2, 'content-hash-Y');
+        file_put_contents($fileC, 'content-hash-Z');
+
+        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . 'basename.jpg';
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate
+            ->addFile(new SplFileInfo($fileA))
+            ->addFile(new SplFileInfo($fileA2))
+            ->addFile(new SplFileInfo($fileB))
+            ->addFile(new SplFileInfo($fileB2))
+            ->addFile(new SplFileInfo($fileC))
+            ->setTarget(new SplFileInfo($targetFile));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('identifier', $fileDuplicate);
+
+        $service
+            ->setSourceDirectory($sourceDirectory)
+            ->setTargetDirectory($targetDirectory);
+
+        $service->createDuplicateFilenames($collection);
+
+        $duplicate = $collection->get('identifier');
+        self::assertInstanceOf(FileDuplicate::class, $duplicate);
+
+        $renames       = iterator_to_array($duplicate->getRenames());
+        $renameTargets = [];
+
+        foreach ($renames as $rename) {
+            $renameTargets[$rename->getSource()->getPathname()] = $rename->getTarget()->getFilename();
+        }
+
+        self::assertCount(5, $renames);
+
+        // A → basename-001.jpg
+        self::assertSame('basename-001.jpg', $renameTargets[$fileA]);
+        // A' → basename-001-duplicate-001.jpg
+        self::assertSame('basename-001-duplicate-001.jpg', $renameTargets[$fileA2]);
+        // B → basename-002.jpg
+        self::assertSame('basename-002.jpg', $renameTargets[$fileB]);
+        // B' → basename-002-duplicate-001.jpg
+        self::assertSame('basename-002-duplicate-001.jpg', $renameTargets[$fileB2]);
+        // C → basename-003.jpg
+        self::assertSame('basename-003.jpg', $renameTargets[$fileC]);
+    }
+
+    #[Test]
     public function createDuplicateFilenamesAssignsDuplicateSuffixForIdenticalContent(): void
     {
         [$service] = $this->createService();
