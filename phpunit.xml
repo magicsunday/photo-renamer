@@ -16,9 +16,9 @@
         <testsuite name="Unit Tests">
             <directory>test/Unit</directory>
         </testsuite>
-<!--        <testsuite name="Integration Tests">-->
-<!--            <directory>test/Integration</directory>-->
-<!--        </testsuite>-->
+        <testsuite name="Integration Tests">
+            <directory>test/Integration</directory>
+        </testsuite>
     </testsuites>
 
     <source ignoreIndirectDeprecations="true" restrictNotices="true" restrictWarnings="true">

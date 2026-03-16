@@ -556,7 +556,7 @@ final class FileSystemServiceTest extends TestCase
         unlink($sourceFile);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Target file');
+        $this->expectExceptionMessage('Source file');
 
         $service->renameFiles($fileDuplicateCollection);
     }
@@ -585,7 +585,7 @@ final class FileSystemServiceTest extends TestCase
         unlink($sourceFile);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Target file');
+        $this->expectExceptionMessage('Source file');
 
         $service->renameFiles($fileDuplicateCollection, copyFiles: true);
     }

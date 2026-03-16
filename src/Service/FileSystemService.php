@@ -157,6 +157,16 @@ class FileSystemService implements FileSystemServiceInterface
             }
         }
 
+        // Build in-memory index of all source paths for fast occupied-checks.
+        /** @var array<string, true> $occupiedPaths */
+        $occupiedPaths = [];
+
+        foreach ($fileDuplicateCollection as $fileDuplicate) {
+            foreach ($fileDuplicate->getRenames() as $rename) {
+                $occupiedPaths[$rename->getSource()->getPathname()] = true;
+            }
+        }
+
         $this->io->newLine();
         $this->io->text(sprintf(
             '<fg=cyan>%s files</>',
@@ -227,7 +237,8 @@ class FileSystemService implements FileSystemServiceInterface
                         $this->copyOrMoveFile(
                             $rename->getSource(),
                             $rename->getTarget(),
-                            $copyFiles
+                            $copyFiles,
+                            $occupiedPaths,
                         );
                     }
                 }
@@ -389,8 +400,15 @@ class FileSystemService implements FileSystemServiceInterface
      *
      * @throws RuntimeException If the file could not be copied or moved
      */
-    protected function copyOrMoveFile(SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo, bool $copy = false): void
-    {
+    /**
+     * @param array<string, true> $occupiedPaths mutable index of paths currently occupied on disk
+     */
+    protected function copyOrMoveFile(
+        SplFileInfo $sourceFileInfo,
+        SplFileInfo $targetFileInfo,
+        bool $copy = false,
+        array &$occupiedPaths = [],
+    ): void {
         $targetDirectory = $targetFileInfo->getPath();
 
         if (
@@ -406,42 +424,81 @@ class FileSystemService implements FileSystemServiceInterface
             );
         }
 
-        if (
-            $sourceFileInfo->isFile()
-            && (!$targetFileInfo->isFile() || $targetFileInfo->isWritable())
-        ) {
-            if ($copy) {
-                // Copies a file from source to target with renaming
-                $result = copy($sourceFileInfo->getPathname(), $targetFileInfo->getPathname());
+        $sourcePath = $sourceFileInfo->getPathname();
+        $targetPath = $targetFileInfo->getPathname();
 
-                if ($result === false) {
-                    throw new RuntimeException(
-                        sprintf(
-                            'Failed to copy file to "%s"',
-                            $targetFileInfo->getPathname(),
-                        ),
-                    );
-                }
-            } else {
-                // Moves a file from source to target (removes a file at the source)
-                $result = rename($sourceFileInfo->getPathname(), $targetFileInfo->getPathname());
-
-                if ($result === false) {
-                    throw new RuntimeException(
-                        sprintf(
-                            'Failed to move file to "%s"',
-                            $targetFileInfo->getPathname(),
-                        ),
-                    );
-                }
-            }
-        } else {
+        if (!$sourceFileInfo->isFile()) {
             throw new RuntimeException(
-                sprintf(
-                    'Target file "%s" is not writeable',
-                    $targetFileInfo->getPathname()
-                )
+                sprintf('Source file "%s" does not exist', $sourcePath),
             );
         }
+
+        // Target already occupied by a different file (moved there earlier in the same batch).
+        // Fall back to the next available duplicate suffix to prevent data loss.
+        if (
+            $targetPath !== $sourcePath
+            && isset($occupiedPaths[$targetPath])
+        ) {
+            $targetFileInfo = $this->findAvailableDuplicateTarget($targetFileInfo, $occupiedPaths);
+            $targetPath     = $targetFileInfo->getPathname();
+        }
+
+        if ($copy) {
+            $result = copy($sourcePath, $targetPath);
+
+            if ($result === false) {
+                throw new RuntimeException(
+                    sprintf('Failed to copy file to "%s"', $targetPath),
+                );
+            }
+
+            // Copy adds a new occupied path without freeing the source.
+            $occupiedPaths[$targetPath] = true;
+        } else {
+            $result = rename($sourcePath, $targetPath);
+
+            if ($result === false) {
+                throw new RuntimeException(
+                    sprintf('Failed to move file to "%s"', $targetPath),
+                );
+            }
+
+            // Move: source freed, target occupied.
+            unset($occupiedPaths[$sourcePath]);
+            $occupiedPaths[$targetPath] = true;
+        }
+    }
+
+    /**
+     * Finds the next available duplicate target path that is not occupied.
+     *
+     * @param array<string, true> $occupiedPaths current set of occupied paths
+     */
+    private function findAvailableDuplicateTarget(SplFileInfo $target, array $occupiedPaths): SplFileInfo
+    {
+        $ext      = $target->getExtension();
+        $basename = $target->getBasename('.' . $ext);
+        $dir      = $target->getPath();
+
+        // Strip any existing duplicate suffix to avoid nested suffixes (e.g. -duplicate-003-duplicate-001).
+        $basename = preg_replace('/' . preg_quote(self::DUPLICATE_IDENTIFIER, '/') . '\d+$/', '', $basename) ?? $basename;
+
+        $counter = 1;
+
+        do {
+            $candidatePath = sprintf(
+                '%s%s%s%s%03d.%s',
+                $dir,
+                DIRECTORY_SEPARATOR,
+                $basename,
+                self::DUPLICATE_IDENTIFIER,
+                $counter,
+                $ext,
+            );
+
+            ++$counter;
+        } while (isset($occupiedPaths[$candidatePath]));
+
+        return new SplFileInfo($candidatePath);
     }
 }

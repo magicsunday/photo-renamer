@@ -12,10 +12,8 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Strategy\DuplicateIdentifier;
 
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\LivePhotoContentIdentifierStrategy;
-use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
-use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
 
@@ -23,36 +21,22 @@ use SplFileInfo;
 class LivePhotoContentIdentifierStrategyTest extends TestCase
 {
     #[Test]
-    public function itUsesContentIdentifierWhenPresent(): void
+    public function itAlwaysReturnsTargetBasename(): void
     {
-        /** @var ExifDateFilenameStrategy&MockObject $renameStrategy */
-        $renameStrategy = $this->createMock(ExifDateFilenameStrategy::class);
-        $renameStrategy
-            ->expects(self::once())
-            ->method('getLivePhotoContentIdentifier')
-            ->willReturn('1234-uuid');
-
-        $strategy = new LivePhotoContentIdentifierStrategy($renameStrategy);
+        $strategy = new LivePhotoContentIdentifierStrategy();
 
         $identifier = $strategy->generateIdentifier(
             new SplFileInfo('/tmp/source.jpg'),
-            new SplFileInfo('/tmp/target.jpg'),
+            new SplFileInfo('/tmp/2025-01-01_00-02-20-016.jpg'),
         );
 
-        self::assertSame('live-photo:1234-uuid', $identifier);
+        self::assertSame('2025-01-01_00-02-20-016', $identifier);
     }
 
     #[Test]
-    public function itFallsBackToTargetBasenameWhenIdentifierMissing(): void
+    public function itStripsExtensionFromTargetBasename(): void
     {
-        /** @var ExifDateFilenameStrategy&MockObject $renameStrategy */
-        $renameStrategy = $this->createMock(ExifDateFilenameStrategy::class);
-        $renameStrategy
-            ->expects(self::once())
-            ->method('getLivePhotoContentIdentifier')
-            ->willReturn(null);
-
-        $strategy = new LivePhotoContentIdentifierStrategy($renameStrategy);
+        $strategy = new LivePhotoContentIdentifierStrategy();
 
         $identifier = $strategy->generateIdentifier(
             new SplFileInfo('/tmp/source.mov'),

@@ -195,10 +195,6 @@ final class RenameByExifDateCommandTest extends TestCase
         $renamePatternProperty = new ReflectionProperty(ExifDateFilenameStrategy::class, 'targetFilenamePattern');
 
         self::assertSame('Ymd-His', $renamePatternProperty->getValue($capturedRenameStrategy));
-
-        $duplicateRenameStrategyProperty = new ReflectionProperty(LivePhotoContentIdentifierStrategy::class, 'renameStrategy');
-
-        self::assertSame($capturedRenameStrategy, $duplicateRenameStrategyProperty->getValue($capturedDuplicateStrategy));
     }
 
     #[Test]
@@ -500,7 +496,7 @@ final class RenameByExifDateCommandTest extends TestCase
 
             $metadataProvider = new ExifMetadataProvider($metadataExtractor);
 
-            $duplicateDetectionService = new DuplicateDetectionService($fileSystemService, $style, new SafeHashCalculator());
+            $duplicateDetectionService = new DuplicateDetectionService($style, new SafeHashCalculator());
             $livePhotoPairingService   = new LivePhotoPairingService();
 
             $command = new RenameByExifDateCommand(

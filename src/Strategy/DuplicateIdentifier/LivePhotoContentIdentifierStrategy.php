@@ -11,58 +11,27 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Strategy\DuplicateIdentifier;
 
-use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use Override;
 use SplFileInfo;
 
-use function strtolower;
-use function trim;
-
 /**
- * Strategy that prefers the Apple Live Photo content identifier to group duplicates.
+ * Strategy that groups duplicates by target basename.
+ *
+ * All files with the same EXIF date end up in one unified group.
+ * Live Photo content identifiers are handled during companion detection,
+ * not during grouping.
  */
 class LivePhotoContentIdentifierStrategy implements DuplicateIdentifierStrategyInterface
 {
     /**
-     * @param ExifDateFilenameStrategy $renameStrategy strategy providing access to Live Photo metadata helpers
-     */
-    public function __construct(
-        private readonly ExifDateFilenameStrategy $renameStrategy,
-    ) {
-    }
-
-    /**
-     * Generates an identifier based on the Live Photo content identifier or falls back to the target basename.
-     *
      * @param SplFileInfo $sourceFileInfo source file inspected for Live Photo metadata
-     * @param SplFileInfo $targetFileInfo target file used as fallback identifier
+     * @param SplFileInfo $targetFileInfo target file used as identifier source
      *
      * @return string|false
      */
     #[Override]
     public function generateIdentifier(SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo): string|false
     {
-        $contentIdentifier = $this->renameStrategy->getLivePhotoContentIdentifier($sourceFileInfo);
-
-        if (is_string($contentIdentifier)) {
-            $normalizedContentIdentifier = $this->normalizeContentIdentifier($contentIdentifier);
-
-            if ($normalizedContentIdentifier !== null) {
-                return 'live-photo:' . $normalizedContentIdentifier;
-            }
-        }
-
         return $targetFileInfo->getBasename('.' . $targetFileInfo->getExtension());
-    }
-
-    private function normalizeContentIdentifier(string $contentIdentifier): ?string
-    {
-        $normalized = strtolower(trim($contentIdentifier));
-
-        if ($normalized === '') {
-            return null;
-        }
-
-        return $normalized;
     }
 }

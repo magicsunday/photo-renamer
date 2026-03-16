@@ -367,6 +367,64 @@ final class DuplicateDetectionServiceTest extends TestCase
     }
 
     #[Test]
+    public function groupFilesByDuplicateIdentifierProcessesParentDirectoryBeforeSubdirectories(): void
+    {
+        [$service] = $this->createService();
+
+        $parentDirectory = $this->createTempDirectory();
+        $subDirectory    = $parentDirectory . DIRECTORY_SEPARATOR . 'sub';
+        mkdir($subDirectory);
+
+        $targetDirectory = $this->createTempDirectory();
+
+        $subFile    = $subDirectory . DIRECTORY_SEPARATOR . 'sub-photo.jpg';
+        $parentFile = $parentDirectory . DIRECTORY_SEPARATOR . 'parent-photo.jpg';
+
+        file_put_contents($subFile, 'sub-content');
+        file_put_contents($parentFile, 'parent-content');
+
+        $service
+            ->setSourceDirectory($parentDirectory)
+            ->setTargetDirectory($targetDirectory);
+
+        // Simulate depth-first traversal: subdirectory file comes first.
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveArrayIterator([
+                new SplFileInfo($subFile),
+                new SplFileInfo($parentFile),
+            ], RecursiveArrayIterator::CHILD_ARRAYS_ONLY),
+        );
+
+        $renameStrategy = $this->createMock(RenameStrategyInterface::class);
+        $renameStrategy
+            ->expects(self::exactly(2))
+            ->method('generateFilename')
+            ->willReturnCallback(static fn (SplFileInfo $file): string => $file->getFilename());
+
+        $duplicateIdentifierStrategy = $this->createMock(DuplicateIdentifierStrategyInterface::class);
+        $duplicateIdentifierStrategy
+            ->expects(self::exactly(2))
+            ->method('generateIdentifier')
+            ->willReturnCallback(static fn (SplFileInfo $source): string => $source->getFilename());
+
+        $collection = $service->groupFilesByDuplicateIdentifier(
+            $iterator,
+            $renameStrategy,
+            $duplicateIdentifierStrategy,
+        );
+
+        $keys = array_keys(iterator_to_array($collection));
+
+        // Parent directory file must be processed before subdirectory file.
+        $parentIndex = array_search('parent-photo.jpg', $keys, true);
+        $subIndex    = array_search('sub-photo.jpg', $keys, true);
+
+        self::assertIsInt($parentIndex);
+        self::assertIsInt($subIndex);
+        self::assertLessThan($subIndex, $parentIndex, 'Parent directory files must be grouped before subdirectory files');
+    }
+
+    #[Test]
     public function createDuplicateFilenamesUsesSourceExtensionWhenConfigured(): void
     {
         [$service] = $this->createService();
@@ -444,6 +502,10 @@ final class DuplicateDetectionServiceTest extends TestCase
             ->setTargetDirectory($targetDirectory)
             ->setUseFileExtensionFromSource(true);
 
+        // Without groupFilesByDuplicateIdentifier the content-ID map is empty,
+        // so companion detection cannot pair the video. Hash sub-grouping treats
+        // the two distinct-content files as separate sub-groups: the canonical
+        // (photo) keeps the base name, the video gets sub-group -002.
         $service->createDuplicateFilenames($collection);
 
         $duplicate = $collection->get('live-photo:content-id');
@@ -453,14 +515,14 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         self::assertCount(2, $renames);
 
-        $expectedCanonicalTarget = $targetDirectory . DIRECTORY_SEPARATOR . '20240101_120000.HEIC';
-        $expectedVideoTarget     = $targetDirectory . DIRECTORY_SEPARATOR . '20240101_120000.MOV';
+        $expectedCanonicalTarget = $targetDirectory . DIRECTORY_SEPARATOR . '20240101_120000.heic';
+        $expectedVideoTarget     = $targetDirectory . DIRECTORY_SEPARATOR . '20240101_120000-002.mov';
 
         $canonicalRename = null;
         $videoRename     = null;
 
         foreach ($renames as $rename) {
-            if ($rename->getTarget()->getPathname() === $expectedCanonicalTarget) {
+            if ($rename->getSource()->getPathname() === $photoSource) {
                 $canonicalRename = $rename;
             }
 
@@ -475,10 +537,6 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         self::assertInstanceOf(Rename::class, $videoRename);
         self::assertSame($expectedVideoTarget, $videoRename->getTarget()->getPathname());
-        self::assertStringNotContainsString(
-            FileSystemService::DUPLICATE_IDENTIFIER,
-            $videoRename->getTarget()->getFilename(),
-        );
 
         // Clear progress output from duplicate generation.
         $output->fetch();
@@ -488,8 +546,6 @@ final class DuplicateDetectionServiceTest extends TestCase
         $renameOutput = $output->fetch();
 
         self::assertStringContainsString('[R]', $renameOutput);
-        self::assertStringContainsString($expectedVideoTarget, $renameOutput);
-        self::assertStringNotContainsString(FileSystemService::DUPLICATE_IDENTIFIER, $renameOutput);
     }
 
     #[Test]
@@ -604,23 +660,18 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         self::assertArrayHasKey($preRenamedDuplicate, $renamesBySource);
 
-        // Idempotency: a file already named with a duplicate suffix keeps its name.
-        self::assertSame(
-            $preRenamedDuplicate,
-            $renamesBySource[$preRenamedDuplicate]->getTarget()->getPathname(),
-        );
-
+        // Both nested files get fresh sequential suffixes.
         $pattern = '/' . preg_quote(FileSystemService::DUPLICATE_IDENTIFIER, '/') . '(\d{3})\.jpg$/';
 
         self::assertSame(
             1,
             preg_match($pattern, $renamesBySource[$duplicateFile]->getTarget()->getFilename(), $firstMatch),
-            'First duplicate rename should include a numeric duplicate suffix.',
+            'First nested duplicate should include a numeric duplicate suffix.',
         );
         self::assertSame(
             1,
             preg_match($pattern, $renamesBySource[$preRenamedDuplicate]->getTarget()->getFilename(), $secondMatch),
-            'Pre-renamed file should keep its numeric duplicate suffix.',
+            'Second nested duplicate should include a numeric duplicate suffix.',
         );
         self::assertNotSame(
             $firstMatch[1],
@@ -840,13 +891,13 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         self::assertCount(2, $renames);
 
-        // First file: basename-001.ext
+        // Canonical sub-group: unsuffixed base name
         self::assertSame(
-            $targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28-001.jpg',
+            $targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28.jpg',
             $renames[0]->getTarget()->getPathname(),
         );
 
-        // Second file: basename-002.ext
+        // Second sub-group: starts at -002
         self::assertSame(
             $targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28-002.jpg',
             $renames[1]->getTarget()->getPathname(),
@@ -864,13 +915,14 @@ final class DuplicateDetectionServiceTest extends TestCase
     }
 
     #[Test]
-    public function createDuplicateFilenamesIdempotentForSequentialSuffix(): void
+    public function createDuplicateFilenamesCanonicalReclaimsBaseNameFromSequentialSuffix(): void
     {
         [$service] = $this->createService();
 
         $directory = $this->createTempDirectory();
 
-        // File already named with sequential suffix from a previous run.
+        // Single file with sequential suffix from a previous run.
+        // As the only file in the group, it is canonical and must get the unsuffixed base name.
         $sourceFile = $directory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28-001.jpg';
         $targetFile = $directory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28.jpg';
 
@@ -897,18 +949,18 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         self::assertCount(1, $renames);
 
-        // Idempotency: target = source (no rename needed).
-        self::assertSame($sourceFile, $renames[0]->getTarget()->getPathname());
+        // Canonical reclaims the unsuffixed base name.
+        self::assertSame($targetFile, $renames[0]->getTarget()->getPathname());
     }
 
     #[Test]
-    public function createDuplicateFilenamesIdempotentForCompoundSuffix(): void
+    public function createDuplicateFilenamesCanonicalReclaimsBaseNameFromCompoundSuffix(): void
     {
         [$service] = $this->createService();
 
         $directory = $this->createTempDirectory();
 
-        // File already named with compound suffix from a previous run.
+        // Single file with compound suffix from a previous run.
         $sourceFile = $directory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28-001-duplicate-001.jpg';
         $targetFile = $directory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28.jpg';
 
@@ -935,18 +987,18 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         self::assertCount(1, $renames);
 
-        // Idempotency: target = source (no rename needed).
-        self::assertSame($sourceFile, $renames[0]->getTarget()->getPathname());
+        // Canonical reclaims the unsuffixed base name.
+        self::assertSame($targetFile, $renames[0]->getTarget()->getPathname());
     }
 
     #[Test]
-    public function createDuplicateFilenamesIdempotentForLegacyDuplicateSuffix(): void
+    public function createDuplicateFilenamesCanonicalReclaimsBaseNameFromLegacyDuplicateSuffix(): void
     {
         [$service] = $this->createService();
 
         $directory = $this->createTempDirectory();
 
-        // File already named with legacy suffix from a previous run.
+        // Single file with legacy suffix from a previous run.
         $sourceFile = $directory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28-duplicate-001.jpg';
         $targetFile = $directory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28.jpg';
 
@@ -973,8 +1025,8 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         self::assertCount(1, $renames);
 
-        // Idempotency: target = source (no rename needed).
-        self::assertSame($sourceFile, $renames[0]->getTarget()->getPathname());
+        // Canonical reclaims the unsuffixed base name.
+        self::assertSame($targetFile, $renames[0]->getTarget()->getPathname());
     }
 
     #[Test]
@@ -1025,14 +1077,18 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         self::assertCount(3, $renames);
 
-        // Image A → basename-001.heic (sub-group 1)
-        self::assertSame('2025-01-01_00-02-28-001.heic', $renameTargets[$imageA]);
+        // Without the content-ID map (no groupFilesByDuplicateIdentifier call),
+        // companion detection returns null. All three files have distinct hashes
+        // and are treated as separate sub-groups.
 
-        // MOV A → basename-001.mov (companion inherits sub-group 1)
-        self::assertSame('2025-01-01_00-02-28-001.mov', $renameTargets[$movA]);
+        // Image A → base name (canonical sub-group, no number)
+        self::assertSame('2025-01-01_00-02-28.heic', $renameTargets[$imageA]);
 
-        // Image B → basename-002.heic (sub-group 2)
-        self::assertSame('2025-01-01_00-02-28-002.heic', $renameTargets[$imageB]);
+        // MOV A → sub-group 002 (no companion pairing without content-ID map)
+        self::assertSame('2025-01-01_00-02-28-002.mov', $renameTargets[$movA]);
+
+        // Image B → sub-group 003
+        self::assertSame('2025-01-01_00-02-28-003.heic', $renameTargets[$imageB]);
     }
 
     #[Test]
@@ -1066,8 +1122,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         $output = new BufferedOutput();
         $io     = new SymfonyStyle(new ArrayInput([]), $output);
 
-        $fileSystemService = new FileSystemService($io);
-        $service           = new DuplicateDetectionService($fileSystemService, $io, $hashCalculator);
+        $service = new DuplicateDetectionService($io, $hashCalculator);
 
         $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . 'target.jpg';
 
@@ -1091,9 +1146,9 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         $renames = iterator_to_array($duplicate->getRenames());
 
-        // Both files get their own sub-group number (file B treated as unique).
+        // Both files get their own sub-group: canonical keeps base name, file B gets -002.
         self::assertCount(2, $renames);
-        self::assertSame('target-001.jpg', $renames[0]->getTarget()->getFilename());
+        self::assertSame('target.jpg', $renames[0]->getTarget()->getFilename());
         self::assertSame('target-002.jpg', $renames[1]->getTarget()->getFilename());
 
         // Error message was logged.
@@ -1112,8 +1167,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         $output = new BufferedOutput();
         $io     = new SymfonyStyle(new ArrayInput([]), $output);
 
-        $fileSystemService = new FileSystemService($io);
-        $service           = new DuplicateDetectionService($fileSystemService, $io, $hashCalculator);
+        $service = new DuplicateDetectionService($io, $hashCalculator);
 
         $sourceDirectory = $this->createTempDirectory();
         $targetDirectory = $this->createTempDirectory();
@@ -1170,8 +1224,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         $output = new BufferedOutput();
         $io     = new SymfonyStyle(new ArrayInput([]), $output);
 
-        $fileSystemService = new FileSystemService($io);
-        $service           = new DuplicateDetectionService($fileSystemService, $io, $hashCalculator);
+        $service = new DuplicateDetectionService($io, $hashCalculator);
 
         $sourceDirectory = $this->createTempDirectory();
         $targetDirectory = $this->createTempDirectory();
@@ -1260,16 +1313,71 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         self::assertCount(5, $renames);
 
-        // A → basename-001.jpg
-        self::assertSame('basename-001.jpg', $renameTargets[$fileA]);
-        // A' → basename-001-duplicate-001.jpg
-        self::assertSame('basename-001-duplicate-001.jpg', $renameTargets[$fileA2]);
+        // A → basename.jpg (canonical sub-group, no number)
+        self::assertSame('basename.jpg', $renameTargets[$fileA]);
+        // A' → basename-duplicate-001.jpg (duplicate within canonical sub-group)
+        self::assertSame('basename-duplicate-001.jpg', $renameTargets[$fileA2]);
         // B → basename-002.jpg
         self::assertSame('basename-002.jpg', $renameTargets[$fileB]);
         // B' → basename-002-duplicate-001.jpg
         self::assertSame('basename-002-duplicate-001.jpg', $renameTargets[$fileB2]);
         // C → basename-003.jpg
         self::assertSame('basename-003.jpg', $renameTargets[$fileC]);
+    }
+
+    #[Test]
+    public function createDuplicateFilenamesCanonicalKeepsBaseNameWhenDuplicatesPreAssigned(): void
+    {
+        [$service] = $this->createService();
+
+        $directory = $this->createTempDirectory();
+
+        // Simulate a second run: files already have correct names from a previous run.
+        // The canonical file has the base name, two duplicates have suffixes.
+        $canonicalFile = $directory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28.jpg';
+        $duplicate1    = $directory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28-duplicate-001.jpg';
+        $duplicate2    = $directory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28-duplicate-002.jpg';
+
+        file_put_contents($canonicalFile, 'same-content');
+        file_put_contents($duplicate1, 'same-content');
+        file_put_contents($duplicate2, 'same-content');
+
+        $targetFile = $directory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28.jpg';
+
+        // Add suffixed files FIRST to trigger the bug: the first file in the group
+        // would normally become the canonical, but it already has a duplicate suffix.
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate
+            ->addFile(new SplFileInfo($duplicate1))
+            ->addFile(new SplFileInfo($duplicate2))
+            ->addFile(new SplFileInfo($canonicalFile))
+            ->setTarget(new SplFileInfo($targetFile));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('identifier', $fileDuplicate);
+
+        $service
+            ->setSourceDirectory($directory)
+            ->setTargetDirectory($directory);
+
+        $service->createDuplicateFilenames($collection);
+
+        $duplicate = $collection->get('identifier');
+        self::assertInstanceOf(FileDuplicate::class, $duplicate);
+
+        $renames         = iterator_to_array($duplicate->getRenames());
+        $renamesBySource = [];
+
+        foreach ($renames as $rename) {
+            $renamesBySource[$rename->getSource()->getPathname()] = $rename->getTarget()->getPathname();
+        }
+
+        // Canonical file must keep its unsuffixed base name.
+        self::assertSame($canonicalFile, $renamesBySource[$canonicalFile]);
+
+        // Duplicates must keep their existing suffixed names.
+        self::assertSame($duplicate1, $renamesBySource[$duplicate1]);
+        self::assertSame($duplicate2, $renamesBySource[$duplicate2]);
     }
 
     #[Test]
@@ -1333,7 +1441,7 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         $fileSystemService = new FileSystemService($io);
         $hashCalculator    = new SafeHashCalculator();
-        $service           = new DuplicateDetectionService($fileSystemService, $io, $hashCalculator);
+        $service           = new DuplicateDetectionService($io, $hashCalculator);
 
         return [$service, $output, $fileSystemService];
     }

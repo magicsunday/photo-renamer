@@ -207,9 +207,7 @@ class RenameByExifDateCommand extends AbstractRenameCommand
     protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
     {
         if (!$this->duplicateIdentifierStrategy instanceof DuplicateIdentifierStrategyInterface) {
-            $this->duplicateIdentifierStrategy = new LivePhotoContentIdentifierStrategy(
-                $this->getExifDateFilenameStrategy(),
-            );
+            $this->duplicateIdentifierStrategy = new LivePhotoContentIdentifierStrategy();
         }
 
         return $this->duplicateIdentifierStrategy;

@@ -26,7 +26,6 @@ services:
     MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface:
         class: MagicSunday\Renamer\Service\DuplicateDetectionService
         arguments:
-            $fileSystemService: '@MagicSunday\Renamer\Service\FileSystemServiceInterface'
             $io: '@Symfony\Component\Console\Style\SymfonyStyle'
 
     MagicSunday\ImageMeta\MetadataReader:
