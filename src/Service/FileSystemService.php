@@ -185,8 +185,9 @@ class FileSystemService implements FileSystemServiceInterface
                     '.' . $rename->getTarget()->getExtension()
                 );
                 $isDuplicateTarget = $renameBasename !== $canonicalBasename;
-                $isCanonicalEntry  = $listAll
-                    && $rename->getSource()->getPathname() === $canonicalTargetPath;
+                $isNoOp            = $rename->getSource()->getPathname() === $rename->getTarget()->getPathname();
+                $isCanonicalEntry  = $isNoOp
+                    || ($listAll && $rename->getSource()->getPathname() === $canonicalTargetPath);
 
                 $status = '[R]';
 
