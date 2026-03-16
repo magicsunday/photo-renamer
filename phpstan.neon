@@ -1,9 +1,9 @@
 includes:
-    - .build/vendor/phpstan/phpstan-strict-rules/rules.neon
-    - .build/vendor/phpstan/phpstan-deprecation-rules/rules.neon
-    - .build/vendor/phpstan/phpstan-phpunit/extension.neon
-    - .build/vendor/phpstan/phpstan-phpunit/rules.neon
-    - phpstan-baseline.neon
+    - %currentWorkingDirectory%/.build/vendor/phpstan/phpstan-strict-rules/rules.neon
+    - %currentWorkingDirectory%/.build/vendor/phpstan/phpstan-deprecation-rules/rules.neon
+    - %currentWorkingDirectory%/.build/vendor/phpstan/phpstan-phpunit/extension.neon
+    - %currentWorkingDirectory%/.build/vendor/phpstan/phpstan-phpunit/rules.neon
+    - %currentWorkingDirectory%/phpstan-baseline.neon
 
 parameters:
     # You can currently choose from 11 levels (0 is the loosest and 10 is the strictest).
@@ -12,12 +12,12 @@ parameters:
     # PHP Version to check against (PHP 8.5 as minimum target)
     phpVersion: 80500
 
-    tmpDir: .build/cache/.phpstan.cache
+    tmpDir: %currentWorkingDirectory%/.build/cache/.phpstan.cache
 
     paths:
-        - src/
-        - tests/
+        - %currentWorkingDirectory%/src/
+        - %currentWorkingDirectory%/tests/
 
     excludePaths:
-        - src/Renamer.php
-        - src/Dependencies.php
+        - %currentWorkingDirectory%/src/Renamer.php
+        - %currentWorkingDirectory%/src/Dependencies.php
