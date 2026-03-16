@@ -47,6 +47,8 @@ class FileSystemService implements FileSystemServiceInterface
      */
     public const string DUPLICATE_IDENTIFIER = '-duplicate-';
 
+    private const int MAX_DUPLICATE_SUFFIX = 9999;
+
     /**
      * Constructor.
      */
@@ -125,15 +127,14 @@ class FileSystemService implements FileSystemServiceInterface
         $sourceBaseDirectory = $this->normalizeBaseDirectory($sourceBaseDirectory);
         $targetBaseDirectory = $this->normalizeBaseDirectory($targetBaseDirectory);
 
-        $maxFilenameLength  = 0;
-        $fileCount          = 0;
-        $duplicateCount     = 0;
-        $totalOperations    = 0;
-        $plannedMoves       = 0;
-        $plannedCopies      = 0;
-        $plannedSkips       = 0;
-        $livePhotoGroups    = 0;
-        $maxCollisionSuffix = 0;
+        $maxFilenameLength = 0;
+        $fileCount         = 0;
+        $duplicateCount    = 0;
+        $totalOperations   = 0;
+        $plannedMoves      = 0;
+        $plannedCopies     = 0;
+        $plannedSkips      = 0;
+        $livePhotoGroups   = 0;
 
         foreach ($fileDuplicateCollection as $duplicateIdentifier => $fileDuplicate) {
             if ($this->isLivePhotoIdentifier($duplicateIdentifier)) {
@@ -145,12 +146,6 @@ class FileSystemService implements FileSystemServiceInterface
 
                 if (strlen($relativeSource) > $maxFilenameLength) {
                     $maxFilenameLength = strlen($relativeSource);
-                }
-
-                $collisionSuffix = $this->extractCollisionSuffix($rename->getTarget());
-
-                if ($collisionSuffix > $maxCollisionSuffix) {
-                    $maxCollisionSuffix = $collisionSuffix;
                 }
 
                 ++$totalOperations;
@@ -313,26 +308,6 @@ class FileSystemService implements FileSystemServiceInterface
     }
 
     /**
-     * Extracts the numeric duplicate suffix from a target filename.
-     */
-    private function extractCollisionSuffix(SplFileInfo $target): int
-    {
-        $basename = $target->getBasename('.' . $target->getExtension());
-
-        if ($basename === '') {
-            return 0;
-        }
-
-        $pattern = '/' . preg_quote(self::DUPLICATE_IDENTIFIER, '/') . '(\d+)$/';
-
-        if (preg_match($pattern, $basename, $matches) !== 1) {
-            return 0;
-        }
-
-        return (int) $matches[1];
-    }
-
-    /**
      * Converts a path to be relative to the given base directory when possible.
      */
     private function getRelativePath(SplFileInfo $fileInfo, ?string $baseDirectory): string
@@ -486,6 +461,12 @@ class FileSystemService implements FileSystemServiceInterface
         $counter = 1;
 
         do {
+            if ($counter > self::MAX_DUPLICATE_SUFFIX) {
+                throw new RuntimeException(
+                    sprintf('Exceeded %d attempts finding available target for "%s"', self::MAX_DUPLICATE_SUFFIX, $basename)
+                );
+            }
+
             $candidatePath = sprintf(
                 '%s%s%s%s%03d.%s',
                 $dir,

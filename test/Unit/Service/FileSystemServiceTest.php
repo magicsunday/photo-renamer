@@ -18,6 +18,7 @@ use MagicSunday\Renamer\Service\FileSystemService;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use ReflectionMethod;
 use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Console\Helper\ProgressBar;
@@ -627,6 +628,29 @@ final class FileSystemServiceTest extends TestCase
         self::assertStringContainsString('Renaming files', $buffer);
         self::assertStringContainsString('Files to process', $buffer);
         self::assertStringContainsString('Planned moves', $buffer);
+    }
+
+    #[Test]
+    public function findAvailableDuplicateTargetThrowsWhenMaxSuffixExceeded(): void
+    {
+        [$service] = $this->createService();
+
+        $target = new SplFileInfo('/tmp/dir/photo.jpg');
+
+        // Build occupiedPaths that block every suffix from 001..9999
+        /** @var array<string, true> $occupiedPaths */
+        $occupiedPaths = [];
+
+        for ($i = 1; $i <= 9999; ++$i) {
+            $occupiedPaths[sprintf('/tmp/dir/photo%s%03d.jpg', FileSystemService::DUPLICATE_IDENTIFIER, $i)] = true;
+        }
+
+        $method = new ReflectionMethod($service, 'findAvailableDuplicateTarget');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Exceeded 9999 attempts finding available target for "photo"');
+
+        $method->invoke($service, $target, $occupiedPaths);
     }
 
     private function relativizePath(string $path, ?string $baseDirectory): string
