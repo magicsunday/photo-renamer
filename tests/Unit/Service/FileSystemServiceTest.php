@@ -783,6 +783,73 @@ final class FileSystemServiceTest extends TestCase
     }
 
     /**
+     * Verifies that when two renames in the same batch target the same path, the
+     * second file is automatically redirected to a -duplicate-NNN fallback path
+     * instead of overwriting the first.
+     *
+     * This is the runtime collision safety net in copyOrMoveFile(): even when the
+     * planning phase assigns the same target to two files (e.g. from different groups),
+     * the execution phase detects the collision via the occupiedPaths index and finds
+     * the next available suffix to prevent data loss.
+     */
+    #[Test]
+    public function renameFilesRedirectsSecondFileWhenTargetBecomesOccupiedDuringBatch(): void
+    {
+        [$service, $output] = $this->createService();
+
+        $sourceDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'source-collision';
+        $targetDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'target-collision';
+
+        mkdir($sourceDirectory);
+        mkdir($targetDirectory);
+
+        $sourceA = $sourceDirectory . DIRECTORY_SEPARATOR . 'a.jpg';
+        $sourceB = $sourceDirectory . DIRECTORY_SEPARATOR . 'b.jpg';
+
+        file_put_contents($sourceA, 'content-A');
+        file_put_contents($sourceB, 'content-B');
+
+        // Both files are planned to land at the same target path.
+        $sharedTarget = $targetDirectory . DIRECTORY_SEPARATOR . 'photo.jpg';
+
+        // Group 1: a.jpg -> photo.jpg
+        $duplicateA = new FileDuplicate();
+        $duplicateA->setTarget(new SplFileInfo($sharedTarget));
+        $duplicateA->addRename(new Rename(
+            new SplFileInfo($sourceA),
+            new SplFileInfo($sharedTarget),
+        ));
+
+        // Group 2: b.jpg -> photo.jpg (same target!)
+        $duplicateB = new FileDuplicate();
+        $duplicateB->setTarget(new SplFileInfo($sharedTarget));
+        $duplicateB->addRename(new Rename(
+            new SplFileInfo($sourceB),
+            new SplFileInfo($sharedTarget),
+        ));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('group-a', $duplicateA);
+        $collection->set('group-b', $duplicateB);
+
+        $service->renameFiles($collection);
+
+        // File A should have been moved to the target path.
+        self::assertFileDoesNotExist($sourceA);
+        self::assertFileExists($sharedTarget);
+        self::assertSame('content-A', file_get_contents($sharedTarget));
+
+        // File B should have been redirected to a -duplicate-NNN fallback.
+        self::assertFileDoesNotExist($sourceB);
+
+        $fallbackTarget = $targetDirectory . DIRECTORY_SEPARATOR
+            . 'photo' . FileSystemService::DUPLICATE_IDENTIFIER . '001.jpg';
+
+        self::assertFileExists($fallbackTarget);
+        self::assertSame('content-B', file_get_contents($fallbackTarget));
+    }
+
+    /**
      * Verifies that findAvailableDuplicateTarget() strips an existing -duplicate-NNN
      * suffix from the basename before generating a new one, preventing nested suffixes
      * like "photo-duplicate-003-duplicate-001.jpg".
