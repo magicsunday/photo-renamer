@@ -10,4 +10,7 @@ echo "GROUPID=$(id -g)" >> .env
 # Fix .build/ ownership (created as root by buildbox) so builder container can write to it
 docker compose run --rm buildbox chown -R "$(id -u):$(id -g)" /app/.build
 
-docker compose run --build --rm builder ./scripts/init
+# Pass GitHub token to avoid API rate limiting
+GITHUB_TOKEN="${GITHUB_TOKEN:-$(gh auth token 2>/dev/null || true)}"
+
+docker compose run --build --rm -e GITHUB_TOKEN="${GITHUB_TOKEN}" builder ./scripts/init

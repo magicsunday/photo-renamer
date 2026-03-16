@@ -48,6 +48,6 @@ RUN apt-get update && \
 
 RUN rm -rf /var/lib/apt/lists/*
 
-RUN groupadd --gid ${GROUPID} renamer && \
-    useradd --uid ${USERID} --gid renamer --create-home renamer && \
+RUN (groupadd --gid ${GROUPID} renamer 2>/dev/null || groupmod -n renamer $(getent group ${GROUPID} | cut -d: -f1)) && \
+    useradd --uid ${USERID} --gid ${GROUPID} --create-home renamer && \
     echo "renamer ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
