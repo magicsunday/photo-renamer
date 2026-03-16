@@ -19,7 +19,7 @@
 
 <!-- Row 3: Compatibility badges -->
 <p align="center">
-  <a href="composer.json"><img src="https://img.shields.io/badge/php-8.4|8.5-blue" alt="PHP Version"></a>
+  <a href="composer.json"><img src="https://img.shields.io/badge/php-8.5-blue" alt="PHP Version"></a>
 </p>
 
 <!-- Row 4: Project badges -->
@@ -35,7 +35,7 @@ Photo Renamer is a self-contained CLI tool that tidies large photo and video col
 | Key     | Value                                                                                          |
 |---------|------------------------------------------------------------------------------------------------|
 | Package | `magicsunday/photo-renamer`                                                                    |
-| PHP     | `>=8.4`                                                                                        |
+| PHP     | `>=8.5`                                                                                        |
 | Binary  | Self-contained via [static-php-cli](https://github.com/crazywhalecc/static-php-cli)           |
 | Output  | `[R]` rename, `[D]` duplicate, `[O]` unchanged                                                |
 
