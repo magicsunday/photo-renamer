@@ -59,9 +59,6 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
 
     /**
      * Constructor.
-     *
-     * @param FileSystemService $fileSystemService
-     * @param SymfonyStyle      $io
      */
     public function __construct(private readonly FileSystemService $fileSystemService, private readonly SymfonyStyle $io)
     {
@@ -109,11 +106,6 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         return $this;
     }
 
-    /**
-     * @param bool $listAll
-     *
-     * @return DuplicateDetectionService
-     */
     public function setListAll(bool $listAll): DuplicateDetectionService
     {
         return $this;
@@ -327,6 +319,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             foreach ($renames as $rename) {
                 if ($rename->getTarget()->getPathname() === $canonicalTargetPath) {
                     $canonicalRename = $rename;
+
                     break;
                 }
             }

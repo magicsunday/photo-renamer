@@ -52,8 +52,6 @@ class RenameByPatternCommand extends AbstractRenameCommand
 
     /**
      * Configures the current command.
-     *
-     * @return void
      */
     #[Override]
     protected function configure(): void

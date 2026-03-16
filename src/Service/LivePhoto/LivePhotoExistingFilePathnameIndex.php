@@ -25,8 +25,6 @@ final class LivePhotoExistingFilePathnameIndex
      * Records a file pathname as belonging to a Live Photo group.
      *
      * @param SplFileInfo $file file whose pathname should be tracked
-     *
-     * @return void
      */
     public function remember(SplFileInfo $file): void
     {

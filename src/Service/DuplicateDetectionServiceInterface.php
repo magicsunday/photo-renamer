@@ -26,32 +26,12 @@ use RecursiveIteratorIterator;
  */
 interface DuplicateDetectionServiceInterface
 {
-    /**
-     * @param string $sourceDirectory
-     *
-     * @return self
-     */
     public function setSourceDirectory(string $sourceDirectory): self;
 
-    /**
-     * @param string $targetDirectory
-     *
-     * @return self
-     */
     public function setTargetDirectory(string $targetDirectory): self;
 
-    /**
-     * @param bool $useFileExtensionFromSource
-     *
-     * @return self
-     */
     public function setUseFileExtensionFromSource(bool $useFileExtensionFromSource): self;
 
-    /**
-     * @param bool $listAll
-     *
-     * @return self
-     */
     public function setListAll(bool $listAll): self;
 
     /**
@@ -59,11 +39,7 @@ interface DuplicateDetectionServiceInterface
      *
      * @template TInner of RecursiveIterator
      *
-     * @param RecursiveIteratorIterator<TInner>    $iterator
-     * @param RenameStrategyInterface              $renameStrategy
-     * @param DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy
-     *
-     * @return FileDuplicateCollection
+     * @param RecursiveIteratorIterator<TInner> $iterator
      */
     public function groupFilesByDuplicateIdentifier(
         RecursiveIteratorIterator $iterator,
@@ -73,10 +49,6 @@ interface DuplicateDetectionServiceInterface
 
     /**
      * Creates a consecutive new filename for all duplicate files.
-     *
-     * @param FileDuplicateCollection $fileDuplicateCollection
-     *
-     * @return FileDuplicateCollection
      */
     public function createDuplicateFilenames(FileDuplicateCollection $fileDuplicateCollection): FileDuplicateCollection;
 }

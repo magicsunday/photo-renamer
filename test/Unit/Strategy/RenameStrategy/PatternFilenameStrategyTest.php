@@ -78,8 +78,6 @@ class PatternFilenameStrategyTest extends TestCase
      * @param string $replacement      The replacement string (may include backreferences)
      * @param string $expected         The expected filename after transformation
      * @param string $description      Human-readable description of the test case
-     *
-     * @return void
      */
     #[Test]
     #[DataProvider('patternReplacementProvider')]
@@ -128,8 +126,6 @@ class PatternFilenameStrategyTest extends TestCase
      * @param string $pattern     The invalid regex pattern to test
      * @param string $replacement The replacement string (not used but required by strategy)
      * @param string $description Human-readable description of the invalid pattern type
-     *
-     * @return void
      */
     #[Test]
     #[DataProvider('invalidPatternProvider')]

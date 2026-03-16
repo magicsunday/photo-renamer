@@ -27,10 +27,6 @@ class InheritFilenameStrategy implements RenameStrategyInterface
 {
     /**
      * Create a new filename based on the original filename, only with the duplicate identifier removed.
-     *
-     * @param SplFileInfo $splFileInfo
-     *
-     * @return string
      */
     #[Override]
     public function generateFilename(SplFileInfo $splFileInfo): string
@@ -48,10 +44,6 @@ class InheritFilenameStrategy implements RenameStrategyInterface
 
     /**
      * Remove any existing "-duplicate-000" identifier.
-     *
-     * @param string $filename
-     *
-     * @return string
      */
     protected function removeDuplicateFileIdentifier(string $filename): string
     {

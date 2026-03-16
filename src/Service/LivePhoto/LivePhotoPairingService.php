@@ -34,8 +34,6 @@ class LivePhotoPairingService
      * @param FileDuplicateCollection           $fileDuplicateCollection   collection generated during the first pass
      * @param callable(SplFileInfo): ?string    $contentIdentifierResolver callback resolving the Live Photo content identifier
      * @param callable(): void|null             $onFileInspected           optional callback invoked after each inspected file
-     *
-     * @return LivePhotoPairingCollection
      */
     public function pairByContentIdentifier(
         RecursiveIteratorIterator $iterator,

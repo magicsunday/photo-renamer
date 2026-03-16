@@ -32,10 +32,6 @@ class DatePatternFilenameStrategy extends InheritFilenameStrategy
 {
     /**
      * Constructor.
-     *
-     * @param string          $pattern
-     * @param string          $replacement
-     * @param PatternMatchSet $patternMatches
      */
     public function __construct(private readonly string $pattern, private readonly string $replacement, private readonly PatternMatchSet $patternMatches, private readonly SafeRegex $regex)
     {
@@ -45,6 +41,7 @@ class DatePatternFilenameStrategy extends InheritFilenameStrategy
     public function generateFilename(SplFileInfo $splFileInfo): string
     {
         $targetFilename = parent::generateFilename($splFileInfo);
+
         try {
             $filePartMatches = RegexMatchCollection::fromMatch(
                 $this->regex->match(

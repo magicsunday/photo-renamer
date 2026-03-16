@@ -1,5 +1,5 @@
 # Development stage
-FROM php:8.4-cli-alpine AS dev
+FROM php:8.5-cli-alpine AS dev
 
 RUN apk add --no-cache \
     bash \
@@ -13,7 +13,7 @@ RUN git config --global --add safe.directory /app
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 ENV COMPOSER_ALLOW_SUPERUSER=1
-ENV PATH="/app/.build/bin:${PATH}"
+ENV PATH="${PATH}:/app/.build/bin"
 
 WORKDIR /app
 

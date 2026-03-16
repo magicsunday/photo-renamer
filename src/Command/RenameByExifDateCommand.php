@@ -62,8 +62,6 @@ class RenameByExifDateCommand extends AbstractRenameCommand
 
     /**
      * Configures the EXIF date rename command with its name, description, and options.
-     *
-     * @return void
      */
     #[Override]
     protected function configure(): void
@@ -86,8 +84,6 @@ class RenameByExifDateCommand extends AbstractRenameCommand
 
     /**
      * Executes the command and resets cached strategies when the filename pattern changes.
-     *
-     * @return int
      */
     #[Override]
     protected function executeCommand(): int
@@ -138,8 +134,6 @@ class RenameByExifDateCommand extends AbstractRenameCommand
      * @template TInner of RecursiveIterator
      *
      * @param RecursiveIteratorIterator<TInner> $iterator iterator with all files that should be processed
-     *
-     * @return FileDuplicateCollection
      */
     #[Override]
     protected function groupFilesByDuplicateIdentifier(RecursiveIteratorIterator $iterator): FileDuplicateCollection
@@ -199,8 +193,6 @@ class RenameByExifDateCommand extends AbstractRenameCommand
 
     /**
      * Returns the strategy that builds the target filename based on EXIF dates.
-     *
-     * @return RenameStrategyInterface
      */
     #[Override]
     protected function getTargetFilenameProcessor(): RenameStrategyInterface
@@ -210,8 +202,6 @@ class RenameByExifDateCommand extends AbstractRenameCommand
 
     /**
      * Provides the duplicate identifier strategy capable of handling Live Photos.
-     *
-     * @return DuplicateIdentifierStrategyInterface
      */
     #[Override]
     protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
@@ -227,8 +217,6 @@ class RenameByExifDateCommand extends AbstractRenameCommand
 
     /**
      * Creates the EXIF date rename strategy using the configured filename pattern.
-     *
-     * @return ExifDateFilenameStrategy
      */
     private function getExifDateFilenameStrategy(): ExifDateFilenameStrategy
     {

@@ -852,6 +852,7 @@ final class DuplicateDetectionServiceTest extends TestCase
 
             if ($fileInfo->isDir()) {
                 rmdir($fileInfo->getPathname());
+
                 continue;
             }
 

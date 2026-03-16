@@ -26,8 +26,6 @@ interface RenameStrategyInterface
      * Generates a unique identifier for a file to detect duplicates.
      *
      * @param SplFileInfo $splFileInfo The file info instance
-     *
-     * @return string|null
      */
     public function generateFilename(SplFileInfo $splFileInfo): ?string;
 }

@@ -4,14 +4,14 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "97f14a203422cc714d5b6c692b3bcf6f",
+    "content-hash": "29e9e4f7576d074f0d75c2feb2b2d5f0",
     "packages": [
         {
             "name": "magicsunday/imagemeta",
             "version": "dev-main",
             "source": {
                 "type": "git",
-                "url": "https://github.com/magicsunday/imagemeta.git",
+                "url": "git@github.com:magicsunday/imagemeta.git",
                 "reference": "0a259a00f490a8efdb7849e1d9404a36a2d49d1b"
             },
             "dist": {
@@ -109,10 +109,6 @@
                 }
             ],
             "description": "Unified EXIF 3.0 / XMP / IPTC / ISOBMFF metadata for PHP.",
-            "support": {
-                "source": "https://github.com/magicsunday/imagemeta/tree/main",
-                "issues": "https://github.com/magicsunday/imagemeta/issues"
-            },
             "time": "2026-03-16T06:40:48+00:00"
         },
         {
@@ -5632,7 +5628,7 @@
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {
-        "php": "^8.4"
+        "php": "^8.5"
     },
     "platform-dev": {},
     "plugin-api-version": "2.9.0"

@@ -59,8 +59,6 @@ interface FileSystemServiceInterface
      * @param string|null             $targetBaseDirectory     Base directory used to display target paths
      * @param int|null                $scannedFiles            Number of files scanned during discovery
      *
-     * @return void
-     *
      * @throws RuntimeException If a file could not be renamed
      */
     public function renameFiles(

@@ -51,8 +51,6 @@ class InheritFilenameStrategyTest extends TestCase
      *
      * Initializes a fresh instance of InheritFilenameStrategy to ensure
      * test isolation and prevent state leakage between tests.
-     *
-     * @return void
      */
     protected function setUp(): void
     {
@@ -74,8 +72,6 @@ class InheritFilenameStrategyTest extends TestCase
      * @param string $filename    The input filename to process
      * @param string $expected    The expected output filename after processing
      * @param string $description Human-readable description of the test case
-     *
-     * @return void
      */
     #[Test]
     #[DataProvider('filenameProvider')]

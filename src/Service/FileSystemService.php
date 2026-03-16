@@ -49,8 +49,6 @@ class FileSystemService implements FileSystemServiceInterface
 
     /**
      * Constructor.
-     *
-     * @param SymfonyStyle $io
      */
     public function __construct(private readonly SymfonyStyle $io)
     {

@@ -71,8 +71,6 @@ final class LivePhotoPairingCollection implements IteratorAggregate
      * Appends a pairing to the collection.
      *
      * @param LivePhotoPairing $pairing pairing that should be tracked
-     *
-     * @return void
      */
     public function add(LivePhotoPairing $pairing): void
     {

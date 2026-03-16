@@ -11,12 +11,7 @@ declare(strict_types=1);
 
 use Rector\CodingStyle\Rector\Catch_\CatchExceptionNameMatchingTypeRector;
 use Rector\Config\RectorConfig;
-use Rector\DeadCode\Rector\ClassMethod\RemoveUnusedPrivateMethodParameterRector;
-use Rector\DeadCode\Rector\ClassMethod\RemoveUselessParamTagRector;
-use Rector\DeadCode\Rector\ClassMethod\RemoveUselessReturnTagRector;
-use Rector\DeadCode\Rector\Property\RemoveUselessVarTagRector;
 use Rector\DeadCode\Rector\Stmt\RemoveUnreachableStatementRector;
-use Rector\Php80\Rector\Class_\ClassPropertyAssignToConstructorPromotionRector;
 use Rector\Set\ValueObject\LevelSetList;
 use Rector\Set\ValueObject\SetList;
 
@@ -31,7 +26,7 @@ return static function (RectorConfig $rectorConfig): void {
         && !mkdir($concurrentDirectory, 0775, true)
         && !is_dir($concurrentDirectory)
     ) {
-        throw new \RuntimeException(
+        throw new RuntimeException(
             sprintf(
                 'Directory "%s" was not created',
                 $concurrentDirectory
@@ -44,7 +39,7 @@ return static function (RectorConfig $rectorConfig): void {
         && !mkdir($concurrentDirectory, 0775, true)
         && !is_dir($concurrentDirectory)
     ) {
-        throw new \RuntimeException(
+        throw new RuntimeException(
             sprintf(
                 'Directory "%s" was not created',
                 $concurrentDirectory
@@ -52,6 +47,7 @@ return static function (RectorConfig $rectorConfig): void {
         );
     }
 
+    $rectorConfig->phpVersion(80400);
     $rectorConfig->phpstanConfig(__DIR__ . '/phpstan.neon');
     $rectorConfig->importNames();
     $rectorConfig->removeUnusedImports();
@@ -75,8 +71,7 @@ return static function (RectorConfig $rectorConfig): void {
     // Skip some rules
     $rectorConfig->skip([
         CatchExceptionNameMatchingTypeRector::class,
+        // Intentional: defensive guard clauses after exhaustive matches
         RemoveUnreachableStatementRector::class,
-        RemoveUselessParamTagRector::class,
-        RemoveUselessReturnTagRector::class,
     ]);
 };

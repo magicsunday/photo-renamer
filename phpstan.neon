@@ -9,8 +9,8 @@ parameters:
     # You can currently choose from 11 levels (0 is the loosest and 10 is the strictest).
     level: max
 
-    # PHP Version to check against (PHP 8.4 as minimum target)
-    phpVersion: 80400
+    # PHP Version to check against (PHP 8.5 as minimum target)
+    phpVersion: 80500
 
     tmpDir: .build/cache/.phpstan.cache
 

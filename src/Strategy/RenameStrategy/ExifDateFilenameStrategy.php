@@ -54,11 +54,6 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
 
     /**
      * Returns the formatted EXIF date of the specified file, formatted according to the specified pattern.
-     *
-     * @param string      $pattern
-     * @param SplFileInfo $splFileInfo
-     *
-     * @return string|null
      */
     private function getExifDateFormatted(
         string $pattern,

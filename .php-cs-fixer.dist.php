@@ -41,12 +41,10 @@ return (new PhpCsFixer\Config())
     ->setRiskyAllowed(true)
     ->setParallelConfig(new PhpCsFixer\Runner\Parallel\ParallelConfig(4, 8))
     ->setRules([
-        '@PSR12'                          => true,
-        '@PER-CS2.0'                      => true,
+        '@PER-CS2x0'                      => true,
         '@Symfony'                        => true,
 
         // Additional custom rules
-        'declare_strict_types'            => true,
         'concat_space'                    => [
             'spacing' => 'one',
         ],
@@ -58,6 +56,7 @@ return (new PhpCsFixer\Config())
         ],
         'phpdoc_to_comment'               => false,
         'phpdoc_no_alias_tag'             => false,
+        'phpdoc_annotation_without_dot'   => false,
         'no_superfluous_phpdoc_tags'      => false,
         'phpdoc_separation'               => [
             'groups' => [
@@ -68,20 +67,17 @@ return (new PhpCsFixer\Config())
                 ],
             ],
         ],
-        'no_alias_functions'              => true,
-        'whitespace_after_comma_in_array' => [
-            'ensure_single_space' => true,
-        ],
         'single_line_throw'               => false,
+        'single_import_per_statement'     => false,
         'self_accessor'                   => false,
         'global_namespace_import'         => [
             'import_classes'   => true,
             'import_constants' => true,
             'import_functions' => true,
         ],
-        'function_declaration'            => [
-            'closure_function_spacing' => 'one',
-            'closure_fn_spacing'       => 'one',
+        'method_argument_space'           => [
+            'on_multiline'          => 'ensure_fully_multiline',
+            'attribute_placement'   => 'same_line',
         ],
         'binary_operator_spaces'          => [
             'operators' => [
@@ -94,6 +90,20 @@ return (new PhpCsFixer\Config())
             'identical'            => false,
             'less_and_greater'     => false,
             'always_move_variable' => false,
+        ],
+        'blank_line_before_statement'     => [
+            'statements' => [
+                'break',
+                'continue',
+                'for',
+                'foreach',
+                'if',
+                'return',
+                'switch',
+                'throw',
+                'try',
+                'while',
+            ],
         ],
     ])
     ->setFinder(

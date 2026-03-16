@@ -667,6 +667,7 @@ final class FileSystemServiceTest extends TestCase
 
             if (is_dir($path)) {
                 $this->removeDirectory($path);
+
                 continue;
             }
 

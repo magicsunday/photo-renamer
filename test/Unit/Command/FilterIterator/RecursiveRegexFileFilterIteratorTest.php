@@ -286,6 +286,7 @@ final class RecursiveRegexFileFilterIteratorTest extends TestCase
 
         // Act: Iterate through the filter and collect accepted items
         $acceptedItems = [];
+
         foreach ($filterIterator as $item) {
             $acceptedItems[] = $item;
         }

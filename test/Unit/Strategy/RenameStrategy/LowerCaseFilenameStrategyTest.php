@@ -47,8 +47,6 @@ class LowerCaseFilenameStrategyTest extends TestCase
      *
      * Creates a fresh instance of LowerCaseFilenameStrategy to ensure
      * test isolation and prevent any state carryover between tests.
-     *
-     * @return void
      */
     protected function setUp(): void
     {
@@ -67,8 +65,6 @@ class LowerCaseFilenameStrategyTest extends TestCase
      *
      * This is the primary use case for the strategy - converting all
      * uppercase and mixed case characters to their lowercase equivalents.
-     *
-     * @return void
      */
     #[Test]
     public function itGeneratesLowercaseFilename(): void

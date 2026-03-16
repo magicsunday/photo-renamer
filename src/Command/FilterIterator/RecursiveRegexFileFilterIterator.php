@@ -30,7 +30,6 @@ class RecursiveRegexFileFilterIterator extends RecursiveFilterIterator
      * Constructor.
      *
      * @param RecursiveIterator<string, SplFileInfo> $iterator
-     * @param string                                 $regex
      */
     public function __construct(
         RecursiveIterator $iterator,
@@ -41,8 +40,6 @@ class RecursiveRegexFileFilterIterator extends RecursiveFilterIterator
 
     /**
      * Check whether the current element of the iterator is acceptable.
-     *
-     * @return bool
      */
     public function accept(): bool
     {
@@ -61,8 +58,6 @@ class RecursiveRegexFileFilterIterator extends RecursiveFilterIterator
 
     /**
      * Return the inner iterator's children contained in a RecursiveFilterIterator.
-     *
-     * @return RecursiveRegexFileFilterIterator
      *
      * @throws RuntimeException
      */

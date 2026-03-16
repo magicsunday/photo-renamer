@@ -49,8 +49,6 @@ class ContentHashStrategyTest extends TestCase
      * The test creates a temporary file with known content, generates its hash
      * using the strategy, and compares it with a directly computed xxHash128 hash
      * to ensure correctness.
-     *
-     * @return void
      */
     #[Test]
     public function generateIdentifierReturnsHash(): void
@@ -102,8 +100,6 @@ class ContentHashStrategyTest extends TestCase
      * - A file is deleted between scanning and processing
      * - A broken symbolic link is encountered
      * - File permissions prevent reading
-     *
-     * @return void
      */
     #[Test]
     public function generateIdentifierReturnsFalseForNonExistentFile(): void
@@ -137,8 +133,6 @@ class ContentHashStrategyTest extends TestCase
      * - Detecting duplicate empty files (e.g., placeholder files)
      * - Ensuring the strategy doesn't fail on edge cases
      * - Maintaining consistency in hash generation
-     *
-     * @return void
      */
     #[Test]
     public function generateIdentifierWithEmptyFile(): void

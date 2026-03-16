@@ -53,8 +53,6 @@ class DatePatternFilenameStrategyTest extends TestCase
      *
      * This test ensures proper error handling when the strategy encounters
      * invalid regex patterns that cannot be processed.
-     *
-     * @return void
      */
     #[Test]
     public function generateFilenameThrowsExceptionOnInvalidPattern(): void
@@ -85,8 +83,6 @@ class DatePatternFilenameStrategyTest extends TestCase
      * from a filename. Due to the complex nature of how the strategy processes
      * the replacement pattern, this test focuses on verifying the basic operation
      * without making assumptions about the exact output format.
-     *
-     * @return void
      */
     #[Test]
     public function generateFilenameProcessesDatePattern(): void
@@ -117,8 +113,6 @@ class DatePatternFilenameStrategyTest extends TestCase
      *
      * This test verifies that the strategy correctly inherits the behavior
      * from InheritFilenameStrategy, removing "-duplicate-XXX" suffixes.
-     *
-     * @return void
      */
     #[Test]
     public function generateFilenameRemovesDuplicateIdentifier(): void
@@ -148,8 +142,6 @@ class DatePatternFilenameStrategyTest extends TestCase
      *
      * This test verifies that the strategy correctly converts two-digit years
      * to four-digit years using PHP's DateTime year interpretation rules.
-     *
-     * @return void
      */
     #[Test]
     public function generateFilenameConvertsTwoDigitYear(): void
@@ -188,8 +180,6 @@ class DatePatternFilenameStrategyTest extends TestCase
      *
      * This test verifies that date components can be reordered during transformation,
      * for example converting from European format (dd-mm-yyyy) to ISO format.
-     *
-     * @return void
      */
     #[Test]
     public function generateFilenameReordersDateComponents(): void
@@ -219,8 +209,6 @@ class DatePatternFilenameStrategyTest extends TestCase
      *
      * This test verifies that the strategy works with files that have
      * no file extension.
-     *
-     * @return void
      */
     #[Test]
     public function generateFilenameHandlesFilesWithoutExtension(): void

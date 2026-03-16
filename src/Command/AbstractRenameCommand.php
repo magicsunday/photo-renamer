@@ -93,9 +93,6 @@ abstract class AbstractRenameCommand extends Command
 
     /**
      * Constructor.
-     *
-     * @param FileSystemServiceInterface         $fileSystemService
-     * @param DuplicateDetectionServiceInterface $duplicateDetectionService
      */
     public function __construct(
         protected FileSystemServiceInterface $fileSystemService,
@@ -106,8 +103,6 @@ abstract class AbstractRenameCommand extends Command
 
     /**
      * Configures the current command.
-     *
-     * @return void
      */
     #[Override]
     protected function configure(): void
@@ -152,11 +147,6 @@ abstract class AbstractRenameCommand extends Command
 
     /**
      * Executes the current command.
-     *
-     * @param InputInterface  $input
-     * @param OutputInterface $output
-     *
-     * @return int
      */
     #[Override]
     final protected function execute(InputInterface $input, OutputInterface $output): int
@@ -169,11 +159,13 @@ abstract class AbstractRenameCommand extends Command
         $this->initializeCommandParameters($input);
 
         $validationResult = $this->validateCommandOptions();
+
         if ($validationResult !== self::SUCCESS) {
             return $validationResult;
         }
 
         $confirmationResult = $this->handleDryRunConfirmation();
+
         if ($confirmationResult !== self::SUCCESS) {
             return $confirmationResult;
         }
@@ -186,10 +178,6 @@ abstract class AbstractRenameCommand extends Command
 
     /**
      * Initializes command parameters from input.
-     *
-     * @param InputInterface $input
-     *
-     * @return void
      */
     private function initializeCommandParameters(InputInterface $input): void
     {
@@ -262,8 +250,6 @@ abstract class AbstractRenameCommand extends Command
 
     /**
      * Normalizes source and target directory paths.
-     *
-     * @return void
      */
     private function normalizeDirectoryPaths(): void
     {
@@ -381,8 +367,6 @@ abstract class AbstractRenameCommand extends Command
 
     /**
      * Configures the duplicate detection service with source and target directories.
-     *
-     * @return void
      */
     private function configureDuplicateDetectionService(): void
     {
@@ -396,8 +380,6 @@ abstract class AbstractRenameCommand extends Command
 
     /**
      * Method that allows a child command to customize the execution.
-     *
-     * @return int
      */
     protected function executeCommand(): int
     {
@@ -414,8 +396,6 @@ abstract class AbstractRenameCommand extends Command
 
     /**
      * Processes files and performs rename/copy operations.
-     *
-     * @return void
      */
     private function processAndRenameFiles(): void
     {
@@ -460,8 +440,6 @@ abstract class AbstractRenameCommand extends Command
      * @template TInner of RecursiveIterator
      *
      * @param RecursiveIteratorIterator<TInner> $iterator
-     *
-     * @return FileDuplicateCollection
      */
     protected function groupFilesByDuplicateIdentifier(RecursiveIteratorIterator $iterator): FileDuplicateCollection
     {
@@ -479,10 +457,6 @@ abstract class AbstractRenameCommand extends Command
     /**
      * Creates a consecutive new filename for all duplicate files. The order of the duplicate files
      * is the same as in the input "files" array.
-     *
-     * @param FileDuplicateCollection $fileDuplicateCollection
-     *
-     * @return FileDuplicateCollection
      */
     private function createDuplicateFilenames(FileDuplicateCollection $fileDuplicateCollection): FileDuplicateCollection
     {
@@ -496,15 +470,11 @@ abstract class AbstractRenameCommand extends Command
 
     /**
      * Returns the target filename processor.
-     *
-     * @return RenameStrategyInterface
      */
     abstract protected function getTargetFilenameProcessor(): RenameStrategyInterface;
 
     /**
      * Returns the duplicate identifier strategy.
-     *
-     * @return DuplicateIdentifierStrategyInterface
      */
     abstract protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface;
 

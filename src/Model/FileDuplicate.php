@@ -42,19 +42,11 @@ class FileDuplicate
         return $this;
     }
 
-    /**
-     * @return SplFileInfo
-     */
     public function getTarget(): SplFileInfo
     {
         return $this->target;
     }
 
-    /**
-     * @param SplFileInfo $target
-     *
-     * @return FileDuplicate
-     */
     public function setTarget(SplFileInfo $target): FileDuplicate
     {
         $this->target = $target;
