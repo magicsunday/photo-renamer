@@ -33,8 +33,8 @@ final class RenameLowerCaseCommandTest extends TestCase
     public function configureExposesLowerCaseCommandWithAlias(): void
     {
         $command = new RenameLowerCaseCommand(
-            $this->createMock(FileSystemServiceInterface::class),
-            $this->createMock(DuplicateDetectionServiceInterface::class),
+            self::createStub(FileSystemServiceInterface::class),
+            self::createStub(DuplicateDetectionServiceInterface::class),
         );
 
         self::assertSame('lowercase', $command->getName());

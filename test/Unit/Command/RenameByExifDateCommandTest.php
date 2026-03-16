@@ -55,10 +55,10 @@ final class RenameByExifDateCommandTest extends TestCase
     public function configureExposesExifDateCommandWithAlias(): void
     {
         $command = new RenameByExifDateCommand(
-            $this->createMock(FileSystemServiceInterface::class),
-            $this->createMock(DuplicateDetectionServiceInterface::class),
+            self::createStub(FileSystemServiceInterface::class),
+            self::createStub(DuplicateDetectionServiceInterface::class),
             $this->createExifMetadataProvider(),
-            $this->createMock(LivePhotoPairingService::class),
+            self::createStub(LivePhotoPairingService::class),
         );
 
         self::assertSame('exif:date', $command->getName());

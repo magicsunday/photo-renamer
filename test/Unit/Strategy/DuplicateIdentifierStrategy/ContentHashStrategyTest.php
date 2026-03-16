@@ -55,11 +55,11 @@ class ContentHashStrategyTest extends TestCase
     #[Test]
     public function generateIdentifierReturnsHash(): void
     {
-        // Create mock objects for source and target files
-        $sourceFile = $this->createMock(SplFileInfo::class);
+        // Create stub objects for source and target files
+        $sourceFile = self::createStub(SplFileInfo::class);
         $sourceFile->method('getPathname')->willReturn(__DIR__ . '/testFile.txt');
 
-        $targetFile = $this->createMock(SplFileInfo::class);
+        $targetFile = self::createStub(SplFileInfo::class);
 
         // Create a temporary test file with known content
         file_put_contents(
@@ -108,11 +108,11 @@ class ContentHashStrategyTest extends TestCase
     #[Test]
     public function generateIdentifierReturnsFalseForNonExistentFile(): void
     {
-        // Create mock for a non-existent file
-        $sourceFile = $this->createMock(SplFileInfo::class);
+        // Create stub for a non-existent file
+        $sourceFile = self::createStub(SplFileInfo::class);
         $sourceFile->method('getPathname')->willReturn(__DIR__ . '/nonExistentFile.txt');
 
-        $targetFile = $this->createMock(SplFileInfo::class);
+        $targetFile = self::createStub(SplFileInfo::class);
 
         // Attempt to generate an identifier for a non-existent file
         $strategy = new ContentHashStrategy(new SafeHashCalculator());
@@ -143,11 +143,11 @@ class ContentHashStrategyTest extends TestCase
     #[Test]
     public function generateIdentifierWithEmptyFile(): void
     {
-        // Create mocks for source and target files
-        $sourceFile = $this->createMock(SplFileInfo::class);
+        // Create stubs for source and target files
+        $sourceFile = self::createStub(SplFileInfo::class);
         $sourceFile->method('getPathname')->willReturn(__DIR__ . '/emptyFile.txt');
 
-        $targetFile = $this->createMock(SplFileInfo::class);
+        $targetFile = self::createStub(SplFileInfo::class);
 
         // Create an empty temporary file
         file_put_contents(

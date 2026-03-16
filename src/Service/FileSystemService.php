@@ -178,7 +178,13 @@ class FileSystemService implements FileSystemServiceInterface
                     $progressBar->clear();
                 }
 
-                $isDuplicateTarget = $rename->getTarget()->getPathname() !== $canonicalTargetPath;
+                $canonicalBasename = $fileDuplicate->getTarget()->getBasename(
+                    '.' . $fileDuplicate->getTarget()->getExtension()
+                );
+                $renameBasename = $rename->getTarget()->getBasename(
+                    '.' . $rename->getTarget()->getExtension()
+                );
+                $isDuplicateTarget = $renameBasename !== $canonicalBasename;
                 $isCanonicalEntry  = $listAll
                     && $rename->getSource()->getPathname() === $canonicalTargetPath;
 

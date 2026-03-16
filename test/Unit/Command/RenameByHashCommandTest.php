@@ -34,8 +34,8 @@ final class RenameByHashCommandTest extends TestCase
     public function configureExposesHashCommandWithAlias(): void
     {
         $command = new RenameByHashCommand(
-            $this->createMock(FileSystemServiceInterface::class),
-            $this->createMock(DuplicateDetectionServiceInterface::class),
+            self::createStub(FileSystemServiceInterface::class),
+            self::createStub(DuplicateDetectionServiceInterface::class),
             new SafeHashCalculator(),
         );
 

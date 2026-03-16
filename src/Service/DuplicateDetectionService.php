@@ -289,8 +289,9 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     {
         $progressBar = $this->startProgressBar($fileDuplicateCollection->count());
 
+        /** @var string $duplicateIdentifier */
         /** @var FileDuplicate $fileDuplicate */
-        foreach ($fileDuplicateCollection as $fileDuplicate) {
+        foreach ($fileDuplicateCollection as $duplicateIdentifier => $fileDuplicate) {
             foreach ($fileDuplicate->getFiles() as $renameSourceFileInfo) {
                 $renameTargetFileExtension = $fileDuplicate->getTarget()->getExtension();
 
@@ -333,32 +334,64 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             $renames->reindex();
             $fileDuplicate->setRenames($renames);
 
-            $duplicateCount   = 1;
-            $duplicateEntries = 0;
+            // Detect Live Photo companion: in a live-photo group, exactly one file
+            // of a different media type (e.g. MOV for a JPG canonical) should receive
+            // the same base name without a duplicate suffix.
+            $companionRename = $this->detectLivePhotoCompanion(
+                $duplicateIdentifier,
+                $canonicalRename,
+                $fileDuplicate,
+            );
+
+            /** @var array<string, int> $duplicateCountByExtension */
+            $duplicateCountByExtension = [];
+            $duplicateEntries          = 0;
 
             foreach ($fileDuplicate->getRenames() as $rename) {
                 if ($canonicalRename instanceof Rename && $rename === $canonicalRename) {
                     continue;
                 }
 
+                if ($companionRename instanceof Rename && $rename === $companionRename) {
+                    continue;
+                }
+
                 ++$duplicateEntries;
             }
 
-            $hasAdditionalRenames = $duplicateEntries > 1;
-            $processedDuplicates  = 0;
+            $hasAdditionalRenames = $companionRename instanceof Rename
+                ? $duplicateEntries > 0
+                : $duplicateEntries > 1;
+            $processedDuplicates = 0;
 
             // Check if the target file already exists in the file system, so we need to adjust
             // the new target name again.
             foreach ($fileDuplicate->getRenames() as $rename) {
-                $isCanonicalRename               = $canonicalRename instanceof Rename && $rename === $canonicalRename;
+                $isCanonicalRename = $canonicalRename instanceof Rename && $rename === $canonicalRename;
+                $isCompanionRename = $companionRename instanceof Rename && $rename === $companionRename;
+
                 $requiresCanonicalDisambiguation = ($canonicalRename instanceof Rename && $rename !== $canonicalRename)
+                    && !$isCompanionRename
                     && $rename->getTarget()->getPathname() === $canonicalTargetPath;
+
+                // Live Photo companions are treated like canonicals: same base name, no suffix.
+                if ($isCompanionRename) {
+                    ++$processedDuplicates;
+
+                    continue;
+                }
+
+                $ext = strtolower($rename->getTarget()->getExtension());
+
+                if (!isset($duplicateCountByExtension[$ext])) {
+                    $duplicateCountByExtension[$ext] = 1;
+                }
 
                 $rename->setTarget(
                     $this->createDuplicateTargetFileInfo(
                         $rename->getSource(),
                         $rename->getTarget(),
-                        $duplicateCount,
+                        $duplicateCountByExtension[$ext],
                         $processedDuplicates === 0,
                         $hasAdditionalRenames,
                         $requiresCanonicalDisambiguation,
@@ -623,6 +656,47 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         }
 
         $fileDuplicate->setTarget($candidateTarget);
+    }
+
+    /**
+     * Identifies the Live Photo companion rename within a duplicate group.
+     *
+     * A companion is the first file of a different media type (e.g. MOV for a JPG canonical)
+     * in a live-photo group. It should receive the same base name as the canonical without
+     * a duplicate suffix.
+     *
+     * @return Rename|null the companion rename, or null if the group is not a live-photo group
+     *                     or no companion was found
+     */
+    private function detectLivePhotoCompanion(
+        string $duplicateIdentifier,
+        ?Rename $canonicalRename,
+        FileDuplicate $fileDuplicate,
+    ): ?Rename {
+        if (!str_starts_with($duplicateIdentifier, self::LIVE_PHOTO_IDENTIFIER_PREFIX)) {
+            return null;
+        }
+
+        if (!$canonicalRename instanceof Rename) {
+            return null;
+        }
+
+        $canonicalIsStill = $this->isLivePhotoStill($canonicalRename->getSource());
+
+        foreach ($fileDuplicate->getRenames() as $rename) {
+            if ($rename === $canonicalRename) {
+                continue;
+            }
+
+            // Companion must be a different media type than the canonical.
+            $renameIsStill = $this->isLivePhotoStill($rename->getSource());
+
+            if ($canonicalIsStill !== $renameIsStill) {
+                return $rename;
+            }
+        }
+
+        return null;
     }
 
     private function isLivePhotoStill(SplFileInfo $fileInfo): bool
