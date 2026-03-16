@@ -19,7 +19,6 @@ use RecursiveIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
 use SplFileInfo;
-use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function basename;
@@ -124,8 +123,6 @@ class FileSystemService implements FileSystemServiceInterface
         ?string $targetBaseDirectory = null,
         ?int $scannedFiles = null,
     ): void {
-        $this->io->text(($copyFiles ? 'Copying' : 'Renaming') . ' files');
-
         $sourceBaseDirectory = $this->normalizeBaseDirectory($sourceBaseDirectory);
         $targetBaseDirectory = $this->normalizeBaseDirectory($targetBaseDirectory);
 
@@ -161,23 +158,18 @@ class FileSystemService implements FileSystemServiceInterface
             }
         }
 
-        $progressBar = null;
-
-        if ($totalOperations > 0) {
-            $progressBar = $this->io->createProgressBar($totalOperations);
-            $progressBar->setFormat(self::PROGRESS_BAR_FORMAT);
-            $progressBar->start();
-        }
+        $this->io->newLine();
+        $this->io->text(sprintf(
+            ' <fg=cyan>%s files</>',
+            $copyFiles ? 'Copying' : 'Renaming',
+        ));
+        $this->io->newLine();
 
         /** @var FileDuplicate $fileDuplicate */
         foreach ($fileDuplicateCollection as $fileDuplicate) {
             $canonicalTargetPath = $fileDuplicate->getTarget()->getPathname();
 
             foreach ($fileDuplicate->getRenames() as $rename) {
-                if ($progressBar instanceof ProgressBar) {
-                    $progressBar->clear();
-                }
-
                 $canonicalBasename = $fileDuplicate->getTarget()->getBasename(
                     '.' . $fileDuplicate->getTarget()->getExtension()
                 );
@@ -189,25 +181,23 @@ class FileSystemService implements FileSystemServiceInterface
                 $isCanonicalEntry  = $isNoOp
                     || ($listAll && $rename->getSource()->getPathname() === $canonicalTargetPath);
 
-                $status = '[R]';
-
-                if ($isCanonicalEntry) {
-                    $status = '[O]';
-                } elseif ($isDuplicateTarget) {
-                    $status = '[D]';
-                }
-
                 $sourcePath = $this->getRelativePath($rename->getSource(), $sourceBaseDirectory);
                 $targetPath = $this->getRelativePath($rename->getTarget(), $targetBaseDirectory);
 
-                $this->io->text(
-                    sprintf(
-                        '%s <fg=yellow>%-' . $maxFilenameLength . 's</> <fg=cyan>→</> <fg=green>%s</>',
-                        $status,
-                        $sourcePath,
-                        $targetPath
-                    )
-                );
+                if ($isCanonicalEntry) {
+                    $statusTag = '<fg=blue>[O]</>';
+                } elseif ($isDuplicateTarget) {
+                    $statusTag = '<fg=red>[D]</>';
+                } else {
+                    $statusTag = '<fg=green>[R]</>';
+                }
+
+                $this->io->text(sprintf(
+                    '  %s <fg=yellow>%-' . $maxFilenameLength . 's</> <fg=cyan>→</> <fg=green>%s</>',
+                    $statusTag,
+                    $sourcePath,
+                    $targetPath,
+                ));
 
                 if ($isDuplicateTarget) {
                     ++$duplicateCount;
@@ -216,11 +206,7 @@ class FileSystemService implements FileSystemServiceInterface
                 $shouldSkip = $skipDuplicates && $isDuplicateTarget;
 
                 if ($shouldSkip) {
-                    if ($progressBar instanceof ProgressBar) {
-                        $progressBar->clear();
-                    }
-
-                    $this->io->text('=> Duplicate! Skip "' . $sourcePath . '"');
+                    $this->io->text('       <fg=red>⏭ Skipped (duplicate)</>');
                 }
 
                 $shouldPerformOperation = $shouldSkip === false && $isCanonicalEntry === false;
@@ -246,32 +232,56 @@ class FileSystemService implements FileSystemServiceInterface
                         );
                     }
                 }
-
-                if ($progressBar instanceof ProgressBar) {
-                    $progressBar->advance();
-                    $progressBar->display();
-                }
             }
-        }
-
-        if ($progressBar instanceof ProgressBar) {
-            $progressBar->finish();
         }
 
         $scannedFiles ??= $totalOperations;
 
-        $summaryLines = [
-            sprintf('Scanned files: %d', $scannedFiles),
-            sprintf('Planned moves: %d', $plannedMoves),
-            sprintf('Planned copies: %d', $plannedCopies),
-            sprintf('Planned skips: %d', $plannedSkips),
-            sprintf('Live Photo groups: %d', $livePhotoGroups),
-            sprintf('%d possible duplicates found', $duplicateCount),
-            sprintf('Max collision suffix: %d', $maxCollisionSuffix),
-            sprintf('%d files renamed', $fileCount),
+        $this->io->newLine();
+
+        $rows = [
+            ['Scanned files', (string) $scannedFiles],
         ];
 
-        $this->io->block($summaryLines, 'SUMMARY', 'fg=cyan');
+        if ($plannedMoves > 0) {
+            $rows[] = ['Planned moves', (string) $plannedMoves];
+        }
+
+        if ($plannedCopies > 0) {
+            $rows[] = ['Planned copies', (string) $plannedCopies];
+        }
+
+        if ($plannedSkips > 0) {
+            $rows[] = ['Planned skips', (string) $plannedSkips];
+        }
+
+        if ($livePhotoGroups > 0) {
+            $rows[] = ['Live Photo groups', (string) $livePhotoGroups];
+        }
+
+        if ($duplicateCount > 0) {
+            $rows[] = ['Duplicates found', (string) $duplicateCount];
+        }
+
+        $rows[] = [$dryRun ? 'Files to process' : 'Files processed', (string) $fileCount];
+
+        $maxLabelLength = 0;
+        $maxValueLength = 0;
+
+        foreach ($rows as $row) {
+            $maxLabelLength = max($maxLabelLength, strlen($row[0]));
+            $maxValueLength = max($maxValueLength, strlen($row[1]));
+        }
+
+        foreach ($rows as $row) {
+            $this->io->text(sprintf(
+                '  %-' . $maxLabelLength . 's  %' . $maxValueLength . 's',
+                $row[0],
+                $row[1],
+            ));
+        }
+
+        $this->io->newLine();
     }
 
     /**

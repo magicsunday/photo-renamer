@@ -247,7 +247,8 @@ abstract class AbstractRenameCommand extends Command
     private function handleDryRunConfirmation(): int
     {
         if ($this->dryRun) {
-            $this->io->info('Performing dry run. No files will be changed.');
+            $this->io->text('<fg=cyan>Performing dry run. No files will be changed.</>');
+            $this->io->newLine();
 
             return self::SUCCESS;
         }
@@ -464,7 +465,7 @@ abstract class AbstractRenameCommand extends Command
      */
     protected function groupFilesByDuplicateIdentifier(RecursiveIteratorIterator $iterator): FileDuplicateCollection
     {
-        $this->io->text(sprintf('Process files in: %s', $this->sourceDirectory));
+        $this->io->text(sprintf(' <fg=cyan>Scanning:</> %s', $this->sourceDirectory));
 
         // Process list of all files
         return $this->duplicateDetectionService
@@ -485,7 +486,8 @@ abstract class AbstractRenameCommand extends Command
      */
     private function createDuplicateFilenames(FileDuplicateCollection $fileDuplicateCollection): FileDuplicateCollection
     {
-        $this->io->text('Create list of duplicate filenames');
+        $this->io->text(' <fg=cyan>Resolving duplicates</>');
+        $this->io->newLine();
 
         return $this->duplicateDetectionService
             ->setUseFileExtensionFromSource($this->useFileExtensionFromSource)

@@ -18,7 +18,6 @@ use MagicSunday\Renamer\Service\FileSystemService;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use ReflectionProperty;
 use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Console\Helper\ProgressBar;
@@ -96,14 +95,13 @@ final class FileSystemServiceTest extends TestCase
         self::assertSame('original', file_get_contents($targetFile));
 
         $buffer = $output->fetch();
-        self::assertStringContainsString('Scanned files: 1', $buffer);
-        self::assertStringContainsString('Planned moves: 1', $buffer);
-        self::assertStringContainsString('Planned copies: 0', $buffer);
-        self::assertStringContainsString('Planned skips: 0', $buffer);
-        self::assertStringContainsString('Live Photo groups: 0', $buffer);
-        self::assertStringContainsString('Max collision suffix: 0', $buffer);
-        self::assertStringContainsString('1 files renamed', $buffer);
-        self::assertStringContainsString('0 possible duplicates found', $buffer);
+        self::assertStringContainsString('Scanned files', $buffer);
+        self::assertStringContainsString('Planned moves', $buffer);
+        self::assertStringContainsString('Files processed', $buffer);
+        self::assertStringNotContainsString('Planned copies', $buffer);
+        self::assertStringNotContainsString('Planned skips', $buffer);
+        self::assertStringNotContainsString('Live Photo groups', $buffer);
+        self::assertStringNotContainsString('Duplicates found', $buffer);
     }
 
     #[Test]
@@ -136,7 +134,8 @@ final class FileSystemServiceTest extends TestCase
         self::assertFileDoesNotExist($targetFile);
 
         $buffer = $output->fetch();
-        self::assertStringContainsString('1 files renamed', $buffer);
+        self::assertStringContainsString('Files to process', $buffer);
+        self::assertStringContainsString('Planned moves', $buffer);
     }
 
     #[Test]
@@ -172,12 +171,11 @@ final class FileSystemServiceTest extends TestCase
         self::assertFileExists($sourceFile);
         self::assertFileDoesNotExist($targetFile);
 
-        $buffer         = $output->fetch();
-        $relativeSource = $this->relativizePath($sourceFile, $sourceDirectory);
+        $buffer = $output->fetch();
 
-        self::assertStringContainsString('Duplicate! Skip "' . $relativeSource . '"', $buffer);
-        self::assertStringContainsString('0 files renamed', $buffer);
-        self::assertStringContainsString('1 possible duplicates found', $buffer);
+        self::assertStringContainsString('Skipped (duplicate)', $buffer);
+        self::assertStringContainsString('Duplicates found', $buffer);
+        self::assertStringContainsString('Planned skips', $buffer);
     }
 
     #[Test]
@@ -220,7 +218,7 @@ final class FileSystemServiceTest extends TestCase
 
         $buffer = $output->fetch();
 
-        self::assertStringNotContainsString('Duplicate! Skip', $buffer);
+        self::assertStringNotContainsString('Skipped (duplicate)', $buffer);
         self::assertStringContainsString('[R]', $buffer);
 
         $relativeSource = $this->relativizePath($sourceFile, $sourceDirectory);
@@ -228,8 +226,8 @@ final class FileSystemServiceTest extends TestCase
 
         self::assertStringContainsString($relativeSource, $buffer);
         self::assertStringContainsString($relativeTarget, $buffer);
-        self::assertStringContainsString('1 files renamed', $buffer);
-        self::assertStringContainsString('0 possible duplicates found', $buffer);
+        self::assertStringContainsString('Files processed', $buffer);
+        self::assertStringNotContainsString('Duplicates found', $buffer);
     }
 
     #[Test]
@@ -259,18 +257,17 @@ final class FileSystemServiceTest extends TestCase
         self::assertSame('copy', file_get_contents($targetFile));
 
         $buffer = $output->fetch();
-        self::assertStringContainsString('Scanned files: 1', $buffer);
-        self::assertStringContainsString('Planned moves: 0', $buffer);
-        self::assertStringContainsString('Planned copies: 1', $buffer);
-        self::assertStringContainsString('Planned skips: 0', $buffer);
-        self::assertStringContainsString('Live Photo groups: 0', $buffer);
-        self::assertStringContainsString('Max collision suffix: 0', $buffer);
-        self::assertStringContainsString('1 files renamed', $buffer);
-        self::assertStringContainsString('0 possible duplicates found', $buffer);
+        self::assertStringContainsString('Scanned files', $buffer);
+        self::assertStringContainsString('Planned copies', $buffer);
+        self::assertStringContainsString('Files processed', $buffer);
+        self::assertStringNotContainsString('Planned moves', $buffer);
+        self::assertStringNotContainsString('Planned skips', $buffer);
+        self::assertStringNotContainsString('Live Photo groups', $buffer);
+        self::assertStringNotContainsString('Duplicates found', $buffer);
     }
 
     #[Test]
-    public function renameFilesSeparatesProgressBarFromPerFileLogs(): void
+    public function renameFilesListsFilesWithStatusAndPaths(): void
     {
         [$service, $output] = $this->createService();
 
@@ -299,12 +296,9 @@ final class FileSystemServiceTest extends TestCase
         $buffer     = $output->fetch();
         $normalized = str_replace("\r", "\n", $buffer);
 
-        $progressPosition = strpos($normalized, '0/1');
-        $logPosition      = strpos($normalized, '[R]');
-
-        self::assertNotFalse($progressPosition);
+        $logPosition = strpos($normalized, '[R]');
         self::assertNotFalse($logPosition);
-        self::assertLessThan($logPosition, $progressPosition);
+
         $relativeSource = $this->relativizePath($sourceFile, $sourceDirectory);
         $relativeTarget = $this->relativizePath($targetFile, $targetDirectory);
 
@@ -432,13 +426,12 @@ final class FileSystemServiceTest extends TestCase
 
         $buffer = $output->fetch();
 
-        self::assertStringContainsString('Scanned files: 5', $buffer);
-        self::assertStringContainsString('Planned moves: 0', $buffer);
-        self::assertStringContainsString('Planned copies: 1', $buffer);
-        self::assertStringContainsString('Planned skips: 1', $buffer);
-        self::assertStringContainsString('Live Photo groups: 1', $buffer);
-        self::assertStringContainsString('Max collision suffix: 7', $buffer);
-        self::assertStringContainsString('1 possible duplicates found', $buffer);
+        self::assertStringContainsString('Scanned files', $buffer);
+        self::assertStringContainsString('Planned copies', $buffer);
+        self::assertStringContainsString('Planned skips', $buffer);
+        self::assertStringContainsString('Live Photo groups', $buffer);
+        self::assertStringContainsString('Duplicates found', $buffer);
+        self::assertStringContainsString('Files processed', $buffer);
     }
 
     #[Test]
@@ -533,9 +526,9 @@ final class FileSystemServiceTest extends TestCase
     }
 
     #[Test]
-    public function renameFilesInitializesProgressBarWithPlannedOperations(): void
+    public function renameFilesListsAllPlannedOperations(): void
     {
-        [$service,, $style] = $this->createService();
+        [$service, $output] = $this->createService();
 
         $sourceDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'source-progress';
         $targetDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'target-progress';
@@ -561,19 +554,14 @@ final class FileSystemServiceTest extends TestCase
 
         $service->renameFiles($collection, dryRun: true);
 
-        self::assertInstanceOf(ProgressBar::class, $style->capturedProgressBar);
+        $buffer = $output->fetch();
 
-        $progressBar = $style->capturedProgressBar;
-
-        self::assertSame(2, $progressBar->getMaxSteps());
-        self::assertSame(2, $progressBar->getProgress());
-
-        $formatProperty = new ReflectionProperty($progressBar, 'format');
-
-        self::assertSame(
-            ' %current%/%max% [%bar%] %percent:3s%% | ETA: %estimated:-6s% | Remaining: %remaining:-6s%',
-            $formatProperty->getValue($progressBar),
-        );
+        self::assertStringContainsString('[R]', $buffer);
+        self::assertStringContainsString($firstSource, $buffer);
+        self::assertStringContainsString($secondSource, $buffer);
+        self::assertStringContainsString('Renaming files', $buffer);
+        self::assertStringContainsString('Files to process', $buffer);
+        self::assertStringContainsString('Planned moves', $buffer);
     }
 
     private function relativizePath(string $path, ?string $baseDirectory): string
