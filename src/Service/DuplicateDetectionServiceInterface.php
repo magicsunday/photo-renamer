@@ -12,7 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service;
 
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
-use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\DuplicateIdentifierStrategyInterface;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use RecursiveIterator;
 use RecursiveIteratorIterator;

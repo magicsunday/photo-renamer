@@ -13,7 +13,8 @@ namespace MagicSunday\Renamer\Strategy\RenameStrategy;
 
 use DateTimeImmutable;
 use Exception;
-use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\ExifData;
+use MagicSunday\Renamer\Metadata\ExifData;
+use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use Override;
 use SplFileInfo;
 

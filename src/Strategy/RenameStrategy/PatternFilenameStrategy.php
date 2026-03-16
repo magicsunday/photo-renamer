@@ -13,7 +13,7 @@ namespace MagicSunday\Renamer\Strategy\RenameStrategy;
 
 use MagicSunday\Renamer\Exception\RegexExecutionException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
-use MagicSunday\Renamer\Service\SafeRegex;
+use MagicSunday\Renamer\Regex\SafeRegex;
 use Override;
 use SplFileInfo;
 

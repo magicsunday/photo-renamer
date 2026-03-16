@@ -11,12 +11,12 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
+use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
+use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
-use MagicSunday\Renamer\Service\Dto\TemporalMetadata;
-use MagicSunday\Renamer\Service\LivePhotoPairingService;
+use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingService;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
-use MagicSunday\Renamer\Strategy\RenameStrategy\ExifMetadataProvider;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\LivePhotoFixtureFactory;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use PHPUnit\Framework\Attributes\CoversClass;

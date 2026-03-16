@@ -12,9 +12,9 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy;
 
 use MagicSunday\Renamer\Exception\TargetFilenameException;
-use MagicSunday\Renamer\Model\Pattern\PatternMatch;
-use MagicSunday\Renamer\Model\Pattern\PatternMatchSet;
-use MagicSunday\Renamer\Service\SafeRegex;
+use MagicSunday\Renamer\Regex\SafeRegex;
+use MagicSunday\Renamer\Strategy\RenameStrategy\DatePattern\PatternMatch;
+use MagicSunday\Renamer\Strategy\RenameStrategy\DatePattern\PatternMatchSet;
 use MagicSunday\Renamer\Strategy\RenameStrategy\DatePatternFilenameStrategy;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;

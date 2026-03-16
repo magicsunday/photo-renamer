@@ -19,7 +19,7 @@ use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Service\DuplicateDetectionService;
 use MagicSunday\Renamer\Service\FileSystemService;
-use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\DuplicateIdentifierStrategyInterface;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;

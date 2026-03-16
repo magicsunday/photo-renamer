@@ -11,8 +11,8 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Command;
 
-use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\DuplicateIdentifierStrategyInterface;
-use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\TargetPathnameStrategy;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetPathnameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\LowerCaseFilenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use Override;

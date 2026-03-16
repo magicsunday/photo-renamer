@@ -14,7 +14,7 @@ namespace MagicSunday\Renamer\Command;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
-use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\DuplicateIdentifierStrategyInterface;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use Override;
 use RecursiveIterator;

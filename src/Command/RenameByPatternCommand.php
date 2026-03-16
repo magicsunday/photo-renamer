@@ -13,11 +13,11 @@ namespace MagicSunday\Renamer\Command;
 
 use FilesystemIterator;
 use MagicSunday\Renamer\Command\FilterIterator\RecursiveRegexFileFilterIterator;
+use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
-use MagicSunday\Renamer\Service\SafeRegex;
-use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\DuplicateIdentifierStrategyInterface;
-use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\TargetPathnameStrategy;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetPathnameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\PatternFilenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use Override;

@@ -14,9 +14,9 @@ namespace MagicSunday\Renamer\Strategy\RenameStrategy;
 use DateTime;
 use MagicSunday\Renamer\Exception\RegexExecutionException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
-use MagicSunday\Renamer\Model\Pattern\PatternMatchSet;
-use MagicSunday\Renamer\Service\SafeRegex;
-use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\RegexMatchCollection;
+use MagicSunday\Renamer\Regex\RegexMatchCollection;
+use MagicSunday\Renamer\Regex\SafeRegex;
+use MagicSunday\Renamer\Strategy\RenameStrategy\DatePattern\PatternMatchSet;
 use Override;
 use SplFileInfo;
 

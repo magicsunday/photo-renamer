@@ -16,7 +16,7 @@ use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
-use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\ContentHashStrategy;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifier\ContentHashStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\InheritFilenameStrategy;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;

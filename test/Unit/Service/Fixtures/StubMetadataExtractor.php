@@ -11,8 +11,8 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service\Fixtures;
 
-use MagicSunday\Renamer\Service\Dto\TemporalMetadata;
-use MagicSunday\Renamer\Service\MetadataExtractorInterface;
+use MagicSunday\Renamer\Metadata\MetadataExtractorInterface;
+use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use SplFileInfo;
 use Throwable;
 

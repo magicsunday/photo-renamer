@@ -15,7 +15,7 @@ use MagicSunday\Renamer\Command\RenameLowerCaseCommand;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
-use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\TargetPathnameStrategy;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetPathnameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\LowerCaseFilenameStrategy;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;

@@ -12,9 +12,9 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Command;
 
 use MagicSunday\Renamer\Command\RenameByPatternCommand;
+use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
-use MagicSunday\Renamer\Service\SafeRegex;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
