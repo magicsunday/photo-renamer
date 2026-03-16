@@ -26,13 +26,11 @@ use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function array_key_exists;
-use function array_values;
 use function count;
 use function in_array;
 use function is_string;
 use function method_exists;
 use function sprintf;
-use function str_contains;
 use function strtolower;
 use function trim;
 
@@ -296,8 +294,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     public function createDuplicateFilenames(
         FileDuplicateCollection $fileDuplicateCollection,
         bool $skipHashSubGrouping = false,
-    ): FileDuplicateCollection
-    {
+    ): FileDuplicateCollection {
         $this->namingCollisions = 0;
 
         $progressBar = $this->startProgressBar($fileDuplicateCollection->count());
@@ -941,11 +938,11 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         array &$duplicateCountByExtension,
         array &$preAssigned,
     ): void {
-        $canonicalBasename  = $fileDuplicate->getTarget()->getBasename(
+        $canonicalBasename = $fileDuplicate->getTarget()->getBasename(
             '.' . $fileDuplicate->getTarget()->getExtension()
         );
-        $quotedBasename     = preg_quote($canonicalBasename, '/');
-        $quotedDuplicateId  = preg_quote(FileSystemService::DUPLICATE_IDENTIFIER, '/');
+        $quotedBasename    = preg_quote($canonicalBasename, '/');
+        $quotedDuplicateId = preg_quote(FileSystemService::DUPLICATE_IDENTIFIER, '/');
 
         // Match all suffix formats:
         // - Legacy:   canonicalBasename-duplicate-NNN
