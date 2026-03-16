@@ -782,6 +782,84 @@ final class FileSystemServiceTest extends TestCase
         $method->invoke($service, $target, $occupiedPaths);
     }
 
+    /**
+     * Verifies that findAvailableDuplicateTarget() strips an existing -duplicate-NNN
+     * suffix from the basename before generating a new one, preventing nested suffixes
+     * like "photo-duplicate-003-duplicate-001.jpg".
+     *
+     * When the runtime collision fallback is triggered for a target that already carries
+     * a -duplicate-NNN suffix (e.g. because the planning phase assigned it), the method
+     * must produce "photo-duplicate-001.jpg" instead of stacking another suffix.
+     */
+    #[Test]
+    public function findAvailableDuplicateTargetStripsDuplicateSuffixBeforeGeneratingNew(): void
+    {
+        [$service] = $this->createService();
+
+        $target = new SplFileInfo(
+            '/tmp/dir/photo' . FileSystemService::DUPLICATE_IDENTIFIER . '003.jpg'
+        );
+
+        // The unsuffixed "photo-duplicate-001.jpg" is free, so it should be selected.
+        /** @var array<string, true> $occupiedPaths */
+        $occupiedPaths = [
+            $target->getPathname() => true,
+        ];
+
+        $method = new ReflectionMethod($service, 'findAvailableDuplicateTarget');
+
+        /** @var SplFileInfo $result */
+        $result = $method->invoke($service, $target, $occupiedPaths);
+
+        // The result should be "photo-duplicate-001.jpg", NOT "photo-duplicate-003-duplicate-001.jpg"
+        self::assertSame(
+            '/tmp/dir/photo' . FileSystemService::DUPLICATE_IDENTIFIER . '001.jpg',
+            $result->getPathname(),
+        );
+
+        // Verify no nested -duplicate- pattern exists
+        self::assertDoesNotMatchRegularExpression(
+            '/-duplicate-\d+-duplicate-/',
+            $result->getPathname(),
+            'Must not produce nested duplicate suffixes',
+        );
+    }
+
+    /**
+     * Verifies that findAvailableDuplicateTarget() skips occupied suffix numbers and
+     * returns the first available one after stripping the existing suffix.
+     *
+     * When "photo-duplicate-001.jpg" is occupied, the method should try 002, 003, etc.
+     * until finding a free slot, all based on the stripped basename "photo".
+     */
+    #[Test]
+    public function findAvailableDuplicateTargetSkipsOccupiedSuffixesAfterStripping(): void
+    {
+        [$service] = $this->createService();
+
+        $target = new SplFileInfo(
+            '/tmp/dir/photo' . FileSystemService::DUPLICATE_IDENTIFIER . '005.jpg'
+        );
+
+        // Block suffix 001 and 002 to force the method to find 003.
+        /** @var array<string, true> $occupiedPaths */
+        $occupiedPaths = [
+            $target->getPathname()                                                      => true,
+            '/tmp/dir/photo' . FileSystemService::DUPLICATE_IDENTIFIER . '001.jpg'      => true,
+            '/tmp/dir/photo' . FileSystemService::DUPLICATE_IDENTIFIER . '002.jpg'      => true,
+        ];
+
+        $method = new ReflectionMethod($service, 'findAvailableDuplicateTarget');
+
+        /** @var SplFileInfo $result */
+        $result = $method->invoke($service, $target, $occupiedPaths);
+
+        self::assertSame(
+            '/tmp/dir/photo' . FileSystemService::DUPLICATE_IDENTIFIER . '003.jpg',
+            $result->getPathname(),
+        );
+    }
+
     private function relativizePath(string $path, ?string $baseDirectory): string
     {
         if ($baseDirectory === null || $baseDirectory === '') {
