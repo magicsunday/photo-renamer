@@ -733,12 +733,12 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
      * Increments the duplicate counter in a loop until a free slot is found, or reuses the
      * source path for idempotent re-runs.
      *
-     * @param SplFileInfo         $source              source file currently being processed
-     * @param SplFileInfo         $target              initial target file information
-     * @param string              $targetBasename      base filename (without extension) used for duplicate naming
-     * @param int                 $duplicateCount      counter used to create unique duplicate suffixes (passed by reference)
+     * @param SplFileInfo         $source               source file currently being processed
+     * @param SplFileInfo         $target               initial target file information
+     * @param string              $targetBasename       base filename (without extension) used for duplicate naming
+     * @param int                 $duplicateCount       counter used to create unique duplicate suffixes (passed by reference)
      * @param bool                $forceDuplicateSuffix when true, always apply a suffix even if the target is free
-     * @param array<string, true> $groupSourcePaths    source paths of all files in the current group
+     * @param array<string, true> $groupSourcePaths     source paths of all files in the current group
      *
      * @return SplFileInfo file info pointing to a non-occupied target path
      */

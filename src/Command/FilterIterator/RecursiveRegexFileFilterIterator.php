@@ -30,7 +30,7 @@ class RecursiveRegexFileFilterIterator extends RecursiveFilterIterator
 {
     /**
      * @param RecursiveIterator<string, SplFileInfo> $iterator Inner directory iterator to filter
-     * @param string                                  $regex    PCRE pattern matched against filenames
+     * @param string                                 $regex    PCRE pattern matched against filenames
      */
     public function __construct(
         RecursiveIterator $iterator,

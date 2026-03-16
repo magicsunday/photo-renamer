@@ -103,7 +103,7 @@ abstract class AbstractRenameCommand extends Command
 
     /**
      * @param FileSystemServiceInterface         $fileSystemService         Handles file iteration, counting and rename execution
-     * @param DuplicateDetectionServiceInterface  $duplicateDetectionService Orchestrates grouping and suffix assignment
+     * @param DuplicateDetectionServiceInterface $duplicateDetectionService Orchestrates grouping and suffix assignment
      */
     public function __construct(
         protected FileSystemServiceInterface $fileSystemService,

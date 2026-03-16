@@ -36,7 +36,7 @@ final readonly class PatternExpression
      * Compiles a template string into a PatternExpression by replacing all
      * recognized date placeholders with their regex capture groups.
      *
-     * @param string                      $template      Template with {Y}, {m}, {d}, etc. tokens
+     * @param string                       $template      Template with {Y}, {m}, {d}, etc. tokens
      * @param DatePlaceholderExpressionMap $expressionMap Placeholder-to-regex mapping
      *
      * @return self Compiled expression

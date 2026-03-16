@@ -35,8 +35,8 @@ use function substr;
 class ExifDateFilenameStrategy implements LivePhotoAwareRenameStrategyInterface
 {
     /**
-     * @param string                $targetFilenamePattern PHP date() format string defining the target basename
-     * @param ExifMetadataProvider  $exifMetadataProvider  Caching EXIF metadata accessor
+     * @param string               $targetFilenamePattern PHP date() format string defining the target basename
+     * @param ExifMetadataProvider $exifMetadataProvider  Caching EXIF metadata accessor
      */
     public function __construct(private readonly string $targetFilenamePattern, private readonly ExifMetadataProvider $exifMetadataProvider)
     {

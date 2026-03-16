@@ -24,10 +24,10 @@ namespace MagicSunday\Renamer\Metadata;
 final readonly class ExifData
 {
     /**
-     * @param string                  $dateTimeOriginal   Capture date in "Y:m:d H:i:s" format
-     * @param string|null             $subSecTimeOriginal Sub-second precision as milliseconds (3 digits) or
-     *                                                    microseconds (6 digits), null when not available
-     * @param ContentIdentifier|null  $contentIdentifier  Apple Live Photo content ID linking photo and video
+     * @param string                 $dateTimeOriginal   Capture date in "Y:m:d H:i:s" format
+     * @param string|null            $subSecTimeOriginal Sub-second precision as milliseconds (3 digits) or
+     *                                                   microseconds (6 digits), null when not available
+     * @param ContentIdentifier|null $contentIdentifier  Apple Live Photo content ID linking photo and video
      */
     public function __construct(
         private string $dateTimeOriginal,

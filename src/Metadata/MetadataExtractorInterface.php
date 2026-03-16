@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Metadata;
 
+use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use SplFileInfo;
 
 /**
@@ -31,7 +32,7 @@ interface MetadataExtractorInterface
      *
      * @return TemporalMetadata|null Extracted metadata, or null when no relevant fields exist
      *
-     * @throws \MagicSunday\Renamer\Exception\ExifMetadataReadException When the file cannot be read
+     * @throws ExifMetadataReadException When the file cannot be read
      */
     public function extractTemporalMetadata(SplFileInfo $file): ?TemporalMetadata;
 }
