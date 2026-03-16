@@ -801,6 +801,11 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         bool $isCanonicalRename = false,
         array $groupSourcePaths = [],
     ): SplFileInfo {
+        // File already at its target path — no rename needed (idempotency).
+        if ($target->getPathname() === $source->getPathname()) {
+            return $target;
+        }
+
         $duplicateBasename = $target->getBasename('.' . $target->getExtension());
 
         // Canonical files get the unsuffixed base name when available.

@@ -652,31 +652,23 @@ final class DuplicateDetectionServiceTest extends TestCase
             $renamesBySource[$rootFile]->getTarget()->getPathname(),
         );
 
+        // nested/photo.jpg has target == source — already correctly named, no rename needed.
         self::assertArrayHasKey($duplicateFile, $renamesBySource);
-        self::assertStringStartsWith(
-            $nestedDirectory . DIRECTORY_SEPARATOR,
+        self::assertSame(
+            $duplicateFile,
             $renamesBySource[$duplicateFile]->getTarget()->getPathname(),
+            'nested/photo.jpg stays at its path (target == source)',
         );
 
+        // nested/photo-duplicate-001.jpg keeps its suffix (target photo.jpg is occupied).
         self::assertArrayHasKey($preRenamedDuplicate, $renamesBySource);
 
-        // Both nested files get fresh sequential suffixes.
         $pattern = '/' . preg_quote(FileSystemService::DUPLICATE_IDENTIFIER, '/') . '(\d{3})\.jpg$/';
 
         self::assertSame(
             1,
-            preg_match($pattern, $renamesBySource[$duplicateFile]->getTarget()->getFilename(), $firstMatch),
-            'First nested duplicate should include a numeric duplicate suffix.',
-        );
-        self::assertSame(
-            1,
-            preg_match($pattern, $renamesBySource[$preRenamedDuplicate]->getTarget()->getFilename(), $secondMatch),
-            'Second nested duplicate should include a numeric duplicate suffix.',
-        );
-        self::assertNotSame(
-            $firstMatch[1],
-            $secondMatch[1],
-            'Duplicate suffixes must not collide.',
+            preg_match($pattern, $renamesBySource[$preRenamedDuplicate]->getTarget()->getFilename()),
+            'Pre-renamed nested duplicate keeps a numeric duplicate suffix.',
         );
     }
 
