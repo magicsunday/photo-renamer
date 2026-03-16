@@ -30,14 +30,13 @@
 ---
 
 ## 📌 Overview
-Photo Renamer is a self-contained CLI tool that tidies large photo and video collections. It reads EXIF metadata via [ImageMeta](https://github.com/magicsunday/imagemeta), understands Apple Live Photos (image + video pairs sharing a Content Identifier), spots duplicates by content hash, and helps standardise file names without breaking existing folder structures. The tool compiles to a single binary with no runtime dependencies.
+Photo Renamer is a self-contained CLI tool that tidies large photo and video collections. It reads EXIF metadata via [ImageMeta](https://github.com/magicsunday/imagemeta), understands Apple Live Photos (image + video pairs sharing a Content Identifier), spots duplicates by content hash, and standardises file names without breaking existing folder structures. The tool compiles to a single binary with no runtime dependencies.
 
 | Key     | Value                                                                                          |
 |---------|------------------------------------------------------------------------------------------------|
 | Package | `magicsunday/photo-renamer`                                                                    |
 | PHP     | `>=8.5`                                                                                        |
 | Binary  | Self-contained via [static-php-cli](https://github.com/crazywhalecc/static-php-cli)           |
-| Output  | `[R]` rename, `[D]` duplicate, `[O]` unchanged                                                |
 
 ## ❓ What is this?
 Photo Renamer processes directories of photos and videos, generating consistent filenames based on EXIF dates, content hashes, or custom patterns. Apple Live Photo pairs (JPEG/HEIC + MOV sharing the same Content Identifier) are automatically detected and renamed together.
@@ -51,7 +50,8 @@ Large photo collections accumulated from multiple devices and backup sources ten
 
 - Recursive directory scanning with EXIF-based, hash-based, pattern-based, and lowercase renaming.
 - Apple Live Photo detection and pairing via Content Identifier metadata.
-- Duplicate detection with per-file-type numbering and idempotent re-runs.
+- Duplicate detection via content hash with per-file-type numbering and idempotent re-runs.
+- Hash sub-grouping: different files sharing the same EXIF date receive sequential group numbers (`-002`, `-003`, ...).
 - Dry-run preview, copy mode, and skip-duplicates mode.
 
 **Out of scope:**
@@ -70,7 +70,7 @@ Large photo collections accumulated from multiple devices and backup sources ten
 | `rename:pattern` | Renames files using a regular expression pattern.              |
 | `rename:date`    | Renames files by extracting date components from filenames.    |
 
-All commands share these options:
+### Shared options
 
 | Option              | Short | Description                                       |
 |---------------------|-------|---------------------------------------------------|
@@ -78,6 +78,23 @@ All commands share these options:
 | `--copy`            | `-c`  | Copy files instead of moving them.                 |
 | `--skip-duplicates` | `-s`  | Leave duplicates untouched.                        |
 | `--list-all`        |       | Show all files including originals and duplicates. |
+
+### `rename:exif` options
+
+| Option                      | Short | Default           | Description                                                                                                                    |
+|-----------------------------|-------|-------------------|--------------------------------------------------------------------------------------------------------------------------------|
+| `--target-filename-pattern` | `-fp` | `Y-m-d_H-i-s-v`  | PHP [date format](https://www.php.net/manual/en/datetime.format.php) pattern for the target filename (without extension).      |
+
+Supported file types: `jpg`, `jpeg`, `heic`, `mov`, `mp4`.
+
+### `rename:pattern` / `rename:date` options
+
+| Option          | Short | Description                                                       |
+|-----------------|-------|-------------------------------------------------------------------|
+| `--pattern`     | `-p`  | Regular expression pattern to match filenames.                    |
+| `--replacement` | `-r`  | Replacement pattern applied to matches.                           |
+
+`rename:date` uses date placeholders (`{y}`, `{m}`, `{d}`, `{H}`, `{i}`, `{s}`, ...) that are expanded to regex capture groups automatically.
 
 ## 🚀 Usage
 
@@ -93,6 +110,18 @@ Rename photos by EXIF date (incl. Live Photo pairing):
 
 ```bash
 renamer rename:exif --dry-run ~/Photos
+```
+
+Rename to a different target directory:
+
+```bash
+renamer rename:exif --dry-run ~/Photos ~/Organised
+```
+
+Use a custom date pattern (date only, no time):
+
+```bash
+renamer rename:exif --dry-run -fp "Y-m-d" ~/Photos
 ```
 
 Separate unique files from duplicates:
@@ -119,13 +148,28 @@ Extract and rewrite date fragments in filenames:
 renamer rename:date --dry-run -p "/^{y}-{m}-{d}.{H}-{i}-{s}(.+)$/" -r "{Y}-{m}-{d}_{H}-{i}-{s}" ~/Photos
 ```
 
-## 🛡️ Behaviour & guarantees
+## 📊 Output indicators
+
+Each file in the output is prefixed with a status indicator:
+
+| Tag   | Meaning                                                             |
+|-------|---------------------------------------------------------------------|
+| `[R]` | **Rename** -- file will be moved (or copied) to a new name.        |
+| `[D]` | **Duplicate** -- file is a duplicate and receives a suffix.         |
+| `[O]` | **Original** -- file already has the correct name; no action taken. |
+
+After processing, a summary table shows scanned files, planned moves/copies/skips, Live Photo groups, duplicates found, naming collisions, and total files to process.
+
+## 🔒 Behaviour & guarantees
 
 - **Dry-run first:** All commands support `--dry-run` to preview changes before touching files.
-- **Idempotent:** Running the same command twice produces the same result. Files already carrying the correct duplicate suffix keep their name.
-- **Live Photo pairing:** JPEG/HEIC + MOV files sharing the same Apple Content Identifier are treated as a pair. The video companion receives the same base name as its still image without a duplicate suffix.
-- **Per-type numbering:** Duplicate suffixes (`-duplicate-001`, `-duplicate-002`, ...) are assigned independently per file type (images and videos numbered separately).
-- **Non-destructive:** Original files are moved or copied, never deleted or overwritten.
+- **Idempotent:** Running the same command twice produces the same result. Files already carrying the correct name keep their name. Duplicate suffixes and hash sub-group numbers are stable across re-runs.
+- **Live Photo pairing:** JPEG/HEIC + MOV files sharing the same Apple Content Identifier are treated as a pair. The video companion receives the same base name as its still image, without a duplicate suffix.
+- **Unified grouping:** All files with the same EXIF date are placed into one group regardless of their Live Photo Content Identifier. This ensures consistent numbering across the entire timestamp.
+- **Hash sub-grouping:** When multiple distinct files share the same EXIF date, they are grouped by content hash. True duplicates (same hash) receive `-duplicate-NNN` suffixes, while different files get sequential group numbers (`-002`, `-003`, ...).
+- **Subdirectory ordering:** Parent directory files are processed before subdirectories, so the first file encountered in the top-level directory wins the canonical (unsuffixed) name.
+- **Safe renames:** Files are never overwritten. An in-memory disk index tracks all occupied paths during a run, and a fallback to the next available duplicate suffix prevents data loss even when multiple files compete for the same target path.
+- **Non-destructive:** Original files are moved or copied, never deleted.
 
 ## 🛠️ Development
 
@@ -158,14 +202,41 @@ Test the CLI:
 make run CMD="rename:exif images --dry-run --list-all"
 ```
 
-Build the self-contained binary:
+### Individual CI targets
+
+| Target         | Description                          |
+|----------------|--------------------------------------|
+| `make lint`    | Run PHP linter only.                 |
+| `make cgl-check` | Check code style (dry-run).       |
+| `make rector-check` | Check Rector rules (dry-run). |
+| `make stan`    | Run PHPStan analysis.                |
+| `make unit`    | Run PHPUnit tests.                   |
+| `make cpd`     | Run copy-paste detection.            |
+
+### Fix targets
+
+| Target         | Description                          |
+|----------------|--------------------------------------|
+| `make cgl`     | Auto-fix code style.                 |
+| `make rector`  | Apply Rector rules.                  |
+
+### Build the binary
 
 ```bash
-make init          # Set up SPC build environment
-make build         # Compile the renamer binary
+make binary         # Init SPC environment + compile the renamer binary
+make binary-clean   # Remove SPC build artifacts to free space
 ```
 
-## 🤝 Support
+### Other targets
+
+| Target              | Description                                           |
+|---------------------|-------------------------------------------------------|
+| `make docker-build` | Build the Docker image.                               |
+| `make bash`         | Open a bash shell inside the buildbox container.      |
+| `make update`       | Update Composer dependencies.                         |
+| `make version`      | Create a new version release.                         |
+
+## 💬 Support
 
 * **Bugs or unexpected behaviour:** [Open an issue](https://github.com/magicsunday/photo-renamer/issues).
 * **Releases:** [Download page](https://github.com/magicsunday/photo-renamer/releases/latest).
