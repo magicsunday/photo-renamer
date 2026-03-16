@@ -6,14 +6,13 @@ RUN apk add --no-cache \
     git \
     nodejs \
     npm \
-    openssh-client
+    openssh-client && \
+    git config --global --add safe.directory /app
 
-RUN git config --global --add safe.directory /app
+ENV COMPOSER_ALLOW_SUPERUSER=1 \
+    PATH="${PATH}:/app/.build/bin"
 
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
-
-ENV COMPOSER_ALLOW_SUPERUSER=1
-ENV PATH="${PATH}:/app/.build/bin"
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /app
 
@@ -37,13 +36,11 @@ RUN apt-get update && \
     flex \
     git \
     libtool \
-    make \
     openssl \
     patchelf \
     re2c \
     sudo \
     unzip \
-    wget \
     zip && \
     rm -rf /var/lib/apt/lists/*
 
