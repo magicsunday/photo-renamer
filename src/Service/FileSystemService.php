@@ -170,11 +170,11 @@ class FileSystemService implements FileSystemServiceInterface
         /** @var FileDuplicate $fileDuplicate */
         foreach ($fileDuplicateCollection as $fileDuplicate) {
             $canonicalTargetPath = $fileDuplicate->getTarget()->getPathname();
+            $canonicalBasename   = $fileDuplicate->getTarget()->getBasename(
+                '.' . $fileDuplicate->getTarget()->getExtension()
+            );
 
             foreach ($fileDuplicate->getRenames() as $rename) {
-                $canonicalBasename = $fileDuplicate->getTarget()->getBasename(
-                    '.' . $fileDuplicate->getTarget()->getExtension()
-                );
                 $renameBasename = $rename->getTarget()->getBasename(
                     '.' . $rename->getTarget()->getExtension()
                 );
