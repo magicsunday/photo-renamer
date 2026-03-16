@@ -53,8 +53,17 @@ use function unlink;
 use const DIRECTORY_SEPARATOR;
 
 /**
- * End-to-end rename mapping tests covering the full pipeline:
- * grouping → duplicate detection → filename generation → Live Photo pairing.
+ * End-to-end integration tests for the complete rename pipeline:
+ * scan -> group -> pair (Live Photo) -> hash sub-group -> assign filenames -> execute.
+ *
+ * These tests use real services (no mocks) with temporary directories and stub
+ * metadata to verify the full rename mapping for complex multi-file scenarios
+ * including true duplicates, hash sub-grouping, Live Photo pairing, subdirectory
+ * handling, mixed extensions, and idempotency on re-runs.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(RenameByExifDateCommand::class)]
 final class RenameByExifDateCommandTest extends TestCase
@@ -93,6 +102,21 @@ final class RenameByExifDateCommandTest extends TestCase
      *   mov.mov     hash:abc  —     LP-1    → duplicate mov (paired by content ID)
      *   B.jpg       hash:cde  dateA  LP-B    → hash sub-group 002 (Live Photo)
      *   B.mov       hash:fgh  —     LP-B    → companion inherits sub-group 002
+     */
+    /**
+     * Verifies the complete rename mapping for 13 files across multiple scenarios:
+     *
+     * - Live Photo LP-1: canonical HEIC gets unsuffixed name, MOV companion inherits
+     *   it, duplicate MOV gets -duplicate-001
+     * - True duplicates of the canonical (same hash 123): renumbered sequentially
+     *   including a file with a pre-existing -duplicate-001 suffix from a previous run
+     * - Hash sub-grouping LP-B: different hash at the same timestamp gets -002,
+     *   companion MOV inherits the -002 sub-group number
+     * - Unique files: unsuffixed names at their respective timestamps
+     * - Mixed case/extension: A.JPG (uppercase ext) gets lowercased and duplicate-suffixed
+     * - Subdirectory: nested file gets its relative path preserved with duplicate suffix
+     * - Parent-before-child ordering: parent dir file becomes canonical before nested one
+     * - No nested -duplicate--duplicate- patterns in any target name
      */
     #[Test]
     public function executeProducesExpectedRenameMapping(): void
@@ -242,8 +266,13 @@ final class RenameByExifDateCommandTest extends TestCase
     }
 
     /**
-     * Idempotency: all files already carry `-duplicate-NNN` suffixes.
-     * The canonical must reclaim the unsuffixed base name.
+     * Verifies idempotency when all files in a group already carry -duplicate-NNN
+     * suffixes from a previous run. The canonical must reclaim the unsuffixed base
+     * name, and the remaining files must keep their -duplicate-NNN suffixes.
+     *
+     * This is a regression test for the bug where all files kept -duplicate-NNN
+     * and no file received the clean base name on re-run, causing the canonical
+     * to be "lost" with every iteration.
      */
     #[Test]
     public function executeIdempotentWhenAllFilesAlreadyHaveDuplicateSuffixes(): void
