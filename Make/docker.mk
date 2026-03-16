@@ -11,3 +11,11 @@ docker-build: .logo ## Builds the Docker image.
 
 bash: .logo ## Opens a bash within the buildbox container.
 	${COMPOSE_BUILD} bash
+
+
+#### Tools
+
+.PHONY: run
+
+run: .logo ## Runs the renamer CLI (usage: make run CMD="exif:date images --dry-run").
+	${COMPOSE_BUILD} php src/Renamer.php $(CMD)
