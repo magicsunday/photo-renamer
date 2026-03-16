@@ -14,7 +14,13 @@ namespace MagicSunday\Renamer\Service\LivePhoto;
 use SplFileInfo;
 
 /**
- * Index of pathnames that already belong to a Live Photo group.
+ * O(1) lookup set tracking file pathnames that have already been assigned to a
+ * Live Photo group during the first scan pass. Prevents the pairing service from
+ * re-processing files that are already part of an existing group.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
  */
 final class LivePhotoExistingFilePathnameIndex
 {

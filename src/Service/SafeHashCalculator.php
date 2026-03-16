@@ -19,6 +19,15 @@ use function restore_error_handler;
 use function set_error_handler;
 use function sprintf;
 
+/**
+ * Wraps PHP's hash_file() with an error handler that converts warnings
+ * into typed HashComputationException instances. Prevents silent failures
+ * when hashing unreadable or permission-restricted files.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
+ */
 class SafeHashCalculator
 {
     /**

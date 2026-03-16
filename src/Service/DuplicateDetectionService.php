@@ -41,7 +41,16 @@ use function substr_count;
 use function trim;
 
 /**
- * Service for duplicate detection operations.
+ * Central orchestrator of the rename pipeline's grouping and suffix-assignment phases.
+ *
+ * Phase 1 ({@see groupFilesByDuplicateIdentifier}): scans files, applies the rename strategy
+ * to compute target filenames, groups them by duplicate identifier, and builds the content
+ * identifier map needed for Live Photo companion detection.
+ *
+ * Phase 2 ({@see createDuplicateFilenames}): walks each group, selects the canonical file,
+ * detects Live Photo companions, applies hash sub-grouping for naming collisions, and assigns
+ * sequential "-duplicate-NNN" suffixes to remaining files. Maintains an in-memory disk index
+ * to avoid stat() calls when checking target path availability.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -49,16 +58,36 @@ use function trim;
  */
 class DuplicateDetectionService implements DuplicateDetectionServiceInterface
 {
+    /**
+     * Legacy prefix used to identify Live Photo groups by their duplicate identifier string.
+     */
     private const string LIVE_PHOTO_IDENTIFIER_PREFIX = 'live-photo:';
 
+    /**
+     * Upper bound for duplicate suffix numbers to prevent infinite loops.
+     */
     private const int MAX_DUPLICATE_SUFFIX = 9999;
 
+    /**
+     * Absolute path to the directory being scanned for source files.
+     */
     private string $sourceDirectory;
 
+    /**
+     * Absolute path to the directory where renamed files are placed.
+     */
     private string $targetDirectory;
 
+    /**
+     * When true, duplicate targets preserve the source file's original extension
+     * instead of inheriting the canonical target's extension.
+     */
     private bool $useFileExtensionFromSource = false;
 
+    /**
+     * Number of groups where content-hash sub-grouping was applied because
+     * multiple distinct file contents shared the same target basename.
+     */
     private int $namingCollisions = 0;
 
     /**
@@ -78,7 +107,8 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     private array $contentIdentifierMap = [];
 
     /**
-     * Constructor.
+     * @param SymfonyStyle           $io                     Console IO for progress bars and error output
+     * @param HashSubGroupingService $hashSubGroupingService Service for content-hash-based sub-grouping
      */
     public function __construct(
         private readonly SymfonyStyle $io,
@@ -699,17 +729,18 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     }
 
     /**
-     * Generates a new target file info instance whose path does not yet exist on disk.
+     * Generates a target file info whose path does not collide with any existing file on disk.
+     * Increments the duplicate counter in a loop until a free slot is found, or reuses the
+     * source path for idempotent re-runs.
      *
-     * @param SplFileInfo $source         source file currently being processed
-     * @param SplFileInfo $target         initial target file information
-     * @param string      $targetBasename base filename (without extension) used for duplicate naming
-     * @param int         $duplicateCount counter used to create unique duplicate suffixes (passed by reference)
+     * @param SplFileInfo         $source              source file currently being processed
+     * @param SplFileInfo         $target              initial target file information
+     * @param string              $targetBasename      base filename (without extension) used for duplicate naming
+     * @param int                 $duplicateCount      counter used to create unique duplicate suffixes (passed by reference)
+     * @param bool                $forceDuplicateSuffix when true, always apply a suffix even if the target is free
+     * @param array<string, true> $groupSourcePaths    source paths of all files in the current group
      *
-     * @return SplFileInfo newly generated file info pointing to a non-existing file
-     */
-    /**
-     * @param array<string, true> $groupSourcePaths source paths of all files in the current group
+     * @return SplFileInfo file info pointing to a non-occupied target path
      */
     private function getNewUniqueDuplicateTargetFileInfo(
         SplFileInfo $source,
@@ -855,6 +886,15 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         return null;
     }
 
+    /**
+     * Promotes the group's canonical target to a still image when a Live Photo
+     * group's current canonical is a video (MOV) and the candidate is a still (HEIC/JPG).
+     * Ensures the still image always takes precedence as the group's base name source.
+     *
+     * @param string        $duplicateIdentifier Group key (only live-photo: prefixed groups are affected)
+     * @param FileDuplicate $fileDuplicate       The duplicate group whose target may be promoted
+     * @param SplFileInfo   $candidateTarget     Newly encountered target to consider for promotion
+     */
     private function promoteLivePhotoTargetIfNecessary(
         string $duplicateIdentifier,
         FileDuplicate $fileDuplicate,
@@ -924,7 +964,14 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     }
 
     /**
-     * @param array<string, true> $groupSourcePaths
+     * Checks whether the target path is already occupied by a file that is NOT the
+     * source itself and NOT another member of the same group (who will be moved away).
+     * Uses the in-memory disk index for fast lookups, falling back to stat() for paths
+     * outside the scanned directories.
+     *
+     * @param SplFileInfo         $target           Target path to check
+     * @param SplFileInfo         $source           Source file being processed (never considered occupied)
+     * @param array<string, true> $groupSourcePaths Source paths of all files in the current group
      */
     private function isTargetOccupied(SplFileInfo $target, SplFileInfo $source, array $groupSourcePaths): bool
     {
@@ -946,6 +993,16 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         return !isset($groupSourcePaths[$targetPath]);
     }
 
+    /**
+     * Extracts and normalizes the Live Photo content identifier from the rename strategy,
+     * returning null when the strategy does not support Live Photo awareness or when the
+     * file has no content identifier.
+     *
+     * @param RenameStrategyInterface $renameStrategy Strategy that may implement LivePhotoAwareRenameStrategyInterface
+     * @param SplFileInfo             $sourceFileInfo File to extract the content identifier from
+     *
+     * @return string|null Lowercased, trimmed content identifier, or null
+     */
     private function resolveNormalizedContentIdentifier(
         RenameStrategyInterface $renameStrategy,
         SplFileInfo $sourceFileInfo,

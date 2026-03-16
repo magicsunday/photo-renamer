@@ -19,6 +19,15 @@ use function restore_error_handler;
 use function set_error_handler;
 use function sprintf;
 
+/**
+ * Wraps PHP's file_get_contents() with an error handler that converts warnings
+ * into typed FileReadException instances. Provides safe file reading without
+ * relying on the caller to suppress or handle PHP warnings.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
+ */
 class SafeFileReader
 {
     /**

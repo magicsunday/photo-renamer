@@ -21,7 +21,14 @@ use function strtolower;
 use function trim;
 
 /**
- * Service that pairs Apple Live Photo still/video files by content identifier.
+ * Discovers companion files (typically MOV videos) that belong to existing Live Photo
+ * groups but were not captured during the initial grouping pass. Matches companions
+ * by Apple content identifier first, falling back to basename matching when the content
+ * identifier is unavailable (e.g. for non-Apple cameras or stripped metadata).
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
  */
 class LivePhotoPairingService
 {
@@ -140,6 +147,14 @@ class LivePhotoPairingService
         return $pairs;
     }
 
+    /**
+     * Lowercases and trims a content identifier string. Returns null for empty
+     * or null inputs.
+     *
+     * @param string|null $contentIdentifier Raw content identifier to normalize
+     *
+     * @return string|null Normalized identifier, or null
+     */
     private function normalizeContentIdentifier(?string $contentIdentifier): ?string
     {
         if ($contentIdentifier === null) {

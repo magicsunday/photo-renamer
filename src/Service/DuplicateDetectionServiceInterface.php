@@ -18,7 +18,8 @@ use RecursiveIterator;
 use RecursiveIteratorIterator;
 
 /**
- * Interface for duplicate detection operations.
+ * Contract for the two-phase duplicate detection pipeline: grouping files by
+ * a duplicate identifier, then assigning sequential filenames within each group.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -26,10 +27,34 @@ use RecursiveIteratorIterator;
  */
 interface DuplicateDetectionServiceInterface
 {
+    /**
+     * Defines the directory scanned for source files. Must be called before
+     * {@see groupFilesByDuplicateIdentifier()}.
+     *
+     * @param string $sourceDirectory Absolute path to the source directory
+     *
+     * @return self Fluent interface
+     */
     public function setSourceDirectory(string $sourceDirectory): self;
 
+    /**
+     * Defines the directory where renamed/copied files are placed. Must be
+     * called before {@see groupFilesByDuplicateIdentifier()}.
+     *
+     * @param string $targetDirectory Absolute path to the target directory
+     *
+     * @return self Fluent interface
+     */
     public function setTargetDirectory(string $targetDirectory): self;
 
+    /**
+     * Controls whether duplicate targets preserve the source file's original extension
+     * instead of inheriting the canonical target's extension.
+     *
+     * @param bool $useFileExtensionFromSource When true, source extension is retained
+     *
+     * @return self Fluent interface
+     */
     public function setUseFileExtensionFromSource(bool $useFileExtensionFromSource): self;
 
     /**

@@ -14,7 +14,13 @@ namespace MagicSunday\Renamer\Service\LivePhoto;
 use SplFileInfo;
 
 /**
- * Value object describing a matched Live Photo pair.
+ * Immutable value object representing a matched Live Photo companion: the original
+ * source file discovered during scanning, the computed target path inheriting the
+ * canonical group's basename, and the identifiers linking this pairing to its group.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
  */
 final readonly class LivePhotoPairing
 {

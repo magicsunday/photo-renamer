@@ -18,14 +18,30 @@ use function strtolower;
 use function trim;
 
 /**
- * Index of Live Photo targets keyed by the original basename of the asset.
+ * Maps normalized source basenames to their canonical Live Photo targets.
+ * When multiple groups share the same basename (ambiguity), the entry is
+ * invalidated to prevent incorrect companion matching. Serves as the fallback
+ * lookup when content-identifier-based matching is not available.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
  */
 final class LivePhotoBasenameTargetMap
 {
-    /** @var array<string, LivePhotoContentIdentifierTarget> */
+    /**
+     * Unambiguous basename-to-target mappings.
+     *
+     * @var array<string, LivePhotoContentIdentifierTarget>
+     */
     private array $targets = [];
 
-    /** @var array<string, true> */
+    /**
+     * Basenames that mapped to multiple different duplicate identifiers and are
+     * therefore excluded from matching.
+     *
+     * @var array<string, true>
+     */
     private array $ambiguous = [];
 
     /**
@@ -82,13 +98,22 @@ final class LivePhotoBasenameTargetMap
     }
 
     /**
-     * Returns the normalized basename key used for the supplied file.
+     * Returns the normalized basename key that would be used to look up
+     * the given file. Useful for building secondary indexes keyed by basename.
+     *
+     * @param SplFileInfo $file File to normalize
+     *
+     * @return string|null Lowercased, trimmed basename without extension, or null when empty
      */
     public function getBasenameKey(SplFileInfo $file): ?string
     {
         return $this->normalizeBasename($file);
     }
 
+    /**
+     * Lowercases and trims the file's basename (without extension) to produce
+     * a case-insensitive lookup key. Returns null for empty basenames.
+     */
     private function normalizeBasename(SplFileInfo $file): ?string
     {
         $basename   = $file->getBasename('.' . $file->getExtension());

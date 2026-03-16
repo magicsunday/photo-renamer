@@ -44,7 +44,8 @@ class HashSubGroupingService
     public const array LIVE_PHOTO_STILL_EXTENSIONS = ['heic', 'heif', 'jpg', 'jpeg'];
 
     /**
-     * Constructor.
+     * @param SafeHashCalculator $hashCalculator Computes file content hashes for sub-group keying
+     * @param SymfonyStyle       $io             Console IO for error output on hash computation failures
      */
     public function __construct(
         private readonly SafeHashCalculator $hashCalculator,
@@ -317,7 +318,13 @@ class HashSubGroupingService
     }
 
     /**
-     * Checks whether the given file is a still image (as opposed to a video companion).
+     * Checks whether the given file is a still image (HEIC, HEIF, JPG, JPEG) as opposed
+     * to a video companion (MOV, MP4). Used to determine media type boundaries during
+     * Live Photo companion detection and hash sub-group exclusion.
+     *
+     * @param SplFileInfo $fileInfo File to classify
+     *
+     * @return bool True when the file extension matches a known still image format
      */
     public function isLivePhotoStill(SplFileInfo $fileInfo): bool
     {
@@ -331,7 +338,15 @@ class HashSubGroupingService
     }
 
     /**
-     * Builds the target pathname for a source file and generated filename.
+     * Computes the absolute target pathname by mapping the source file's relative
+     * position within the source directory tree into the target directory tree.
+     *
+     * @param SplFileInfo $sourceFileInfo  Source file providing the directory context
+     * @param string      $targetFilename  Filename (without directory) to place in the target
+     * @param string      $sourceDirectory Absolute path to the source directory root
+     * @param string      $targetDirectory Absolute path to the target directory root
+     *
+     * @return string Absolute path to the computed target location
      */
     private function getTargetPathname(
         SplFileInfo $sourceFileInfo,

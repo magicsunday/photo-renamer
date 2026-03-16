@@ -33,7 +33,10 @@ use function strlen;
 use function substr;
 
 /**
- * Service for file system operations.
+ * Handles all direct file system interactions: creating file iterators, counting files,
+ * executing the actual rename/copy operations, printing the summary output table,
+ * and resolving runtime target collisions via the {@see findAvailableDuplicateTarget()}
+ * fallback. Tracks occupied paths in-memory to prevent data loss during batch moves.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -41,17 +44,24 @@ use function substr;
  */
 class FileSystemService implements FileSystemServiceInterface
 {
+    /**
+     * Symfony progress bar format string shared across all pipeline phases.
+     */
     public const string PROGRESS_BAR_FORMAT = ' %current%/%max% [%bar%] %percent:3s%% | ETA: %estimated:-6s% | Remaining: %remaining:-6s%';
 
     /**
-     * Duplicate identifier pattern.
+     * String inserted between the base name and the sequential number
+     * when creating duplicate-suffixed filenames (e.g. "photo-duplicate-001.jpg").
      */
     public const string DUPLICATE_IDENTIFIER = '-duplicate-';
 
+    /**
+     * Upper bound for the runtime duplicate suffix fallback loop.
+     */
     private const int MAX_DUPLICATE_SUFFIX = 9999;
 
     /**
-     * Constructor.
+     * @param SymfonyStyle $io Console IO for progress bars, status output and error messages
      */
     public function __construct(private readonly SymfonyStyle $io)
     {
@@ -284,7 +294,12 @@ class FileSystemService implements FileSystemServiceInterface
     }
 
     /**
-     * Determines if the duplicate identifier belongs to a Live Photo group.
+     * Checks whether a duplicate identifier string uses the "live-photo:" prefix,
+     * indicating the group was formed from Apple Live Photo content identifiers.
+     *
+     * @param int|string $duplicateIdentifier Group key to inspect
+     *
+     * @return bool True when the identifier starts with "live-photo:"
      */
     private function isLivePhotoIdentifier(int|string $duplicateIdentifier): bool
     {
@@ -296,7 +311,15 @@ class FileSystemService implements FileSystemServiceInterface
     }
 
     /**
-     * Converts a path to be relative to the given base directory when possible.
+     * Converts an absolute file path to a display-friendly relative path by stripping
+     * the base directory prefix and prepending the base directory's own name. Falls back
+     * to the full pathname when the path does not start with the base or when the base
+     * directory is an absolute path.
+     *
+     * @param SplFileInfo $fileInfo      File whose path should be relativized
+     * @param string|null $baseDirectory Normalized base directory (trailing separator stripped)
+     *
+     * @return string Relative or absolute path suitable for display
      */
     private function getRelativePath(SplFileInfo $fileInfo, ?string $baseDirectory): string
     {
@@ -337,7 +360,12 @@ class FileSystemService implements FileSystemServiceInterface
     }
 
     /**
-     * Normalizes a base directory string for relative path conversion.
+     * Strips trailing directory separators from a base directory string.
+     * Returns null for null or empty inputs.
+     *
+     * @param string|null $baseDirectory Raw base directory path
+     *
+     * @return string|null Trimmed path, or null
      */
     private function normalizeBaseDirectory(?string $baseDirectory): ?string
     {
@@ -355,16 +383,17 @@ class FileSystemService implements FileSystemServiceInterface
     }
 
     /**
-     * Copies or moves a file from source to target.
+     * Copies or moves a single file from source to target, creating directories as needed.
+     * When the target path is already occupied (by a file moved earlier in the same batch),
+     * falls back to {@see findAvailableDuplicateTarget()} to prevent data loss. Updates the
+     * occupied-paths index to reflect the new file system state.
      *
-     * @param SplFileInfo $sourceFileInfo The source file
-     * @param SplFileInfo $targetFileInfo The target file
-     * @param bool        $copy           Whether to copy the file instead of moving it
+     * @param SplFileInfo         $sourceFileInfo Source file to move or copy
+     * @param SplFileInfo         $targetFileInfo Intended target path
+     * @param bool                $copy           When true, copy instead of move
+     * @param array<string, true> $occupiedPaths  Mutable index of paths currently occupied on disk
      *
-     * @throws RuntimeException If the file could not be copied or moved
-     */
-    /**
-     * @param array<string, true> $occupiedPaths mutable index of paths currently occupied on disk
+     * @throws RuntimeException When the directory cannot be created or the file operation fails
      */
     protected function copyOrMoveFile(
         SplFileInfo $sourceFileInfo,

@@ -17,7 +17,13 @@ use IteratorAggregate;
 use function array_values;
 
 /**
- * Mutable collection managing matched Live Photo pairings.
+ * Mutable, iterable collection of Live Photo pairings discovered during the
+ * companion pairing phase. Created empty or from an initial list, then grown
+ * via {@see add()} as new companions are matched.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
  *
  * @implements IteratorAggregate<int, LivePhotoPairing>
  */

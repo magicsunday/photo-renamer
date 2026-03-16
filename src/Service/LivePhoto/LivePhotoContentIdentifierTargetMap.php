@@ -16,7 +16,14 @@ use SplFileInfo;
 use function array_key_exists;
 
 /**
- * Index of Live Photo targets by content identifier.
+ * First-write-wins index mapping normalized Live Photo content identifiers to their
+ * canonical target descriptors. Once a content identifier is registered, subsequent
+ * registrations for the same ID are ignored, preserving the first-discovered group
+ * as the authoritative match for companion pairing.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
  */
 final class LivePhotoContentIdentifierTargetMap
 {

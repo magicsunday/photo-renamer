@@ -19,7 +19,8 @@ use RuntimeException;
 use SplFileInfo;
 
 /**
- * Interface for file system operations.
+ * Contract for file system operations: directory scanning, file counting
+ * and executing the actual rename/copy batch with progress and summary output.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
