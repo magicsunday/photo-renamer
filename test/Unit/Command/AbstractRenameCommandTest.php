@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Test\Unit\Command;
 
 use MagicSunday\Renamer\Command\AbstractRenameCommand;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
+use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
@@ -91,10 +92,14 @@ final class AbstractRenameCommandTest extends TestCase
             ->method('renameFiles')
             ->with(
                 self::identicalTo($fileDuplicateCollection),
-                true,
-                false,
-                false,
-                false,
+                self::callback(static function (RenameOptions $options): bool {
+                    self::assertTrue($options->dryRun);
+                    self::assertFalse($options->skipDuplicates);
+                    self::assertFalse($options->copyFiles);
+                    self::assertFalse($options->listAll);
+
+                    return true;
+                }),
             );
 
         $command = new class($fileSystemService, $duplicateDetectionService, $renameStrategy, $duplicateIdentifierStrategy) extends AbstractRenameCommand {
@@ -187,10 +192,14 @@ final class AbstractRenameCommandTest extends TestCase
             ->method('renameFiles')
             ->with(
                 self::identicalTo($fileDuplicateCollection),
-                true,
-                true,
-                false,
-                false,
+                self::callback(static function (RenameOptions $options): bool {
+                    self::assertTrue($options->dryRun);
+                    self::assertTrue($options->skipDuplicates);
+                    self::assertFalse($options->copyFiles);
+                    self::assertFalse($options->listAll);
+
+                    return true;
+                }),
             );
 
         $command = new class($fileSystemService, $duplicateDetectionService, $renameStrategy, $duplicateIdentifierStrategy) extends AbstractRenameCommand {
@@ -278,10 +287,14 @@ final class AbstractRenameCommandTest extends TestCase
             ->method('renameFiles')
             ->with(
                 self::identicalTo($fileDuplicateCollection),
-                false,
-                false,
-                false,
-                true,
+                self::callback(static function (RenameOptions $options): bool {
+                    self::assertFalse($options->dryRun);
+                    self::assertFalse($options->skipDuplicates);
+                    self::assertFalse($options->copyFiles);
+                    self::assertTrue($options->listAll);
+
+                    return true;
+                }),
             );
 
         $command = new class($fileSystemService, $duplicateDetectionService, $renameStrategy, $duplicateIdentifierStrategy) extends AbstractRenameCommand {
@@ -386,10 +399,14 @@ final class AbstractRenameCommandTest extends TestCase
             ->method('renameFiles')
             ->with(
                 self::identicalTo($fileDuplicateCollection),
-                true,
-                false,
-                false,
-                false,
+                self::callback(static function (RenameOptions $options): bool {
+                    self::assertTrue($options->dryRun);
+                    self::assertFalse($options->skipDuplicates);
+                    self::assertFalse($options->copyFiles);
+                    self::assertFalse($options->listAll);
+
+                    return true;
+                }),
             );
 
         $command = new class($fileSystemService, $duplicateDetectionService, $renameStrategy, $duplicateIdentifierStrategy) extends AbstractRenameCommand {

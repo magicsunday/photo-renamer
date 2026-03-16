@@ -14,6 +14,7 @@ namespace MagicSunday\Renamer\Test\Unit\Service;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
+use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Service\FileSystemService;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -51,6 +52,7 @@ use const DIRECTORY_SEPARATOR;
 #[CoversClass(FileDuplicateCollection::class)]
 #[CoversClass(FileDuplicate::class)]
 #[CoversClass(Rename::class)]
+#[CoversClass(RenameOptions::class)]
 final class FileSystemServiceTest extends TestCase
 {
     private string $workspace;
@@ -126,9 +128,11 @@ final class FileSystemServiceTest extends TestCase
 
         $service->renameFiles(
             $fileDuplicateCollection,
-            dryRun: true,
-            sourceBaseDirectory: $sourceDirectory,
-            targetBaseDirectory: $targetDirectory,
+            new RenameOptions(
+                dryRun: true,
+                sourceBaseDirectory: $sourceDirectory,
+                targetBaseDirectory: $targetDirectory,
+            ),
         );
 
         self::assertFileExists($sourceFile);
@@ -164,9 +168,11 @@ final class FileSystemServiceTest extends TestCase
 
         $service->renameFiles(
             $fileDuplicateCollection,
-            skipDuplicates: true,
-            sourceBaseDirectory: $sourceDirectory,
-            targetBaseDirectory: $targetDirectory,
+            new RenameOptions(
+                skipDuplicates: true,
+                sourceBaseDirectory: $sourceDirectory,
+                targetBaseDirectory: $targetDirectory,
+            ),
         );
 
         self::assertFileExists($sourceFile);
@@ -206,9 +212,11 @@ final class FileSystemServiceTest extends TestCase
 
         $service->renameFiles(
             $fileDuplicateCollection,
-            skipDuplicates: true,
-            sourceBaseDirectory: $sourceDirectory,
-            targetBaseDirectory: $targetDirectory,
+            new RenameOptions(
+                skipDuplicates: true,
+                sourceBaseDirectory: $sourceDirectory,
+                targetBaseDirectory: $targetDirectory,
+            ),
         );
 
         self::assertFileDoesNotExist($sourceFile);
@@ -250,7 +258,7 @@ final class FileSystemServiceTest extends TestCase
             $targetFile,
         );
 
-        $service->renameFiles($fileDuplicateCollection, copyFiles: true);
+        $service->renameFiles($fileDuplicateCollection, new RenameOptions(copyFiles: true));
 
         self::assertFileExists($sourceFile);
         self::assertFileExists($targetFile);
@@ -289,9 +297,11 @@ final class FileSystemServiceTest extends TestCase
 
         $service->renameFiles(
             $fileDuplicateCollection,
-            dryRun: true,
-            sourceBaseDirectory: $sourceDirectory,
-            targetBaseDirectory: $targetDirectory,
+            new RenameOptions(
+                dryRun: true,
+                sourceBaseDirectory: $sourceDirectory,
+                targetBaseDirectory: $targetDirectory,
+            ),
         );
 
         $buffer     = $output->fetch();
@@ -327,9 +337,11 @@ final class FileSystemServiceTest extends TestCase
 
         $service->renameFiles(
             $fileDuplicateCollection,
-            dryRun: true,
-            sourceBaseDirectory: $directory,
-            targetBaseDirectory: $directory,
+            new RenameOptions(
+                dryRun: true,
+                sourceBaseDirectory: $directory,
+                targetBaseDirectory: $directory,
+            ),
         );
 
         $buffer = $output->fetch();
@@ -367,10 +379,12 @@ final class FileSystemServiceTest extends TestCase
 
         $service->renameFiles(
             $collection,
-            dryRun: true,
-            listAll: true,
-            sourceBaseDirectory: $sourceDirectory,
-            targetBaseDirectory: $targetDirectory,
+            new RenameOptions(
+                dryRun: true,
+                listAll: true,
+                sourceBaseDirectory: $sourceDirectory,
+                targetBaseDirectory: $targetDirectory,
+            ),
         );
 
         $buffer = $output->fetch();
@@ -420,9 +434,11 @@ final class FileSystemServiceTest extends TestCase
 
         $service->renameFiles(
             $collection,
-            skipDuplicates: true,
-            copyFiles: true,
-            scannedFiles: 5,
+            new RenameOptions(
+                skipDuplicates: true,
+                copyFiles: true,
+                scannedFiles: 5,
+            ),
         );
 
         $buffer = $output->fetch();
@@ -458,8 +474,10 @@ final class FileSystemServiceTest extends TestCase
 
         $service->renameFiles(
             $fileDuplicateCollection,
-            dryRun: true,
-            namingCollisions: 3,
+            new RenameOptions(
+                dryRun: true,
+                namingCollisions: 3,
+            ),
         );
 
         $buffer = $output->fetch();
@@ -491,8 +509,10 @@ final class FileSystemServiceTest extends TestCase
 
         $service->renameFiles(
             $fileDuplicateCollection,
-            dryRun: true,
-            namingCollisions: 0,
+            new RenameOptions(
+                dryRun: true,
+                namingCollisions: 0,
+            ),
         );
 
         $buffer = $output->fetch();
@@ -588,7 +608,7 @@ final class FileSystemServiceTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Source file');
 
-        $service->renameFiles($fileDuplicateCollection, copyFiles: true);
+        $service->renameFiles($fileDuplicateCollection, new RenameOptions(copyFiles: true));
     }
 
     #[Test]
@@ -618,7 +638,7 @@ final class FileSystemServiceTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('progress', $fileDuplicate);
 
-        $service->renameFiles($collection, dryRun: true);
+        $service->renameFiles($collection, new RenameOptions(dryRun: true));
 
         $buffer = $output->fetch();
 

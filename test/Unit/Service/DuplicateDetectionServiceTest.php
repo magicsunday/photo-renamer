@@ -18,6 +18,7 @@ use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
+use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Service\DuplicateDetectionService;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
@@ -545,7 +546,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         // Clear progress output from duplicate generation.
         $output->fetch();
 
-        $fileSystemService->renameFiles($collection, true);
+        $fileSystemService->renameFiles($collection, new RenameOptions(dryRun: true));
 
         $renameOutput = $output->fetch();
 

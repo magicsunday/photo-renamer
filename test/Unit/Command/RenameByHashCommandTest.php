@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Test\Unit\Command;
 
 use MagicSunday\Renamer\Command\RenameByHashCommand;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
+use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
@@ -103,10 +104,14 @@ final class RenameByHashCommandTest extends TestCase
             ->method('renameFiles')
             ->with(
                 self::identicalTo($duplicateCollection),
-                true,
-                true,
-                true,
-                false,
+                self::callback(static function (RenameOptions $options): bool {
+                    self::assertTrue($options->dryRun);
+                    self::assertTrue($options->skipDuplicates);
+                    self::assertTrue($options->copyFiles);
+                    self::assertFalse($options->listAll);
+
+                    return true;
+                }),
             );
 
         $command = new RenameByHashCommand($fileSystemService, $duplicateDetectionService, new SafeHashCalculator());
