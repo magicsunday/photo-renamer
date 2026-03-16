@@ -2164,6 +2164,81 @@ final class DuplicateDetectionServiceTest extends TestCase
     }
 
     /**
+     * Verifies that getTargetPathname() throws a RuntimeException when the target
+     * filename contains a forward slash, preventing directory traversal attacks
+     * (e.g. "../evil.jpg") that could write files outside the target directory.
+     */
+    #[Test]
+    public function getTargetPathnameThrowsOnForwardSlashInFilename(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $service
+            ->setSourceDirectory($sourceDirectory)
+            ->setTargetDirectory($targetDirectory);
+
+        $sourceFile = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('must not contain directory separators');
+
+        $service->getTargetPathname($sourceFile, '../evil.jpg');
+    }
+
+    /**
+     * Verifies that getTargetPathname() throws a RuntimeException when the target
+     * filename contains a subdirectory path separator (e.g. "sub/file.jpg"),
+     * preventing unintended creation of nested directories via crafted filenames.
+     */
+    #[Test]
+    public function getTargetPathnameThrowsOnSubdirectoryInFilename(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $service
+            ->setSourceDirectory($sourceDirectory)
+            ->setTargetDirectory($targetDirectory);
+
+        $sourceFile = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('must not contain directory separators');
+
+        $service->getTargetPathname($sourceFile, 'sub/file.jpg');
+    }
+
+    /**
+     * Verifies that getTargetPathname() throws a RuntimeException when the target
+     * filename contains a platform directory separator (DIRECTORY_SEPARATOR),
+     * covering Windows-style backslash separators on non-Unix systems.
+     */
+    #[Test]
+    public function getTargetPathnameThrowsOnDirectorySeparatorInFilename(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $service
+            ->setSourceDirectory($sourceDirectory)
+            ->setTargetDirectory($targetDirectory);
+
+        $sourceFile = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('must not contain directory separators');
+
+        $service->getTargetPathname($sourceFile, 'sub' . DIRECTORY_SEPARATOR . 'file.jpg');
+    }
+
+    /**
      * @return array{DuplicateDetectionService, BufferedOutput, FileSystemService}
      */
     private function createService(): array
