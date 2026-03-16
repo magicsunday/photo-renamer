@@ -11,7 +11,9 @@ BIN_NAME="renamer"
 
 echo "Compiling ${BIN_NAME}"
 
-if [ ! -f "${BIN_DIR}/composer" ]; then
+# Auto-initialize SPC build environment if needed
+if [ ! -f "${BIN_DIR}/php" ] || [ ! -f "${BIN_DIR}/composer" ] || [ ! -f "${SPC_DIR}/buildroot/bin/micro.sfx" ]; then
+    echo "SPC build environment not found, initializing..."
     ./scripts/init
 fi
 

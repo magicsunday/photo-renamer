@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "29e9e4f7576d074f0d75c2feb2b2d5f0",
+    "content-hash": "5d9159faa1524cafb51ee0c4b65c27fa",
     "packages": [
         {
             "name": "magicsunday/imagemeta",
@@ -5628,7 +5628,7 @@
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {
-        "php": "^8.5"
+        "php": ">=8.4"
     },
     "platform-dev": {},
     "plugin-api-version": "2.9.0"
