@@ -1,6 +1,8 @@
 services:
     buildbox:
-        build: .
+        build:
+            context: .
+            target: dev
         volumes:
             - .:/app
             - ~/.ssh:/root/.ssh:ro
@@ -9,8 +11,8 @@ services:
 
     builder:
         build:
-            context: .build/docker
-            dockerfile: Dockerfile
+            context: .
+            target: builder
             args:
                 USERID: ${USERID}
                 GROUPID: ${GROUPID}

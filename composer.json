@@ -63,28 +63,28 @@
     },
     "scripts": {
         "ci:cgl": [
-            "php-cs-fixer fix --config .build/.php-cs-fixer.dist.php --diff --verbose"
+            "php-cs-fixer fix --config .php-cs-fixer.dist.php --diff --verbose"
         ],
         "ci:rector": [
-            "rector process --config .build/rector.php"
+            "rector process --config rector.php"
         ],
         "ci:test:php:cgl": [
             "@ci:cgl --dry-run"
         ],
         "ci:test:php:lint": [
-            "phplint --configuration .build/.phplint.yml"
+            "phplint --configuration .phplint.yml"
         ],
         "ci:test:php:phpstan": [
-            "phpstan analyze --configuration .build/phpstan.neon --memory-limit=-1"
+            "phpstan analyze --configuration phpstan.neon --memory-limit=-1"
         ],
         "ci:test:php:phpstan:baseline": [
-            "phpstan analyze --configuration .build/phpstan.neon --memory-limit=-1 --generate-baseline .build/phpstan-baseline.neon --allow-empty-baseline"
+            "phpstan analyze --configuration phpstan.neon --memory-limit=-1 --generate-baseline phpstan-baseline.neon --allow-empty-baseline"
         ],
         "ci:test:php:rector": [
             "@ci:rector --dry-run"
         ],
         "ci:test:php:unit": [
-            "phpunit --configuration .build/phpunit.xml"
+            "phpunit --configuration phpunit.xml"
         ],
         "ci:test": [
             "@ci:test:php:lint",
