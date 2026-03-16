@@ -25,7 +25,6 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 use SplFileInfo;
-use SplObjectStorage;
 
 use function sprintf;
 use function uniqid;
@@ -191,8 +190,7 @@ final class ExifDateFilenameStrategyTest extends TestCase
         $metadataExtractor = new StubMetadataExtractor();
         $provider          = new ExifMetadataProvider($metadataExtractor);
 
-        $exifDataCache        = new SplObjectStorage();
-        $exifDataCache[$file] = $exifData;
+        $exifDataCache = [$file->getPathname() => $exifData];
 
         $cacheProperty = new ReflectionProperty(ExifMetadataProvider::class, 'exifDataCache');
         $cacheProperty->setValue($provider, $exifDataCache);

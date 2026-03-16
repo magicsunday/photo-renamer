@@ -15,13 +15,13 @@ use DateTimeInterface;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use SplFileInfo;
-use SplObjectStorage;
 
+use function array_key_exists;
 use function sprintf;
 
 /**
  * Caching facade over the MetadataExtractor that converts raw TemporalMetadata
- * into ExifData value objects. Maintains per-file SplObjectStorage caches for
+ * into ExifData value objects. Maintains per-file pathname-keyed array caches for
  * both ExifData and ContentIdentifier, so each file is extracted at most once
  * even when queried from multiple pipeline stages.
  *
@@ -34,22 +34,20 @@ final class ExifMetadataProvider
     /**
      * Per-file cache of extracted EXIF data (null when the file lacks usable metadata).
      *
-     * @var SplObjectStorage<SplFileInfo, ExifData|null>
+     * @var array<string, ExifData|null>
      */
-    private SplObjectStorage $exifDataCache;
+    private array $exifDataCache = [];
 
     /**
      * Per-file cache of Live Photo content identifiers, populated as a side-effect
      * of EXIF extraction so companion detection can query it independently.
      *
-     * @var SplObjectStorage<SplFileInfo, ContentIdentifier|null>
+     * @var array<string, ContentIdentifier|null>
      */
-    private SplObjectStorage $contentIdentifierCache;
+    private array $contentIdentifierCache = [];
 
     public function __construct(private readonly MetadataExtractorInterface $metadataExtractor)
     {
-        $this->exifDataCache          = new SplObjectStorage();
-        $this->contentIdentifierCache = new SplObjectStorage();
     }
 
     /**
@@ -64,15 +62,17 @@ final class ExifMetadataProvider
      */
     public function getExifData(SplFileInfo $splFileInfo): ?ExifData
     {
-        if (!$this->exifDataCache->offsetExists($splFileInfo)) {
+        $key = $splFileInfo->getPathname();
+
+        if (!array_key_exists($key, $this->exifDataCache)) {
             try {
-                $this->exifDataCache[$splFileInfo] = $this->createExifData($splFileInfo);
+                $this->exifDataCache[$key] = $this->createExifData($splFileInfo);
             } catch (ExifMetadataReadException $exception) {
                 throw new TargetFilenameException(sprintf('Unable to read image metadata from "%s": %s', $splFileInfo->getPathname(), $exception->getMessage()), $exception->getCode(), previous: $exception);
             }
         }
 
-        $exifData = $this->exifDataCache[$splFileInfo];
+        $exifData = $this->exifDataCache[$key];
 
         return $exifData instanceof ExifData ? $exifData : null;
     }
@@ -91,11 +91,13 @@ final class ExifMetadataProvider
     {
         $this->getExifData($splFileInfo);
 
-        if (!$this->contentIdentifierCache->offsetExists($splFileInfo)) {
+        $key = $splFileInfo->getPathname();
+
+        if (!array_key_exists($key, $this->contentIdentifierCache)) {
             return null;
         }
 
-        $contentIdentifier = $this->contentIdentifierCache[$splFileInfo];
+        $contentIdentifier = $this->contentIdentifierCache[$key];
 
         return $contentIdentifier instanceof ContentIdentifier ? $contentIdentifier : null;
     }
@@ -115,7 +117,7 @@ final class ExifMetadataProvider
         $temporalMetadata  = $this->metadataExtractor->extractTemporalMetadata($splFileInfo);
         $contentIdentifier = $this->extractContentIdentifier($temporalMetadata);
 
-        $this->contentIdentifierCache[$splFileInfo] = $contentIdentifier;
+        $this->contentIdentifierCache[$splFileInfo->getPathname()] = $contentIdentifier;
 
         if (!$temporalMetadata instanceof TemporalMetadata) {
             return null;
