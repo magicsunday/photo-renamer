@@ -280,7 +280,10 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
      *
      * @return FileDuplicateCollection updated collection with rename operations populated
      */
-    public function createDuplicateFilenames(FileDuplicateCollection $fileDuplicateCollection): FileDuplicateCollection
+    public function createDuplicateFilenames(
+        FileDuplicateCollection $fileDuplicateCollection,
+        bool $skipHashSubGrouping = false,
+    ): FileDuplicateCollection
     {
         $progressBar = $this->startProgressBar($fileDuplicateCollection->count());
 

@@ -465,7 +465,17 @@ abstract class AbstractRenameCommand extends Command
 
         return $this->duplicateDetectionService
             ->setUseFileExtensionFromSource($this->useFileExtensionFromSource)
-            ->createDuplicateFilenames($fileDuplicateCollection);
+            ->createDuplicateFilenames($fileDuplicateCollection, $this->skipHashSubGrouping());
+    }
+
+    /**
+     * Returns whether content-hash sub-grouping should be skipped.
+     *
+     * Override in subclasses that already group by content hash (e.g. rename:hash).
+     */
+    protected function skipHashSubGrouping(): bool
+    {
+        return false;
     }
 
     /**

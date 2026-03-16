@@ -49,6 +49,12 @@ interface DuplicateDetectionServiceInterface
 
     /**
      * Creates a consecutive new filename for all duplicate files.
+     *
+     * @param FileDuplicateCollection $fileDuplicateCollection collection whose entries should receive duplicate filenames
+     * @param bool                    $skipHashSubGrouping     when true, content-hash sub-grouping is skipped entirely
      */
-    public function createDuplicateFilenames(FileDuplicateCollection $fileDuplicateCollection): FileDuplicateCollection;
+    public function createDuplicateFilenames(
+        FileDuplicateCollection $fileDuplicateCollection,
+        bool $skipHashSubGrouping = false,
+    ): FileDuplicateCollection;
 }

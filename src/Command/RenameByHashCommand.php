@@ -63,4 +63,10 @@ class RenameByHashCommand extends AbstractRenameCommand
     {
         return new ContentHashStrategy($this->hashCalculator);
     }
+
+    #[Override]
+    protected function skipHashSubGrouping(): bool
+    {
+        return true;
+    }
 }
