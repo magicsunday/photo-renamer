@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service;
 
+use FilesystemIterator;
 use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
@@ -18,20 +19,27 @@ use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
+use MagicSunday\Renamer\Strategy\RenameStrategy\LivePhotoAwareRenameStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
+use RecursiveDirectoryIterator;
 use RecursiveIterator;
 use RecursiveIteratorIterator;
+use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
+use function array_column;
 use function array_key_exists;
 use function count;
 use function in_array;
+use function is_dir;
 use function is_string;
-use function method_exists;
+use function spl_object_id;
 use function sprintf;
+use function str_contains;
 use function strtolower;
+use function substr_count;
 use function trim;
 
 /**
@@ -44,6 +52,8 @@ use function trim;
 class DuplicateDetectionService implements DuplicateDetectionServiceInterface
 {
     private const string LIVE_PHOTO_IDENTIFIER_PREFIX = 'live-photo:';
+
+    private const int MAX_DUPLICATE_SUFFIX = 9999;
 
     /**
      * Extensions that identify still image assets within Live Photo groups.
@@ -127,11 +137,6 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         return $this;
     }
 
-    public function setListAll(bool $listAll): DuplicateDetectionService
-    {
-        return $this;
-    }
-
     /**
      * Returns the number of groups where content-hash sub-grouping was applied.
      */
@@ -165,14 +170,14 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             $files[] = $fileInfo;
         }
 
-        usort($files, static function (SplFileInfo $a, SplFileInfo $b): int {
-            $depthA = substr_count($a->getPath(), DIRECTORY_SEPARATOR);
-            $depthB = substr_count($b->getPath(), DIRECTORY_SEPARATOR);
+        $decorated = [];
 
-            return $depthA !== $depthB
-                ? $depthA - $depthB
-                : strcmp($a->getPathname(), $b->getPathname());
-        });
+        foreach ($files as $file) {
+            $decorated[] = [substr_count($file->getPath(), DIRECTORY_SEPARATOR), $file->getPathname(), $file];
+        }
+
+        usort($decorated, static fn (array $a, array $b): int => $a[0] !== $b[0] ? $a[0] <=> $b[0] : $a[1] <=> $b[1]);
+        $files = array_column($decorated, 2);
 
         // Build in-memory disk index to avoid stat() calls during planning.
         $this->diskIndex            = [];
@@ -180,6 +185,18 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
 
         foreach ($files as $file) {
             $this->diskIndex[$file->getPathname()] = true;
+        }
+
+        if ($this->targetDirectory !== $this->sourceDirectory && is_dir($this->targetDirectory)) {
+            $targetIterator = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($this->targetDirectory, FilesystemIterator::SKIP_DOTS),
+                RecursiveIteratorIterator::LEAVES_ONLY,
+            );
+
+            /** @var SplFileInfo $targetFile */
+            foreach ($targetIterator as $targetFile) {
+                $this->diskIndex[$targetFile->getPathname()] = true;
+            }
         }
 
         $progressBar = $this->startProgressBar(count($files));
@@ -245,9 +262,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                     }
                 }
 
-                if (isset($contentIdentifierCacheEntry)) {
-                    unset($contentIdentifierCacheEntry);
-                }
+                unset($contentIdentifierCacheEntry);
 
                 $progressBar->advance();
 
@@ -273,9 +288,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                     $contentIdentifierCacheEntry['target']         = $targetFileInfo;
                 }
 
-                if (isset($contentIdentifierCacheEntry)) {
-                    unset($contentIdentifierCacheEntry);
-                }
+                unset($contentIdentifierCacheEntry);
 
                 continue;
             }
@@ -314,9 +327,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 $contentIdentifierCacheEntry['pendingFiles'] = [];
             }
 
-            if (isset($contentIdentifierCacheEntry)) {
-                unset($contentIdentifierCacheEntry);
-            }
+            unset($contentIdentifierCacheEntry);
 
             $progressBar->advance();
         }
@@ -329,6 +340,9 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
 
     /**
      * Creates consecutive filenames for duplicate files in the supplied collection.
+     *
+     * NOTE: {@see groupFilesByDuplicateIdentifier()} must be called first to populate
+     * {@see $contentIdentifierMap}, which is required for Live Photo companion detection.
      *
      * @param FileDuplicateCollection $fileDuplicateCollection collection whose entries should receive duplicate filenames
      *
@@ -468,11 +482,20 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 continue;
             }
 
+            // Per-extension duplicate counters — each extension gets independent sequential numbering
+            // (e.g., -duplicate-001.jpg and -duplicate-001.mov can coexist in the same group).
             /** @var array<string, int> $duplicateCountByExtension */
             $duplicateCountByExtension = [];
             $duplicateEntries          = 0;
 
+            // Collect source paths of all files in this group so that on-disk collisions
+            // with group members (who will be moved) are treated as available, and count
+            // non-canonical/non-companion entries in a single pass.
+            $groupSourcePaths = [];
+
             foreach ($fileDuplicate->getRenames() as $rename) {
+                $groupSourcePaths[$rename->getSource()->getPathname()] = true;
+
                 if ($canonicalRename instanceof Rename && $rename === $canonicalRename) {
                     continue;
                 }
@@ -486,14 +509,6 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
 
             $hasAdditionalRenames = $duplicateEntries > 0;
             $processedDuplicates  = 0;
-
-            // Collect source paths of all files in this group so that on-disk collisions
-            // with group members (who will be moved) are treated as available.
-            $groupSourcePaths = [];
-
-            foreach ($fileDuplicate->getRenames() as $rename) {
-                $groupSourcePaths[$rename->getSource()->getPathname()] = true;
-            }
 
             // Assign unique target filenames to remaining renames.
 
@@ -716,9 +731,33 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         /** @var array<string, int> $excludedDuplicateCountByContentId */
         $excludedDuplicateCountByContentId = [];
 
+        // Pre-build O(1) lookup set to replace O(n) in_array() in the excluded-files loop.
+        /** @var array<int, true> $nonCompanionSet */
+        $nonCompanionSet = [];
+
+        foreach ($nonCompanionRenames as $r) {
+            $nonCompanionSet[spl_object_id($r)] = true;
+        }
+
+        // Pre-build content-ID → sub-group map to replace O(n) inner foreach.
+        /** @var array<string, int> $contentIdToSubGroup */
+        $contentIdToSubGroup = [];
+
+        foreach ($nonCompanionRenames as $stillRename) {
+            $stillPath      = $stillRename->getSource()->getPathname();
+            $stillContentId = $this->contentIdentifierMap[$stillPath] ?? null;
+
+            if ($stillContentId !== null) {
+                $stillHash                            = $renameToHash[$stillPath] ?? null;
+                $contentIdToSubGroup[$stillContentId] = ($stillHash !== null && isset($hashToSubGroup[$stillHash]))
+                    ? $hashToSubGroup[$stillHash]
+                    : 0;
+            }
+        }
+
         foreach ($fileDuplicate->getRenames() as $rename) {
             // Skip files already processed as non-companion (stills).
-            if (in_array($rename, $nonCompanionRenames, true)) {
+            if (isset($nonCompanionSet[spl_object_id($rename)])) {
                 continue;
             }
 
@@ -726,24 +765,9 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             $renamePath      = $rename->getSource()->getPathname();
             $renameContentId = $this->contentIdentifierMap[$renamePath] ?? null;
 
-            $subGroupNum = 0; // default: canonical group (no suffix)
-
-            if ($renameContentId !== null) {
-                // Find the still file with the same content ID to determine its hash sub-group.
-                foreach ($nonCompanionRenames as $stillRename) {
-                    $stillPath      = $stillRename->getSource()->getPathname();
-                    $stillContentId = $this->contentIdentifierMap[$stillPath] ?? null;
-
-                    if ($stillContentId === $renameContentId) {
-                        $stillHash   = $renameToHash[$stillPath] ?? null;
-                        $subGroupNum = ($stillHash !== null && isset($hashToSubGroup[$stillHash]))
-                            ? $hashToSubGroup[$stillHash]
-                            : 0;
-
-                        break;
-                    }
-                }
-            }
+            $subGroupNum = ($renameContentId !== null)
+                ? ($contentIdToSubGroup[$renameContentId] ?? 0)
+                : 0;
 
             $fileBasename = $subGroupNum === 0
                 ? $canonicalBasename
@@ -926,6 +950,12 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         }
 
         while ($this->isTargetOccupied($duplicateFileInfo, $source, $groupSourcePaths)) {
+            if ($duplicateCount > self::MAX_DUPLICATE_SUFFIX) {
+                throw new RuntimeException(
+                    sprintf('Exceeded %d duplicate suffix attempts', self::MAX_DUPLICATE_SUFFIX)
+                );
+            }
+
             $duplicateFileInfo = $this->getNewDuplicateTargetFileInfo(
                 $source,
                 $target,
@@ -985,6 +1015,12 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
      */
     public function getTargetPathname(SplFileInfo $sourceFileInfo, string $targetFilename): string
     {
+        if (str_contains($targetFilename, DIRECTORY_SEPARATOR) || str_contains($targetFilename, '/')) {
+            throw new RuntimeException(
+                sprintf('Target filename "%s" must not contain directory separators', $targetFilename)
+            );
+        }
+
         $sourcePath   = $sourceFileInfo->getPath();
         $relativePath = $sourcePath;
 
@@ -1138,7 +1174,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         RenameStrategyInterface $renameStrategy,
         SplFileInfo $sourceFileInfo,
     ): ?string {
-        if (!method_exists($renameStrategy, 'getLivePhotoContentIdentifier')) {
+        if (!$renameStrategy instanceof LivePhotoAwareRenameStrategyInterface) {
             return null;
         }
 

@@ -22,6 +22,7 @@ use MagicSunday\Renamer\Service\DuplicateDetectionService;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
+use MagicSunday\Renamer\Strategy\RenameStrategy\LivePhotoAwareRenameStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -29,6 +30,8 @@ use PHPUnit\Framework\TestCase;
 use RecursiveArrayIterator;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use ReflectionMethod;
+use ReflectionProperty;
 use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -44,6 +47,7 @@ use function preg_match;
 use function preg_quote;
 use function rename;
 use function rmdir;
+use function sprintf;
 use function sys_get_temp_dir;
 use function uniqid;
 use function unlink;
@@ -699,8 +703,7 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         $service
             ->setSourceDirectory($sourceDirectory)
-            ->setTargetDirectory($targetDirectory)
-            ->setListAll(true);
+            ->setTargetDirectory($targetDirectory);
 
         $service->createDuplicateFilenames($collection);
 
@@ -1423,6 +1426,50 @@ final class DuplicateDetectionServiceTest extends TestCase
         );
     }
 
+    #[Test]
+    public function getNewUniqueDuplicateTargetFileInfoThrowsWhenMaxSuffixExceeded(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $service
+            ->setSourceDirectory($sourceDirectory)
+            ->setTargetDirectory($targetDirectory);
+
+        $source   = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg');
+        $target   = new SplFileInfo($targetDirectory . DIRECTORY_SEPARATOR . 'photo.jpg');
+        $basename = 'photo';
+
+        // Populate the diskIndex with entries that block every suffix 001..9999
+        $diskIndexProp = new ReflectionProperty($service, 'diskIndex');
+
+        /** @var array<string, true> $diskIndex */
+        $diskIndex = [];
+
+        for ($i = 1; $i <= 9999; ++$i) {
+            $diskIndex[sprintf(
+                '%s%sphoto%s%03d.jpg',
+                $targetDirectory,
+                DIRECTORY_SEPARATOR,
+                FileSystemService::DUPLICATE_IDENTIFIER,
+                $i,
+            )] = true;
+        }
+
+        $diskIndexProp->setValue($service, $diskIndex);
+
+        $duplicateCount = 1;
+
+        $method = new ReflectionMethod($service, 'getNewUniqueDuplicateTargetFileInfo');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Exceeded 9999 duplicate suffix attempts');
+
+        $method->invoke($service, $source, $target, $basename, $duplicateCount, true, []);
+    }
+
     /**
      * @return array{DuplicateDetectionService, BufferedOutput, FileSystemService}
      */
@@ -1490,7 +1537,7 @@ final class DuplicateDetectionServiceTest extends TestCase
     }
 }
 
-final readonly class DummyLivePhotoRenameStrategy implements RenameStrategyInterface
+final readonly class DummyLivePhotoRenameStrategy implements LivePhotoAwareRenameStrategyInterface
 {
     /**
      * @param array<string, string|null> $filenameMap
