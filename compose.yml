@@ -5,9 +5,10 @@ services:
             target: dev
         volumes:
             - .:/app
-            - ~/.ssh:/root/.ssh:ro
+            - ${SSH_AUTH_SOCK:-/dev/null}:/ssh-agent
         environment:
             - COMPOSER_AUTH
+            - SSH_AUTH_SOCK=/ssh-agent
 
     builder:
         build:
