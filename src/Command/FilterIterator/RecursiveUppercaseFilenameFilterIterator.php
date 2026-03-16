@@ -15,7 +15,9 @@ use RecursiveIterator;
 use SplFileInfo;
 
 /**
- * A class that filters files to include only those whose filename contains at least one uppercase letter.
+ * Pre-configured regex filter that only accepts files containing at least one
+ * uppercase ASCII letter in their filename. Used by the lowercase rename command
+ * to skip files that are already fully lowercased.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -24,9 +26,7 @@ use SplFileInfo;
 final class RecursiveUppercaseFilenameFilterIterator extends RecursiveRegexFileFilterIterator
 {
     /**
-     * Constructor.
-     *
-     * @param RecursiveIterator<string, SplFileInfo> $iterator
+     * @param RecursiveIterator<string, SplFileInfo> $iterator Inner directory iterator to filter
      */
     public function __construct(
         RecursiveIterator $iterator,

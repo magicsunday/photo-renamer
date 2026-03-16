@@ -21,7 +21,10 @@ use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use Override;
 
 /**
- * Recursively detects duplicates in the specified directory matching the same file hash.
+ * Groups files by their binary content hash (xxh128) and assigns "-duplicate-NNN"
+ * suffixes to all but the canonical file in each group. Files retain their original
+ * filename (minus any existing duplicate suffix). Skips content-hash sub-grouping
+ * since grouping is already hash-based.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT

@@ -30,7 +30,10 @@ use Symfony\Component\Console\Input\InputOption;
 use function is_string;
 
 /**
- * Recursively renames all files matching a given pattern. The renaming is defined by the given "replacement" pattern.
+ * Applies a PCRE regex search/replace to all filenames matching the pattern.
+ * The --pattern option defines which files are selected and how capture groups
+ * are extracted; --replacement defines the substitution string. Groups by
+ * full target pathname to handle per-directory duplicate detection.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT

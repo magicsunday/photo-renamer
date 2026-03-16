@@ -41,6 +41,11 @@ use function str_ends_with;
 use function str_starts_with;
 
 /**
+ * Base class for all rename commands. Provides shared CLI option parsing,
+ * directory path normalization, dry-run confirmation, and the template-method
+ * pipeline: scan -> group -> assign filenames -> execute renames. Concrete
+ * subclasses supply the rename strategy and duplicate identifier strategy.
+ *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
@@ -52,49 +57,53 @@ abstract class AbstractRenameCommand extends Command
     protected SymfonyStyle $io;
 
     /**
-     * The iterator used to search for the files.
+     * Iterator yielding all candidate files from the source directory tree.
      *
      * @var RecursiveIteratorIterator<RecursiveIterator<string, SplFileInfo>>
      */
     protected RecursiveIteratorIterator $iterator;
 
     /**
-     * Set to TRUE to use the file extension from the current processed source file.
+     * When true, duplicate targets preserve the source file's original extension
+     * instead of inheriting the canonical target's extension. Enabled by the
+     * EXIF date command where JPG, HEIC and MOV share the same target basename.
      */
     protected bool $useFileExtensionFromSource = false;
 
     /**
-     * The source directory where the processing should take place.
+     * Absolute path to the source directory provided by the user.
      */
     protected string $sourceDirectory = '';
 
     /**
-     * The target directory in which the changed files should be stored.
+     * Absolute path to the target directory. Defaults to the source directory
+     * when omitted by the user.
      */
     protected ?string $targetDirectory = null;
 
     /**
-     * Set to TRUE to perform a test run without actually changing anything.
+     * When true, the pipeline simulates all operations without touching the file system.
      */
     protected bool $dryRun = false;
 
     /**
-     * Set to TRUE to copy the files to the destination directory instead of moving them.
+     * When true, files are copied to the target directory instead of moved.
      */
     protected bool $copyFiles = false;
 
     /**
-     * Set to TRUE to skip duplicate files when copying/moving.
+     * When true, files identified as duplicates are excluded from the copy/move operation.
      */
     protected bool $skipDuplicates = false;
 
     /**
-     * Set to TRUE to emit a full listing of originals and duplicates.
+     * When true, the output lists all files including unchanged originals.
      */
     protected bool $listAll = false;
 
     /**
-     * Constructor.
+     * @param FileSystemServiceInterface         $fileSystemService         Handles file iteration, counting and rename execution
+     * @param DuplicateDetectionServiceInterface  $duplicateDetectionService Orchestrates grouping and suffix assignment
      */
     public function __construct(
         protected FileSystemServiceInterface $fileSystemService,
@@ -104,7 +113,9 @@ abstract class AbstractRenameCommand extends Command
     }
 
     /**
-     * Configures the current command.
+     * Registers the shared CLI arguments (source-directory, target-directory) and
+     * options (--dry-run, --copy, --skip-duplicates, --list-all) common to all
+     * rename commands.
      */
     #[Override]
     protected function configure(): void
@@ -148,7 +159,9 @@ abstract class AbstractRenameCommand extends Command
     }
 
     /**
-     * Executes the current command.
+     * Entry point called by Symfony Console. Initializes IO, parses input, validates
+     * options, handles dry-run confirmation, normalizes paths and delegates to
+     * {@see executeCommand()} for the actual pipeline execution.
      */
     #[Override]
     final protected function execute(InputInterface $input, OutputInterface $output): int
@@ -386,7 +399,10 @@ abstract class AbstractRenameCommand extends Command
     }
 
     /**
-     * Method that allows a child command to customize the execution.
+     * Template method that runs the rename pipeline (scan, group, assign, execute).
+     * Subclasses may override to add pre/post-processing steps (e.g. Live Photo pairing).
+     *
+     * @return int Command::SUCCESS or Command::FAILURE
      */
     protected function executeCommand(): int
     {
@@ -402,7 +418,9 @@ abstract class AbstractRenameCommand extends Command
     }
 
     /**
-     * Processes files and performs rename/copy operations.
+     * Executes the full pipeline: creates the file iterator, counts files, groups
+     * them by duplicate identifier, assigns duplicate filenames and invokes the
+     * file system service to perform the actual rename/copy operations.
      */
     private function processAndRenameFiles(): void
     {
@@ -445,11 +463,15 @@ abstract class AbstractRenameCommand extends Command
     }
 
     /**
-     * Creates a collection of duplicates. Files with the same unique identifier are grouped together.
+     * Scans all files from the iterator, applies the rename strategy and groups
+     * them by the duplicate identifier strategy. Subclasses may override to add
+     * additional passes (e.g. Live Photo companion pairing).
      *
      * @template TInner of RecursiveIterator
      *
-     * @param RecursiveIteratorIterator<TInner> $iterator
+     * @param RecursiveIteratorIterator<TInner> $iterator Iterator yielding candidate files
+     *
+     * @return FileDuplicateCollection Grouped duplicate collection
      */
     protected function groupFilesByDuplicateIdentifier(RecursiveIteratorIterator $iterator): FileDuplicateCollection
     {
@@ -465,8 +487,13 @@ abstract class AbstractRenameCommand extends Command
     }
 
     /**
-     * Creates a consecutive new filename for all duplicate files. The order of the duplicate files
-     * is the same as in the input "files" array.
+     * Assigns sequential "-duplicate-NNN" filenames to all non-canonical files in each
+     * group, applying hash sub-grouping when enabled. Preserves the iteration order
+     * from the grouping phase.
+     *
+     * @param FileDuplicateCollection $fileDuplicateCollection Groups produced by the grouping phase
+     *
+     * @return FileDuplicateCollection Same collection with rename targets populated
      */
     private function createDuplicateFilenames(FileDuplicateCollection $fileDuplicateCollection): FileDuplicateCollection
     {
@@ -489,17 +516,20 @@ abstract class AbstractRenameCommand extends Command
     }
 
     /**
-     * Returns the target filename processor.
+     * Returns the rename strategy that computes target filenames from source files.
+     * Each concrete command provides its own strategy (EXIF date, pattern, lowercase, etc.).
      */
     abstract protected function getTargetFilenameProcessor(): RenameStrategyInterface;
 
     /**
-     * Returns the duplicate identifier strategy.
+     * Returns the duplicate identifier strategy that determines how files are grouped.
+     * Each concrete command selects the grouping granularity (basename, filename, pathname, hash).
      */
     abstract protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface;
 
     /**
-     * Creates and returns a RecursiveIteratorIterator that is used to find the files for the given command.
+     * Creates the file iterator for scanning the source directory. Subclasses may
+     * override to apply file type filters (e.g. EXIF command filters by image/video extensions).
      *
      * @return RecursiveIteratorIterator<RecursiveIterator<string, SplFileInfo>>
      */

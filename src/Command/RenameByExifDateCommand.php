@@ -37,7 +37,12 @@ use function is_dir;
 use function is_string;
 
 /**
- * Recursively renames all files using the EXIF attribute "DateTimeOriginal".
+ * Renames photos and videos using their EXIF DateTimeOriginal value as the target
+ * filename (e.g. "2023-01-15_14-30-00-123.jpg"). Supports Apple Live Photo
+ * companion pairing via content identifiers: a second scan pass matches MOV files
+ * to their corresponding HEIC/JPG group even when the MOV has no EXIF date.
+ * Groups by target basename so files with different extensions but the same
+ * capture time share one group.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -54,10 +59,19 @@ class RenameByExifDateCommand extends AbstractRenameCommand
         parent::__construct($fileSystemService, $duplicateDetectionService);
     }
 
+    /**
+     * PHP date() format string defining the target basename pattern.
+     */
     private string $targetFilenamePattern = '';
 
+    /**
+     * Lazily created EXIF date filename strategy, reset when the pattern changes.
+     */
     private ?ExifDateFilenameStrategy $exifDateFilenameStrategy = null;
 
+    /**
+     * Lazily created duplicate identifier strategy.
+     */
     private ?DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy = null;
 
     /**

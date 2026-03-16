@@ -17,8 +17,10 @@ use RuntimeException;
 use SplFileInfo;
 
 /**
- * A class that implements a recursive filter iterator. It recursively searches a directory tree and returns
- * only those files whose path matches a configured regular expression.
+ * Recursive file filter that accepts directories unconditionally (to enable
+ * recursion) and only accepts files whose filename matches the configured
+ * PCRE regular expression. Used to restrict rename commands to specific
+ * file types (e.g. image/video extensions for the EXIF command).
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -27,9 +29,8 @@ use SplFileInfo;
 class RecursiveRegexFileFilterIterator extends RecursiveFilterIterator
 {
     /**
-     * Constructor.
-     *
-     * @param RecursiveIterator<string, SplFileInfo> $iterator
+     * @param RecursiveIterator<string, SplFileInfo> $iterator Inner directory iterator to filter
+     * @param string                                  $regex    PCRE pattern matched against filenames
      */
     public function __construct(
         RecursiveIterator $iterator,
@@ -39,7 +40,8 @@ class RecursiveRegexFileFilterIterator extends RecursiveFilterIterator
     }
 
     /**
-     * Check whether the current element of the iterator is acceptable.
+     * Accepts all directories (enabling recursive descent) and files whose
+     * filename matches the configured regex. Rejects non-file, non-directory entries.
      */
     public function accept(): bool
     {
@@ -57,9 +59,12 @@ class RecursiveRegexFileFilterIterator extends RecursiveFilterIterator
     }
 
     /**
-     * Return the inner iterator's children contained in a RecursiveFilterIterator.
+     * Creates a new filter instance wrapping the inner iterator's children,
+     * propagating the same regex to the child level.
      *
-     * @throws RuntimeException
+     * @return RecursiveRegexFileFilterIterator Filter for the child directory
+     *
+     * @throws RuntimeException When the inner iterator does not support getChildren()
      */
     public function getChildren(): RecursiveRegexFileFilterIterator
     {

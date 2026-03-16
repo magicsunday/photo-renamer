@@ -18,7 +18,9 @@ use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use Override;
 
 /**
- * Recursively renames all files in the specified directory to lowercase.
+ * Converts all filenames in the source directory to lowercase using multibyte-safe
+ * conversion. Groups by full target pathname to detect collisions when two files
+ * differ only in casing (e.g. "Photo.JPG" and "photo.jpg").
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT

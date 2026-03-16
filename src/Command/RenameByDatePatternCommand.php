@@ -34,8 +34,10 @@ use Symfony\Component\Console\Input\InputOption;
 use function is_string;
 
 /**
- * Recursively renames all files matching a given date/time pattern.
- * The renaming is defined by the given "replacement" pattern.
+ * Extracts date components from existing filenames using a placeholder-based
+ * search pattern (e.g. "/^{y}-{m}-{d}.{H}-{i}-{s}(.+)$/"), reconstructs a
+ * DateTime, and reformats it according to the replacement template. Groups
+ * by full target pathname so files in different subdirectories remain separate.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
