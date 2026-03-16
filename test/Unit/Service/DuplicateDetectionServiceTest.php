@@ -377,8 +377,9 @@ final class DuplicateDetectionServiceTest extends TestCase
         $pngFile    = $sourceDirectory . DIRECTORY_SEPARATOR . 'photo.png';
         $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . 'renamed.jpg';
 
-        file_put_contents($jpgFile, 'jpg');
-        file_put_contents($pngFile, 'png');
+        // Same content so sub-grouping treats them as genuine duplicates.
+        file_put_contents($jpgFile, 'same-content');
+        file_put_contents($pngFile, 'same-content');
 
         $fileDuplicate = new FileDuplicate();
         $fileDuplicate
@@ -491,7 +492,7 @@ final class DuplicateDetectionServiceTest extends TestCase
     }
 
     #[Test]
-    public function createDuplicateFilenamesGeneratesIncrementalDuplicateTargets(): void
+    public function createDuplicateFilenamesGeneratesIncrementalDuplicateTargetsForIdenticalContent(): void
     {
         [$service] = $this->createService();
 
@@ -502,8 +503,9 @@ final class DuplicateDetectionServiceTest extends TestCase
         $sourceTwo  = $sourceDirectory . DIRECTORY_SEPARATOR . 'two.jpg';
         $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . 'renamed.jpg';
 
-        file_put_contents($sourceOne, 'one');
-        file_put_contents($sourceTwo, 'two');
+        // Same content so sub-grouping treats them as genuine duplicates.
+        file_put_contents($sourceOne, 'same-content');
+        file_put_contents($sourceTwo, 'same-content');
         file_put_contents($targetFile, 'existing');
 
         $fileDuplicate = new FileDuplicate();
@@ -554,9 +556,9 @@ final class DuplicateDetectionServiceTest extends TestCase
         $preRenamedDuplicate = $nestedDirectory . DIRECTORY_SEPARATOR . 'photo'
             . FileSystemService::DUPLICATE_IDENTIFIER . '001.jpg';
 
-        file_put_contents($rootFile, 'root');
-        file_put_contents($duplicateFile, 'duplicate');
-        file_put_contents($preRenamedDuplicate, 'duplicate-001');
+        file_put_contents($rootFile, 'same-content');
+        file_put_contents($duplicateFile, 'same-content');
+        file_put_contents($preRenamedDuplicate, 'same-content');
 
         $fileDuplicate = new FileDuplicate();
         $fileDuplicate
@@ -638,8 +640,9 @@ final class DuplicateDetectionServiceTest extends TestCase
         $duplicateSource = $sourceDirectory . DIRECTORY_SEPARATOR . 'duplicate.jpg';
         $targetPath      = $targetDirectory . DIRECTORY_SEPARATOR . 'renamed.jpg';
 
-        file_put_contents($canonicalSource, 'original');
-        file_put_contents($duplicateSource, 'duplicate');
+        // Same content so sub-grouping treats them as genuine duplicates.
+        file_put_contents($canonicalSource, 'same-content');
+        file_put_contents($duplicateSource, 'same-content');
 
         $fileDuplicate = new FileDuplicate();
         $fileDuplicate
@@ -795,6 +798,67 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertSame(
             $targetDirectory . DIRECTORY_SEPARATOR . 'nested' . DIRECTORY_SEPARATOR . 'renamed.jpg',
             $targetPathname,
+        );
+    }
+
+    #[Test]
+    public function createDuplicateFilenamesAssignsSequentialNumbersForDistinctContent(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $fileA = $sourceDirectory . DIRECTORY_SEPARATOR . 'photo_a.jpg';
+        $fileB = $sourceDirectory . DIRECTORY_SEPARATOR . 'photo_b.jpg';
+
+        file_put_contents($fileA, 'content-of-file-A');
+        file_put_contents($fileB, 'content-of-file-B-different');
+
+        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28.jpg';
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate
+            ->addFile(new SplFileInfo($fileA))
+            ->addFile(new SplFileInfo($fileB))
+            ->setTarget(new SplFileInfo($targetFile));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('identifier', $fileDuplicate);
+
+        $service
+            ->setSourceDirectory($sourceDirectory)
+            ->setTargetDirectory($targetDirectory);
+
+        $service->createDuplicateFilenames($collection);
+
+        $duplicate = $collection->get('identifier');
+        self::assertInstanceOf(FileDuplicate::class, $duplicate);
+
+        $renames = iterator_to_array($duplicate->getRenames());
+
+        self::assertCount(2, $renames);
+
+        // First file: basename-001.ext
+        self::assertSame(
+            $targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28-001.jpg',
+            $renames[0]->getTarget()->getPathname(),
+        );
+
+        // Second file: basename-002.ext
+        self::assertSame(
+            $targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28-002.jpg',
+            $renames[1]->getTarget()->getPathname(),
+        );
+
+        // Neither contains -duplicate-
+        self::assertStringNotContainsString(
+            FileSystemService::DUPLICATE_IDENTIFIER,
+            $renames[0]->getTarget()->getFilename(),
+        );
+        self::assertStringNotContainsString(
+            FileSystemService::DUPLICATE_IDENTIFIER,
+            $renames[1]->getTarget()->getFilename(),
         );
     }
 

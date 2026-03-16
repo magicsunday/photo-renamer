@@ -26,10 +26,13 @@ use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function array_key_exists;
+use function array_values;
+use function count;
 use function in_array;
 use function is_string;
 use function method_exists;
 use function sprintf;
+use function str_contains;
 use function strtolower;
 use function trim;
 
@@ -342,6 +345,17 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 $fileDuplicate,
             );
 
+            // Content-hash sub-grouping: when multiple distinct files share the
+            // same target name, assign sequential numbers per unique content hash.
+            if (
+                !$skipHashSubGrouping
+                && $this->applyHashSubGrouping($fileDuplicate, $canonicalRename, $companionRename)
+            ) {
+                $progressBar->advance();
+
+                continue;
+            }
+
             /** @var array<string, int> $duplicateCountByExtension */
             $duplicateCountByExtension = [];
             $duplicateEntries          = 0;
@@ -445,6 +459,156 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         $this->io->newLine();
 
         return $fileDuplicateCollection;
+    }
+
+    /**
+     * Applies content-hash sub-grouping when a naming conflict exists.
+     *
+     * Returns true when sub-grouping was applied (multiple distinct hashes found),
+     * in which case the caller should skip the default suffix assignment.
+     * Returns false when sub-grouping is not needed (single file, single hash group,
+     * or only companions).
+     */
+    private function applyHashSubGrouping(
+        FileDuplicate $fileDuplicate,
+        ?Rename $canonicalRename,
+        ?Rename $companionRename,
+    ): bool {
+        /** @var list<Rename> $nonCompanionRenames */
+        $nonCompanionRenames = [];
+
+        foreach ($fileDuplicate->getRenames() as $rename) {
+            if ($companionRename instanceof Rename && $rename === $companionRename) {
+                continue;
+            }
+
+            $nonCompanionRenames[] = $rename;
+        }
+
+        // No sub-grouping needed for 0 or 1 non-companion files.
+        if (count($nonCompanionRenames) <= 1) {
+            return false;
+        }
+
+        // Compute hashes and build sub-groups keyed by hash.
+        /** @var array<string, list<Rename>> $hashGroups */
+        $hashGroups = [];
+
+        /** @var array<string, string> $renameToHash Map from source pathname to hash */
+        $renameToHash = [];
+
+        $uniqueHashCounter = 0;
+
+        foreach ($nonCompanionRenames as $rename) {
+            $sourcePath = $rename->getSource()->getPathname();
+
+            try {
+                $hash = $this->hashCalculator->hashFile($rename->getSource(), 'xxh128');
+            } catch (HashComputationException $exception) {
+                $this->io->error($exception->getMessage());
+
+                // Treat as unique hash (own sub-group).
+                $hash = '__failed_' . $uniqueHashCounter;
+                ++$uniqueHashCounter;
+            }
+
+            $renameToHash[$sourcePath] = $hash;
+
+            if (!isset($hashGroups[$hash])) {
+                $hashGroups[$hash] = [];
+            }
+
+            $hashGroups[$hash][] = $rename;
+        }
+
+        // If all files have the same hash, this is a pure duplicate group.
+        // Fall through to existing logic.
+        if (count($hashGroups) <= 1) {
+            return false;
+        }
+
+        // Multiple hashes: naming conflict. Assign sequential sub-group numbers.
+        $canonicalBasename = $fileDuplicate->getTarget()->getBasename(
+            '.' . $fileDuplicate->getTarget()->getExtension()
+        );
+
+        $subGroupNumber = 1;
+
+        /** @var list<Rename> $newRenames */
+        $newRenames = [];
+
+        /** @var array<string, int> $hashToSubGroup Map from hash to sub-group number */
+        $hashToSubGroup = [];
+
+        foreach ($hashGroups as $hash => $groupRenames) {
+            $hashToSubGroup[$hash] = $subGroupNumber;
+            $subGroupBasename      = sprintf('%s-%03d', $canonicalBasename, $subGroupNumber);
+
+            $duplicateIndex = 1;
+
+            foreach ($groupRenames as $renameIndex => $rename) {
+                $ext = strtolower($rename->getTarget()->getExtension());
+
+                if ($renameIndex === 0) {
+                    // Canonical of this sub-group: no duplicate suffix.
+                    $newTargetFilename = $subGroupBasename . '.' . $ext;
+                } else {
+                    // Duplicate within this sub-group.
+                    $newTargetFilename = sprintf(
+                        '%s%s%03d.%s',
+                        $subGroupBasename,
+                        FileSystemService::DUPLICATE_IDENTIFIER,
+                        $duplicateIndex,
+                        $ext,
+                    );
+
+                    ++$duplicateIndex;
+                }
+
+                $targetPathname = $this->getTargetPathname($rename->getSource(), $newTargetFilename);
+
+                $rename->setTarget(new SplFileInfo($targetPathname));
+                $newRenames[] = $rename;
+            }
+
+            ++$subGroupNumber;
+        }
+
+        // Handle companion: it inherits the sub-group number of the canonical rename.
+        if ($companionRename instanceof Rename) {
+            $companionHash = null;
+
+            // Find which sub-group the canonical belongs to.
+            if ($canonicalRename instanceof Rename) {
+                $canonicalSourcePath = $canonicalRename->getSource()->getPathname();
+                $companionHash       = $renameToHash[$canonicalSourcePath] ?? null;
+            }
+
+            if ($companionHash !== null && isset($hashToSubGroup[$companionHash])) {
+                $companionSubGroupNumber = $hashToSubGroup[$companionHash];
+            } else {
+                // Default to sub-group 1 if canonical not found.
+                $companionSubGroupNumber = 1;
+            }
+
+            $companionBasename = sprintf('%s-%03d', $canonicalBasename, $companionSubGroupNumber);
+            $companionExt      = strtolower($companionRename->getTarget()->getExtension());
+            $companionFilename = $companionBasename . '.' . $companionExt;
+            $companionPathname = $this->getTargetPathname($companionRename->getSource(), $companionFilename);
+
+            $companionRename->setTarget(new SplFileInfo($companionPathname));
+            $newRenames[] = $companionRename;
+        }
+
+        // Replace the renames in the fileDuplicate with the newly ordered list.
+        $fileDuplicate->setRenames(new RenameList($newRenames));
+
+        // Update the group's canonical target to match the first sub-group's canonical.
+        if ($canonicalRename instanceof Rename) {
+            $fileDuplicate->setTarget($canonicalRename->getTarget());
+        }
+
+        return true;
     }
 
     /**
