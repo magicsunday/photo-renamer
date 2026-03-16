@@ -11,6 +11,8 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Model;
 
+use MagicSunday\Renamer\Model\Collection\FileList;
+use MagicSunday\Renamer\Model\Collection\RenameList;
 use SplFileInfo;
 
 /**
@@ -22,54 +24,29 @@ use SplFileInfo;
  */
 class FileDuplicate
 {
-    /**
-     * @var SplFileInfo[]
-     */
-    private array $files = [];
-
-    /**
-     * @var SplFileInfo
-     */
     private SplFileInfo $target;
 
-    /**
-     * @var Rename[]
-     */
-    private array $renames = [];
+    public function __construct(private readonly FileList $files = new FileList(), private RenameList $renames = new RenameList())
+    {
+    }
 
-    /**
-     * @return SplFileInfo[]
-     */
-    public function getFiles(): array
+    public function getFiles(): FileList
     {
         return $this->files;
     }
 
-    /**
-     * @param SplFileInfo $fileInfo
-     *
-     * @return FileDuplicate
-     */
-    public function addFile(SplFileInfo $fileInfo): FileDuplicate
+    public function addFile(SplFileInfo $fileInfo): self
     {
-        $this->files[] = $fileInfo;
+        $this->files->append($fileInfo);
 
         return $this;
     }
 
-    /**
-     * @return SplFileInfo
-     */
     public function getTarget(): SplFileInfo
     {
         return $this->target;
     }
 
-    /**
-     * @param SplFileInfo $target
-     *
-     * @return FileDuplicate
-     */
     public function setTarget(SplFileInfo $target): FileDuplicate
     {
         $this->target = $target;
@@ -77,34 +54,21 @@ class FileDuplicate
         return $this;
     }
 
-    /**
-     * @return Rename[]
-     */
-    public function getRenames(): array
+    public function getRenames(): RenameList
     {
         return $this->renames;
     }
 
-    /**
-     * @param Rename[] $renames
-     *
-     * @return FileDuplicate
-     */
-    public function setRenames(array $renames): FileDuplicate
+    public function setRenames(RenameList $renames): self
     {
         $this->renames = $renames;
 
         return $this;
     }
 
-    /**
-     * @param Rename $rename
-     *
-     * @return FileDuplicate
-     */
-    public function addRename(Rename $rename): FileDuplicate
+    public function addRename(Rename $rename): self
     {
-        $this->renames[] = $rename;
+        $this->renames->append($rename);
 
         return $this;
     }

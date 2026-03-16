@@ -25,29 +25,21 @@ class Application extends \Symfony\Component\Console\Application
 {
     /**
      * The name of the application.
-     *
-     * @var string
      */
     private const string NAME = 'renamer';
 
     /**
      * The path to the version file.
-     *
-     * @var string
      */
     private const string VERSION_FILE = __DIR__ . '/../version';
 
     /**
      * The default version if the version file is not available.
-     *
-     * @var string
      */
     private const string DEFAULT_VERSION = '0.0.0';
 
     /**
      * The logo.
-     *
-     * @var string
      */
     private static string $logo = ' .____                         .__                                .___               ____.
  |   _|   _____ _____     ____ |__| ____   ________ __  ____    __| _/____  ___.__. |_   |
@@ -71,7 +63,7 @@ class Application extends \Symfony\Component\Console\Application
         );
 
         foreach ($commands as $command) {
-            $this->add($command);
+            $this->addCommand($command);
         }
     }
 

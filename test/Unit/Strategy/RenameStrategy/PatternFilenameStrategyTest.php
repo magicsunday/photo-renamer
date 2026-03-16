@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy;
 
 use MagicSunday\Renamer\Exception\TargetFilenameException;
+use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Strategy\RenameStrategy\PatternFilenameStrategy;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -77,8 +78,6 @@ class PatternFilenameStrategyTest extends TestCase
      * @param string $replacement      The replacement string (may include backreferences)
      * @param string $expected         The expected filename after transformation
      * @param string $description      Human-readable description of the test case
-     *
-     * @return void
      */
     #[Test]
     #[DataProvider('patternReplacementProvider')]
@@ -93,7 +92,7 @@ class PatternFilenameStrategyTest extends TestCase
         $file = new SplFileInfo($originalFilename);
 
         // Initialize the strategy with the pattern and replacement
-        $strategy = new PatternFilenameStrategy($pattern, $replacement);
+        $strategy = new PatternFilenameStrategy($pattern, $replacement, new SafeRegex());
 
         // Assert that the generated filename matches expectations
         self::assertSame(
@@ -127,8 +126,6 @@ class PatternFilenameStrategyTest extends TestCase
      * @param string $pattern     The invalid regex pattern to test
      * @param string $replacement The replacement string (not used but required by strategy)
      * @param string $description Human-readable description of the invalid pattern type
-     *
-     * @return void
      */
     #[Test]
     #[DataProvider('invalidPatternProvider')]
@@ -142,7 +139,7 @@ class PatternFilenameStrategyTest extends TestCase
         $file = new SplFileInfo($filename);
 
         // Initialize the strategy with the invalid pattern
-        $strategy = new PatternFilenameStrategy($pattern, $replacement);
+        $strategy = new PatternFilenameStrategy($pattern, $replacement, new SafeRegex());
 
         // Expect a TargetFilenameException to be thrown
         $this->expectException(TargetFilenameException::class);

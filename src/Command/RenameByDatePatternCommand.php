@@ -13,14 +13,22 @@ namespace MagicSunday\Renamer\Command;
 
 use FilesystemIterator;
 use MagicSunday\Renamer\Command\FilterIterator\RecursiveRegexFileFilterIterator;
-use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\DuplicateIdentifierStrategyInterface;
-use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\TargetPathnameStrategy;
+use MagicSunday\Renamer\Regex\SafeRegex;
+use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
+use MagicSunday\Renamer\Service\FileSystemServiceInterface;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetPathnameStrategy;
+use MagicSunday\Renamer\Strategy\RenameStrategy\DatePattern\DatePlaceholderExpressionMap;
+use MagicSunday\Renamer\Strategy\RenameStrategy\DatePattern\PatternExpression;
+use MagicSunday\Renamer\Strategy\RenameStrategy\DatePattern\PatternMatchSet;
 use MagicSunday\Renamer\Strategy\RenameStrategy\DatePatternFilenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use Override;
 use RecursiveDirectoryIterator;
+use RecursiveIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
+use SplFileInfo;
 use Symfony\Component\Console\Input\InputOption;
 
 use function is_string;
@@ -35,40 +43,22 @@ use function is_string;
  */
 class RenameByDatePatternCommand extends AbstractRenameCommand
 {
-    /**
-     * Date/Time placeholders to regular expression mapping.
-     *
-     * @var string[]
-     */
-    private array $dateExpression = [
-        'Y' => '(\d{4})',
-        'y' => '(\d{2})',
-        'm' => '(\d{2})',
-        'd' => '(\d{2})',
-        'H' => '(\d{2})',
-        'i' => '(\d{2})',
-        's' => '(\d{2})',
-    ];
+    public function __construct(
+        FileSystemServiceInterface $fileSystemService,
+        DuplicateDetectionServiceInterface $duplicateDetectionService,
+        private readonly SafeRegex $safeRegex,
+    ) {
+        parent::__construct($fileSystemService, $duplicateDetectionService);
+    }
 
-    /**
-     * @var string
-     */
-    private string $pattern = '';
+    private ?PatternExpression $patternExpression = null;
 
-    /**
-     * @var string[][]
-     */
-    private array $patternMatches = [];
+    private ?PatternMatchSet $patternMatchSet = null;
 
-    /**
-     * @var string
-     */
     private string $replacement = '';
 
     /**
      * Configures the current command.
-     *
-     * @return void
      */
     #[Override]
     protected function configure(): void
@@ -76,8 +66,8 @@ class RenameByDatePatternCommand extends AbstractRenameCommand
         parent::configure();
 
         $this
-            ->setName('rename:date-pattern')
-            ->setDescription('Renames files by matching a date pattern.')
+            ->setName('rename:date')
+            ->setDescription('Renames files by extracting date components from filenames.')
             ->addOption(
                 'pattern',
                 'p',
@@ -97,57 +87,41 @@ class RenameByDatePatternCommand extends AbstractRenameCommand
     #[Override]
     protected function executeCommand(): int
     {
-        if ($this->input->getOption('replacement') === null) {
+        $replacementOption = $this->input->getOption('replacement');
+
+        if (!is_string($replacementOption)) {
             $this->io->error('A valid replacement value is required');
 
             return self::FAILURE;
         }
 
-        $pattern     = $this->input->getOption('pattern');
-        $replacement = $this->input->getOption('replacement');
-        $datePattern = null;
+        $patternOption = $this->input->getOption('pattern');
 
-        if (is_string($pattern)) {
-            // Create a regular date expression
-            $datePattern = preg_replace_callback(
-                '/{(\w+)}/',
-                fn ($matches): string => $this->dateExpression[$matches[1]] ?? $matches[0],
-                $pattern
-            );
-        }
-
-        if ($datePattern === null) {
+        if (!is_string($patternOption)) {
             throw new RuntimeException('Failed to extract the date pattern from given pattern');
         }
 
-        $patternMatches = [];
+        $this->patternExpression = PatternExpression::fromTemplate(
+            $patternOption,
+            DatePlaceholderExpressionMap::default()
+        );
 
-        if (is_string($pattern)) {
-            // Extract the used date parts in the pattern
-            $foundMatches = preg_match_all(
-                '/{(\w+)}/',
-                $pattern,
-                $patternMatches
-            );
-
-            if ($foundMatches === false) {
-                throw new RuntimeException('Failed to extract the used date parts in the pattern');
-            }
-        }
-
-        $this->pattern        = $datePattern;
-        $this->patternMatches = $patternMatches;
-
-        if (is_string($replacement)) {
-            $this->replacement = $replacement;
-        }
+        $this->patternMatchSet = PatternMatchSet::fromPattern($patternOption);
+        $this->replacement     = $replacementOption;
 
         return parent::executeCommand();
     }
 
+    /**
+     * @return RecursiveIteratorIterator<RecursiveIterator<string, SplFileInfo>>
+     */
     #[Override]
     protected function createFileIterator(): RecursiveIteratorIterator
     {
+        if (!$this->patternExpression instanceof PatternExpression) {
+            throw new RuntimeException('Pattern expression has not been initialised.');
+        }
+
         return $this->fileSystemService
             ->createFileIterator(
                 $this->sourceDirectory,
@@ -156,7 +130,7 @@ class RenameByDatePatternCommand extends AbstractRenameCommand
                         $this->sourceDirectory,
                         FilesystemIterator::SKIP_DOTS
                     ),
-                    $this->pattern
+                    $this->patternExpression->getRegex()
                 )
             );
     }
@@ -164,10 +138,15 @@ class RenameByDatePatternCommand extends AbstractRenameCommand
     #[Override]
     protected function getTargetFilenameProcessor(): RenameStrategyInterface
     {
+        if (!$this->patternExpression instanceof PatternExpression || !$this->patternMatchSet instanceof PatternMatchSet) {
+            throw new RuntimeException('Pattern configuration has not been initialised.');
+        }
+
         return new DatePatternFilenameStrategy(
-            $this->pattern,
+            $this->patternExpression->getRegex(),
             $this->replacement,
-            $this->patternMatches
+            $this->patternMatchSet,
+            $this->safeRegex,
         );
     }
 

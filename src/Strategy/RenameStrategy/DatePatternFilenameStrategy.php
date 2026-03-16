@@ -12,11 +12,15 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Strategy\RenameStrategy;
 
 use DateTime;
+use MagicSunday\Renamer\Exception\RegexExecutionException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
+use MagicSunday\Renamer\Regex\RegexMatchCollection;
+use MagicSunday\Renamer\Regex\SafeRegex;
+use MagicSunday\Renamer\Strategy\RenameStrategy\DatePattern\PatternMatchSet;
 use Override;
 use SplFileInfo;
 
-use function count;
+use function str_replace;
 use function strlen;
 
 /**
@@ -27,102 +31,88 @@ use function strlen;
 class DatePatternFilenameStrategy extends InheritFilenameStrategy
 {
     /**
-     * @var string
-     */
-    private readonly string $pattern;
-
-    /**
-     * @var string
-     */
-    private readonly string $replacement;
-
-    /**
-     * @var string[][]
-     */
-    private array $patternMatches;
-
-    /**
      * Constructor.
-     *
-     * @param string     $pattern
-     * @param string     $replacement
-     * @param string[][] $patternMatches
      */
-    public function __construct(string $pattern, string $replacement, array $patternMatches = [])
+    public function __construct(private readonly string $pattern, private readonly string $replacement, private readonly PatternMatchSet $patternMatches, private readonly SafeRegex $regex)
     {
-        $this->pattern        = $pattern;
-        $this->replacement    = $replacement;
-        $this->patternMatches = $patternMatches;
     }
 
     #[Override]
     public function generateFilename(SplFileInfo $splFileInfo): string
     {
-        $filePartMatches    = [];
-        $replacementMatches = [];
-
         $targetFilename = parent::generateFilename($splFileInfo);
 
-        // Perform the regular expression replacement
-        @preg_match(
-            $this->pattern,
-            $targetFilename,
-            $filePartMatches
-        );
-
-        @preg_match_all(
-            '/{(\w+)}/',
-            $this->replacement . '$1',
-            $replacementMatches
-        );
-
-        $dateFormatCharacters  = $this->patternMatches[1];
-        $targetFilenamePattern = str_replace($replacementMatches[0], $replacementMatches[1], $this->replacement);
-
-        // Create a new filename
-        $targetFilename = @preg_replace_callback(
-            $this->pattern,
-            static function (array $replacementMatches) use ($dateFormatCharacters, $targetFilenamePattern, $filePartMatches): string {
-                $dateParts = [];
-
-                foreach ($dateFormatCharacters as $key => $dateFormatCharacter) {
-                    if ($dateFormatCharacter === 'y') {
-                        $dateFormatCharacter = 'Y';
-                    }
-
-                    // Convert 2-digit year to 4-digit
-                    if (($dateFormatCharacter === 'Y')
-                        && (strlen($replacementMatches[$key + 1]) === 2)
-                    ) {
-                        $fourDigitYearDate = DateTime::createFromFormat('y', $replacementMatches[$key + 1]);
-
-                        if ($fourDigitYearDate !== false) {
-                            $replacementMatches[$key + 1] = $fourDigitYearDate->format('Y');
-                        }
-                    }
-
-                    $dateParts[$dateFormatCharacter] = (int) $replacementMatches[$key + 1];
-                }
-
-                $dateTimeCreated = new DateTime();
-                $dateTimeCreated
-                    ->setDate($dateParts['Y'] ?? 0, $dateParts['m'] ?? 1, $dateParts['d'] ?? 1)
-                    ->setTime($dateParts['H'] ?? 0, $dateParts['i'] ?? 0, $dateParts['s'] ?? 0);
-
-                return $dateTimeCreated->format($targetFilenamePattern) . $replacementMatches[count($filePartMatches) - 1];
-            },
-            $targetFilename
-        );
-
-        if ($targetFilename === null) {
-            throw new TargetFilenameException(
-                'Date pattern error: ' . preg_last_error_msg() . '. ' .
-                'Check your pattern syntax "' . $this->pattern . '". ' .
-                'Make sure all date placeholders ({Y}, {m}, {d}, etc.) are valid and properly formatted. ' .
-                'Try using the --dry-run option to test your pattern before applying changes.'
+        try {
+            $filePartMatches = RegexMatchCollection::fromMatch(
+                $this->regex->match(
+                    $this->pattern,
+                    $targetFilename,
+                    'matching date pattern',
+                ),
             );
-        }
 
-        return $targetFilename;
+            $replacementMatches = RegexMatchCollection::fromMatchAll(
+                $this->regex->matchAll(
+                    '/{(\w+)}/',
+                    $this->replacement . '$1',
+                    'resolving date pattern placeholders',
+                ),
+            );
+
+            $dateFormatCharacters  = $this->patternMatches->placeholders();
+            $targetFilenamePattern = $this->replacement;
+
+            if ($replacementMatches->hasGroup(0) && $replacementMatches->hasGroup(1)) {
+                $targetFilenamePattern = str_replace(
+                    $replacementMatches->group(0)?->values() ?? [],
+                    $replacementMatches->group(1)?->values() ?? [],
+                    $this->replacement,
+                );
+            }
+
+            $suffixIndex = $filePartMatches->count() > 0 ? $filePartMatches->count() - 1 : 0;
+
+            return $this->regex
+                ->replaceCallback(
+                    $this->pattern,
+                    /** @param array<int|string, string> $matches */
+                    static function (array $matches) use ($dateFormatCharacters, $targetFilenamePattern, $suffixIndex): string {
+                        /** @var array<int|string, string> $matches */
+                        $dateParts = [];
+
+                        foreach ($dateFormatCharacters as $key => $dateFormatCharacter) {
+                            if ($dateFormatCharacter === 'y') {
+                                $dateFormatCharacter = 'Y';
+                            }
+
+                            $matchValue = $matches[$key + 1] ?? '';
+
+                            if ($dateFormatCharacter === 'Y' && strlen($matchValue) === 2) {
+                                $fourDigitYearDate = DateTime::createFromFormat('y', $matchValue);
+
+                                if ($fourDigitYearDate !== false) {
+                                    $matchValue        = $fourDigitYearDate->format('Y');
+                                    $matches[$key + 1] = $matchValue;
+                                }
+                            }
+
+                            $dateParts[$dateFormatCharacter] = (int) $matchValue;
+                        }
+
+                        $dateTimeCreated = new DateTime();
+                        $dateTimeCreated
+                            ->setDate($dateParts['Y'] ?? 0, $dateParts['m'] ?? 1, $dateParts['d'] ?? 1)
+                            ->setTime($dateParts['H'] ?? 0, $dateParts['i'] ?? 0, $dateParts['s'] ?? 0);
+
+                        $suffix = $matches[$suffixIndex] ?? '';
+
+                        return $dateTimeCreated->format($targetFilenamePattern) . $suffix;
+                    },
+                    $targetFilename,
+                    'executing preg_replace_callback for date pattern',
+                );
+        } catch (RegexExecutionException $exception) {
+            throw new TargetFilenameException('Date pattern error: ' . $exception->getMessage(), $exception->getCode(), previous: $exception);
+        }
     }
 }

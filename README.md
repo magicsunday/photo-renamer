@@ -1,321 +1,171 @@
-[![Latest version](https://img.shields.io/github/v/release/magicsunday/photo-renamer?sort=semver)](https://github.com/magicsunday/photo-renamer/releases/latest)
-[![License](https://img.shields.io/github/license/magicsunday/photo-renamer)](https://github.com/magicsunday/photo-renamer/blob/main/LICENSE)
-[![CI](https://github.com/magicsunday/photo-renamer/actions/workflows/ci.yml/badge.svg)](https://github.com/magicsunday/photo-renamer/actions/workflows/ci.yml)
+<h1 align="center">Photo Renamer: CLI Tool for Photo Collections</h1>
 
-# Photo Renamer
+<p align="center">
+  Self-contained command-line tool for tidying large photo and video collections.
+</p>
 
-> **Warning:** Use at your own risk! Always try `--dry-run` first.
+<!-- Row 1: CI / Quality badges -->
+<p align="center">
+  <a href="https://github.com/magicsunday/photo-renamer/actions/workflows/ci.yml"><img src="https://github.com/magicsunday/photo-renamer/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+</p>
 
-Photo Renamer is a command-line tool designed to help you organize and rename your photo collection consistently. It provides various renaming strategies based on EXIF data, file patterns, hashes, and more.
+<!-- Row 2: Standards / Tooling badges -->
+<p align="center">
+  <a href="https://phpstan.org/"><img src="https://img.shields.io/badge/PHPStan-max%20level-brightgreen.svg" alt="PHPStan Max Level"></a>
+  <a href="https://phpunit.de/"><img src="https://img.shields.io/badge/PHPUnit-12-blue.svg" alt="PHPUnit 12"></a>
+  <a href="https://getrector.com/"><img src="https://img.shields.io/badge/Rector-2.0-orange.svg" alt="Rector 2.0"></a>
+  <a href="https://www.php-fig.org/psr/psr-12/"><img src="https://img.shields.io/badge/Code%20Style-PSR--12-blue.svg" alt="PSR-12"></a>
+</p>
 
-## Features
+<!-- Row 3: Compatibility badges -->
+<p align="center">
+  <a href="composer.json"><img src="https://img.shields.io/badge/php-8.4|8.5-blue" alt="PHP Version"></a>
+</p>
 
-- Rename files based on EXIF date information
-- Handle Apple Live Photos (image + video pairs)
-- Convert filenames to lowercase
-- Rename files using regular expression patterns
-- Identify and mark duplicate files
-- Convert two-digit years to four-digit years in filenames
-- Perform dry runs to preview changes before applying them
+<!-- Row 4: Project badges -->
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/magicsunday/photo-renamer" alt="License"></a>
+</p>
 
-This tool is written in PHP and relies on a statically linked PHP binary which is built and provided by the project itself. This makes a local installation of PHP unnecessary and allows the tool to be distributed as a single binary containing all dependencies.
+---
 
-## Common Parameters
+## 📌 Overview
+Photo Renamer is a self-contained CLI tool that tidies large photo and video collections. It reads EXIF metadata via [ImageMeta](https://github.com/magicsunday/imagemeta), understands Apple Live Photos (image + video pairs sharing a Content Identifier), spots duplicates by content hash, and helps standardise file names without breaking existing folder structures. The tool compiles to a single binary with no runtime dependencies.
 
-All commands support the following parameters:
+| Key     | Value                                                                                          |
+|---------|------------------------------------------------------------------------------------------------|
+| Package | `magicsunday/photo-renamer`                                                                    |
+| PHP     | `>=8.4`                                                                                        |
+| Binary  | Self-contained via [static-php-cli](https://github.com/crazywhalecc/static-php-cli)           |
+| Output  | `[R]` rename, `[D]` duplicate, `[O]` unchanged                                                |
 
-| Parameter           | Short   | Description                                                                                                                                                                              |
-|---------------------|---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `--dry-run`         | `-d`    | Performs a dry run without actually changing any files. Always use this first to preview changes. This parameter is essential for safely testing operations before applying them.        |
-| `--copy`            | `-c`    | Copies files to the target directory instead of renaming/moving them. This preserves the original files in their source location while creating renamed copies in the target location.   |
-| `--skip-duplicates` | `-s`    | Skips duplicate files from copy/rename action, leaving them unchanged in the source directory. This is useful when you want to process only unique files and leave duplicates untouched. |
+## ❓ What is this?
+Photo Renamer processes directories of photos and videos, generating consistent filenames based on EXIF dates, content hashes, or custom patterns. Apple Live Photo pairs (JPEG/HEIC + MOV sharing the same Content Identifier) are automatically detected and renamed together.
 
-Additionally, all commands require these arguments:
+## 🎯 Why does this exist?
+Large photo collections accumulated from multiple devices and backup sources tend to have inconsistent naming, duplicate files, and broken Live Photo pairings. This tool exists to bring order to such collections in a safe, preview-first workflow (`--dry-run`).
 
-| Argument           | Required  | Description                                                                                                                                                                                                                             |
-|--------------------|-----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `source-directory` | Yes       | The source directory containing the files to process. This is the root folder where the tool will look for files to rename. All subdirectories will be processed recursively unless otherwise specified.                                |
-| `target-directory` | No        | The target directory for processed files. If omitted, operations take place in the source directory. When specified, files will be moved or copied (with `--copy`) to this location while maintaining the original directory structure. |
+## 🧭 Scope & Non-Goals
 
-## Installation and Setup
+**In scope:**
 
-To build the tool from source, follow these steps:
+- Recursive directory scanning with EXIF-based, hash-based, pattern-based, and lowercase renaming.
+- Apple Live Photo detection and pairing via Content Identifier metadata.
+- Duplicate detection with per-file-type numbering and idempotent re-runs.
+- Dry-run preview, copy mode, and skip-duplicates mode.
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/magicsunday/photo-renamer.git
-   cd photo-renamer
-   ```
+**Out of scope:**
 
-2. Initialize the build environment (choose one method):
+- Image editing, transcoding, or metadata modification.
+- Cloud storage or network-based file access.
+- GUI or interactive mode.
 
-   Using Docker (recommended):
-   ```bash
-   # Sets up the build environment using Docker, ensuring a consistent environment across different machines
-   make init-with-docker
-   ```
+## 🧩 Supported commands
 
-   Without Docker:
-   ```bash
-   # Sets up the build environment directly on your machine
-   make init
-   ```
+| Command          | Description                                                    |
+|------------------|----------------------------------------------------------------|
+| `rename:exif`    | Renames files by EXIF date (incl. Apple Live Photos).          |
+| `rename:hash`    | Groups identical files by content hash and renames duplicates. |
+| `rename:lower`   | Converts filenames to lowercase.                               |
+| `rename:pattern` | Renames files using a regular expression pattern.              |
+| `rename:date`    | Renames files by extracting date components from filenames.    |
 
-   **Note:** The initialization process downloads, builds, and compiles a PHP binary, which:
-   - Requires approximately 1.5 GB of disk space
-   - Requires approximately 4 GB of RAM
-   - Takes about 10 minutes to complete
-   - Uses all available CPU resources
+All commands share these options:
 
-3. Install dependencies:
-   ```bash
-   # Installs all PHP dependencies required by the project
-   bin/composer install
-   ```
+| Option              | Short | Description                                       |
+|---------------------|-------|---------------------------------------------------|
+| `--dry-run`         | `-d`  | Preview actions without changing any files.        |
+| `--copy`            | `-c`  | Copy files instead of moving them.                 |
+| `--skip-duplicates` | `-s`  | Leave duplicates untouched.                        |
+| `--list-all`        |       | Show all files including originals and duplicates. |
 
-4. Build the binary:
-   ```bash
-   # Creates a new binary named 'renamer' in the project root
-   make build
-   ```
+## 🚀 Usage
 
-This will create a `renamer` binary in the project root directory.
-
-## Basic Usage
-
-The Photo Renamer tool provides several commands to help you manage and organize your files. Here's how to get started:
-
-### Listing Available Commands
-
-To see all available commands and options:
+Install from the [releases page](https://github.com/magicsunday/photo-renamer/releases/latest):
 
 ```bash
-./renamer list
+chmod +x renamer
+sudo mv renamer /usr/local/bin/
+renamer --version
 ```
 
-This command displays a comprehensive list of all available commands, grouped by category, along with a brief description of each command's purpose.
-
-### Getting Help for Specific Commands
-
-To get detailed help for a specific command:
+Rename photos by EXIF date (incl. Live Photo pairing):
 
 ```bash
-./renamer help [command]
+renamer rename:exif --dry-run ~/Photos
 ```
 
-For example, to get help for the `rename:exifdate` command:
+Separate unique files from duplicates:
 
 ```bash
-./renamer help rename:exifdate
+renamer rename:hash --dry-run --skip-duplicates ~/Photos ~/Organised
 ```
 
-This displays detailed information about the command, including all available options, arguments, and usage examples.
-
-### Basic Command Syntax
-
-All commands follow this general syntax:
+Normalise extensions (`.jpeg` to `.jpg`):
 
 ```bash
-./renamer [command] [options] [arguments]
+renamer rename:pattern --dry-run -p "/^(.+)(jpeg)$/" -r "${1}jpg" ~/Photos
 ```
 
-Where:
-- `[command]` is the specific renaming operation to perform (e.g., `rename:lower`, `rename:exifdate`)
-- `[options]` are the command-specific options and common parameters (e.g., `--dry-run`, `--copy`)
-- `[arguments]` are the required and optional arguments (e.g., source directory, target directory)
-
-### Example Usage
-
-Here's a basic example that converts all filenames in a directory to lowercase:
+Lowercase all filenames:
 
 ```bash
-./renamer rename:lower --dry-run ~/Photos
+renamer rename:lower --dry-run ~/Photos
 ```
 
-This command performs a dry run of the lowercase conversion operation on all files in the ~/Photos directory, showing what changes would be made without actually modifying any files.
-
-## Command Reference
-
-Photo Renamer provides several commands for different renaming strategies:
-
-### rename:lower
-
-Converts all filenames to lowercase. This command is useful for standardizing your file collection and ensuring consistent naming conventions.
+Extract and rewrite date fragments in filenames:
 
 ```bash
-./renamer rename:lower [--dry-run] <source-directory>
+renamer rename:date --dry-run -p "/^{y}-{m}-{d}.{H}-{i}-{s}(.+)$/" -r "{Y}-{m}-{d}_{H}-{i}-{s}" ~/Photos
 ```
 
-**Function**: Transforms uppercase letters in filenames to lowercase while preserving the file extension.
+## 🛡️ Behaviour & guarantees
 
-**Use cases**:
-- Standardizing a mixed-case file collection
-- Preparing files for systems that are case-sensitive
-- First step in a multi-step file organization workflow
+- **Dry-run first:** All commands support `--dry-run` to preview changes before touching files.
+- **Idempotent:** Running the same command twice produces the same result. Files already carrying the correct duplicate suffix keep their name.
+- **Live Photo pairing:** JPEG/HEIC + MOV files sharing the same Apple Content Identifier are treated as a pair. The video companion receives the same base name as its still image without a duplicate suffix.
+- **Per-type numbering:** Duplicate suffixes (`-duplicate-001`, `-duplicate-002`, ...) are assigned independently per file type (images and videos numbered separately).
+- **Non-destructive:** Original files are moved or copied, never deleted or overwritten.
 
-### rename:pattern
+## 🛠️ Development
 
-Renames files using regular expression patterns. This powerful command allows for complex pattern matching and replacement in filenames.
+Prerequisites: Docker.
+
+Install dependencies:
 
 ```bash
-./renamer rename:pattern [--dry-run] --pattern "<regex-pattern>" --replacement "<replacement-pattern>" <source-directory>
+make install
 ```
 
-**Function**: Applies a regular expression search and replace operation on filenames.
-
-**Parameters**:
-- `--pattern`: The regular expression pattern to search for in filenames
-- `--replacement`: The replacement pattern that will be applied to matching filenames
-
-**Example**: Convert files with extension "jpeg" to "jpg":
-```bash
-./renamer rename:pattern --dry-run --pattern "/^(.+)(jpeg)$/" --replacement "\$1jpg" <source-directory>
-```
-
-The search and replacement use PHP's regular expression syntax. See [preg_replace documentation](https://www.php.net/manual/en/function.preg-replace.php) for more details.
-
-**Use cases**:
-- Standardizing file extensions
-- Removing unwanted characters from filenames
-- Adding prefixes or suffixes to filenames
-- Complex filename restructuring
-
-### rename:date-pattern
-
-Converts date formats in filenames, such as converting two-digit years to four-digit years. This command is specifically designed for handling date components in filenames.
+Run the mandatory quality gate:
 
 ```bash
-./renamer rename:date-pattern [--dry-run] --pattern "<date-pattern>" --replacement "<replacement-pattern>" <source-directory>
+make test
 ```
 
-**Function**: Identifies date components in filenames using special placeholders and transforms them according to the specified replacement pattern. The placeholders in the pattern correspond to the formatting characters of PHP's date [format](https://www.php.net/manual/de/datetime.format.php) function. 
+`make test` includes:
 
-**Parameters**:
-- `--pattern`: The pattern with date placeholders to search for in filenames
-- `--replacement`: The replacement pattern with date placeholders for the new filename format
+- Linting (`phplint`)
+- Coding standards dry-run (`php-cs-fixer --dry-run`)
+- Refactoring dry-run (`rector --dry-run`)
+- Static analysis (`phpstan`)
+- Unit tests (`phpunit`)
+- Copy/paste detection (`jscpd`)
 
-**Example**: Convert "18-12-31 22-15-00.jpg" to "2018-12-31_22-15-00.jpg":
-```bash
-./renamer rename:date-pattern --pattern "/^{y}-{m}-{d}.{H}-{i}-{s}(.+)$/" --replacement "{Y}-{m}-{d}_{H}-{i}-{s}" <source-directory>
-```
-
-**Supported date format placeholders**:
-
-| Placeholder  | Description                               |
-|--------------|-------------------------------------------|
-| Y            | Four-digit year representation            |
-| y            | Two-digit year representation             |
-| m            | Month with leading zeros (01-12)          |
-| d            | Day with leading zeros (01-31)            |
-| H            | 24-hour format with leading zeros (00-23) |
-| i            | Minutes with leading zeros (00-59)        |
-| s            | Seconds with leading zeros (00-59)        |
-
-**Use cases**:
-- Converting two-digit years to four-digit years
-- Standardizing date formats in filenames
-- Reorganizing date components in filenames
-- Fixing inconsistent date formatting
-
-### rename:hash
-
-Identifies duplicate files based on their content hash and renames them accordingly. This command is essential for detecting and managing duplicate files in your collection.
+Test the CLI:
 
 ```bash
-./renamer rename:hash [--dry-run] [--skip-duplicates] <source-directory> [<target-directory>]
+make run CMD="rename:exif images --dry-run --list-all"
 ```
 
-**Function**: Calculates a unique hash for each file based on its content, identifies duplicates, and either renames them with a sequential number or skips them.
-
-**Behavior**:
-- Files are compared based on their content, not just filenames
-- The first occurrence of a file is considered the original
-- Subsequent duplicates are either renamed with a sequential number or skipped
-- When a target directory is specified, unique files are moved/copied there
-
-**Use cases**:
-- Identifying and managing duplicate files
-- Consolidating files from multiple sources
-- Creating a clean, duplicate-free collection
-
-### rename:exifdate
-
-Renames files based on their EXIF date information (DateTimeOriginal). This command is particularly useful for organizing photos, including Apple Live Photos (image + video pairs).
+Build the self-contained binary:
 
 ```bash
-./renamer rename:exifdate [--dry-run] [--target-filename-pattern <pattern>] <source-directory>
+make init          # Set up SPC build environment
+make build         # Compile the renamer binary
 ```
 
-**Function**: Extracts the original date and time from a photo's EXIF metadata and renames the file using that information. Only images with valid EXIF metadata and their associated video file are processed. All other files remain untouched in the directory.
+## 🤝 Support
 
-Please note: Due to incomplete EXIF metadata (e.g., milliseconds not available), different images (which were captured at the same second, for example) may be saved under the same name and then marked as duplicates, even though they are not true duplicates!
-
-**Parameters**:
-- `--target-filename-pattern`: Custom pattern for the new filename (default: "Y-m-d_H-i-s-v"). The format for the pattern is expected in the form specified by the PHP method [format](https://www.php.net/manual/en/datetime.format.php) of the [DateTime](https://www.php.net/manual/en/book.datetime.php) object.
-
-**Behavior**:
-- The default filename pattern results in filenames like "2024-01-20_12-10-05-555.jpg"
-- Files without valid EXIF data will remain unchanged in the source directory
-- For Apple Live Photos, both the image and video components are renamed to match
-- The command preserves the original file extension
-
-**Use cases**:
-- Organizing photos chronologically
-- Standardizing photo filenames based on when they were taken
-- Preparing photos for chronological browsing
-- Handling Apple Live Photos consistently
-
-## Workflow Examples
-
-Here's a recommended workflow for organizing a collection of photos:
-
-1. **Convert all filenames to lowercase**:
-   ```bash
-   ./renamer rename:lower --dry-run photos/
-   ```
-
-2. **Standardize file extensions** (e.g., convert "jpeg" to "jpg"):
-   ```bash
-   ./renamer rename:pattern --dry-run --pattern "/^(.+)(jpeg)$/" --replacement "\$1jpg" photos/
-   ```
-
-3. **Convert two-digit years to four-digit years in filenames**:
-   ```bash
-   ./renamer rename:date-pattern --dry-run --pattern "/^{y}-{m}-{d}.{H}-{i}-{s}(.+)$/" --replacement "{Y}-{m}-{d}_{H}-{i}-{s}" photos/
-   ```
-
-4. **Rename files based on EXIF data**:
-   ```bash
-   ./renamer rename:exifdate --dry-run photos/
-   ```
-
-5. **Identify and handle duplicates**:
-   ```bash
-   ./renamer rename:hash --dry-run --skip-duplicates photos/ organized-photos/
-   ```
-
-After verifying the changes, remove the `--dry-run` option to actually perform the renaming operations.
-
-## Development Guidelines
-
-This section provides guidelines and instructions for developing and maintaining the Photo Renamer project.
-
-### Testing
-
-To run tests and code quality checks:
-
-```bash
-# Update dependencies
-bin/composer update
-
-# Fix code style issues
-bin/composer ci:cgl
-
-# Run all tests and code quality checks
-bin/composer ci:test
-
-# Run specific checks
-bin/composer ci:test:php:lint       # Check for syntax errors
-bin/composer ci:test:php:phpstan    # Run static analysis
-bin/composer ci:test:php:rector     # Check for potential code improvements
-```
+* **Bugs or unexpected behaviour:** [Open an issue](https://github.com/magicsunday/photo-renamer/issues).
+* **Releases:** [Download page](https://github.com/magicsunday/photo-renamer/releases/latest).

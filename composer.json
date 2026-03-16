@@ -19,24 +19,33 @@
         }
     ],
     "config": {
+        "bin-dir": ".build/bin",
+        "vendor-dir": ".build/vendor",
         "discard-changes": true,
         "sort-packages": true,
         "optimize-autoloader": true,
         "platform-check": false
     },
+    "repositories": {
+        "magicsunday/imagemeta": {
+            "type": "github",
+            "url": "git@github.com:magicsunday/imagemeta.git"
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
     "require": {
-        "php": ">=8.3.0 <8.5.0",
-        "ext-dom": "*",
-        "ext-exif": "*",
-        "symfony/config": "^7.0",
-        "symfony/console": "^7.0",
-        "symfony/dependency-injection": "^7.0",
-        "symfony/yaml": "^7.0"
+        "php": "^8.5",
+        "symfony/config": "^7.0 || ^8.0",
+        "symfony/console": "^7.0 || ^8.0",
+        "symfony/dependency-injection": "^7.0 || ^8.0",
+        "symfony/yaml": "^7.0 || ^8.0",
+        "magicsunday/imagemeta": "dev-main"
     },
     "require-dev": {
         "friendsofphp/php-cs-fixer": "^3.85",
         "overtrue/phplint": "^9.0",
-        "phpdocumentor/reflection-docblock": "^5.0",
+        "phpdocumentor/reflection-docblock": "^6.0",
         "phpstan/phpstan": "^2.0",
         "phpstan/phpstan-deprecation-rules": "^2.0",
         "phpstan/phpstan-phpunit": "^2.0",
@@ -56,35 +65,42 @@
     },
     "scripts": {
         "ci:cgl": [
-            "bin/php vendor/bin/php-cs-fixer fix --config .build/.php-cs-fixer.dist.php --diff --verbose"
+            "php-cs-fixer fix --config .php-cs-fixer.dist.php --diff --verbose"
         ],
         "ci:rector": [
-            "bin/php vendor/bin/rector process --config .build/rector.php"
+            "rector process --config rector.php"
         ],
         "ci:test:php:cgl": [
             "@ci:cgl --dry-run"
         ],
         "ci:test:php:lint": [
-            "bin/php vendor/bin/phplint --configuration .build/.phplint.yml"
+            "phplint --configuration .phplint.yml"
         ],
         "ci:test:php:phpstan": [
-            "bin/php vendor/bin/phpstan analyze --configuration .build/phpstan.neon --memory-limit=-1"
+            "phpstan analyze --configuration phpstan.neon --memory-limit=-1"
         ],
         "ci:test:php:phpstan:baseline": [
-            "bin/php vendor/bin/phpstan analyze --configuration .build/phpstan.neon --memory-limit=-1 --generate-baseline .build/phpstan-baseline.neon --allow-empty-baseline"
+            "phpstan analyze --configuration phpstan.neon --memory-limit=-1 --generate-baseline phpstan-baseline.neon --allow-empty-baseline"
         ],
         "ci:test:php:rector": [
             "@ci:rector --dry-run"
         ],
         "ci:test:php:unit": [
-            "bin/php vendor/bin/phpunit --configuration .build/phpunit.xml"
+            "phpunit --configuration phpunit.xml"
+        ],
+        "ci:test:php:cpd": [
+            "npx --prefix .build jscpd --config .jscpd.json"
         ],
         "ci:test": [
             "@ci:test:php:lint",
-            "@ci:test:php:phpstan",
-            "@ci:test:php:rector",
             "@ci:test:php:cgl",
-            "@ci:test:php:unit"
+            "@ci:test:php:rector",
+            "@ci:test:php:phpstan",
+            "@ci:test:php:unit",
+            "@ci:test:php:cpd"
+        ],
+        "post-update-cmd": [
+            "npm install --prefix .build jscpd"
         ]
     }
 }

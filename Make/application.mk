@@ -4,19 +4,14 @@
 
 #### Application
 
-.PHONY: build cleanup init init-with-docker version
+.PHONY: binary binary-clean version
 
-build: ## Build a new renamer binary
-	@bash .build/build
+binary: .logo ## Build the self-contained renamer binary.
+	@bash scripts/init-with-docker
+	@bash scripts/build
 
-cleanup: ## Removes all sources, downloads and pkgroot to free some space which is not needed after spc was built
-	@rm -rf spc/pkgroot/ spc/downloads/ spc/source/
+binary-clean: .logo ## Remove SPC build artifacts to free space.
+	@rm -rf .build/spc/pkgroot/ .build/spc/downloads/ .build/spc/source/
 
-init: ## Initialize the build environment and create necessary files
-	@bash .build/init
-
-init-with-docker: ## Initialize the build environment with the help of Docker
-	@bash .build/init-with-docker
-
-version: ## Create a new version release and trigger build of new binary
+version: .logo ## Create a new version release.
 	@bash scripts/create-version

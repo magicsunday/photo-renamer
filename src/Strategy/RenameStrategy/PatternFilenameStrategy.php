@@ -11,7 +11,9 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Strategy\RenameStrategy;
 
+use MagicSunday\Renamer\Exception\RegexExecutionException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
+use MagicSunday\Renamer\Regex\SafeRegex;
 use Override;
 use SplFileInfo;
 
@@ -22,26 +24,8 @@ use SplFileInfo;
  */
 class PatternFilenameStrategy extends InheritFilenameStrategy
 {
-    /**
-     * @var string
-     */
-    private readonly string $pattern;
-
-    /**
-     * @var string
-     */
-    private readonly string $replacement;
-
-    /**
-     * Constructor.
-     *
-     * @param string $pattern
-     * @param string $replacement
-     */
-    public function __construct(string $pattern, string $replacement)
+    public function __construct(private readonly string $pattern, private readonly string $replacement, private readonly SafeRegex $regex)
     {
-        $this->pattern     = $pattern;
-        $this->replacement = $replacement;
     }
 
     #[Override]
@@ -49,21 +33,11 @@ class PatternFilenameStrategy extends InheritFilenameStrategy
     {
         $targetFilename = parent::generateFilename($splFileInfo);
 
-        // Perform the regular expression replacement
-        $targetFilename = @preg_replace(
-            $this->pattern,
-            $this->replacement,
-            $targetFilename
-        );
-
-        if ($targetFilename === null) {
-            throw new TargetFilenameException(
-                'Regular expression error: ' . preg_last_error_msg() . '. ' .
-                'Check your pattern syntax "' . $this->pattern . '". ' .
-                'Make sure it is a valid PCRE pattern enclosed in delimiters (e.g., /pattern/).'
-            );
+        try {
+            return $this->regex
+                ->replace($this->pattern, $this->replacement, $targetFilename);
+        } catch (RegexExecutionException $exception) {
+            throw new TargetFilenameException('Regular expression error: ' . $exception->getMessage(), $exception->getCode(), previous: $exception);
         }
-
-        return $targetFilename;
     }
 }

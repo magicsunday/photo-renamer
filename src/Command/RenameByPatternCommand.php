@@ -13,13 +13,18 @@ namespace MagicSunday\Renamer\Command;
 
 use FilesystemIterator;
 use MagicSunday\Renamer\Command\FilterIterator\RecursiveRegexFileFilterIterator;
-use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\DuplicateIdentifierStrategyInterface;
-use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\TargetPathnameStrategy;
+use MagicSunday\Renamer\Regex\SafeRegex;
+use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
+use MagicSunday\Renamer\Service\FileSystemServiceInterface;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetPathnameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\PatternFilenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use Override;
 use RecursiveDirectoryIterator;
+use RecursiveIterator;
 use RecursiveIteratorIterator;
+use SplFileInfo;
 use Symfony\Component\Console\Input\InputOption;
 
 use function is_string;
@@ -33,20 +38,20 @@ use function is_string;
  */
 class RenameByPatternCommand extends AbstractRenameCommand
 {
-    /**
-     * @var string
-     */
+    public function __construct(
+        FileSystemServiceInterface $fileSystemService,
+        DuplicateDetectionServiceInterface $duplicateDetectionService,
+        private readonly SafeRegex $safeRegex,
+    ) {
+        parent::__construct($fileSystemService, $duplicateDetectionService);
+    }
+
     private string $pattern = '';
 
-    /**
-     * @var string
-     */
     private string $replacement = '';
 
     /**
      * Configures the current command.
-     *
-     * @return void
      */
     #[Override]
     protected function configure(): void
@@ -55,7 +60,7 @@ class RenameByPatternCommand extends AbstractRenameCommand
 
         $this
             ->setName('rename:pattern')
-            ->setDescription('Renames files by pattern.')
+            ->setDescription('Renames files using a regular expression pattern.')
             ->addOption(
                 'pattern',
                 'p',
@@ -68,7 +73,7 @@ class RenameByPatternCommand extends AbstractRenameCommand
                 'r',
                 InputOption::VALUE_REQUIRED,
                 'The pattern used to replace the matches results',
-                '\$1jpg'
+                '${1}jpg'
             );
     }
 
@@ -95,6 +100,9 @@ class RenameByPatternCommand extends AbstractRenameCommand
         return parent::executeCommand();
     }
 
+    /**
+     * @return RecursiveIteratorIterator<RecursiveIterator<string, SplFileInfo>>
+     */
     #[Override]
     protected function createFileIterator(): RecursiveIteratorIterator
     {
@@ -116,7 +124,8 @@ class RenameByPatternCommand extends AbstractRenameCommand
     {
         return new PatternFilenameStrategy(
             $this->pattern,
-            $this->replacement
+            $this->replacement,
+            $this->safeRegex,
         );
     }
 

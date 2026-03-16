@@ -12,6 +12,9 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy;
 
 use MagicSunday\Renamer\Exception\TargetFilenameException;
+use MagicSunday\Renamer\Regex\SafeRegex;
+use MagicSunday\Renamer\Strategy\RenameStrategy\DatePattern\PatternMatch;
+use MagicSunday\Renamer\Strategy\RenameStrategy\DatePattern\PatternMatchSet;
 use MagicSunday\Renamer\Strategy\RenameStrategy\DatePatternFilenameStrategy;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -50,8 +53,6 @@ class DatePatternFilenameStrategyTest extends TestCase
      *
      * This test ensures proper error handling when the strategy encounters
      * invalid regex patterns that cannot be processed.
-     *
-     * @return void
      */
     #[Test]
     public function generateFilenameThrowsExceptionOnInvalidPattern(): void
@@ -63,7 +64,8 @@ class DatePatternFilenameStrategyTest extends TestCase
         $strategy = new DatePatternFilenameStrategy(
             '/[',  // Invalid regex - unclosed bracket
             '{Y}-{m}-{d}',
-            [1 => ['Y']]
+            $this->createPatternMatchSet(['Y']),
+            new SafeRegex()
         );
 
         // Expect a TargetFilenameException to be thrown
@@ -81,8 +83,6 @@ class DatePatternFilenameStrategyTest extends TestCase
      * from a filename. Due to the complex nature of how the strategy processes
      * the replacement pattern, this test focuses on verifying the basic operation
      * without making assumptions about the exact output format.
-     *
-     * @return void
      */
     #[Test]
     public function generateFilenameProcessesDatePattern(): void
@@ -94,7 +94,8 @@ class DatePatternFilenameStrategyTest extends TestCase
         $strategy = new DatePatternFilenameStrategy(
             '/IMG_(\d{4})(\d{2})(\d{2})/',
             '{Y}-{m}-{d}',
-            [1 => ['Y', 'm', 'd']]
+            $this->createPatternMatchSet(['Y', 'm', 'd']),
+            new SafeRegex()
         );
 
         // Get the result
@@ -112,8 +113,6 @@ class DatePatternFilenameStrategyTest extends TestCase
      *
      * This test verifies that the strategy correctly inherits the behavior
      * from InheritFilenameStrategy, removing "-duplicate-XXX" suffixes.
-     *
-     * @return void
      */
     #[Test]
     public function generateFilenameRemovesDuplicateIdentifier(): void
@@ -125,7 +124,8 @@ class DatePatternFilenameStrategyTest extends TestCase
         $strategy = new DatePatternFilenameStrategy(
             '/IMG_(\d{4})(\d{2})(\d{2})/',
             '{Y}-{m}-{d}',
-            [1 => ['Y', 'm', 'd']]
+            $this->createPatternMatchSet(['Y', 'm', 'd']),
+            new SafeRegex()
         );
 
         // Get the result
@@ -142,8 +142,6 @@ class DatePatternFilenameStrategyTest extends TestCase
      *
      * This test verifies that the strategy correctly converts two-digit years
      * to four-digit years using PHP's DateTime year interpretation rules.
-     *
-     * @return void
      */
     #[Test]
     public function generateFilenameConvertsTwoDigitYear(): void
@@ -153,7 +151,8 @@ class DatePatternFilenameStrategyTest extends TestCase
         $strategy = new DatePatternFilenameStrategy(
             '/photo_(\d{2})(\d{2})(\d{2})/',
             '{Y}',
-            [1 => ['y', 'm', 'd']]  // Note: lowercase 'y' for 2-digit year
+            $this->createPatternMatchSet(['y', 'm', 'd']),  // Note: lowercase 'y' for 2-digit year
+            new SafeRegex()
         );
 
         $result = $strategy->generateFilename($file);
@@ -166,7 +165,8 @@ class DatePatternFilenameStrategyTest extends TestCase
         $strategy2 = new DatePatternFilenameStrategy(
             '/photo_(\d{2})(\d{2})(\d{2})/',
             '{Y}',
-            [1 => ['y', 'm', 'd']]
+            $this->createPatternMatchSet(['y', 'm', 'd']),
+            new SafeRegex()
         );
 
         $result2 = $strategy2->generateFilename($file2);
@@ -180,8 +180,6 @@ class DatePatternFilenameStrategyTest extends TestCase
      *
      * This test verifies that date components can be reordered during transformation,
      * for example converting from European format (dd-mm-yyyy) to ISO format.
-     *
-     * @return void
      */
     #[Test]
     public function generateFilenameReordersDateComponents(): void
@@ -193,7 +191,8 @@ class DatePatternFilenameStrategyTest extends TestCase
         $strategy = new DatePatternFilenameStrategy(
             '/file_(\d{2})-(\d{2})-(\d{4})/',
             '{Y}-{m}-{d}',
-            [1 => ['d', 'm', 'Y']]  // Note: mapping order is d, m, Y
+            $this->createPatternMatchSet(['d', 'm', 'Y']),  // Note: mapping order is d, m, Y
+            new SafeRegex()
         );
 
         $result = $strategy->generateFilename($file);
@@ -210,8 +209,6 @@ class DatePatternFilenameStrategyTest extends TestCase
      *
      * This test verifies that the strategy works with files that have
      * no file extension.
-     *
-     * @return void
      */
     #[Test]
     public function generateFilenameHandlesFilesWithoutExtension(): void
@@ -223,7 +220,8 @@ class DatePatternFilenameStrategyTest extends TestCase
         $strategy = new DatePatternFilenameStrategy(
             '/README_(\d{4})(\d{2})(\d{2})/',
             '{Y}-{m}-{d}',
-            [1 => ['Y', 'm', 'd']]
+            $this->createPatternMatchSet(['Y', 'm', 'd']),
+            new SafeRegex()
         );
 
         $result = $strategy->generateFilename($file);
@@ -233,5 +231,19 @@ class DatePatternFilenameStrategyTest extends TestCase
         self::assertStringContainsString('03', $result);
         self::assertStringContainsString('15', $result);
         self::assertStringNotContainsString('.', $result);
+    }
+
+    /**
+     * @param string[] $placeholders
+     */
+    private function createPatternMatchSet(array $placeholders): PatternMatchSet
+    {
+        $set = new PatternMatchSet();
+
+        foreach ($placeholders as $placeholder) {
+            $set->append(new PatternMatch('{' . $placeholder . '}', $placeholder));
+        }
+
+        return $set;
     }
 }

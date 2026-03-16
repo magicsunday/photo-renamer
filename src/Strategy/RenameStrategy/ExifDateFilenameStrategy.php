@@ -11,12 +11,15 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Strategy\RenameStrategy;
 
-use DateTime;
+use DateTimeImmutable;
 use Exception;
+use MagicSunday\Renamer\Metadata\ExifData;
+use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use Override;
 use SplFileInfo;
 
-use function strlen;
+use function str_pad;
+use function substr;
 
 /**
  * @author  Rico Sonntag <mail@ricosonntag.de>
@@ -25,19 +28,8 @@ use function strlen;
  */
 class ExifDateFilenameStrategy implements RenameStrategyInterface
 {
-    /**
-     * @var string
-     */
-    private readonly string $targetFilenamePattern;
-
-    /**
-     * Constructor.
-     *
-     * @param string $targetFilenamePattern
-     */
-    public function __construct(string $targetFilenamePattern)
+    public function __construct(private readonly string $targetFilenamePattern, private readonly ExifMetadataProvider $exifMetadataProvider)
     {
-        $this->targetFilenamePattern = $targetFilenamePattern;
     }
 
     #[Override]
@@ -53,53 +45,38 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
         return $targetBasename . '.' . $splFileInfo->getExtension();
     }
 
+    public function getLivePhotoContentIdentifier(SplFileInfo $splFileInfo): ?string
+    {
+        $identifier = $this->exifMetadataProvider->getContentIdentifier($splFileInfo);
+
+        return $identifier?->getValue();
+    }
+
     /**
      * Returns the formatted EXIF date of the specified file, formatted according to the specified pattern.
-     *
-     * @param string      $pattern
-     * @param SplFileInfo $splFileInfo
-     *
-     * @return string|null
      */
     private function getExifDateFormatted(
         string $pattern,
         SplFileInfo $splFileInfo,
     ): ?string {
         // Look up EXIF data
-        $exifData = $this->getExifData($splFileInfo);
+        $exifData = $this->exifMetadataProvider->getExifData($splFileInfo);
 
-        // if ($exifData !== false) {
-        //     $this->io->text('Extract EXIF data from: ' . $splFileInfo->getPathname());
-        // }
-
-        // Ignore files without EXIF data
-        if ($exifData === false) {
+        if (!$exifData instanceof ExifData) {
             return null;
         }
 
-        if (!isset($exifData['DateTimeOriginal'])) {
-            return null;
-        }
-
-        // $this->io->text('=> Found "DateTimeOriginal" => ' . $exifData['DateTimeOriginal']);
-
-        // Store the date and time the image/video was recorded
-
-        /** @var string $exifDateTimeOriginal */
-        $exifDateTimeOriginal = $exifData['DateTimeOriginal'];
-
-        /** @var string $exifSubSecTimeOriginal */
-        $exifSubSecTimeOriginal = $exifData['SubSecTimeOriginal'] ?? '';
+        $exifDateTimeOriginal   = $exifData->getDateTimeOriginal();
+        $exifSubSecTimeOriginal = $this->normaliseSubSecondValue(
+            $exifData->getSubSecTimeOriginal()
+        );
 
         try {
-            $dateTimeOriginal = new DateTime($exifDateTimeOriginal);
+            $dateTimeOriginal = new DateTimeImmutable($exifDateTimeOriginal);
 
-            if ($exifSubSecTimeOriginal !== '') {
-                if (strlen($exifSubSecTimeOriginal) > 4) {
-                    $dateTimeOriginal->modify('+' . $exifSubSecTimeOriginal . ' Microseconds');
-                } else {
-                    $dateTimeOriginal->modify('+' . $exifSubSecTimeOriginal . ' Milliseconds');
-                }
+            if ($exifSubSecTimeOriginal !== null) {
+                $microseconds     = substr(str_pad($exifSubSecTimeOriginal, 6, '0'), 0, 6);
+                $dateTimeOriginal = $dateTimeOriginal->modify('+' . $microseconds . ' microseconds');
             }
         } catch (Exception) {
             // $this->io->warning('=> Invalid EXIF date format in "DateTimeOriginal".');
@@ -110,15 +87,18 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
         return $dateTimeOriginal->format($pattern);
     }
 
-    /**
-     * Retrieves EXIF data from the specified file.
-     *
-     * @param SplFileInfo $splFileInfo The file information object representing the target file
-     *
-     * @return array<string|mixed>|false Returns an associative array with EXIF data on success, or false on failure
-     */
-    private function getExifData(SplFileInfo $splFileInfo): false|array
+    private function normaliseSubSecondValue(?string $value): ?string
     {
-        return @exif_read_data($splFileInfo->getPathname());
+        if ($value === null) {
+            return null;
+        }
+
+        $digits = preg_replace('/[^0-9]/', '', $value);
+
+        if ($digits === null || $digits === '') {
+            return null;
+        }
+
+        return $digits;
     }
 }

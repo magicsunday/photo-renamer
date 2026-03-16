@@ -53,16 +53,14 @@ final class RecursiveUppercaseFilenameFilterIteratorTest extends TestCase
     public function constructorPassesCorrectRegexToParent(): void
     {
         // Arrange: Create a stub RecursiveIterator for testing
-        $stubIterator = $this->createStub(RecursiveIterator::class);
+        $stubIterator = self::createStub(RecursiveIterator::class);
 
         // Act: Create the uppercase filter iterator
         $recursiveUpperFilter = new RecursiveUppercaseFilenameFilterIterator($stubIterator);
 
-        // Assert: Verify the instance was created successfully
-        self::assertInstanceOf(
-            RecursiveUppercaseFilenameFilterIterator::class,
-            $recursiveUpperFilter
-        );
+        // Assert: Verify the instance was created successfully (no exception thrown)
+        // @phpstan-ignore staticMethod.alreadyNarrowedType
+        self::assertInstanceOf(RecursiveUppercaseFilenameFilterIterator::class, $recursiveUpperFilter);
     }
 
     /**

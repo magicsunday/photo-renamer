@@ -22,47 +22,20 @@ use SplFileInfo;
  */
 class Rename
 {
-    /**
-     * @var SplFileInfo
-     */
-    private readonly SplFileInfo $source;
-
-    /**
-     * @var SplFileInfo
-     */
-    private SplFileInfo $target;
-
-    /**
-     * @param SplFileInfo $source
-     * @param SplFileInfo $target
-     */
-    public function __construct(SplFileInfo $source, SplFileInfo $target)
+    public function __construct(private readonly SplFileInfo $source, private SplFileInfo $target)
     {
-        $this->source = $source;
-        $this->target = $target;
     }
 
-    /**
-     * @return SplFileInfo
-     */
     public function getSource(): SplFileInfo
     {
         return $this->source;
     }
 
-    /**
-     * @return SplFileInfo
-     */
     public function getTarget(): SplFileInfo
     {
         return $this->target;
     }
 
-    /**
-     * @param SplFileInfo $target
-     *
-     * @return Rename
-     */
     public function setTarget(SplFileInfo $target): Rename
     {
         $this->target = $target;

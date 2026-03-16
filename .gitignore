@@ -1,36 +1,23 @@
-# PHPStorm
-.idea
+# IDE
+.idea/
 
-# OSX
+# OS
 .DS_Store
 
-# Composer
-vendor/
-bin/
-logs/
+# Build output
+.build/
 log/
-composer.lock
-
-# Build stuff
-.build/*.cache
-
-# Cache
-.build/cache
-.php-cs-fixer.cache
-.phplint.cache
-.phpunit.result.cache
-.phpunit.cache
-
-# Custom
-/bin/*
-/spc
-renamer.phar
-/var/
 renamer
+renamer.phar
 renamer.md5
+
+# Environment
 .env
 
-# Coverage reports
+# Test data
+images/
+images2/
+
+# Reports
 coverage-report/
 coverage-report-xdebug/
-phpunit-*.xml

@@ -11,8 +11,8 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Command;
 
-use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\DuplicateIdentifierStrategyInterface;
-use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\TargetPathnameStrategy;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetPathnameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\LowerCaseFilenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use Override;
@@ -28,8 +28,6 @@ class RenameLowerCaseCommand extends AbstractRenameCommand
 {
     /**
      * Configures the current command.
-     *
-     * @return void
      */
     #[Override]
     protected function configure(): void
@@ -39,8 +37,7 @@ class RenameLowerCaseCommand extends AbstractRenameCommand
         $this
             ->setName('rename:lower')
             ->setDescription(
-                'Changes all filenames containing at least one uppercase letter to lowercase. '
-                . 'By default, the renaming occurs in the same directory unless specified.'
+                'Converts filenames to lowercase.'
             );
     }
 

@@ -12,8 +12,9 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service;
 
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
-use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\DuplicateIdentifierStrategyInterface;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
+use RecursiveIterator;
 use RecursiveIteratorIterator;
 
 /**
@@ -25,18 +26,29 @@ use RecursiveIteratorIterator;
  */
 interface DuplicateDetectionServiceInterface
 {
+    public function setSourceDirectory(string $sourceDirectory): self;
+
+    public function setTargetDirectory(string $targetDirectory): self;
+
+    public function setUseFileExtensionFromSource(bool $useFileExtensionFromSource): self;
+
+    public function setListAll(bool $listAll): self;
+
     /**
      * Creates a collection of duplicates. Files with the same unique identifier are grouped together.
      *
-     * @param RecursiveIteratorIterator            $iterator
-     * @param RenameStrategyInterface              $renameStrategy
-     * @param DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy
+     * @template TInner of RecursiveIterator
      *
-     * @return FileDuplicateCollection
+     * @param RecursiveIteratorIterator<TInner> $iterator
      */
     public function groupFilesByDuplicateIdentifier(
         RecursiveIteratorIterator $iterator,
         RenameStrategyInterface $renameStrategy,
         DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy,
     ): FileDuplicateCollection;
+
+    /**
+     * Creates a consecutive new filename for all duplicate files.
+     */
+    public function createDuplicateFilenames(FileDuplicateCollection $fileDuplicateCollection): FileDuplicateCollection;
 }
