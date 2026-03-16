@@ -32,6 +32,7 @@ use function getcwd;
 use function is_string;
 use function ltrim;
 use function preg_match;
+use function realpath;
 use function rtrim;
 use function sprintf;
 use function str_contains;
@@ -290,6 +291,12 @@ abstract class AbstractRenameCommand extends Command
             }
         }
 
+        $resolved = realpath($directory);
+
+        if ($resolved !== false) {
+            return $this->trimTrailingDirectorySeparator($resolved);
+        }
+
         return $this->trimTrailingDirectorySeparator($directory);
     }
 
@@ -374,8 +381,7 @@ abstract class AbstractRenameCommand extends Command
 
         $this->duplicateDetectionService
             ->setSourceDirectory($this->sourceDirectory)
-            ->setTargetDirectory($this->targetDirectory)
-            ->setListAll($this->listAll);
+            ->setTargetDirectory($this->targetDirectory);
     }
 
     /**

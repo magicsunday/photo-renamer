@@ -32,8 +32,6 @@ interface DuplicateDetectionServiceInterface
 
     public function setUseFileExtensionFromSource(bool $useFileExtensionFromSource): self;
 
-    public function setListAll(bool $listAll): self;
-
     /**
      * Creates a collection of duplicates. Files with the same unique identifier are grouped together.
      *

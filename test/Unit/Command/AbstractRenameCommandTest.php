@@ -66,12 +66,6 @@ final class AbstractRenameCommandTest extends TestCase
 
         $duplicateDetectionService
             ->expects(self::once())
-            ->method('setListAll')
-            ->with(false)
-            ->willReturnSelf();
-
-        $duplicateDetectionService
-            ->expects(self::once())
             ->method('setUseFileExtensionFromSource')
             ->with(false)
             ->willReturnSelf();
@@ -168,12 +162,6 @@ final class AbstractRenameCommandTest extends TestCase
 
         $duplicateDetectionService
             ->expects(self::once())
-            ->method('setListAll')
-            ->with(false)
-            ->willReturnSelf();
-
-        $duplicateDetectionService
-            ->expects(self::once())
             ->method('setUseFileExtensionFromSource')
             ->with(false)
             ->willReturnSelf();
@@ -266,12 +254,6 @@ final class AbstractRenameCommandTest extends TestCase
             ->expects(self::once())
             ->method('setTargetDirectory')
             ->with('/target-directory')
-            ->willReturnSelf();
-
-        $duplicateDetectionService
-            ->expects(self::once())
-            ->method('setListAll')
-            ->with(true)
             ->willReturnSelf();
 
         $duplicateDetectionService
@@ -375,12 +357,6 @@ final class AbstractRenameCommandTest extends TestCase
 
                 return true;
             }))
-            ->willReturnSelf();
-
-        $duplicateDetectionService
-            ->expects(self::once())
-            ->method('setListAll')
-            ->with(false)
             ->willReturnSelf();
 
         $duplicateDetectionService
