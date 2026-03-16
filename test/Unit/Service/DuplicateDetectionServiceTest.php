@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
 use FilesystemIterator;
+use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\Collection\RenameList;
@@ -860,6 +861,72 @@ final class DuplicateDetectionServiceTest extends TestCase
             FileSystemService::DUPLICATE_IDENTIFIER,
             $renames[1]->getTarget()->getFilename(),
         );
+    }
+
+    #[Test]
+    public function createDuplicateFilenamesHandlesHashComputationFailure(): void
+    {
+        $hashCalculator = $this->createMock(SafeHashCalculator::class);
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $fileA = $sourceDirectory . DIRECTORY_SEPARATOR . 'a.jpg';
+        $fileB = $sourceDirectory . DIRECTORY_SEPARATOR . 'b.jpg';
+
+        file_put_contents($fileA, 'content-A');
+        file_put_contents($fileB, 'content-B');
+
+        // File A hashes normally, file B throws an exception.
+        $hashCalculator
+            ->expects(self::exactly(2))
+            ->method('hashFile')
+            ->willReturnCallback(
+                static function (SplFileInfo $file) use ($fileA): string {
+                    if ($file->getPathname() === $fileA) {
+                        return 'hash-a';
+                    }
+
+                    throw new HashComputationException('Cannot read file');
+                },
+            );
+
+        $output = new BufferedOutput();
+        $io     = new SymfonyStyle(new ArrayInput([]), $output);
+
+        $fileSystemService = new FileSystemService($io);
+        $service           = new DuplicateDetectionService($fileSystemService, $io, $hashCalculator);
+
+        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . 'target.jpg';
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate
+            ->addFile(new SplFileInfo($fileA))
+            ->addFile(new SplFileInfo($fileB))
+            ->setTarget(new SplFileInfo($targetFile));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('identifier', $fileDuplicate);
+
+        $service
+            ->setSourceDirectory($sourceDirectory)
+            ->setTargetDirectory($targetDirectory);
+
+        $service->createDuplicateFilenames($collection);
+
+        $duplicate = $collection->get('identifier');
+        self::assertInstanceOf(FileDuplicate::class, $duplicate);
+
+        $renames = iterator_to_array($duplicate->getRenames());
+
+        // Both files get their own sub-group number (file B treated as unique).
+        self::assertCount(2, $renames);
+        self::assertSame('target-001.jpg', $renames[0]->getTarget()->getFilename());
+        self::assertSame('target-002.jpg', $renames[1]->getTarget()->getFilename());
+
+        // Error message was logged.
+        $progressOutput = $output->fetch();
+        self::assertStringContainsString('Cannot read file', $progressOutput);
     }
 
     #[Test]
