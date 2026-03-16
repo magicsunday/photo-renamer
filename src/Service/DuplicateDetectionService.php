@@ -479,9 +479,21 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         /** @var list<Rename> $nonCompanionRenames */
         $nonCompanionRenames = [];
 
+        // In Live Photo groups, exclude ALL files of the companion's media type
+        // (e.g., all MOVs when the companion is a MOV), not just the single
+        // detected companion. This prevents video hashes from triggering
+        // false naming conflicts with still image hashes.
+        $excludeStills = $companionRename instanceof Rename
+            && $this->isLivePhotoStill($companionRename->getSource());
+
         foreach ($fileDuplicate->getRenames() as $rename) {
-            if ($companionRename instanceof Rename && $rename === $companionRename) {
-                continue;
+            if ($companionRename instanceof Rename) {
+                $renameIsStill = $this->isLivePhotoStill($rename->getSource());
+
+                // Exclude files that share the companion's media type.
+                if ($excludeStills === $renameIsStill) {
+                    continue;
+                }
             }
 
             $nonCompanionRenames[] = $rename;
