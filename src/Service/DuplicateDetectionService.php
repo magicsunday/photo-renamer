@@ -97,6 +97,11 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     private array $contentIdentifierMap = [];
 
     /**
+     * Number of files scanned during the last grouping pass.
+     */
+    private int $lastScannedFileCount = 0;
+
+    /**
      * @param SymfonyStyle           $io                     Console IO for progress bars and error output
      * @param HashSubGroupingService $hashSubGroupingService Service for content-hash-based sub-grouping
      */
@@ -157,6 +162,15 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     }
 
     /**
+     * Returns the number of files scanned during the last call to
+     * {@see groupFilesByDuplicateIdentifier()}.
+     */
+    public function getLastScannedFileCount(): int
+    {
+        return $this->lastScannedFileCount;
+    }
+
+    /**
      * Creates a collection of duplicates. Files with the same unique identifier are grouped together.
      *
      * @template TInner of RecursiveIterator
@@ -189,6 +203,8 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
 
         usort($decorated, static fn (array $a, array $b): int => $a[0] !== $b[0] ? $a[0] <=> $b[0] : $a[1] <=> $b[1]);
         $files = array_column($decorated, 2);
+
+        $this->lastScannedFileCount = count($files);
 
         // Build in-memory disk index to avoid stat() calls during planning.
         $this->diskIndex            = [];

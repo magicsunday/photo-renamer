@@ -85,4 +85,10 @@ interface DuplicateDetectionServiceInterface
      * Returns the number of groups where content-hash sub-grouping was applied.
      */
     public function getNamingCollisions(): int;
+
+    /**
+     * Returns the number of files scanned during the last call to
+     * {@see groupFilesByDuplicateIdentifier()}.
+     */
+    public function getLastScannedFileCount(): int;
 }

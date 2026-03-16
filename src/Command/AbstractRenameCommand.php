@@ -425,8 +425,7 @@ abstract class AbstractRenameCommand extends Command
     private function processAndRenameFiles(): void
     {
         // Process list of all files
-        $iterator     = $this->createFileIterator();
-        $scannedFiles = $this->fileSystemService->countFiles($iterator);
+        $iterator = $this->createFileIterator();
 
         $duplicates = $this->groupFilesByDuplicateIdentifier($iterator);
 
@@ -442,7 +441,7 @@ abstract class AbstractRenameCommand extends Command
                     listAll: $this->listAll,
                     sourceBaseDirectory: $this->sourceDirectory,
                     targetBaseDirectory: $this->targetDirectory,
-                    scannedFiles: $scannedFiles,
+                    scannedFiles: $this->duplicateDetectionService->getLastScannedFileCount(),
                     namingCollisions: $this->duplicateDetectionService->getNamingCollisions(),
                 ),
             );

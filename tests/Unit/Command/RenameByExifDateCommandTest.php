@@ -118,7 +118,7 @@ final class RenameByExifDateCommandTest extends TestCase
             ->willReturn($iterator);
 
         $fileSystemService
-            ->expects(self::exactly(2))
+            ->expects(self::once())
             ->method('countFiles')
             ->with($iterator)
             ->willReturn(0);
