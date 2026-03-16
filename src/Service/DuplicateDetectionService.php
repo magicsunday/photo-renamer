@@ -426,6 +426,26 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 }
             }
 
+            // If another file in the group (any extension) already occupies the
+            // unsuffixed base name, the canonical does not need promotion — the
+            // base name is already taken by a different extension variant.
+            $canonicalNeedsPromotion = true;
+
+            if ($canonicalRename instanceof Rename && !$canonicalExactName) {
+                foreach ($renames as $rename) {
+                    if ($rename === $canonicalRename) {
+                        continue;
+                    }
+
+                    if ($rename->getSource()->getPathname() === $rename->getTarget()->getPathname()) {
+                        // A file with base name already exists (source == target).
+                        $canonicalNeedsPromotion = false;
+
+                        break;
+                    }
+                }
+            }
+
             $renames->reindex();
             $fileDuplicate->setRenames($renames);
 
@@ -478,7 +498,9 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             // Assign unique target filenames to remaining renames.
 
             foreach ($fileDuplicate->getRenames() as $rename) {
-                $isCanonicalRename = $canonicalRename instanceof Rename && $rename === $canonicalRename;
+                $isCanonicalRename = $canonicalRename instanceof Rename
+                    && $rename === $canonicalRename
+                    && $canonicalNeedsPromotion;
                 $isCompanionRename = $companionRename instanceof Rename && $rename === $companionRename;
 
                 // Live Photo companions are treated like canonicals: same base name, no suffix.
@@ -488,7 +510,11 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                     continue;
                 }
 
-                $requiresCanonicalDisambiguation = ($canonicalRename instanceof Rename && $rename !== $canonicalRename)
+                // Non-canonical files sharing the canonical target path need a suffix.
+                // When the canonical itself doesn't need promotion (base name already
+                // occupied by another extension), it also needs disambiguation.
+                $requiresCanonicalDisambiguation = $canonicalRename instanceof Rename
+                    && ($rename !== $canonicalRename || !$canonicalNeedsPromotion)
                     && $rename->getTarget()->getPathname() === $canonicalTargetPath;
 
                 $ext = strtolower($rename->getTarget()->getExtension());
@@ -513,7 +539,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 ++$processedDuplicates;
             }
 
-            if ($canonicalRename instanceof Rename) {
+            if ($canonicalRename instanceof Rename && $canonicalNeedsPromotion) {
                 $fileDuplicate->setTarget($canonicalRename->getTarget());
             }
 
