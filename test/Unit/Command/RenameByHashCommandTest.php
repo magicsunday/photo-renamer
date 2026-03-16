@@ -28,9 +28,22 @@ use RecursiveIteratorIterator;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
 
+/**
+ * Verifies the RenameByHashCommand, which groups files by content hash and
+ * identifies true duplicates. Unlike the EXIF command, this command uses
+ * InheritFilenameStrategy (filename unchanged) and ContentHashStrategy
+ * (group by xxHash128).
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
+ */
 #[CoversClass(RenameByHashCommand::class)]
 final class RenameByHashCommandTest extends TestCase
 {
+    /**
+     * Verifies that the command registers under the name "rename:hash".
+     */
     #[Test]
     public function configureExposesHashCommandWithAlias(): void
     {
@@ -43,6 +56,15 @@ final class RenameByHashCommandTest extends TestCase
         self::assertSame('rename:hash', $command->getName());
     }
 
+    /**
+     * Verifies that execute() wires the correct strategies (InheritFilenameStrategy
+     * for renaming, ContentHashStrategy for grouping) and propagates --dry-run,
+     * --skip-duplicates, and --copy flags to RenameOptions.
+     *
+     * The mock expectations ensure that groupFilesByDuplicateIdentifier() receives
+     * the hash-based strategy instances and that source/target directories are
+     * normalised from relative to absolute paths.
+     */
     #[Test]
     public function executeConfiguresServicesWithHashStrategies(): void
     {

@@ -51,9 +51,28 @@ use Symfony\Component\Console\Output\NullOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Tester\CommandTester;
 
+/**
+ * Verifies the RenameByExifDateCommand, the primary command for renaming photos
+ * and videos by their EXIF capture date with Live Photo companion pairing.
+ *
+ * These tests cover:
+ * - Command name registration ("rename:exif")
+ * - Strategy wiring (ExifDateFilenameStrategy + TargetBasenameStrategy)
+ * - Custom --target-filename-pattern propagation
+ * - Live Photo pairing integration via LivePhotoPairingService
+ * - Iterator rewind before the pairing pass
+ * - End-to-end dry-run with real services and stub metadata
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
+ */
 #[CoversClass(RenameByExifDateCommand::class)]
 final class RenameByExifDateCommandTest extends TestCase
 {
+    /**
+     * Verifies that the command registers under the name "rename:exif".
+     */
     #[Test]
     public function configureExposesExifDateCommandWithAlias(): void
     {
@@ -67,6 +86,14 @@ final class RenameByExifDateCommandTest extends TestCase
         self::assertSame('rename:exif', $command->getName());
     }
 
+    /**
+     * Verifies the full execute() flow: the command creates an ExifDateFilenameStrategy
+     * with the user's --target-filename-pattern, pairs it with a TargetBasenameStrategy,
+     * enables source-extension preservation, and wires the LivePhotoPairingService.
+     *
+     * Mock expectations validate that every service method is called with the correct
+     * arguments and that the custom pattern "Ymd-His" is stored in the strategy instance.
+     */
     #[Test]
     public function executeEnablesLivePhotoStrategyAndUsesConfiguredPattern(): void
     {
@@ -197,6 +224,12 @@ final class RenameByExifDateCommandTest extends TestCase
         self::assertSame('Ymd-His', $renamePatternProperty->getValue($capturedRenameStrategy));
     }
 
+    /**
+     * Verifies that groupFilesByDuplicateIdentifier() integrates the Live Photo
+     * pairing results: a video with a mismatched source basename but matching
+     * content identifier is added to the correct group, inherits the canonical's
+     * base name as its target, and the progress bar advances for each inspected file.
+     */
     #[Test]
     public function groupFilesByDuplicateIdentifierUsesFallbackPairsFromService(): void
     {
@@ -317,6 +350,11 @@ final class RenameByExifDateCommandTest extends TestCase
         self::assertSame(2, $capturedProgressBar->getProgress());
     }
 
+    /**
+     * Verifies that paired Live Photo videos appear in the dry-run output with
+     * their expected target filenames, confirming that the pairing result is
+     * threaded through grouping, duplicate detection, and the final rename listing.
+     */
     #[Test]
     public function executeIncludesPairedLivePhotoVideoInDryRunRenameList(): void
     {
@@ -454,6 +492,15 @@ final class RenameByExifDateCommandTest extends TestCase
         self::assertStringContainsString('20240101_120000.MOV', $output);
     }
 
+    /**
+     * Verifies end-to-end execution with real services (no mocks) using a temporary
+     * workspace with two files: a HEIC photo with an EXIF date and a MOV companion
+     * paired via content identifier.
+     *
+     * The dry-run output must contain the MOV target filename with millisecond
+     * precision inherited from the photo's capture time, confirming the complete
+     * pipeline from metadata extraction through pairing to rename listing.
+     */
     #[Test]
     public function executeWithRealServicesListsLivePhotoVideoRenames(): void
     {
@@ -519,6 +566,14 @@ final class RenameByExifDateCommandTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that the iterator is rewound exactly once before being passed to the
+     * Live Photo pairing service. Without the rewind, the pairing pass would see an
+     * exhausted iterator and find no companions.
+     *
+     * A custom RecursiveIteratorIterator subclass counts rewind() calls to assert
+     * that exactly one rewind occurred before pairByContentIdentifier() was invoked.
+     */
     #[Test]
     public function groupFilesByDuplicateIdentifierRewindsIteratorBeforePairing(): void
     {
@@ -616,6 +671,15 @@ final class RenameByExifDateCommandTest extends TestCase
         self::assertSame($duplicateCollection, $result);
     }
 
+    /**
+     * Verifies that a video with a completely different source basename than its
+     * paired photo (e.g. "PXL_20240101_000002.MOV" vs "IMG_0002.HEIC") is still
+     * paired by content identifier and receives a target whose base name matches
+     * the canonical still image's target, including any sub-group suffix.
+     *
+     * This covers the real-world case where Google Pixel videos and Apple iPhone
+     * photos share a Live Photo UUID but have different naming schemes.
+     */
     #[Test]
     public function groupFilesByDuplicateIdentifierPairsMismatchedBasenameVideoByContentIdentifier(): void
     {

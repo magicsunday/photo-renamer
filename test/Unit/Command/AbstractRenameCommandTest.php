@@ -32,9 +32,29 @@ use function rtrim;
 
 use const DIRECTORY_SEPARATOR;
 
+/**
+ * Verifies the AbstractRenameCommand base class, which provides the shared
+ * execution pipeline for all rename commands: argument parsing, directory
+ * normalisation, service orchestration, and option propagation.
+ *
+ * Each test instantiates an anonymous subclass that wires stub strategies,
+ * isolating the base class behaviour from any concrete command implementation.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
+ */
 #[CoversClass(AbstractRenameCommand::class)]
 final class AbstractRenameCommandTest extends TestCase
 {
+    /**
+     * Verifies the full execution flow: the command creates a file iterator from
+     * the source directory, passes it through grouping and duplicate detection,
+     * and finally hands the collection to renameFiles() with the correct options.
+     *
+     * The mock expectations ensure that every service method is called exactly once
+     * with the expected arguments, and that --dry-run is propagated to RenameOptions.
+     */
     #[Test]
     public function executeUsesInterfacesForDependencies(): void
     {
@@ -135,6 +155,14 @@ final class AbstractRenameCommandTest extends TestCase
         self::assertStringContainsString('Performing dry run', $tester->getDisplay());
     }
 
+    /**
+     * Verifies that --skip-duplicates can be used without specifying a separate
+     * target directory. The target directory defaults to the source directory,
+     * and skipDuplicates is set to true in RenameOptions.
+     *
+     * This is the common in-place rename scenario where users want to rename
+     * photos in the same directory while skipping known duplicates.
+     */
     #[Test]
     public function executeAllowsSkipDuplicatesWithoutExplicitTarget(): void
     {
@@ -235,6 +263,14 @@ final class AbstractRenameCommandTest extends TestCase
         self::assertSame(Command::SUCCESS, $tester->getStatusCode());
     }
 
+    /**
+     * Verifies that the --list-all flag is propagated through RenameOptions to
+     * the FileSystemService, and that specifying a separate target directory
+     * correctly separates source and target paths.
+     *
+     * With --list-all the output includes canonical entries ([O] prefix) alongside
+     * renames and duplicates, so the flag must arrive at renameFiles().
+     */
     #[Test]
     public function executePropagatesListAllFlagToServices(): void
     {
@@ -331,6 +367,14 @@ final class AbstractRenameCommandTest extends TestCase
         self::assertSame(Command::SUCCESS, $tester->getStatusCode());
     }
 
+    /**
+     * Verifies that relative directory arguments are resolved to absolute paths
+     * by prepending the current working directory before being passed to the
+     * services.
+     *
+     * Without normalisation, relative paths would cause incorrect target path
+     * resolution when source and target directories are nested differently.
+     */
     #[Test]
     public function executeNormalizesRelativeDirectoryArguments(): void
     {

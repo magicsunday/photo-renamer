@@ -19,9 +19,21 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
+/**
+ * Verifies the RenameByDatePatternCommand configuration: command name registration
+ * and argument/option definitions.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
+ */
 #[CoversClass(RenameByDatePatternCommand::class)]
 final class RenameByDatePatternCommandTest extends TestCase
 {
+    /**
+     * Verifies that the command registers under the name "rename:date", which is
+     * the user-facing CLI alias for date-pattern-based renaming.
+     */
     #[Test]
     public function configureExposesPatternDateCommandWithAlias(): void
     {

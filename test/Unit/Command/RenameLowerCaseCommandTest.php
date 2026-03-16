@@ -27,9 +27,21 @@ use RecursiveIteratorIterator;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
 
+/**
+ * Verifies the RenameLowerCaseCommand, which converts all filenames to lowercase
+ * using LowerCaseFilenameStrategy and groups by full target pathname to detect
+ * case-only collisions.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
+ */
 #[CoversClass(RenameLowerCaseCommand::class)]
 final class RenameLowerCaseCommandTest extends TestCase
 {
+    /**
+     * Verifies that the command registers under the name "rename:lower".
+     */
     #[Test]
     public function configureExposesLowerCaseCommandWithAlias(): void
     {
@@ -41,6 +53,12 @@ final class RenameLowerCaseCommandTest extends TestCase
         self::assertSame('rename:lower', $command->getName());
     }
 
+    /**
+     * Verifies that execute() wires LowerCaseFilenameStrategy for renaming and
+     * TargetPathnameStrategy for grouping, normalises the relative source directory
+     * to an absolute path, defaults the target to the source (in-place rename),
+     * and propagates --dry-run to RenameOptions.
+     */
     #[Test]
     public function executeNormalizesTargetDirectoryAndUsesLowerCaseStrategy(): void
     {
