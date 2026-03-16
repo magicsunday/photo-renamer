@@ -881,13 +881,13 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     /**
      * Resolves the target file information for a duplicate, ensuring unique filenames.
      *
-     * @param SplFileInfo         $source                         source file currently being processed
-     * @param SplFileInfo         $target                         initial target file information
-     * @param int                 $duplicateCount                 counter used to create unique duplicate suffixes (passed by reference)
-     * @param bool                $isFirst                        whether the file is the first item within the duplicate group
-     * @param bool                $hasAdditionalRenames           whether the group has more than one non-canonical rename
+     * @param SplFileInfo         $source                          source file currently being processed
+     * @param SplFileInfo         $target                          initial target file information
+     * @param int                 $duplicateCount                  counter used to create unique duplicate suffixes (passed by reference)
+     * @param bool                $isFirst                         whether the file is the first item within the duplicate group
+     * @param bool                $hasAdditionalRenames            whether the group has more than one non-canonical rename
      * @param bool                $requiresCanonicalDisambiguation whether the file shares the canonical target path
-     * @param array<string, true> $groupSourcePaths               source paths of all files in the current group
+     * @param array<string, true> $groupSourcePaths                source paths of all files in the current group
      *
      * @return SplFileInfo file information pointing to the deduplicated target
      */
