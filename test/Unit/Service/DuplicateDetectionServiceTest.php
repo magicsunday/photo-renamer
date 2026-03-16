@@ -1446,24 +1446,63 @@ final class DuplicateDetectionServiceTest extends TestCase
         $duplicateCount = 1;
         $method         = new ReflectionMethod($service, 'createDuplicateTargetFileInfo');
 
-        /** @var SplFileInfo $result */
-        $result = $method->invokeArgs($service, [
+        $args = [
             $source,
             $target,
             &$duplicateCount,
             false,
             false,
             false,
-            false,
             [],
-        ]);
+        ];
+
+        /** @var SplFileInfo $result */
+        $result = $method->invokeArgs($service, $args);
 
         self::assertSame($target->getPathname(), $result->getPathname());
-        self::assertSame(1, $duplicateCount, 'Counter must not change for idempotent rename');
+        /** @var int $actualCount */
+        $actualCount = $duplicateCount;
+        self::assertSame(1, $actualCount, 'Counter must not change for idempotent rename');
     }
 
     #[Test]
-    public function createDuplicateTargetFileInfoCanonicalReturnsTargetWhenNotOccupied(): void
+    public function resolveCanonicalTargetReturnsTargetWhenSourceEqualsTarget(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $service
+            ->setSourceDirectory($sourceDirectory)
+            ->setTargetDirectory($targetDirectory);
+
+        $path   = $sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg';
+        $source = new SplFileInfo($path);
+        $target = new SplFileInfo($path);
+
+        $duplicateCount = 1;
+        $method         = new ReflectionMethod($service, 'resolveCanonicalTarget');
+
+        $args = [
+            $source,
+            $target,
+            &$duplicateCount,
+            [],
+        ];
+
+        /** @var SplFileInfo $result */
+        $result = $method->invokeArgs($service, $args);
+
+        self::assertSame($target->getPathname(), $result->getPathname());
+
+        /** @var int $actualCount */
+        $actualCount = $duplicateCount;
+        self::assertSame(1, $actualCount, 'Counter must not change for idempotent rename');
+    }
+
+    #[Test]
+    public function resolveCanonicalTargetReturnsTargetWhenNotOccupied(): void
     {
         [$service] = $this->createService();
 
@@ -1478,17 +1517,13 @@ final class DuplicateDetectionServiceTest extends TestCase
         $target = new SplFileInfo($targetDirectory . DIRECTORY_SEPARATOR . '2024-01-01.jpg');
 
         $duplicateCount = 1;
-        $method         = new ReflectionMethod($service, 'createDuplicateTargetFileInfo');
+        $method         = new ReflectionMethod($service, 'resolveCanonicalTarget');
 
         /** @var SplFileInfo $result */
         $result = $method->invokeArgs($service, [
             $source,
             $target,
             &$duplicateCount,
-            true,
-            false,
-            false,
-            true,  // isCanonicalRename
             [],
         ]);
 
@@ -1496,7 +1531,7 @@ final class DuplicateDetectionServiceTest extends TestCase
     }
 
     #[Test]
-    public function createDuplicateTargetFileInfoCanonicalGetsSuffixWhenOccupied(): void
+    public function resolveCanonicalTargetGetsSuffixWhenOccupied(): void
     {
         [$service] = $this->createService();
 
@@ -1517,17 +1552,13 @@ final class DuplicateDetectionServiceTest extends TestCase
         ]);
 
         $duplicateCount = 1;
-        $method         = new ReflectionMethod($service, 'createDuplicateTargetFileInfo');
+        $method         = new ReflectionMethod($service, 'resolveCanonicalTarget');
 
         /** @var SplFileInfo $result */
         $result = $method->invokeArgs($service, [
             $source,
             $target,
             &$duplicateCount,
-            true,
-            false,
-            false,
-            true,  // isCanonicalRename
             [],
         ]);
 
@@ -1567,7 +1598,6 @@ final class DuplicateDetectionServiceTest extends TestCase
             true,
             false,
             false,
-            false, // NOT canonical
             [],
         ]);
 
@@ -1600,7 +1630,6 @@ final class DuplicateDetectionServiceTest extends TestCase
             &$duplicateCount,
             false, // NOT first
             true,  // hasAdditionalRenames
-            false,
             false,
             [],
         ]);
@@ -1641,11 +1670,10 @@ final class DuplicateDetectionServiceTest extends TestCase
             true,  // isFirst
             true,  // hasAdditionalRenames
             false,
-            false,
             [],
         ]);
 
-        // Target is occupied, so it falls through to the occupied branch (line 877)
+        // Target is occupied, so it falls through to the occupied branch
         // and gets a suffix regardless of isFirst/hasAdditionalRenames
         self::assertNotSame($target->getPathname(), $result->getPathname());
         self::assertStringContainsString(FileSystemService::DUPLICATE_IDENTIFIER, $result->getPathname());
@@ -1677,7 +1705,6 @@ final class DuplicateDetectionServiceTest extends TestCase
             true,  // isFirst
             true,  // hasAdditionalRenames
             true,  // requiresCanonicalDisambiguation (forces suffix)
-            false,
             [],
         ]);
 
@@ -1712,7 +1739,6 @@ final class DuplicateDetectionServiceTest extends TestCase
             true,  // isFirst
             false,
             true,  // requiresCanonicalDisambiguation
-            false,
             [],
         ]);
 
@@ -1738,20 +1764,24 @@ final class DuplicateDetectionServiceTest extends TestCase
         $duplicateCount = 1;
         $method         = new ReflectionMethod($service, 'createDuplicateTargetFileInfo');
 
-        /** @var SplFileInfo $result */
-        $result = $method->invokeArgs($service, [
+        $args = [
             $source,
             $target,
             &$duplicateCount,
             true,  // isFirst
             false, // NO additional renames
             false, // NO canonical disambiguation
-            false,
             [],
-        ]);
+        ];
+
+        /** @var SplFileInfo $result */
+        $result = $method->invokeArgs($service, $args);
 
         self::assertSame($target->getPathname(), $result->getPathname());
-        self::assertSame(1, $duplicateCount, 'Counter must not change for single file');
+
+        /** @var int $actualCount */
+        $actualCount = $duplicateCount;
+        self::assertSame(1, $actualCount, 'Counter must not change for single file');
     }
 
     #[Test]

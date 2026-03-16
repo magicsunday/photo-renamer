@@ -525,31 +525,41 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                     continue;
                 }
 
-                // Non-canonical files sharing the canonical target path need a suffix.
-                // When the canonical itself doesn't need promotion (base name already
-                // occupied by another extension), it also needs disambiguation.
-                $requiresCanonicalDisambiguation = $canonicalRename instanceof Rename
-                    && ($rename !== $canonicalRename || !$canonicalNeedsPromotion)
-                    && $rename->getTarget()->getPathname() === $canonicalTargetPath;
-
                 $ext = strtolower($rename->getTarget()->getExtension());
 
                 if (!isset($duplicateCountByExtension[$ext])) {
                     $duplicateCountByExtension[$ext] = 1;
                 }
 
-                $rename->setTarget(
-                    $this->createDuplicateTargetFileInfo(
-                        $rename->getSource(),
-                        $rename->getTarget(),
-                        $duplicateCountByExtension[$ext],
-                        $processedDuplicates === 0,
-                        $hasAdditionalRenames,
-                        $requiresCanonicalDisambiguation,
-                        $isCanonicalRename,
-                        $groupSourcePaths,
-                    )
-                );
+                if ($isCanonicalRename) {
+                    $rename->setTarget(
+                        $this->resolveCanonicalTarget(
+                            $rename->getSource(),
+                            $rename->getTarget(),
+                            $duplicateCountByExtension[$ext],
+                            $groupSourcePaths,
+                        )
+                    );
+                } else {
+                    // Non-canonical files sharing the canonical target path need a suffix.
+                    // When the canonical itself doesn't need promotion (base name already
+                    // occupied by another extension), it also needs disambiguation.
+                    $requiresCanonicalDisambiguation = $canonicalRename instanceof Rename
+                        && ($rename !== $canonicalRename || !$canonicalNeedsPromotion)
+                        && $rename->getTarget()->getPathname() === $canonicalTargetPath;
+
+                    $rename->setTarget(
+                        $this->createDuplicateTargetFileInfo(
+                            $rename->getSource(),
+                            $rename->getTarget(),
+                            $duplicateCountByExtension[$ext],
+                            $processedDuplicates === 0,
+                            $hasAdditionalRenames,
+                            $requiresCanonicalDisambiguation,
+                            $groupSourcePaths,
+                        )
+                    );
+                }
 
                 ++$processedDuplicates;
             }
@@ -829,17 +839,57 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     }
 
     /**
-     * Resolves the target file information for a duplicate, ensuring unique filenames.
+     * Resolves the target for the canonical file in a duplicate group.
      *
-     * @param SplFileInfo $source         source file currently being processed
-     * @param SplFileInfo $target         initial target file information
-     * @param int         $duplicateCount counter used to create unique duplicate suffixes (passed by reference)
-     * @param bool        $isFirst        whether the file is the first item within the duplicate group
+     * The canonical file keeps the unsuffixed base name when possible.
+     * When the target is already occupied by a file outside the group,
+     * a unique duplicate suffix is assigned instead.
+     *
+     * @param SplFileInfo         $source           source file currently being processed
+     * @param SplFileInfo         $target           initial target file information
+     * @param int                 $duplicateCount   counter used to create unique duplicate suffixes (passed by reference)
+     * @param array<string, true> $groupSourcePaths source paths of all files in the current group
      *
      * @return SplFileInfo file information pointing to the deduplicated target
      */
+    private function resolveCanonicalTarget(
+        SplFileInfo $source,
+        SplFileInfo $target,
+        int &$duplicateCount,
+        array $groupSourcePaths,
+    ): SplFileInfo {
+        // File already at its target path — no rename needed (idempotency).
+        if ($target->getPathname() === $source->getPathname()) {
+            return $target;
+        }
+
+        // Canonical files get the unsuffixed base name when available.
+        if (!$this->isTargetOccupied($target, $source, $groupSourcePaths)) {
+            return $target;
+        }
+
+        return $this->getNewUniqueDuplicateTargetFileInfo(
+            $source,
+            $target,
+            $target->getBasename('.' . $target->getExtension()),
+            $duplicateCount,
+            false,
+            $groupSourcePaths,
+        );
+    }
+
     /**
-     * @param array<string, true> $groupSourcePaths source paths of all files in the current group
+     * Resolves the target file information for a duplicate, ensuring unique filenames.
+     *
+     * @param SplFileInfo         $source                         source file currently being processed
+     * @param SplFileInfo         $target                         initial target file information
+     * @param int                 $duplicateCount                 counter used to create unique duplicate suffixes (passed by reference)
+     * @param bool                $isFirst                        whether the file is the first item within the duplicate group
+     * @param bool                $hasAdditionalRenames           whether the group has more than one non-canonical rename
+     * @param bool                $requiresCanonicalDisambiguation whether the file shares the canonical target path
+     * @param array<string, true> $groupSourcePaths               source paths of all files in the current group
+     *
+     * @return SplFileInfo file information pointing to the deduplicated target
      */
     private function createDuplicateTargetFileInfo(
         SplFileInfo $source,
@@ -848,7 +898,6 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         bool $isFirst = false,
         bool $hasAdditionalRenames = false,
         bool $requiresCanonicalDisambiguation = false,
-        bool $isCanonicalRename = false,
         array $groupSourcePaths = [],
     ): SplFileInfo {
         // File already at its target path — no rename needed (idempotency).
@@ -857,22 +906,6 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         }
 
         $duplicateBasename = $target->getBasename('.' . $target->getExtension());
-
-        // Canonical files get the unsuffixed base name when available.
-        if ($isCanonicalRename) {
-            if (!$this->isTargetOccupied($target, $source, $groupSourcePaths)) {
-                return $target;
-            }
-
-            return $this->getNewUniqueDuplicateTargetFileInfo(
-                $source,
-                $target,
-                $duplicateBasename,
-                $duplicateCount,
-                $requiresCanonicalDisambiguation,
-                $groupSourcePaths,
-            );
-        }
 
         if ($this->isTargetOccupied($target, $source, $groupSourcePaths)) {
             return $this->getNewUniqueDuplicateTargetFileInfo(
@@ -907,7 +940,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             );
         }
 
-        // Canonical without additional renames: keep as-is.
+        // Single file without additional renames: keep as-is.
         return $target;
     }
 
