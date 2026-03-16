@@ -19,14 +19,29 @@ use SplObjectStorage;
 
 use function sprintf;
 
+/**
+ * Caching facade over the MetadataExtractor that converts raw TemporalMetadata
+ * into ExifData value objects. Maintains per-file SplObjectStorage caches for
+ * both ExifData and ContentIdentifier, so each file is extracted at most once
+ * even when queried from multiple pipeline stages.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
+ */
 final class ExifMetadataProvider
 {
     /**
+     * Per-file cache of extracted EXIF data (null when the file lacks usable metadata).
+     *
      * @var SplObjectStorage<SplFileInfo, ExifData|null>
      */
     private SplObjectStorage $exifDataCache;
 
     /**
+     * Per-file cache of Live Photo content identifiers, populated as a side-effect
+     * of EXIF extraction so companion detection can query it independently.
+     *
      * @var SplObjectStorage<SplFileInfo, ContentIdentifier|null>
      */
     private SplObjectStorage $contentIdentifierCache;
@@ -37,6 +52,16 @@ final class ExifMetadataProvider
         $this->contentIdentifierCache = new SplObjectStorage();
     }
 
+    /**
+     * Returns the ExifData for the given file, extracting and caching it on first access.
+     * Returns null when the file contains no usable EXIF date information.
+     *
+     * @param SplFileInfo $splFileInfo File to extract metadata from
+     *
+     * @return ExifData|null Extracted EXIF data, or null when unavailable
+     *
+     * @throws TargetFilenameException When the underlying metadata reader fails
+     */
     public function getExifData(SplFileInfo $splFileInfo): ?ExifData
     {
         if (!$this->exifDataCache->offsetExists($splFileInfo)) {
@@ -52,6 +77,16 @@ final class ExifMetadataProvider
         return $exifData instanceof ExifData ? $exifData : null;
     }
 
+    /**
+     * Returns the Live Photo content identifier for the given file. Triggers EXIF
+     * extraction if not yet cached, since the content identifier is populated as a
+     * side-effect of createExifData().
+     *
+     * @param SplFileInfo $splFileInfo File to query
+     *
+     * @return ContentIdentifier|null The content identifier, or null when the file
+     *                                is not part of an Apple Live Photo pair
+     */
     public function getContentIdentifier(SplFileInfo $splFileInfo): ?ContentIdentifier
     {
         $this->getExifData($splFileInfo);
@@ -65,6 +100,16 @@ final class ExifMetadataProvider
         return $contentIdentifier instanceof ContentIdentifier ? $contentIdentifier : null;
     }
 
+    /**
+     * Extracts temporal metadata and Live Photo content identifier from the file,
+     * populating the content identifier cache as a side-effect.
+     *
+     * @param SplFileInfo $splFileInfo File to extract metadata from
+     *
+     * @return ExifData|null Normalized EXIF data, or null when no capture date is available
+     *
+     * @throws ExifMetadataReadException When the metadata reader encounters an error
+     */
     private function createExifData(SplFileInfo $splFileInfo): ?ExifData
     {
         $temporalMetadata  = $this->metadataExtractor->extractTemporalMetadata($splFileInfo);
@@ -87,6 +132,14 @@ final class ExifMetadataProvider
         return new ExifData($dateTimeOriginal, $subSecTimeOriginal, $contentIdentifier);
     }
 
+    /**
+     * Wraps the raw Live Photo ID string from TemporalMetadata into a
+     * ContentIdentifier value object, normalizing case and whitespace.
+     *
+     * @param TemporalMetadata|null $temporalMetadata Raw metadata to extract from
+     *
+     * @return ContentIdentifier|null Normalized identifier, or null when not present
+     */
     private function extractContentIdentifier(?TemporalMetadata $temporalMetadata): ?ContentIdentifier
     {
         if (!$temporalMetadata instanceof TemporalMetadata) {
@@ -103,7 +156,14 @@ final class ExifMetadataProvider
     }
 
     /**
-     * @return array{0: string, 1: ?string}
+     * Splits a DateTimeInterface into the "Y:m:d H:i:s" date string and an optional
+     * sub-second string. Sub-second precision is expressed as 3 digits (milliseconds)
+     * when the microsecond value is evenly divisible by 1000, or 6 digits otherwise.
+     * Returns null for sub-seconds when the capture time has no fractional component.
+     *
+     * @param DateTimeInterface $captureDateTime Capture timestamp with potential microsecond precision
+     *
+     * @return array{0: string, 1: ?string} Tuple of [dateTimeOriginal, subSecTimeOriginal]
      */
     private function normaliseCaptureTimestamp(DateTimeInterface $captureDateTime): array
     {

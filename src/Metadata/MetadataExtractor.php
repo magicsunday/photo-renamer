@@ -23,12 +23,32 @@ use function is_string;
 use function sprintf;
 use function trim;
 
+/**
+ * Reads raw EXIF/XMP/QuickTime metadata via the imagemeta MetadataReader library
+ * and converts it into a TemporalMetadata value object containing capture date
+ * and Live Photo content identifier. Navigates the structured metadata tree
+ * produced by imagemeta with a fallback chain for different tag locations.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
+ */
 final readonly class MetadataExtractor implements MetadataExtractorInterface
 {
     public function __construct(private MetadataReader $metadataReader)
     {
     }
 
+    /**
+     * Extracts temporal metadata and Live Photo content identifier from the file.
+     * Returns null when neither a capture date nor a content identifier is present.
+     *
+     * @param SplFileInfo $file File to read metadata from
+     *
+     * @return TemporalMetadata|null Extracted metadata, or null when the file lacks relevant fields
+     *
+     * @throws ExifMetadataReadException When the underlying metadata reader fails
+     */
     public function extractTemporalMetadata(SplFileInfo $file): ?TemporalMetadata
     {
         try {
@@ -120,8 +140,13 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
     }
 
     /**
-     * Reads a property from an object, trying direct property access first,
-     * then getter method, then method with the same name.
+     * Reads a named property from an arbitrary object via direct property access.
+     * Returns null for non-objects or when the property does not exist.
+     *
+     * @param mixed  $object Object to read from
+     * @param string $name   Property name to access
+     *
+     * @return mixed Property value, or null when inaccessible
      */
     private function readProperty(mixed $object, string $name): mixed
     {
@@ -137,6 +162,15 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         return null;
     }
 
+    /**
+     * Attempts to parse a mixed value as a DateTimeInterface. Accepts existing
+     * DateTimeInterface instances directly, or parses non-empty strings via
+     * DateTimeImmutable. Returns null for unparseable or empty values.
+     *
+     * @param mixed $value Raw value from the metadata tree
+     *
+     * @return DateTimeInterface|null Parsed date/time, or null on failure
+     */
     private function normaliseStringDateTime(mixed $value): ?DateTimeInterface
     {
         if ($value instanceof DateTimeInterface) {
@@ -154,6 +188,14 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         return null;
     }
 
+    /**
+     * Converts a mixed value to a trimmed non-empty string, or null.
+     * Accepts strings, integers and Stringable objects.
+     *
+     * @param mixed $value Raw value from the metadata tree
+     *
+     * @return string|null Trimmed string, or null when empty or unsupported type
+     */
     private function normaliseStringValue(mixed $value): ?string
     {
         if ($value === null) {

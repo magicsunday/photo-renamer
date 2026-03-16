@@ -14,7 +14,9 @@ namespace MagicSunday\Renamer\Metadata;
 use SplFileInfo;
 
 /**
- * Interface for metadata extraction operations.
+ * Contract for extracting temporal metadata (capture date, Live Photo ID) from
+ * a media file. Implementations may use EXIF, XMP, QuickTime atoms or any
+ * other source. Used by ExifMetadataProvider as the low-level extraction backend.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -22,5 +24,14 @@ use SplFileInfo;
  */
 interface MetadataExtractorInterface
 {
+    /**
+     * Extracts temporal metadata from the given file.
+     *
+     * @param SplFileInfo $file File to extract metadata from
+     *
+     * @return TemporalMetadata|null Extracted metadata, or null when no relevant fields exist
+     *
+     * @throws \MagicSunday\Renamer\Exception\ExifMetadataReadException When the file cannot be read
+     */
     public function extractTemporalMetadata(SplFileInfo $file): ?TemporalMetadata;
 }
