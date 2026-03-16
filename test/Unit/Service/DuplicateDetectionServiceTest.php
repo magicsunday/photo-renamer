@@ -1428,6 +1428,333 @@ final class DuplicateDetectionServiceTest extends TestCase
     }
 
     #[Test]
+    public function createDuplicateTargetFileInfoReturnsTargetWhenSourceEqualsTarget(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $service
+            ->setSourceDirectory($sourceDirectory)
+            ->setTargetDirectory($targetDirectory);
+
+        $path   = $sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg';
+        $source = new SplFileInfo($path);
+        $target = new SplFileInfo($path);
+
+        $duplicateCount = 1;
+        $method         = new ReflectionMethod($service, 'createDuplicateTargetFileInfo');
+
+        /** @var SplFileInfo $result */
+        $result = $method->invokeArgs($service, [
+            $source,
+            $target,
+            &$duplicateCount,
+            false,
+            false,
+            false,
+            false,
+            [],
+        ]);
+
+        self::assertSame($target->getPathname(), $result->getPathname());
+        self::assertSame(1, $duplicateCount, 'Counter must not change for idempotent rename');
+    }
+
+    #[Test]
+    public function createDuplicateTargetFileInfoCanonicalReturnsTargetWhenNotOccupied(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $service
+            ->setSourceDirectory($sourceDirectory)
+            ->setTargetDirectory($targetDirectory);
+
+        $source = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_1234.jpg');
+        $target = new SplFileInfo($targetDirectory . DIRECTORY_SEPARATOR . '2024-01-01.jpg');
+
+        $duplicateCount = 1;
+        $method         = new ReflectionMethod($service, 'createDuplicateTargetFileInfo');
+
+        /** @var SplFileInfo $result */
+        $result = $method->invokeArgs($service, [
+            $source,
+            $target,
+            &$duplicateCount,
+            true,
+            false,
+            false,
+            true,  // isCanonicalRename
+            [],
+        ]);
+
+        self::assertSame($target->getPathname(), $result->getPathname());
+    }
+
+    #[Test]
+    public function createDuplicateTargetFileInfoCanonicalGetsSuffixWhenOccupied(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $service
+            ->setSourceDirectory($sourceDirectory)
+            ->setTargetDirectory($targetDirectory);
+
+        $source = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_1234.jpg');
+        $target = new SplFileInfo($targetDirectory . DIRECTORY_SEPARATOR . '2024-01-01.jpg');
+
+        // Occupy the target path in the disk index
+        $diskIndexProp = new ReflectionProperty($service, 'diskIndex');
+        $diskIndexProp->setValue($service, [
+            $target->getPathname() => true,
+        ]);
+
+        $duplicateCount = 1;
+        $method         = new ReflectionMethod($service, 'createDuplicateTargetFileInfo');
+
+        /** @var SplFileInfo $result */
+        $result = $method->invokeArgs($service, [
+            $source,
+            $target,
+            &$duplicateCount,
+            true,
+            false,
+            false,
+            true,  // isCanonicalRename
+            [],
+        ]);
+
+        self::assertNotSame($target->getPathname(), $result->getPathname());
+        self::assertStringContainsString(FileSystemService::DUPLICATE_IDENTIFIER, $result->getPathname());
+    }
+
+    #[Test]
+    public function createDuplicateTargetFileInfoNonCanonicalGetsSuffixWhenOccupied(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $service
+            ->setSourceDirectory($sourceDirectory)
+            ->setTargetDirectory($targetDirectory);
+
+        $source = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'copy.jpg');
+        $target = new SplFileInfo($targetDirectory . DIRECTORY_SEPARATOR . '2024-01-01.jpg');
+
+        // Occupy the target path in the disk index
+        $diskIndexProp = new ReflectionProperty($service, 'diskIndex');
+        $diskIndexProp->setValue($service, [
+            $target->getPathname() => true,
+        ]);
+
+        $duplicateCount = 1;
+        $method         = new ReflectionMethod($service, 'createDuplicateTargetFileInfo');
+
+        /** @var SplFileInfo $result */
+        $result = $method->invokeArgs($service, [
+            $source,
+            $target,
+            &$duplicateCount,
+            true,
+            false,
+            false,
+            false, // NOT canonical
+            [],
+        ]);
+
+        self::assertNotSame($target->getPathname(), $result->getPathname());
+        self::assertStringContainsString(FileSystemService::DUPLICATE_IDENTIFIER, $result->getPathname());
+    }
+
+    #[Test]
+    public function createDuplicateTargetFileInfoNonFirstGetsSuffix(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $service
+            ->setSourceDirectory($sourceDirectory)
+            ->setTargetDirectory($targetDirectory);
+
+        $source = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'copy.jpg');
+        $target = new SplFileInfo($targetDirectory . DIRECTORY_SEPARATOR . '2024-01-01.jpg');
+
+        $duplicateCount = 1;
+        $method         = new ReflectionMethod($service, 'createDuplicateTargetFileInfo');
+
+        /** @var SplFileInfo $result */
+        $result = $method->invokeArgs($service, [
+            $source,
+            $target,
+            &$duplicateCount,
+            false, // NOT first
+            true,  // hasAdditionalRenames
+            false,
+            false,
+            [],
+        ]);
+
+        self::assertNotSame($target->getPathname(), $result->getPathname());
+        self::assertStringContainsString(FileSystemService::DUPLICATE_IDENTIFIER, $result->getPathname());
+    }
+
+    #[Test]
+    public function createDuplicateTargetFileInfoFirstWithAdditionalRenamesCallsUniqueResolver(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $service
+            ->setSourceDirectory($sourceDirectory)
+            ->setTargetDirectory($targetDirectory);
+
+        $source = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg');
+        $target = new SplFileInfo($targetDirectory . DIRECTORY_SEPARATOR . '2024-01-01.jpg');
+
+        // Occupy the target so the unique resolver must find a new name
+        $diskIndexProp = new ReflectionProperty($service, 'diskIndex');
+        $diskIndexProp->setValue($service, [
+            $target->getPathname() => true,
+        ]);
+
+        $duplicateCount = 1;
+        $method         = new ReflectionMethod($service, 'createDuplicateTargetFileInfo');
+
+        /** @var SplFileInfo $result */
+        $result = $method->invokeArgs($service, [
+            $source,
+            $target,
+            &$duplicateCount,
+            true,  // isFirst
+            true,  // hasAdditionalRenames
+            false,
+            false,
+            [],
+        ]);
+
+        // Target is occupied, so it falls through to the occupied branch (line 877)
+        // and gets a suffix regardless of isFirst/hasAdditionalRenames
+        self::assertNotSame($target->getPathname(), $result->getPathname());
+        self::assertStringContainsString(FileSystemService::DUPLICATE_IDENTIFIER, $result->getPathname());
+    }
+
+    #[Test]
+    public function createDuplicateTargetFileInfoFirstWithAdditionalRenamesAndDisambiguation(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $service
+            ->setSourceDirectory($sourceDirectory)
+            ->setTargetDirectory($targetDirectory);
+
+        $source = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg');
+        $target = new SplFileInfo($targetDirectory . DIRECTORY_SEPARATOR . '2024-01-01.jpg');
+
+        $duplicateCount = 1;
+        $method         = new ReflectionMethod($service, 'createDuplicateTargetFileInfo');
+
+        /** @var SplFileInfo $result */
+        $result = $method->invokeArgs($service, [
+            $source,
+            $target,
+            &$duplicateCount,
+            true,  // isFirst
+            true,  // hasAdditionalRenames
+            true,  // requiresCanonicalDisambiguation (forces suffix)
+            false,
+            [],
+        ]);
+
+        // requiresCanonicalDisambiguation forces a duplicate suffix
+        self::assertNotSame($target->getPathname(), $result->getPathname());
+        self::assertStringContainsString(FileSystemService::DUPLICATE_IDENTIFIER, $result->getPathname());
+    }
+
+    #[Test]
+    public function createDuplicateTargetFileInfoFirstWithCanonicalDisambiguationGetsSuffix(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $service
+            ->setSourceDirectory($sourceDirectory)
+            ->setTargetDirectory($targetDirectory);
+
+        $source = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg');
+        $target = new SplFileInfo($targetDirectory . DIRECTORY_SEPARATOR . '2024-01-01.jpg');
+
+        $duplicateCount = 1;
+        $method         = new ReflectionMethod($service, 'createDuplicateTargetFileInfo');
+
+        /** @var SplFileInfo $result */
+        $result = $method->invokeArgs($service, [
+            $source,
+            $target,
+            &$duplicateCount,
+            true,  // isFirst
+            false,
+            true,  // requiresCanonicalDisambiguation
+            false,
+            [],
+        ]);
+
+        self::assertNotSame($target->getPathname(), $result->getPathname());
+        self::assertStringContainsString(FileSystemService::DUPLICATE_IDENTIFIER, $result->getPathname());
+    }
+
+    #[Test]
+    public function createDuplicateTargetFileInfoFirstWithoutAdditionalRenamesReturnsTarget(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $service
+            ->setSourceDirectory($sourceDirectory)
+            ->setTargetDirectory($targetDirectory);
+
+        $source = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg');
+        $target = new SplFileInfo($targetDirectory . DIRECTORY_SEPARATOR . '2024-01-01.jpg');
+
+        $duplicateCount = 1;
+        $method         = new ReflectionMethod($service, 'createDuplicateTargetFileInfo');
+
+        /** @var SplFileInfo $result */
+        $result = $method->invokeArgs($service, [
+            $source,
+            $target,
+            &$duplicateCount,
+            true,  // isFirst
+            false, // NO additional renames
+            false, // NO canonical disambiguation
+            false,
+            [],
+        ]);
+
+        self::assertSame($target->getPathname(), $result->getPathname());
+        self::assertSame(1, $duplicateCount, 'Counter must not change for single file');
+    }
+
+    #[Test]
     public function getNewUniqueDuplicateTargetFileInfoThrowsWhenMaxSuffixExceeded(): void
     {
         [$service] = $this->createService();
