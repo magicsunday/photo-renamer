@@ -1,4 +1,4 @@
-.build/cache/
+.build/
 .git/
 .idea/
 coverage-report/

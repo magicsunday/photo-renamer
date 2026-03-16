@@ -4,11 +4,13 @@
 
 #### Application
 
-.PHONY: binary binary-clean version
+.PHONY: binary binary-init binary-clean version
 
 binary: .logo ## Build the self-contained renamer binary.
-	@bash scripts/init-with-docker
 	@bash scripts/build
+
+binary-init: .logo ## Initialize SPC build environment (download + compile PHP).
+	@bash scripts/init-with-docker
 
 binary-clean: .logo ## Remove SPC build artifacts to free space.
 	@rm -rf .build/spc/pkgroot/ .build/spc/downloads/ .build/spc/source/

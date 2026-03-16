@@ -44,9 +44,8 @@ RUN apt-get update && \
     sudo \
     unzip \
     wget \
-    zip
-
-RUN rm -rf /var/lib/apt/lists/*
+    zip && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN (groupadd --gid ${GROUPID} renamer 2>/dev/null || groupmod -n renamer $(getent group ${GROUPID} | cut -d: -f1)) && \
     useradd --uid ${USERID} --gid ${GROUPID} --create-home renamer && \
