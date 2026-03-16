@@ -18,7 +18,7 @@ ENV PATH="${PATH}:/app/.build/bin"
 WORKDIR /app
 
 # SPC builder stage
-FROM ubuntu:latest AS builder
+FROM ubuntu:24.04 AS builder
 
 ARG USERID=1000
 ARG GROUPID=1000
@@ -49,4 +49,4 @@ RUN apt-get update && \
 
 RUN (groupadd --gid ${GROUPID} renamer 2>/dev/null || groupmod -n renamer $(getent group ${GROUPID} | cut -d: -f1)) && \
     useradd --uid ${USERID} --gid ${GROUPID} --create-home renamer && \
-    echo "renamer ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+    echo "renamer ALL=(ALL) NOPASSWD: /usr/bin/apt-get, /usr/bin/apt" >> /etc/sudoers
