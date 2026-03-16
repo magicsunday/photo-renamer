@@ -465,7 +465,7 @@ abstract class AbstractRenameCommand extends Command
      */
     protected function groupFilesByDuplicateIdentifier(RecursiveIteratorIterator $iterator): FileDuplicateCollection
     {
-        $this->io->text(sprintf(' <fg=cyan>Scanning:</> %s', $this->sourceDirectory));
+        $this->io->text(sprintf('<fg=cyan>Scanning:</> %s', $this->sourceDirectory));
 
         // Process list of all files
         return $this->duplicateDetectionService
@@ -486,8 +486,8 @@ abstract class AbstractRenameCommand extends Command
      */
     private function createDuplicateFilenames(FileDuplicateCollection $fileDuplicateCollection): FileDuplicateCollection
     {
-        $this->io->text(' <fg=cyan>Resolving duplicates</>');
         $this->io->newLine();
+        $this->io->text('<fg=cyan>Resolving duplicates</>');
 
         return $this->duplicateDetectionService
             ->setUseFileExtensionFromSource($this->useFileExtensionFromSource)

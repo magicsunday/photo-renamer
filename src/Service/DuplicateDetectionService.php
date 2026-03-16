@@ -273,7 +273,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         }
 
         $progressBar->finish();
-        $this->io->newLine(2);
+        $this->io->newLine();
 
         return $fileDuplicateCollection;
     }
@@ -410,7 +410,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         }
 
         $progressBar->finish();
-        $this->io->newLine(2);
+        $this->io->newLine();
 
         return $fileDuplicateCollection;
     }

@@ -160,7 +160,7 @@ class FileSystemService implements FileSystemServiceInterface
 
         $this->io->newLine();
         $this->io->text(sprintf(
-            ' <fg=cyan>%s files</>',
+            '<fg=cyan>%s files</>',
             $copyFiles ? 'Copying' : 'Renaming',
         ));
         $this->io->newLine();
@@ -193,7 +193,7 @@ class FileSystemService implements FileSystemServiceInterface
                 }
 
                 $this->io->text(sprintf(
-                    '  %s <fg=yellow>%-' . $maxFilenameLength . 's</> <fg=cyan>→</> <fg=green>%s</>',
+                    ' %s <fg=yellow>%-' . $maxFilenameLength . 's</> <fg=cyan>→</> <fg=green>%s</>',
                     $statusTag,
                     $sourcePath,
                     $targetPath,
@@ -238,6 +238,8 @@ class FileSystemService implements FileSystemServiceInterface
         $scannedFiles ??= $totalOperations;
 
         $this->io->newLine();
+        $this->io->text('<fg=cyan>Summary</>');
+        $this->io->newLine();
 
         $rows = [
             ['Scanned files', (string) $scannedFiles],
@@ -275,7 +277,7 @@ class FileSystemService implements FileSystemServiceInterface
 
         foreach ($rows as $row) {
             $this->io->text(sprintf(
-                '  %-' . $maxLabelLength . 's  %' . $maxValueLength . 's',
+                ' %-' . $maxLabelLength . 's  %' . $maxValueLength . 's',
                 $row[0],
                 $row[1],
             ));
