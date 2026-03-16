@@ -30,9 +30,34 @@ use SplObjectStorage;
 use function sprintf;
 use function uniqid;
 
+/**
+ * Verifies ExifDateFilenameStrategy, the primary rename strategy for the rename:exif
+ * command. This strategy reads EXIF capture dates from image/video metadata and
+ * formats them into standardised target filenames.
+ *
+ * Key guarantees verified here:
+ * - Capture dates are formatted using the configured PHP date pattern
+ * - Sub-second precision (milliseconds, microseconds) from EXIF SubSecTimeOriginal
+ *   is correctly normalised and included in the filename
+ * - Files without a capture date return null, allowing the caller to skip them
+ * - Live Photo content identifiers are extracted and lowercased for companion pairing
+ * - EXIF read failures are wrapped in TargetFilenameException for consistent error handling
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
+ */
 #[CoversClass(ExifDateFilenameStrategy::class)]
 final class ExifDateFilenameStrategyTest extends TestCase
 {
+    /**
+     * Verifies that the strategy produces the expected target filename for various
+     * capture dates and precision levels (seconds, milliseconds, microseconds).
+     *
+     * Each data provider case exercises a different date format pattern and extension
+     * to confirm that the DateTime formatting, sub-second handling, and extension
+     * preservation work correctly across the supported range.
+     */
     #[Test]
     #[DataProvider('captureDateProvider')]
     public function itGeneratesFilenameFromCaptureDate(
@@ -59,6 +84,15 @@ final class ExifDateFilenameStrategyTest extends TestCase
         );
     }
 
+    /**
+     * Verifies that generateFilename() returns null when the metadata extractor
+     * provides no capture date for a file.
+     *
+     * Returning null signals to the grouping pipeline that this file cannot be
+     * renamed by date and should be skipped. Without this, files lacking EXIF
+     * data (e.g. screenshots, downloaded images) would produce invalid filenames
+     * or throw uncaught exceptions.
+     */
     #[Test]
     public function itReturnsNullWhenNoCaptureDate(): void
     {
@@ -72,6 +106,15 @@ final class ExifDateFilenameStrategyTest extends TestCase
         self::assertNull($strategy->generateFilename(new SplFileInfo($path)));
     }
 
+    /**
+     * Verifies that getLivePhotoContentIdentifier() extracts and lowercases the
+     * content identifier from TemporalMetadata, even when no capture date exists.
+     *
+     * The content identifier (typically an Apple UUID) is the primary key for
+     * Live Photo companion pairing. Lowercasing ensures case-insensitive matching
+     * between the still image and its video counterpart, which may store the UUID
+     * in different cases depending on the extraction tool.
+     */
     #[Test]
     public function itExtractsLivePhotoContentIdentifierFromTemporalMetadata(): void
     {
@@ -88,6 +131,14 @@ final class ExifDateFilenameStrategyTest extends TestCase
         self::assertSame('exif-uuid', $strategy->getLivePhotoContentIdentifier(new SplFileInfo($path)));
     }
 
+    /**
+     * Verifies that an ExifMetadataReadException thrown by the metadata extractor
+     * is caught and re-thrown as a TargetFilenameException with the original message.
+     *
+     * This wrapping allows the grouping pipeline to handle all filename-generation
+     * errors uniformly via TargetFilenameException, logging a warning and skipping
+     * the file rather than aborting the entire batch.
+     */
     #[Test]
     public function exifReadFailureIsConvertedToTargetFilenameException(): void
     {
@@ -104,6 +155,16 @@ final class ExifDateFilenameStrategyTest extends TestCase
         $strategy->generateFilename(new SplFileInfo($path));
     }
 
+    /**
+     * Verifies that SubSecTimeOriginal values of varying digit counts (1-6) are
+     * correctly zero-padded to 6-digit microsecond strings in the generated filename.
+     *
+     * Camera manufacturers store sub-second precision inconsistently: some write "1"
+     * meaning 100ms, others write "123456" meaning 123456us. The strategy normalises
+     * all values to 6 digits by right-padding with zeros. Without this, files from
+     * different cameras shot at the same second would receive inconsistent sub-second
+     * suffixes, breaking deterministic rename ordering.
+     */
     #[Test]
     #[DataProvider('subSecondProvider')]
     public function itFormatsSubSecondValuesAsMicroseconds(

@@ -26,6 +26,21 @@ use function sys_get_temp_dir;
 use function tempnam;
 use function unlink;
 
+/**
+ * Factory for creating minimal-but-valid JPEG and QuickTime MOV fixture files
+ * with embedded EXIF/XMP metadata for Live Photo pairing tests.
+ *
+ * The JPEG fixture contains a real JFIF/EXIF header with a DateTimeOriginal tag
+ * and an XMP ContentIdentifier. The MOV fixture contains a QuickTime moov/udta/meta
+ * atom tree with the Apple content identifier and creation date keys.
+ *
+ * All fixtures are written to the system temp directory and automatically deleted
+ * via a shutdown function, so tests do not need explicit cleanup.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
+ */
 final class LivePhotoFixtureFactory
 {
     private const string JPEG_BASE64 = <<<BASE64

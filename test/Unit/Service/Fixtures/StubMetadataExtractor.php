@@ -18,6 +18,18 @@ use Throwable;
 
 use function array_key_exists;
 
+/**
+ * In-memory stub of MetadataExtractorInterface for unit and integration tests.
+ *
+ * Allows pre-programming per-path responses: a TemporalMetadata for the happy path,
+ * a Throwable for simulating extraction failures, or null (default) for files with
+ * no metadata. This avoids the need for real image/video files with embedded EXIF
+ * data in the majority of test scenarios.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
+ */
 final class StubMetadataExtractor implements MetadataExtractorInterface
 {
     /**

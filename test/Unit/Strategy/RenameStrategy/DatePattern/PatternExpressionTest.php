@@ -17,9 +17,29 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
+/**
+ * Verifies the PatternExpression value object which pairs the original user-facing
+ * template string with its compiled regex form.
+ *
+ * PatternExpression is created by DatePatternFilenameStrategy to convert the
+ * configured search pattern into a usable regex while retaining the template
+ * for error messages and diagnostics.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
+ */
 #[CoversClass(PatternExpression::class)]
 class PatternExpressionTest extends TestCase
 {
+    /**
+     * Verifies that fromTemplate() compiles placeholders into regex capture groups
+     * while preserving the original template string for later introspection.
+     *
+     * getTemplate() must return the verbatim input, and getRegex() must return
+     * the fully expanded regex. A mismatch would cause either incorrect filename
+     * matching or misleading error messages.
+     */
     #[Test]
     public function itCreatesRegexFromTemplate(): void
     {
