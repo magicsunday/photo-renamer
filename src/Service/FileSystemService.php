@@ -14,6 +14,7 @@ namespace MagicSunday\Renamer\Service;
 use FilesystemIterator;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
+use MagicSunday\Renamer\Model\RenameOptions;
 use RecursiveDirectoryIterator;
 use RecursiveIterator;
 use RecursiveIteratorIterator;
@@ -105,27 +106,14 @@ class FileSystemService implements FileSystemServiceInterface
      * Renames or copies files represented by the provided duplicate collection.
      *
      * @param FileDuplicateCollection $fileDuplicateCollection Collection describing source/target file pairs grouped by duplicate identifier
-     * @param bool                    $dryRun                  When true no filesystem changes are performed
-     * @param bool                    $skipDuplicates          Whether files marked as duplicates should be ignored
-     * @param bool                    $copyFiles               When true, files are copied instead of moved
-     * @param bool                    $listAll                 When true each canonical/original file is printed alongside duplicates
-     * @param string|null             $sourceBaseDirectory     Base directory used to render source paths relative to it
-     * @param string|null             $targetBaseDirectory     Base directory used to render target paths relative to it
-     * @param int|null                $scannedFiles            Total files scanned during discovery
+     * @param RenameOptions           $options                 Options controlling the rename operation
      */
     public function renameFiles(
         FileDuplicateCollection $fileDuplicateCollection,
-        bool $dryRun = false,
-        bool $skipDuplicates = false,
-        bool $copyFiles = false,
-        bool $listAll = false,
-        ?string $sourceBaseDirectory = null,
-        ?string $targetBaseDirectory = null,
-        ?int $scannedFiles = null,
-        int $namingCollisions = 0,
+        RenameOptions $options = new RenameOptions(),
     ): void {
-        $sourceBaseDirectory = $this->normalizeBaseDirectory($sourceBaseDirectory);
-        $targetBaseDirectory = $this->normalizeBaseDirectory($targetBaseDirectory);
+        $sourceBaseDirectory = $this->normalizeBaseDirectory($options->sourceBaseDirectory);
+        $targetBaseDirectory = $this->normalizeBaseDirectory($options->targetBaseDirectory);
 
         $maxFilenameLength = 0;
         $fileCount         = 0;
@@ -165,7 +153,7 @@ class FileSystemService implements FileSystemServiceInterface
         $this->io->newLine();
         $this->io->text(sprintf(
             '<fg=cyan>%s files</>',
-            $copyFiles ? 'Copying' : 'Renaming',
+            $options->copyFiles ? 'Copying' : 'Renaming',
         ));
         $this->io->newLine();
 
@@ -183,7 +171,7 @@ class FileSystemService implements FileSystemServiceInterface
                 $isDuplicateTarget = $renameBasename !== $canonicalBasename;
                 $isNoOp            = $rename->getSource()->getPathname() === $rename->getTarget()->getPathname();
                 $isCanonicalEntry  = $isNoOp
-                    || ($listAll && $rename->getSource()->getPathname() === $canonicalTargetPath);
+                    || ($options->listAll && $rename->getSource()->getPathname() === $canonicalTargetPath);
 
                 $sourcePath = $this->getRelativePath($rename->getSource(), $sourceBaseDirectory);
                 $targetPath = $this->getRelativePath($rename->getTarget(), $targetBaseDirectory);
@@ -207,7 +195,7 @@ class FileSystemService implements FileSystemServiceInterface
                     ++$duplicateCount;
                 }
 
-                $shouldSkip = $skipDuplicates && $isDuplicateTarget;
+                $shouldSkip = $options->skipDuplicates && $isDuplicateTarget;
 
                 if ($shouldSkip) {
                     $this->io->text('       <fg=red>⏭ Skipped (duplicate)</>');
@@ -220,7 +208,7 @@ class FileSystemService implements FileSystemServiceInterface
                 }
 
                 if ($shouldPerformOperation) {
-                    if ($copyFiles) {
+                    if ($options->copyFiles) {
                         ++$plannedCopies;
                     } else {
                         ++$plannedMoves;
@@ -228,11 +216,11 @@ class FileSystemService implements FileSystemServiceInterface
 
                     ++$fileCount;
 
-                    if ($dryRun === false) {
+                    if ($options->dryRun === false) {
                         $this->copyOrMoveFile(
                             $rename->getSource(),
                             $rename->getTarget(),
-                            $copyFiles,
+                            $options->copyFiles,
                             $occupiedPaths,
                         );
                     }
@@ -240,7 +228,7 @@ class FileSystemService implements FileSystemServiceInterface
             }
         }
 
-        $scannedFiles ??= $totalOperations;
+        $scannedFiles = $options->scannedFiles ?? $totalOperations;
 
         $this->io->newLine();
         $this->io->text('<fg=cyan>Summary</>');
@@ -270,11 +258,11 @@ class FileSystemService implements FileSystemServiceInterface
             $rows[] = ['Duplicates found', (string) $duplicateCount];
         }
 
-        if ($namingCollisions > 0) {
-            $rows[] = ['Naming collisions', (string) $namingCollisions];
+        if ($options->namingCollisions > 0) {
+            $rows[] = ['Naming collisions', (string) $options->namingCollisions];
         }
 
-        $rows[] = [$dryRun ? 'Files to process' : 'Files processed', (string) $fileCount];
+        $rows[] = [$options->dryRun ? 'Files to process' : 'Files processed', (string) $fileCount];
 
         $maxLabelLength = 0;
         $maxValueLength = 0;

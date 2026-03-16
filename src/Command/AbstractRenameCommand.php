@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Command;
 
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
+use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
@@ -416,14 +417,16 @@ abstract class AbstractRenameCommand extends Command
         $this->fileSystemService
             ->renameFiles(
                 $fileDuplicateCollection,
-                $this->dryRun,
-                $this->skipDuplicates,
-                $this->copyFiles,
-                $this->listAll,
-                $this->sourceDirectory,
-                $this->targetDirectory,
-                $scannedFiles,
-                $this->duplicateDetectionService->getNamingCollisions(),
+                new RenameOptions(
+                    dryRun: $this->dryRun,
+                    skipDuplicates: $this->skipDuplicates,
+                    copyFiles: $this->copyFiles,
+                    listAll: $this->listAll,
+                    sourceBaseDirectory: $this->sourceDirectory,
+                    targetBaseDirectory: $this->targetDirectory,
+                    scannedFiles: $scannedFiles,
+                    namingCollisions: $this->duplicateDetectionService->getNamingCollisions(),
+                ),
             );
     }
 

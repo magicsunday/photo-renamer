@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service;
 
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
+use MagicSunday\Renamer\Model\RenameOptions;
 use RecursiveIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
@@ -51,26 +52,12 @@ interface FileSystemServiceInterface
      * Renames all the files in the collection.
      *
      * @param FileDuplicateCollection $fileDuplicateCollection Collection of file duplicates
-     * @param bool                    $dryRun                  Whether to perform a dry run (no actual renaming)
-     * @param bool                    $skipDuplicates          Whether to skip duplicate files
-     * @param bool                    $copyFiles               Whether to copy files instead of renaming them
-     * @param bool                    $listAll                 Whether to emit a full listing of originals and duplicates
-     * @param string|null             $sourceBaseDirectory     Base directory used to display source paths
-     * @param string|null             $targetBaseDirectory     Base directory used to display target paths
-     * @param int|null                $scannedFiles            Number of files scanned during discovery
-     * @param int                     $namingCollisions        Number of groups where hash sub-grouping was applied
+     * @param RenameOptions           $options                 Options controlling the rename operation
      *
      * @throws RuntimeException If a file could not be renamed
      */
     public function renameFiles(
         FileDuplicateCollection $fileDuplicateCollection,
-        bool $dryRun = false,
-        bool $skipDuplicates = false,
-        bool $copyFiles = false,
-        bool $listAll = false,
-        ?string $sourceBaseDirectory = null,
-        ?string $targetBaseDirectory = null,
-        ?int $scannedFiles = null,
-        int $namingCollisions = 0,
+        RenameOptions $options = new RenameOptions(),
     ): void;
 }
