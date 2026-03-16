@@ -4,7 +4,10 @@ set -e # Instructs a shell to exit if a command fails, i.e., if it outputs a non
 
 cd $(dirname "$0")/..
 
-#echo "USERID=$(id -u)" > .env
-#echo "GROUPID=$(id -g)" >> .env
+echo "USERID=$(id -u)" > .env
+echo "GROUPID=$(id -g)" >> .env
+
+# Fix .build/ ownership (created as root by buildbox) so builder container can write to it
+docker compose run --rm buildbox chown -R "$(id -u):$(id -g)" /app/.build
 
 docker compose run --build --rm builder ./scripts/init
