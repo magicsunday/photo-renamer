@@ -862,6 +862,57 @@ final class DuplicateDetectionServiceTest extends TestCase
         );
     }
 
+    #[Test]
+    public function createDuplicateFilenamesAssignsDuplicateSuffixForIdenticalContent(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $fileA = $sourceDirectory . DIRECTORY_SEPARATOR . 'copy_a.jpg';
+        $fileB = $sourceDirectory . DIRECTORY_SEPARATOR . 'copy_b.jpg';
+
+        file_put_contents($fileA, 'identical-content');
+        file_put_contents($fileB, 'identical-content');
+
+        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28.jpg';
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate
+            ->addFile(new SplFileInfo($fileA))
+            ->addFile(new SplFileInfo($fileB))
+            ->setTarget(new SplFileInfo($targetFile));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('identifier', $fileDuplicate);
+
+        $service
+            ->setSourceDirectory($sourceDirectory)
+            ->setTargetDirectory($targetDirectory);
+
+        $service->createDuplicateFilenames($collection);
+
+        $duplicate = $collection->get('identifier');
+        self::assertInstanceOf(FileDuplicate::class, $duplicate);
+
+        $renames = iterator_to_array($duplicate->getRenames());
+
+        self::assertCount(2, $renames);
+
+        // First: canonical — no duplicate suffix
+        self::assertSame(
+            $targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28.jpg',
+            $renames[0]->getTarget()->getPathname(),
+        );
+
+        // Second: genuine duplicate
+        self::assertSame(
+            $targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28-duplicate-001.jpg',
+            $renames[1]->getTarget()->getPathname(),
+        );
+    }
+
     /**
      * @return array{DuplicateDetectionService, BufferedOutput, FileSystemService}
      */
