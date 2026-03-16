@@ -4,9 +4,10 @@ set -e
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-BUILD_DIR=".build/renamer"
-BIN_DIR=".build/bin"
-SPC_DIR=".build/spc"
+ROOT_DIR="$(pwd)"
+BUILD_DIR="${ROOT_DIR}/.build/renamer"
+BIN_DIR="${ROOT_DIR}/.build/bin"
+SPC_DIR="${ROOT_DIR}/.build/spc"
 BIN_NAME="renamer"
 
 echo "Compiling ${BIN_NAME}"
