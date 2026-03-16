@@ -61,8 +61,7 @@ final class RenameByExifDateCommandTest extends TestCase
             self::createStub(LivePhotoPairingService::class),
         );
 
-        self::assertSame('exif:date', $command->getName());
-        self::assertContains('rename:exifdate', $command->getAliases());
+        self::assertSame('rename:exif', $command->getName());
     }
 
     #[Test]

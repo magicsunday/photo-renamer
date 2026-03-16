@@ -37,8 +37,7 @@ final class RenameLowerCaseCommandTest extends TestCase
             self::createStub(DuplicateDetectionServiceInterface::class),
         );
 
-        self::assertSame('lowercase', $command->getName());
-        self::assertContains('rename:lower', $command->getAliases());
+        self::assertSame('rename:lower', $command->getName());
     }
 
     #[Test]

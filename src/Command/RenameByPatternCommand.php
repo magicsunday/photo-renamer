@@ -61,8 +61,7 @@ class RenameByPatternCommand extends AbstractRenameCommand
         parent::configure();
 
         $this
-            ->setName('pattern')
-            ->setAliases(['rename:pattern'])
+            ->setName('rename:pattern')
             ->setDescription('Renames files using a regular expression pattern.')
             ->addOption(
                 'pattern',

@@ -39,8 +39,7 @@ final class RenameByHashCommandTest extends TestCase
             new SafeHashCalculator(),
         );
 
-        self::assertSame('hash', $command->getName());
-        self::assertContains('rename:hash', $command->getAliases());
+        self::assertSame('rename:hash', $command->getName());
     }
 
     #[Test]

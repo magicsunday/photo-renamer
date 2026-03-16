@@ -31,7 +31,6 @@ final class RenameByPatternCommandTest extends TestCase
             new SafeRegex(),
         );
 
-        self::assertSame('pattern', $command->getName());
-        self::assertContains('rename:pattern', $command->getAliases());
+        self::assertSame('rename:pattern', $command->getName());
     }
 }

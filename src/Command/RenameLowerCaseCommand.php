@@ -37,11 +37,9 @@ class RenameLowerCaseCommand extends AbstractRenameCommand
         parent::configure();
 
         $this
-            ->setName('lowercase')
-            ->setAliases(['rename:lower'])
+            ->setName('rename:lower')
             ->setDescription(
-                'Changes all filenames containing at least one uppercase letter to lowercase. '
-                . 'By default, the renaming occurs in the same directory unless specified.'
+                'Converts filenames to lowercase.'
             );
     }
 

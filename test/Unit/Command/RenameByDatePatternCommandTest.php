@@ -31,7 +31,6 @@ final class RenameByDatePatternCommandTest extends TestCase
             new SafeRegex(),
         );
 
-        self::assertSame('pattern:date', $command->getName());
-        self::assertContains('rename:date-pattern', $command->getAliases());
+        self::assertSame('rename:date', $command->getName());
     }
 }
