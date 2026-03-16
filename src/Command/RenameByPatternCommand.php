@@ -76,7 +76,7 @@ class RenameByPatternCommand extends AbstractRenameCommand
                 'r',
                 InputOption::VALUE_REQUIRED,
                 'The pattern used to replace the matches results',
-                '\$1jpg'
+                '${1}jpg'
             );
     }
 
