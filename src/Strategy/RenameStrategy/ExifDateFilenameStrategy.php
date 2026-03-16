@@ -18,6 +18,7 @@ use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use Override;
 use SplFileInfo;
 
+use function basename;
 use function str_pad;
 use function substr;
 
@@ -26,7 +27,7 @@ use function substr;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-class ExifDateFilenameStrategy implements RenameStrategyInterface
+class ExifDateFilenameStrategy implements LivePhotoAwareRenameStrategyInterface
 {
     public function __construct(private readonly string $targetFilenamePattern, private readonly ExifMetadataProvider $exifMetadataProvider)
     {
@@ -45,6 +46,7 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
         return $targetBasename . '.' . $splFileInfo->getExtension();
     }
 
+    #[Override]
     public function getLivePhotoContentIdentifier(SplFileInfo $splFileInfo): ?string
     {
         $identifier = $this->exifMetadataProvider->getContentIdentifier($splFileInfo);
@@ -84,7 +86,7 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
             return null;
         }
 
-        return $dateTimeOriginal->format($pattern);
+        return basename($dateTimeOriginal->format($pattern));
     }
 
     private function normaliseSubSecondValue(?string $value): ?string
