@@ -12,7 +12,13 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Regex;
 
 /**
- * Immutable wrapper around the result of a preg_match_all call.
+ * Immutable wrapper around the raw match array produced by preg_match_all().
+ * Provides typed access to the nested group structure without exposing the
+ * raw array to consumers.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
  */
 final readonly class RegexMatchAllResult
 {

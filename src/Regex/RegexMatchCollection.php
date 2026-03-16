@@ -15,19 +15,28 @@ use function array_key_last;
 use function is_int;
 
 /**
- * Immutable collection representing regex match groups.
+ * Immutable collection of RegexMatchGroup instances, built from either a single
+ * preg_match() or a preg_match_all() result. Provides indexed access to capture
+ * groups by their numeric position.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
  */
 final readonly class RegexMatchCollection
 {
     /**
-     * @param array<int, RegexMatchGroup> $groups
+     * @param array<int, RegexMatchGroup> $groups Capture groups indexed by group number
      */
     private function __construct(private array $groups)
     {
     }
 
     /**
-     * Builds a collection from a single `preg_match` call.
+     * Creates a collection from a single preg_match() result, wrapping each
+     * captured value into a single-element RegexMatchGroup.
+     *
+     * @param RegexMatchResult $result Result from SafeRegex::match()
      */
     public static function fromMatch(RegexMatchResult $result): self
     {
@@ -45,7 +54,10 @@ final readonly class RegexMatchCollection
     }
 
     /**
-     * Builds a collection from a `preg_match_all` call.
+     * Creates a collection from a preg_match_all() result, wrapping each
+     * group's match list into a multi-element RegexMatchGroup.
+     *
+     * @param RegexMatchAllResult $result Result from SafeRegex::matchAll()
      */
     public static function fromMatchAll(RegexMatchAllResult $result): self
     {
@@ -58,21 +70,38 @@ final readonly class RegexMatchCollection
         return new self($groups);
     }
 
+    /**
+     * Returns the number of capture groups in the collection (including group 0).
+     */
     public function count(): int
     {
         return count($this->groups);
     }
 
+    /**
+     * Checks whether a non-empty capture group exists at the given index.
+     *
+     * @param int $index Zero-based group index
+     */
     public function hasGroup(int $index): bool
     {
         return isset($this->groups[$index]) && !$this->groups[$index]->isEmpty();
     }
 
+    /**
+     * Returns the capture group at the given index, or null when it does not exist.
+     *
+     * @param int $index Zero-based group index
+     */
     public function group(int $index): ?RegexMatchGroup
     {
         return $this->groups[$index] ?? null;
     }
 
+    /**
+     * Returns the last capture group in the collection, or null when empty.
+     * Useful for accessing trailing suffix captures.
+     */
     public function lastGroup(): ?RegexMatchGroup
     {
         $lastKey = array_key_last($this->groups);

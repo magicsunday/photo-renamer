@@ -13,6 +13,14 @@ namespace MagicSunday\Renamer\Exception;
 
 use RuntimeException;
 
+/**
+ * Thrown when a file cannot be read, typically by SafeFileReader when
+ * file_get_contents() encounters a permission error or missing file.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
+ */
 final class FileReadException extends RuntimeException
 {
 }

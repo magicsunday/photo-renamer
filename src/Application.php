@@ -15,7 +15,9 @@ use Override;
 use Symfony\Component\Console\Command\Command;
 
 /**
- * Class Application.
+ * Symfony Console application entry point. Registers all rename commands
+ * injected via the DI container, reads the application version from the
+ * version file and displays the ASCII art logo in help output.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -90,6 +92,9 @@ class Application extends \Symfony\Component\Console\Application
         return $version !== '' ? $version : self::DEFAULT_VERSION;
     }
 
+    /**
+     * Prepends the ASCII art logo to the default Symfony Console help text.
+     */
     #[Override]
     public function getHelp(): string
     {

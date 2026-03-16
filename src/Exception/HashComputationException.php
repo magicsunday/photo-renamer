@@ -13,6 +13,14 @@ namespace MagicSunday\Renamer\Exception;
 
 use RuntimeException;
 
+/**
+ * Thrown when hash_file() fails to compute a content hash, typically due to
+ * unreadable files, permission errors or unsupported hash algorithms.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
+ */
 final class HashComputationException extends RuntimeException
 {
 }

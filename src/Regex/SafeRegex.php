@@ -23,6 +23,16 @@ use function restore_error_handler;
 use function set_error_handler;
 use function sprintf;
 
+/**
+ * Safe wrapper around PHP's preg_* functions that installs a temporary error
+ * handler to convert PCRE warnings into typed RegexExecutionException instances.
+ * Provides match, matchAll, replace and replaceCallback operations with
+ * consistent error handling and descriptive exception messages.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
+ */
 final class SafeRegex
 {
     /**
