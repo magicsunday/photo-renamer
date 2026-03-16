@@ -60,6 +60,8 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
 
     private bool $useFileExtensionFromSource = false;
 
+    private int $namingCollisions = 0;
+
     /**
      * Constructor.
      */
@@ -115,6 +117,14 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     public function setListAll(bool $listAll): DuplicateDetectionService
     {
         return $this;
+    }
+
+    /**
+     * Returns the number of groups where content-hash sub-grouping was applied.
+     */
+    public function getNamingCollisions(): int
+    {
+        return $this->namingCollisions;
     }
 
     /**
@@ -288,6 +298,8 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         bool $skipHashSubGrouping = false,
     ): FileDuplicateCollection
     {
+        $this->namingCollisions = 0;
+
         $progressBar = $this->startProgressBar($fileDuplicateCollection->count());
 
         /** @var string $duplicateIdentifier */
@@ -600,6 +612,8 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         if ($canonicalRename instanceof Rename) {
             $fileDuplicate->setTarget($canonicalRename->getTarget());
         }
+
+        ++$this->namingCollisions;
 
         return true;
     }

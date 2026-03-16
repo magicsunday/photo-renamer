@@ -435,6 +435,71 @@ final class FileSystemServiceTest extends TestCase
     }
 
     #[Test]
+    public function renameFilesDisplaysNamingCollisionsMetric(): void
+    {
+        [$service, $output] = $this->createService();
+
+        $sourceDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'source-collisions';
+        $targetDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'target-collisions';
+
+        mkdir($sourceDirectory);
+        mkdir($targetDirectory);
+
+        $sourceFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
+        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . 'image-001.jpg';
+
+        file_put_contents($sourceFile, 'content');
+
+        $fileDuplicateCollection = $this->createFileDuplicateCollection(
+            $sourceFile,
+            $targetFile,
+        );
+
+        $service->renameFiles(
+            $fileDuplicateCollection,
+            dryRun: true,
+            namingCollisions: 3,
+        );
+
+        $buffer = $output->fetch();
+
+        self::assertStringContainsString('Naming collisions', $buffer);
+        self::assertStringContainsString('3', $buffer);
+    }
+
+    #[Test]
+    public function renameFilesHidesNamingCollisionsWhenZero(): void
+    {
+        [$service, $output] = $this->createService();
+
+        $sourceDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'source-no-collisions';
+        $targetDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'target-no-collisions';
+
+        mkdir($sourceDirectory);
+        mkdir($targetDirectory);
+
+        $sourceFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
+        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
+
+        file_put_contents($sourceFile, 'content');
+
+        $fileDuplicateCollection = $this->createFileDuplicateCollection(
+            $sourceFile,
+            $targetFile,
+        );
+
+        $service->renameFiles(
+            $fileDuplicateCollection,
+            dryRun: true,
+            namingCollisions: 0,
+        );
+
+        $buffer = $output->fetch();
+
+        self::assertStringNotContainsString('Naming collisions', $buffer);
+    }
+
+    #[Test]
     public function renameFilesThrowsWhenTargetDirectoryCannotBeCreated(): void
     {
         [$service] = $this->createService();

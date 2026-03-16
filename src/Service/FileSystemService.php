@@ -120,6 +120,7 @@ class FileSystemService implements FileSystemServiceInterface
         ?string $sourceBaseDirectory = null,
         ?string $targetBaseDirectory = null,
         ?int $scannedFiles = null,
+        int $namingCollisions = 0,
     ): void {
         $sourceBaseDirectory = $this->normalizeBaseDirectory($sourceBaseDirectory);
         $targetBaseDirectory = $this->normalizeBaseDirectory($targetBaseDirectory);
@@ -261,6 +262,10 @@ class FileSystemService implements FileSystemServiceInterface
 
         if ($duplicateCount > 0) {
             $rows[] = ['Duplicates found', (string) $duplicateCount];
+        }
+
+        if ($namingCollisions > 0) {
+            $rows[] = ['Naming collisions', (string) $namingCollisions];
         }
 
         $rows[] = [$dryRun ? 'Files to process' : 'Files processed', (string) $fileCount];

@@ -58,6 +58,7 @@ interface FileSystemServiceInterface
      * @param string|null             $sourceBaseDirectory     Base directory used to display source paths
      * @param string|null             $targetBaseDirectory     Base directory used to display target paths
      * @param int|null                $scannedFiles            Number of files scanned during discovery
+     * @param int                     $namingCollisions        Number of groups where hash sub-grouping was applied
      *
      * @throws RuntimeException If a file could not be renamed
      */
@@ -70,5 +71,6 @@ interface FileSystemServiceInterface
         ?string $sourceBaseDirectory = null,
         ?string $targetBaseDirectory = null,
         ?int $scannedFiles = null,
+        int $namingCollisions = 0,
     ): void;
 }

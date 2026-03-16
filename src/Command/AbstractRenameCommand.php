@@ -416,7 +416,8 @@ abstract class AbstractRenameCommand extends Command
                 $this->listAll,
                 $this->sourceDirectory,
                 $this->targetDirectory,
-                $scannedFiles
+                $scannedFiles,
+                $this->duplicateDetectionService->getNamingCollisions(),
             );
     }
 

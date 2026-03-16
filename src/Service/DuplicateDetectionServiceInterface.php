@@ -57,4 +57,9 @@ interface DuplicateDetectionServiceInterface
         FileDuplicateCollection $fileDuplicateCollection,
         bool $skipHashSubGrouping = false,
     ): FileDuplicateCollection;
+
+    /**
+     * Returns the number of groups where content-hash sub-grouping was applied.
+     */
+    public function getNamingCollisions(): int;
 }
