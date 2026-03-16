@@ -324,7 +324,134 @@ final class RenameByExifDateCommandTest extends TestCase
     }
 
     /**
-     * Runs the command in dry-run mode and returns the source → target mapping.
+     * Verifies idempotency for hash sub-group naming: files that are already named
+     * with the correct sub-group numbers from a previous run (unsuffixed canonical
+     * and -002 for a different hash) must all produce [O] (no-op) mappings where
+     * source == target on re-run.
+     *
+     * This is a regression test to ensure that re-running the command on an already-
+     * processed directory does not shuffle, rename, or re-number files when each
+     * sub-group contains exactly one file (no within-sub-group duplicates).
+     *
+     * Source layout (output of a previous run):
+     *   2025-01-01_00-02-20-016.jpg      hashA  -> canonical sub-group (unsuffixed)
+     *   2025-01-01_00-02-20-016-002.jpg   hashB  -> second sub-group
+     *
+     * Expected: both files map to themselves (all [O], no renames).
+     */
+    #[Test]
+    public function executeIdempotentWhenFilesAlreadyHaveSubGroupNumbers(): void
+    {
+        $workspace = sys_get_temp_dir() . DIRECTORY_SEPARATOR . uniqid('renamer_subgroup_idem_', true);
+
+        mkdir($workspace, 0o755);
+
+        try {
+            // Simulate the output of a previous successful run with hash sub-grouping.
+            // Two distinct hashes (A, B) at the same timestamp, one file per sub-group.
+            $fileDefinitions = [
+                '2025-01-01_00-02-20-016.jpg'     => 'hash-content-A',
+                '2025-01-01_00-02-20-016-002.jpg' => 'hash-content-B',
+            ];
+
+            $metadataExtractor = new StubMetadataExtractor();
+            $dateTime          = new DateTimeImmutable(self::DATE_A);
+
+            foreach ($fileDefinitions as $name => $content) {
+                $path = $workspace . DIRECTORY_SEPARATOR . $name;
+                file_put_contents($path, $content);
+                $metadataExtractor->withResponse($path, new TemporalMetadata($dateTime, null));
+            }
+
+            $mappings = $this->runDryRun($workspace, $metadataExtractor);
+
+            self::assertCount(2, $mappings, 'Both files must appear in the mapping');
+
+            // The canonical hashA file keeps the unsuffixed base name.
+            self::assertSame(
+                '2025-01-01_00-02-20-016.jpg',
+                $mappings['2025-01-01_00-02-20-016.jpg'],
+                'Canonical hashA file must be idempotent (source == target)',
+            );
+
+            // The hashB sub-group file keeps its -002 suffix.
+            self::assertSame(
+                '2025-01-01_00-02-20-016-002.jpg',
+                $mappings['2025-01-01_00-02-20-016-002.jpg'],
+                'HashB sub-group file must be idempotent (source == target)',
+            );
+        } finally {
+            $this->removeDirectory($workspace);
+        }
+    }
+
+    /**
+     * Verifies idempotency for the canonical sub-group with true duplicates: when
+     * the canonical file has the unsuffixed base name and its duplicate has
+     * -duplicate-001, re-running keeps both files at their current names.
+     *
+     * This complements the sub-group idempotency test above by verifying that
+     * within-sub-group duplicate suffixes are also stable across runs when the
+     * files are in the canonical (unsuffixed) sub-group.
+     *
+     * Source layout (output of a previous run):
+     *   2025-01-01_00-02-20-016.jpg                hashA  -> canonical
+     *   2025-01-01_00-02-20-016-duplicate-001.jpg   hashA  -> true duplicate
+     *   2025-01-01_00-02-20-016-002.jpg             hashB  -> second sub-group
+     *
+     * Expected: all three files map to themselves.
+     */
+    #[Test]
+    public function executeIdempotentWhenCanonicalSubGroupHasDuplicates(): void
+    {
+        $workspace = sys_get_temp_dir() . DIRECTORY_SEPARATOR . uniqid('renamer_subgroup_dup_', true);
+
+        mkdir($workspace, 0o755);
+
+        try {
+            $fileDefinitions = [
+                '2025-01-01_00-02-20-016.jpg'               => 'hash-content-A',
+                '2025-01-01_00-02-20-016-duplicate-001.jpg' => 'hash-content-A',
+                '2025-01-01_00-02-20-016-002.jpg'           => 'hash-content-B',
+            ];
+
+            $metadataExtractor = new StubMetadataExtractor();
+            $dateTime          = new DateTimeImmutable(self::DATE_A);
+
+            foreach ($fileDefinitions as $name => $content) {
+                $path = $workspace . DIRECTORY_SEPARATOR . $name;
+                file_put_contents($path, $content);
+                $metadataExtractor->withResponse($path, new TemporalMetadata($dateTime, null));
+            }
+
+            $mappings = $this->runDryRun($workspace, $metadataExtractor);
+
+            self::assertCount(3, $mappings, 'All three files must appear in the mapping');
+
+            self::assertSame(
+                '2025-01-01_00-02-20-016.jpg',
+                $mappings['2025-01-01_00-02-20-016.jpg'],
+                'Canonical file must be idempotent',
+            );
+
+            self::assertSame(
+                '2025-01-01_00-02-20-016-duplicate-001.jpg',
+                $mappings['2025-01-01_00-02-20-016-duplicate-001.jpg'],
+                'Canonical sub-group duplicate must be idempotent',
+            );
+
+            self::assertSame(
+                '2025-01-01_00-02-20-016-002.jpg',
+                $mappings['2025-01-01_00-02-20-016-002.jpg'],
+                'Second sub-group file must be idempotent',
+            );
+        } finally {
+            $this->removeDirectory($workspace);
+        }
+    }
+
+    /**
+     * Runs the command in dry-run mode and returns the source -> target mapping.
      *
      * @return array<string, string>
      */

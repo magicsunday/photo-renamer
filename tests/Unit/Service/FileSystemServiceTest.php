@@ -911,9 +911,9 @@ final class FileSystemServiceTest extends TestCase
         // Block suffix 001 and 002 to force the method to find 003.
         /** @var array<string, true> $occupiedPaths */
         $occupiedPaths = [
-            $target->getPathname()                                                      => true,
-            '/tmp/dir/photo' . FileSystemService::DUPLICATE_IDENTIFIER . '001.jpg'      => true,
-            '/tmp/dir/photo' . FileSystemService::DUPLICATE_IDENTIFIER . '002.jpg'      => true,
+            $target->getPathname()                                                 => true,
+            '/tmp/dir/photo' . FileSystemService::DUPLICATE_IDENTIFIER . '001.jpg' => true,
+            '/tmp/dir/photo' . FileSystemService::DUPLICATE_IDENTIFIER . '002.jpg' => true,
         ];
 
         $method = new ReflectionMethod($service, 'findAvailableDuplicateTarget');
