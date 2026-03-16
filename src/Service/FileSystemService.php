@@ -193,10 +193,10 @@ class FileSystemService implements FileSystemServiceInterface
                 $sourcePath = $this->getRelativePath($rename->getSource(), $sourceBaseDirectory);
                 $targetPath = $this->getRelativePath($rename->getTarget(), $targetBaseDirectory);
 
-                if ($isCanonicalEntry) {
-                    $statusTag = '<fg=blue>[O]</>';
-                } elseif ($isDuplicateTarget) {
+                if ($isDuplicateTarget) {
                     $statusTag = '<fg=red>[D]</>';
+                } elseif ($isCanonicalEntry) {
+                    $statusTag = '<fg=blue>[O]</>';
                 } else {
                     $statusTag = '<fg=green>[R]</>';
                 }
