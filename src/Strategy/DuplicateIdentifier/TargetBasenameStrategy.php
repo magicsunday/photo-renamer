@@ -21,7 +21,7 @@ use SplFileInfo;
  * Live Photo content identifiers are handled during companion detection,
  * not during grouping.
  */
-class LivePhotoContentIdentifierStrategy implements DuplicateIdentifierStrategyInterface
+class TargetBasenameStrategy implements DuplicateIdentifierStrategyInterface
 {
     /**
      * @param SplFileInfo $sourceFileInfo source file inspected for Live Photo metadata

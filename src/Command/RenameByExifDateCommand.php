@@ -22,7 +22,7 @@ use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairing;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingService;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
-use MagicSunday\Renamer\Strategy\DuplicateIdentifier\LivePhotoContentIdentifierStrategy;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use Override;
@@ -207,7 +207,7 @@ class RenameByExifDateCommand extends AbstractRenameCommand
     protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
     {
         if (!$this->duplicateIdentifierStrategy instanceof DuplicateIdentifierStrategyInterface) {
-            $this->duplicateIdentifierStrategy = new LivePhotoContentIdentifierStrategy();
+            $this->duplicateIdentifierStrategy = new TargetBasenameStrategy();
         }
 
         return $this->duplicateIdentifierStrategy;

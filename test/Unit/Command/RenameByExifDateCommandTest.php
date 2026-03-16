@@ -27,7 +27,7 @@ use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairing;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingCollection;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingService;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
-use MagicSunday\Renamer\Strategy\DuplicateIdentifier\LivePhotoContentIdentifierStrategy;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use Override;
@@ -108,12 +108,6 @@ final class RenameByExifDateCommandTest extends TestCase
             ->with($expectedTargetDirectory)
             ->willReturnSelf();
 
-        $duplicateDetectionService
-            ->expects(self::once())
-            ->method('setListAll')
-            ->with(false)
-            ->willReturnSelf();
-
         $capturedRenameStrategy    = null;
         $capturedDuplicateStrategy = null;
 
@@ -130,7 +124,7 @@ final class RenameByExifDateCommandTest extends TestCase
                 self::callback(static function ($strategy) use (&$capturedDuplicateStrategy): bool {
                     $capturedDuplicateStrategy = $strategy;
 
-                    return $strategy instanceof LivePhotoContentIdentifierStrategy;
+                    return $strategy instanceof TargetBasenameStrategy;
                 }),
             )
             ->willReturn($duplicateCollection);
@@ -190,7 +184,7 @@ final class RenameByExifDateCommandTest extends TestCase
 
         self::assertSame(Command::SUCCESS, $exitCode);
         self::assertInstanceOf(ExifDateFilenameStrategy::class, $capturedRenameStrategy);
-        self::assertInstanceOf(LivePhotoContentIdentifierStrategy::class, $capturedDuplicateStrategy);
+        self::assertInstanceOf(TargetBasenameStrategy::class, $capturedDuplicateStrategy);
 
         $renamePatternProperty = new ReflectionProperty(ExifDateFilenameStrategy::class, 'targetFilenamePattern');
 
@@ -237,7 +231,7 @@ final class RenameByExifDateCommandTest extends TestCase
             ->with(
                 self::identicalTo($iterator),
                 self::isInstanceOf(ExifDateFilenameStrategy::class),
-                self::isInstanceOf(LivePhotoContentIdentifierStrategy::class),
+                self::isInstanceOf(TargetBasenameStrategy::class),
             )
             ->willReturn($duplicateCollection);
 
@@ -383,12 +377,6 @@ final class RenameByExifDateCommandTest extends TestCase
 
         $duplicateDetectionService
             ->expects(self::once())
-            ->method('setListAll')
-            ->with(false)
-            ->willReturnSelf();
-
-        $duplicateDetectionService
-            ->expects(self::once())
             ->method('setUseFileExtensionFromSource')
             ->with(true)
             ->willReturnSelf();
@@ -399,7 +387,7 @@ final class RenameByExifDateCommandTest extends TestCase
             ->with(
                 self::identicalTo($iterator),
                 self::isInstanceOf(ExifDateFilenameStrategy::class),
-                self::isInstanceOf(LivePhotoContentIdentifierStrategy::class),
+                self::isInstanceOf(TargetBasenameStrategy::class),
             )
             ->willReturn($duplicateCollection);
 
@@ -567,7 +555,7 @@ final class RenameByExifDateCommandTest extends TestCase
             ->with(
                 self::identicalTo($iterator),
                 self::isInstanceOf(ExifDateFilenameStrategy::class),
-                self::isInstanceOf(LivePhotoContentIdentifierStrategy::class),
+                self::isInstanceOf(TargetBasenameStrategy::class),
             )
             ->willReturn($duplicateCollection);
 
@@ -660,7 +648,7 @@ final class RenameByExifDateCommandTest extends TestCase
             ->with(
                 self::identicalTo($iterator),
                 self::isInstanceOf(ExifDateFilenameStrategy::class),
-                self::isInstanceOf(LivePhotoContentIdentifierStrategy::class),
+                self::isInstanceOf(TargetBasenameStrategy::class),
             )
             ->willReturn($duplicateCollection);
 

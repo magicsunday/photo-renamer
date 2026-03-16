@@ -11,19 +11,19 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Strategy\DuplicateIdentifier;
 
-use MagicSunday\Renamer\Strategy\DuplicateIdentifier\LivePhotoContentIdentifierStrategy;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
 
-#[CoversClass(LivePhotoContentIdentifierStrategy::class)]
-class LivePhotoContentIdentifierStrategyTest extends TestCase
+#[CoversClass(TargetBasenameStrategy::class)]
+class TargetBasenameStrategyTest extends TestCase
 {
     #[Test]
     public function itAlwaysReturnsTargetBasename(): void
     {
-        $strategy = new LivePhotoContentIdentifierStrategy();
+        $strategy = new TargetBasenameStrategy();
 
         $identifier = $strategy->generateIdentifier(
             new SplFileInfo('/tmp/source.jpg'),
@@ -36,7 +36,7 @@ class LivePhotoContentIdentifierStrategyTest extends TestCase
     #[Test]
     public function itStripsExtensionFromTargetBasename(): void
     {
-        $strategy = new LivePhotoContentIdentifierStrategy();
+        $strategy = new TargetBasenameStrategy();
 
         $identifier = $strategy->generateIdentifier(
             new SplFileInfo('/tmp/source.mov'),
