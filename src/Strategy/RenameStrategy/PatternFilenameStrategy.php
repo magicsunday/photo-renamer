@@ -24,23 +24,8 @@ use SplFileInfo;
  */
 class PatternFilenameStrategy extends InheritFilenameStrategy
 {
-    /**
-     * @var string
-     */
-    private readonly string $pattern;
-
-    /**
-     * @var string
-     */
-    private readonly string $replacement;
-
-    public function __construct(
-        string $pattern,
-        string $replacement,
-        private readonly SafeRegex $regex,
-    ) {
-        $this->pattern     = $pattern;
-        $this->replacement = $replacement;
+    public function __construct(private readonly string $pattern, private readonly string $replacement, private readonly SafeRegex $regex)
+    {
     }
 
     #[Override]
@@ -50,13 +35,9 @@ class PatternFilenameStrategy extends InheritFilenameStrategy
 
         try {
             return $this->regex
-                ->replace($this->pattern, $this->replacement, $targetFilename)
-                ->result();
+                ->replace($this->pattern, $this->replacement, $targetFilename);
         } catch (RegexExecutionException $exception) {
-            throw new TargetFilenameException(
-                'Regular expression error: ' . $exception->getMessage(),
-                previous: $exception,
-            );
+            throw new TargetFilenameException('Regular expression error: ' . $exception->getMessage(), $exception->getCode(), previous: $exception);
         }
     }
 }

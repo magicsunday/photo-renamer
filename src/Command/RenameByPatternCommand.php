@@ -13,16 +13,18 @@ namespace MagicSunday\Renamer\Command;
 
 use FilesystemIterator;
 use MagicSunday\Renamer\Command\FilterIterator\RecursiveRegexFileFilterIterator;
+use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
+use MagicSunday\Renamer\Service\FileSystemServiceInterface;
+use MagicSunday\Renamer\Service\SafeRegex;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\TargetPathnameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\PatternFilenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
-use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
-use MagicSunday\Renamer\Service\FileSystemServiceInterface;
-use MagicSunday\Renamer\Service\SafeRegex;
 use Override;
 use RecursiveDirectoryIterator;
+use RecursiveIterator;
 use RecursiveIteratorIterator;
+use SplFileInfo;
 use Symfony\Component\Console\Input\InputOption;
 
 use function is_string;
@@ -44,14 +46,8 @@ class RenameByPatternCommand extends AbstractRenameCommand
         parent::__construct($fileSystemService, $duplicateDetectionService);
     }
 
-    /**
-     * @var string
-     */
     private string $pattern = '';
 
-    /**
-     * @var string
-     */
     private string $replacement = '';
 
     /**
@@ -107,6 +103,9 @@ class RenameByPatternCommand extends AbstractRenameCommand
         return parent::executeCommand();
     }
 
+    /**
+     * @return RecursiveIteratorIterator<RecursiveIterator<string, SplFileInfo>>
+     */
     #[Override]
     protected function createFileIterator(): RecursiveIteratorIterator
     {

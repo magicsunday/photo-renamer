@@ -27,23 +27,16 @@ use SplFileInfo;
 class RecursiveRegexFileFilterIterator extends RecursiveFilterIterator
 {
     /**
-     * @var string
-     */
-    private readonly string $regex;
-
-    /**
      * Constructor.
      *
-     * @param RecursiveIterator $iterator
-     * @param string            $regex
+     * @param RecursiveIterator<string, SplFileInfo> $iterator
+     * @param string                                 $regex
      */
     public function __construct(
         RecursiveIterator $iterator,
-        string $regex,
+        private readonly string $regex,
     ) {
         parent::__construct($iterator);
-
-        $this->regex = $regex;
     }
 
     /**
@@ -75,7 +68,7 @@ class RecursiveRegexFileFilterIterator extends RecursiveFilterIterator
      */
     public function getChildren(): RecursiveRegexFileFilterIterator
     {
-        if (!($this->getInnerIterator() instanceof RecursiveIterator)) {
+        if (!$this->getInnerIterator() instanceof RecursiveIterator) {
             throw new RuntimeException('Missing "getChildren" method in inner iterator');
         }
 

@@ -2,6 +2,9 @@
 
 /**
  * This file is part of the package magicsunday/photo-renamer.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE file that was distributed with this source code.
  */
 
 declare(strict_types=1);
@@ -13,28 +16,28 @@ use SplFileInfo;
 /**
  * Value object describing a matched Live Photo pair.
  */
-final class LivePhotoPairing
+final readonly class LivePhotoPairing
 {
     /**
      * Creates a pairing between a source and target file.
      *
-     * @param SplFileInfo $sourceFile Original Live Photo asset discovered by the scanner.
-     * @param SplFileInfo $targetFile Destination asset that will be renamed.
-     * @param string $duplicateIdentifier Identifier used to detect duplicate pairings.
-     * @param string $contentIdentifier Identifier linking assets that belong to the same Live Photo.
+     * @param SplFileInfo $sourceFile          original Live Photo asset discovered by the scanner
+     * @param SplFileInfo $targetFile          destination asset that will be renamed
+     * @param string      $duplicateIdentifier identifier used to detect duplicate pairings
+     * @param string      $contentIdentifier   identifier linking assets that belong to the same Live Photo
      */
     public function __construct(
-        private readonly SplFileInfo $sourceFile,
-        private readonly SplFileInfo $targetFile,
-        private readonly string $duplicateIdentifier,
-        private readonly string $contentIdentifier,
+        private SplFileInfo $sourceFile,
+        private SplFileInfo $targetFile,
+        private string $duplicateIdentifier,
+        private string $contentIdentifier,
     ) {
     }
 
     /**
      * Returns the matched source file.
      *
-     * @return SplFileInfo Source asset used as the Live Photo reference.
+     * @return SplFileInfo source asset used as the Live Photo reference
      */
     public function getSourceFile(): SplFileInfo
     {
@@ -44,7 +47,7 @@ final class LivePhotoPairing
     /**
      * Returns the target file that should be renamed.
      *
-     * @return SplFileInfo Target asset matched to the source file.
+     * @return SplFileInfo target asset matched to the source file
      */
     public function getTargetFile(): SplFileInfo
     {
@@ -54,7 +57,7 @@ final class LivePhotoPairing
     /**
      * Returns the duplicate detection identifier for the pairing.
      *
-     * @return string Identifier ensuring the pairing is processed once.
+     * @return string identifier ensuring the pairing is processed once
      */
     public function getDuplicateIdentifier(): string
     {
@@ -64,7 +67,7 @@ final class LivePhotoPairing
     /**
      * Returns the shared content identifier for the pairing.
      *
-     * @return string Identifier linking all assets in the Live Photo group.
+     * @return string identifier linking all assets in the Live Photo group
      */
     public function getContentIdentifier(): string
     {

@@ -15,6 +15,7 @@ use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use RecursiveIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
+use SplFileInfo;
 
 /**
  * Interface for file system operations.
@@ -28,17 +29,19 @@ interface FileSystemServiceInterface
     /**
      * Creates a file iterator for the given directory.
      *
-     * @param string                 $directory         The directory to iterate
-     * @param RecursiveIterator|null $recursiveIterator
+     * @param string                                      $directory         The directory to iterate
+     * @param RecursiveIterator<string, SplFileInfo>|null $recursiveIterator
      *
-     * @return RecursiveIteratorIterator The file iterator
+     * @return RecursiveIteratorIterator<RecursiveIterator<string, SplFileInfo>> The file iterator
      */
     public function createFileIterator(string $directory, ?RecursiveIterator $recursiveIterator = null): RecursiveIteratorIterator;
 
     /**
      * Counts the number of files in the given iterator.
      *
-     * @param RecursiveIteratorIterator $iterator The file iterator
+     * @template TInner of RecursiveIterator
+     *
+     * @param RecursiveIteratorIterator<TInner> $iterator The file iterator
      *
      * @return int The number of files
      */

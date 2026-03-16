@@ -2,6 +2,9 @@
 
 /**
  * This file is part of the package magicsunday/photo-renamer.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE file that was distributed with this source code.
  */
 
 declare(strict_types=1);
@@ -21,15 +24,15 @@ class SafeFileReader
     /**
      * Reads the contents of a file while translating PHP warnings into domain exceptions.
      *
-     * @param SplFileInfo $file File to be read.
+     * @param SplFileInfo $file file to be read
      *
-     * @return string File contents as a string.
+     * @return string file contents as a string
      */
     public function read(SplFileInfo $file): string
     {
         $path = $file->getPathname();
 
-        $previousHandler = set_error_handler(
+        set_error_handler(
             static function (int $severity, string $message) use ($path): never {
                 throw new FileReadException(
                     sprintf('Failed to read file "%s": %s', $path, $message),

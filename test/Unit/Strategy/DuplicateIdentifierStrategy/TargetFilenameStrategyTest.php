@@ -33,8 +33,6 @@ class TargetFilenameStrategyTest extends TestCase
 {
     /**
      * The strategy instance being tested.
-     *
-     * @var TargetFilenameStrategy
      */
     private TargetFilenameStrategy $strategy;
 

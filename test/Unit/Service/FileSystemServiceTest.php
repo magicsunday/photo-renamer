@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * This file is part of the package magicsunday/photo-renamer.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE file that was distributed with this source code.
+ */
+
 declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service;
@@ -11,23 +18,21 @@ use MagicSunday\Renamer\Service\FileSystemService;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use ReflectionProperty;
 use RuntimeException;
 use SplFileInfo;
-use ReflectionProperty;
+use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
-use Symfony\Component\Console\Helper\ProgressBar;
 
 use function basename;
-use function chmod;
 use function file_exists;
 use function file_get_contents;
 use function file_put_contents;
 use function is_dir;
 use function mkdir;
 use function preg_match;
-use function preg_quote;
 use function rmdir;
 use function rtrim;
 use function scandir;
@@ -35,8 +40,8 @@ use function sprintf;
 use function str_replace;
 use function str_starts_with;
 use function strlen;
-use function sys_get_temp_dir;
 use function substr;
+use function sys_get_temp_dir;
 use function uniqid;
 use function unlink;
 
@@ -144,9 +149,9 @@ final class FileSystemServiceTest extends TestCase
         mkdir($sourceDirectory);
         mkdir($targetDirectory);
 
-        $sourceFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
+        $sourceFile      = $sourceDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
         $canonicalTarget = $targetDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
-        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR
+        $targetFile      = $targetDirectory . DIRECTORY_SEPARATOR
             . sprintf('image%s001.jpg', FileSystemService::DUPLICATE_IDENTIFIER);
 
         file_put_contents($sourceFile, 'duplicate');
@@ -167,7 +172,7 @@ final class FileSystemServiceTest extends TestCase
         self::assertFileExists($sourceFile);
         self::assertFileDoesNotExist($targetFile);
 
-        $buffer = $output->fetch();
+        $buffer         = $output->fetch();
         $relativeSource = $this->relativizePath($sourceFile, $sourceDirectory);
 
         self::assertStringContainsString('Duplicate! Skip "' . $relativeSource . '"', $buffer);
@@ -255,8 +260,8 @@ final class FileSystemServiceTest extends TestCase
 
         $buffer = $output->fetch();
         self::assertStringContainsString('Scanned files: 1', $buffer);
-        self::assertStringContainsString('Planned moves: 1', $buffer);
-        self::assertStringContainsString('Planned copies: 0', $buffer);
+        self::assertStringContainsString('Planned moves: 0', $buffer);
+        self::assertStringContainsString('Planned copies: 1', $buffer);
         self::assertStringContainsString('Planned skips: 0', $buffer);
         self::assertStringContainsString('Live Photo groups: 0', $buffer);
         self::assertStringContainsString('Max collision suffix: 0', $buffer);
@@ -349,9 +354,9 @@ final class FileSystemServiceTest extends TestCase
         mkdir($sourceDirectory);
         mkdir($targetDirectory);
 
-        $canonicalPath = $targetDirectory . DIRECTORY_SEPARATOR . 'photo.jpg';
-        $renameSource  = $sourceDirectory . DIRECTORY_SEPARATOR . 'rename.jpg';
-        $renameTarget  = $canonicalPath;
+        $canonicalPath   = $targetDirectory . DIRECTORY_SEPARATOR . 'photo.jpg';
+        $renameSource    = $sourceDirectory . DIRECTORY_SEPARATOR . 'rename.jpg';
+        $renameTarget    = $canonicalPath;
         $duplicateSource = $sourceDirectory . DIRECTORY_SEPARATOR . 'duplicate.jpg';
         $duplicateTarget = $targetDirectory . DIRECTORY_SEPARATOR . 'photo'
             . FileSystemService::DUPLICATE_IDENTIFIER . '001.jpg';
@@ -377,9 +382,9 @@ final class FileSystemServiceTest extends TestCase
 
         $relativeCanonicalSource = $this->relativizePath($canonicalPath, $sourceDirectory);
         $relativeCanonicalTarget = $this->relativizePath($canonicalPath, $targetDirectory);
-        $relativeRenameSource = $this->relativizePath($renameSource, $sourceDirectory);
+        $relativeRenameSource    = $this->relativizePath($renameSource, $sourceDirectory);
         $relativeDuplicateSource = $this->relativizePath($duplicateSource, $sourceDirectory);
-        $relativeRenameTarget = $this->relativizePath($renameTarget, $targetDirectory);
+        $relativeRenameTarget    = $this->relativizePath($renameTarget, $targetDirectory);
         $relativeDuplicateTarget = $this->relativizePath($duplicateTarget, $targetDirectory);
 
         self::assertStringContainsString('[O] ' . $relativeCanonicalSource, $buffer);
@@ -401,9 +406,9 @@ final class FileSystemServiceTest extends TestCase
         mkdir($sourceDirectory);
         mkdir($targetDirectory);
 
-        $sourceFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
+        $sourceFile      = $sourceDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
         $duplicateSource = $sourceDirectory . DIRECTORY_SEPARATOR . 'video.mov';
-        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
+        $targetFile      = $targetDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
         $duplicateTarget = $targetDirectory . DIRECTORY_SEPARATOR
             . 'image' . FileSystemService::DUPLICATE_IDENTIFIER . '007.mov';
 
@@ -538,8 +543,8 @@ final class FileSystemServiceTest extends TestCase
         mkdir($sourceDirectory);
         mkdir($targetDirectory);
 
-        $firstSource = $sourceDirectory . DIRECTORY_SEPARATOR . 'first.jpg';
-        $firstTarget = $targetDirectory . DIRECTORY_SEPARATOR . 'first.jpg';
+        $firstSource  = $sourceDirectory . DIRECTORY_SEPARATOR . 'first.jpg';
+        $firstTarget  = $targetDirectory . DIRECTORY_SEPARATOR . 'first.jpg';
         $secondSource = $sourceDirectory . DIRECTORY_SEPARATOR . 'second.jpg';
         $secondTarget = $targetDirectory . DIRECTORY_SEPARATOR . 'second.jpg';
 
@@ -556,16 +561,14 @@ final class FileSystemServiceTest extends TestCase
 
         $service->renameFiles($collection, dryRun: true);
 
-        self::assertNotNull($style->capturedProgressBar);
+        self::assertInstanceOf(ProgressBar::class, $style->capturedProgressBar);
 
         $progressBar = $style->capturedProgressBar;
-        \assert($progressBar instanceof ProgressBar);
 
         self::assertSame(2, $progressBar->getMaxSteps());
         self::assertSame(2, $progressBar->getProgress());
 
         $formatProperty = new ReflectionProperty($progressBar, 'format');
-        $formatProperty->setAccessible(true);
 
         self::assertSame(
             ' %current%/%max% [%bar%] %percent:3s%% | ETA: %estimated:-6s% | Remaining: %remaining:-6s%',
@@ -588,7 +591,7 @@ final class FileSystemServiceTest extends TestCase
         if (
             str_starts_with($normalizedBase, DIRECTORY_SEPARATOR)
             || str_starts_with($normalizedBase, '\\')
-            || preg_match('/^[A-Za-z]:(?:[\\\/]|$)/', $normalizedBase) === 1
+            || preg_match('/^[A-Za-z]:(?:[\\\\\\/]|$)/', $normalizedBase) === 1
         ) {
             return $path;
         }
@@ -620,7 +623,7 @@ final class FileSystemServiceTest extends TestCase
 
             public function createProgressBar(int $max = 0): ProgressBar
             {
-                $progressBar = parent::createProgressBar($max);
+                $progressBar               = parent::createProgressBar($max);
                 $this->capturedProgressBar = $progressBar;
 
                 return $progressBar;
@@ -664,7 +667,11 @@ final class FileSystemServiceTest extends TestCase
         }
 
         foreach ($files as $file) {
-            if ($file === '.' || $file === '..') {
+            if ($file === '.') {
+                continue;
+            }
+
+            if ($file === '..') {
                 continue;
             }
 

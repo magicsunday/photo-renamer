@@ -1,4 +1,12 @@
 services:
+    buildbox:
+        build: .
+        volumes:
+            - .:/app
+            - ~/.ssh:/root/.ssh:ro
+        environment:
+            - COMPOSER_AUTH
+
     builder:
         build:
             context: .build/docker

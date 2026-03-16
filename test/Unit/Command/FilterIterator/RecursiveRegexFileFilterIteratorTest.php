@@ -55,9 +55,9 @@ final class RecursiveRegexFileFilterIteratorTest extends TestCase
      *
      * @return Stub&SplFileInfo A stubbed SplFileInfo object
      */
-    private function createFileInfoStub(bool $isDir, bool $isFile, ?string $filename = null): Stub
+    private function createFileInfoStub(bool $isDir, bool $isFile, ?string $filename = null): Stub&SplFileInfo
     {
-        $stub = $this->createStub(SplFileInfo::class);
+        $stub = self::createStub(SplFileInfo::class);
         $stub->method('isDir')->willReturn($isDir);
         $stub->method('isFile')->willReturn($isFile);
 
@@ -84,6 +84,7 @@ final class RecursiveRegexFileFilterIteratorTest extends TestCase
         $iterator = new RecursiveArrayIterator([$fileInfo]);
         $iterator->rewind(); // Position the inner iterator at the first element
 
+        // @phpstan-ignore argument.type
         return new RecursiveRegexFileFilterIterator($iterator, $regex);
     }
 
@@ -93,9 +94,9 @@ final class RecursiveRegexFileFilterIteratorTest extends TestCase
      * This creates a custom recursive iterator that can be used to test
      * the recursive behavior of the filter iterator.
      *
-     * @param array $items Items to include in the iterator
+     * @param array<int, SplFileInfo> $items Items to include in the iterator
      *
-     * @return RecursiveIterator A recursive iterator for testing
+     * @return RecursiveIterator<string, SplFileInfo> A recursive iterator for testing
      */
     private function createRecursiveIterator(array $items = []): RecursiveIterator
     {
@@ -106,7 +107,7 @@ final class RecursiveRegexFileFilterIteratorTest extends TestCase
                 return false;
             }
 
-            public function getChildren(): ?RecursiveArrayIterator
+            public function getChildren(): RecursiveArrayIterator
             {
                 return new self([]);
             }
@@ -229,11 +230,10 @@ final class RecursiveRegexFileFilterIteratorTest extends TestCase
             self::REGEX_TXT_FILES
         );
 
-        // Act & Assert: Verify getChildren() returns correct type
-        self::assertInstanceOf(
-            RecursiveRegexFileFilterIterator::class,
-            $filterIterator->getChildren()
-        );
+        // Act & Assert: Verify getChildren() returns correct type (no exception thrown)
+        $children = $filterIterator->getChildren();
+        // @phpstan-ignore staticMethod.alreadyNarrowedType
+        self::assertInstanceOf(RecursiveRegexFileFilterIterator::class, $children);
     }
 
     /**
@@ -253,11 +253,10 @@ final class RecursiveRegexFileFilterIteratorTest extends TestCase
             self::REGEX_TXT_FILES
         );
 
-        // Act & Assert: Verify getChildren() works with empty iterator
-        self::assertInstanceOf(
-            RecursiveRegexFileFilterIterator::class,
-            $filterIterator->getChildren()
-        );
+        // Act & Assert: Verify getChildren() works with empty iterator (no exception thrown)
+        $children = $filterIterator->getChildren();
+        // @phpstan-ignore staticMethod.alreadyNarrowedType
+        self::assertInstanceOf(RecursiveRegexFileFilterIterator::class, $children);
     }
 
     /**
@@ -281,7 +280,8 @@ final class RecursiveRegexFileFilterIteratorTest extends TestCase
             $this->createFileInfoStub(false, true, 'file4.png'),  // Should be rejected
         ];
 
-        $iterator       = new RecursiveArrayIterator($files);
+        $iterator = new RecursiveArrayIterator($files);
+        // @phpstan-ignore argument.type
         $filterIterator = new RecursiveRegexFileFilterIterator($iterator, self::REGEX_TXT_FILES);
 
         // Act: Iterate through the filter and collect accepted items

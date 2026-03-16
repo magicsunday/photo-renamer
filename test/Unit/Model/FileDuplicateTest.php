@@ -1,10 +1,16 @@
 <?php
 
+/**
+ * This file is part of the package magicsunday/photo-renamer.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE file that was distributed with this source code.
+ */
+
 declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Model;
 
-use MagicSunday\Renamer\Model\Collection\FileList;
 use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
@@ -30,10 +36,7 @@ class FileDuplicateTest extends TestCase
             ->addRename($rename)
             ->setTarget($target);
 
-        self::assertInstanceOf(FileList::class, $fileDuplicate->getFiles());
         self::assertSame($source, $fileDuplicate->getFiles()->get(0));
-
-        self::assertInstanceOf(RenameList::class, $fileDuplicate->getRenames());
         self::assertSame($rename, $fileDuplicate->getRenames()->get(0));
     }
 

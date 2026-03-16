@@ -24,7 +24,7 @@ use function trim;
 class LivePhotoContentIdentifierStrategy implements DuplicateIdentifierStrategyInterface
 {
     /**
-     * @param ExifDateFilenameStrategy $renameStrategy Strategy providing access to Live Photo metadata helpers.
+     * @param ExifDateFilenameStrategy $renameStrategy strategy providing access to Live Photo metadata helpers
      */
     public function __construct(
         private readonly ExifDateFilenameStrategy $renameStrategy,
@@ -34,8 +34,8 @@ class LivePhotoContentIdentifierStrategy implements DuplicateIdentifierStrategyI
     /**
      * Generates an identifier based on the Live Photo content identifier or falls back to the target basename.
      *
-     * @param SplFileInfo $sourceFileInfo Source file inspected for Live Photo metadata.
-     * @param SplFileInfo $targetFileInfo Target file used as fallback identifier.
+     * @param SplFileInfo $sourceFileInfo source file inspected for Live Photo metadata
+     * @param SplFileInfo $targetFileInfo target file used as fallback identifier
      *
      * @return string|false
      */

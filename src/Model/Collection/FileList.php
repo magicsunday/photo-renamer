@@ -11,7 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Model\Collection;
 
-use InvalidArgumentException;
+use Override;
 use SplFileInfo;
 
 /**
@@ -31,34 +31,31 @@ final class FileList extends AbstractCollection
         }
     }
 
+    /**
+     * @param SplFileInfo $value
+     */
+    #[Override]
     public function append(object $value): void
     {
-        if (!($value instanceof SplFileInfo)) {
-            throw new InvalidArgumentException('Value must be an instance of SplFileInfo.');
-        }
-
         parent::append($value);
     }
 
+    /**
+     * @param int $key
+     */
+    #[Override]
     public function get(int|string $key): ?SplFileInfo
     {
-        $value = parent::get($key);
-
-        if ($value === null) {
-            return null;
-        }
-
-        \assert($value instanceof SplFileInfo);
-
-        return $value;
+        return parent::get((int) $key);
     }
 
+    /**
+     * @param int         $key
+     * @param SplFileInfo $value
+     */
+    #[Override]
     public function set(int|string $key, object $value): void
     {
-        if (!($value instanceof SplFileInfo)) {
-            throw new InvalidArgumentException('Value must be an instance of SplFileInfo.');
-        }
-
-        parent::set($key, $value);
+        parent::set((int) $key, $value);
     }
 }

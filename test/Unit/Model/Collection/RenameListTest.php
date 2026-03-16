@@ -1,10 +1,16 @@
 <?php
 
+/**
+ * This file is part of the package magicsunday/photo-renamer.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE file that was distributed with this source code.
+ */
+
 declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Model\Collection;
 
-use InvalidArgumentException;
 use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\Rename;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -25,16 +31,6 @@ class RenameListTest extends TestCase
 
         self::assertSame([$rename], $list->asArray());
         self::assertSame($rename, $list->get(0));
-    }
-
-    #[Test]
-    public function itRejectsNonRenameValues(): void
-    {
-        $list = new RenameList();
-
-        $this->expectException(InvalidArgumentException::class);
-        $list->append(new class {
-        });
     }
 
     #[Test]

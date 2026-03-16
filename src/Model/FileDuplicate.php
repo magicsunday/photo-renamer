@@ -13,7 +13,6 @@ namespace MagicSunday\Renamer\Model;
 
 use MagicSunday\Renamer\Model\Collection\FileList;
 use MagicSunday\Renamer\Model\Collection\RenameList;
-use MagicSunday\Renamer\Model\Rename;
 use SplFileInfo;
 
 /**
@@ -25,19 +24,10 @@ use SplFileInfo;
  */
 class FileDuplicate
 {
-    private FileList $files;
-
-    /**
-     * @var SplFileInfo
-     */
     private SplFileInfo $target;
 
-    private RenameList $renames;
-
-    public function __construct(?FileList $files = null, ?RenameList $renames = null)
+    public function __construct(private readonly FileList $files = new FileList(), private RenameList $renames = new RenameList())
     {
-        $this->files   = $files ?? new FileList();
-        $this->renames = $renames ?? new RenameList();
     }
 
     public function getFiles(): FileList

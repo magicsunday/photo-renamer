@@ -11,8 +11,8 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Model\Pattern;
 
-use InvalidArgumentException;
 use MagicSunday\Renamer\Model\Collection\AbstractCollection;
+use Override;
 use RuntimeException;
 
 use function array_map;
@@ -34,7 +34,7 @@ final class PatternMatchSet extends AbstractCollection
     public static function fromPattern(string $pattern): self
     {
         $matches = [];
-        $result  = preg_match_all('/{(\\w+)}/', $pattern, $matches);
+        $result  = preg_match_all('/\{(\w+)\}/', $pattern, $matches);
 
         if ($result === false) {
             throw new RuntimeException('Failed to extract placeholders from the given pattern.');
@@ -49,35 +49,32 @@ final class PatternMatchSet extends AbstractCollection
         return $matchSet;
     }
 
+    /**
+     * @param PatternMatch $value
+     */
+    #[Override]
     public function append(object $value): void
     {
-        if (!($value instanceof PatternMatch)) {
-            throw new InvalidArgumentException('Value must be an instance of PatternMatch.');
-        }
-
         parent::append($value);
     }
 
+    /**
+     * @param int $key
+     */
+    #[Override]
     public function get(int|string $key): ?PatternMatch
     {
-        $value = parent::get($key);
-
-        if ($value === null) {
-            return null;
-        }
-
-        \assert($value instanceof PatternMatch);
-
-        return $value;
+        return parent::get((int) $key);
     }
 
+    /**
+     * @param int          $key
+     * @param PatternMatch $value
+     */
+    #[Override]
     public function set(int|string $key, object $value): void
     {
-        if (!($value instanceof PatternMatch)) {
-            throw new InvalidArgumentException('Value must be an instance of PatternMatch.');
-        }
-
-        parent::set($key, $value);
+        parent::set((int) $key, $value);
     }
 
     /**

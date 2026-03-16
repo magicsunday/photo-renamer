@@ -15,12 +15,12 @@ use RuntimeException;
 
 use function preg_replace_callback;
 
-final class DatePlaceholderExpressionMap
+final readonly class DatePlaceholderExpressionMap
 {
     /**
      * @param array<string, string> $expressions
      */
-    public function __construct(private readonly array $expressions)
+    public function __construct(private array $expressions)
     {
     }
 

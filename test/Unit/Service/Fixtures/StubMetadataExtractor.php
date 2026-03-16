@@ -1,26 +1,29 @@
 <?php
 
+/**
+ * This file is part of the package magicsunday/photo-renamer.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE file that was distributed with this source code.
+ */
+
 declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service\Fixtures;
 
 use MagicSunday\Renamer\Service\Dto\TemporalMetadata;
-use MagicSunday\Renamer\Service\MetadataExtractor;
+use MagicSunday\Renamer\Service\MetadataExtractorInterface;
 use SplFileInfo;
 use Throwable;
 
 use function array_key_exists;
 
-final class StubMetadataExtractor extends MetadataExtractor
+final class StubMetadataExtractor implements MetadataExtractorInterface
 {
     /**
      * @var array<string, TemporalMetadata|Throwable|null>
      */
     private array $responses = [];
-
-    public function __construct()
-    {
-    }
 
     public function withResponse(string $path, TemporalMetadata|Throwable|null $response): void
     {

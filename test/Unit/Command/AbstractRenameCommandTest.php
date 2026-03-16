@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * This file is part of the package magicsunday/photo-renamer.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE file that was distributed with this source code.
+ */
+
 declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Command;
@@ -30,13 +37,13 @@ final class AbstractRenameCommandTest extends TestCase
     #[Test]
     public function executeUsesInterfacesForDependencies(): void
     {
-        $fileSystemService = $this->createMock(FileSystemServiceInterface::class);
+        $fileSystemService         = $this->createMock(FileSystemServiceInterface::class);
         $duplicateDetectionService = $this->createMock(DuplicateDetectionServiceInterface::class);
 
-        $renameStrategy = $this->createStub(RenameStrategyInterface::class);
-        $duplicateIdentifierStrategy = $this->createStub(DuplicateIdentifierStrategyInterface::class);
+        $renameStrategy              = self::createStub(RenameStrategyInterface::class);
+        $duplicateIdentifierStrategy = self::createStub(DuplicateIdentifierStrategyInterface::class);
 
-        $iteratorOne = new RecursiveIteratorIterator(new RecursiveArrayIterator([]));
+        $iteratorOne             = new RecursiveIteratorIterator(new RecursiveArrayIterator([]));
         $fileDuplicateCollection = new FileDuplicateCollection();
 
         $fileSystemService
@@ -96,12 +103,7 @@ final class AbstractRenameCommandTest extends TestCase
                 false,
             );
 
-        $command = new class(
-            $fileSystemService,
-            $duplicateDetectionService,
-            $renameStrategy,
-            $duplicateIdentifierStrategy,
-        ) extends AbstractRenameCommand {
+        $command = new class($fileSystemService, $duplicateDetectionService, $renameStrategy, $duplicateIdentifierStrategy) extends AbstractRenameCommand {
             public function __construct(
                 FileSystemServiceInterface $fileSystemService,
                 DuplicateDetectionServiceInterface $duplicateDetectionService,
@@ -127,7 +129,7 @@ final class AbstractRenameCommandTest extends TestCase
         $tester = new CommandTester($command);
         $tester->execute([
             'source-directory' => '/source-directory',
-            '--dry-run' => true,
+            '--dry-run'        => true,
         ]);
 
         self::assertSame(Command::SUCCESS, $tester->getStatusCode());
@@ -137,13 +139,13 @@ final class AbstractRenameCommandTest extends TestCase
     #[Test]
     public function executeAllowsSkipDuplicatesWithoutExplicitTarget(): void
     {
-        $fileSystemService = $this->createMock(FileSystemServiceInterface::class);
+        $fileSystemService         = $this->createMock(FileSystemServiceInterface::class);
         $duplicateDetectionService = $this->createMock(DuplicateDetectionServiceInterface::class);
 
-        $renameStrategy = $this->createStub(RenameStrategyInterface::class);
-        $duplicateIdentifierStrategy = $this->createStub(DuplicateIdentifierStrategyInterface::class);
+        $renameStrategy              = self::createStub(RenameStrategyInterface::class);
+        $duplicateIdentifierStrategy = self::createStub(DuplicateIdentifierStrategyInterface::class);
 
-        $iteratorOne = new RecursiveIteratorIterator(new RecursiveArrayIterator([]));
+        $iteratorOne             = new RecursiveIteratorIterator(new RecursiveArrayIterator([]));
         $fileDuplicateCollection = new FileDuplicateCollection();
 
         $fileSystemService
@@ -203,12 +205,7 @@ final class AbstractRenameCommandTest extends TestCase
                 false,
             );
 
-        $command = new class(
-            $fileSystemService,
-            $duplicateDetectionService,
-            $renameStrategy,
-            $duplicateIdentifierStrategy,
-        ) extends AbstractRenameCommand {
+        $command = new class($fileSystemService, $duplicateDetectionService, $renameStrategy, $duplicateIdentifierStrategy) extends AbstractRenameCommand {
             public function __construct(
                 FileSystemServiceInterface $fileSystemService,
                 DuplicateDetectionServiceInterface $duplicateDetectionService,
@@ -233,8 +230,8 @@ final class AbstractRenameCommandTest extends TestCase
 
         $tester = new CommandTester($command);
         $tester->execute([
-            'source-directory' => '/source-directory',
-            '--dry-run' => true,
+            'source-directory'  => '/source-directory',
+            '--dry-run'         => true,
             '--skip-duplicates' => true,
         ]);
 
@@ -244,13 +241,13 @@ final class AbstractRenameCommandTest extends TestCase
     #[Test]
     public function executePropagatesListAllFlagToServices(): void
     {
-        $fileSystemService = $this->createMock(FileSystemServiceInterface::class);
+        $fileSystemService         = $this->createMock(FileSystemServiceInterface::class);
         $duplicateDetectionService = $this->createMock(DuplicateDetectionServiceInterface::class);
 
-        $renameStrategy = $this->createStub(RenameStrategyInterface::class);
-        $duplicateIdentifierStrategy = $this->createStub(DuplicateIdentifierStrategyInterface::class);
+        $renameStrategy              = self::createStub(RenameStrategyInterface::class);
+        $duplicateIdentifierStrategy = self::createStub(DuplicateIdentifierStrategyInterface::class);
 
-        $iterator = new RecursiveIteratorIterator(new RecursiveArrayIterator([]));
+        $iterator                = new RecursiveIteratorIterator(new RecursiveArrayIterator([]));
         $fileDuplicateCollection = new FileDuplicateCollection();
 
         $fileSystemService
@@ -305,12 +302,7 @@ final class AbstractRenameCommandTest extends TestCase
                 true,
             );
 
-        $command = new class(
-            $fileSystemService,
-            $duplicateDetectionService,
-            $renameStrategy,
-            $duplicateIdentifierStrategy,
-        ) extends AbstractRenameCommand {
+        $command = new class($fileSystemService, $duplicateDetectionService, $renameStrategy, $duplicateIdentifierStrategy) extends AbstractRenameCommand {
             public function __construct(
                 FileSystemServiceInterface $fileSystemService,
                 DuplicateDetectionServiceInterface $duplicateDetectionService,
@@ -338,7 +330,7 @@ final class AbstractRenameCommandTest extends TestCase
         $tester->execute([
             'source-directory' => '/source-directory',
             'target-directory' => '/target-directory',
-            '--list-all' => true,
+            '--list-all'       => true,
         ]);
 
         self::assertSame(Command::SUCCESS, $tester->getStatusCode());
@@ -350,8 +342,8 @@ final class AbstractRenameCommandTest extends TestCase
         $fileSystemService         = $this->createMock(FileSystemServiceInterface::class);
         $duplicateDetectionService = $this->createMock(DuplicateDetectionServiceInterface::class);
 
-        $renameStrategy              = $this->createStub(RenameStrategyInterface::class);
-        $duplicateIdentifierStrategy = $this->createStub(DuplicateIdentifierStrategyInterface::class);
+        $renameStrategy              = self::createStub(RenameStrategyInterface::class);
+        $duplicateIdentifierStrategy = self::createStub(DuplicateIdentifierStrategyInterface::class);
 
         $iteratorOne             = new RecursiveIteratorIterator(new RecursiveArrayIterator([]));
         $fileDuplicateCollection = new FileDuplicateCollection();
@@ -424,12 +416,7 @@ final class AbstractRenameCommandTest extends TestCase
                 false,
             );
 
-        $command = new class(
-            $fileSystemService,
-            $duplicateDetectionService,
-            $renameStrategy,
-            $duplicateIdentifierStrategy,
-        ) extends AbstractRenameCommand {
+        $command = new class($fileSystemService, $duplicateDetectionService, $renameStrategy, $duplicateIdentifierStrategy) extends AbstractRenameCommand {
             public function __construct(
                 FileSystemServiceInterface $fileSystemService,
                 DuplicateDetectionServiceInterface $duplicateDetectionService,
@@ -456,7 +443,7 @@ final class AbstractRenameCommandTest extends TestCase
         $tester->execute([
             'source-directory' => 'relative-source',
             'target-directory' => 'relative-target',
-            '--dry-run' => true,
+            '--dry-run'        => true,
         ]);
 
         self::assertSame(Command::SUCCESS, $tester->getStatusCode());

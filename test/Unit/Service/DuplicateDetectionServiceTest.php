@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * This file is part of the package magicsunday/photo-renamer.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE file that was distributed with this source code.
+ */
+
 declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service;
@@ -20,12 +27,13 @@ use PHPUnit\Framework\TestCase;
 use RecursiveArrayIterator;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
-use RuntimeException;
 
+use function assert;
 use function file_put_contents;
 use function is_dir;
 use function iterator_to_array;
@@ -172,7 +180,7 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         $progressOutput = $output->fetch();
 
-        self::assertSame(0, $collection->count());
+        self::assertCount(0, $collection);
         self::assertStringContainsString('boom', $progressOutput);
     }
 
@@ -205,12 +213,10 @@ final class DuplicateDetectionServiceTest extends TestCase
         $renameStrategy
             ->expects(self::exactly(2))
             ->method('generateFilename')
-            ->willReturnCallback(static function (SplFileInfo $file) use ($videoPath, $photoPath): string {
-                return match ($file->getPathname()) {
-                    $videoPath => 'video-target.mov',
-                    $photoPath => 'photo-target.heic',
-                    default => throw new RuntimeException('Unexpected file: ' . $file->getPathname()),
-                };
+            ->willReturnCallback(static fn (SplFileInfo $file): string => match ($file->getPathname()) {
+                $videoPath => 'video-target.mov',
+                $photoPath => 'photo-target.heic',
+                default    => throw new RuntimeException('Unexpected file: ' . $file->getPathname()),
             });
 
         $duplicateIdentifierStrategy = $this->createMock(DuplicateIdentifierStrategyInterface::class);
@@ -366,8 +372,8 @@ final class DuplicateDetectionServiceTest extends TestCase
         $sourceDirectory = $this->createTempDirectory();
         $targetDirectory = $this->createTempDirectory();
 
-        $jpgFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg';
-        $pngFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'photo.png';
+        $jpgFile    = $sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg';
+        $pngFile    = $sourceDirectory . DIRECTORY_SEPARATOR . 'photo.png';
         $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . 'renamed.jpg';
 
         file_put_contents($jpgFile, 'jpg');
@@ -417,8 +423,8 @@ final class DuplicateDetectionServiceTest extends TestCase
         $sourceDirectory = $this->createTempDirectory();
         $targetDirectory = $this->createTempDirectory();
 
-        $photoSource = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.HEIC';
-        $videoSource = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.MOV';
+        $photoSource     = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.HEIC';
+        $videoSource     = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.MOV';
         $canonicalTarget = $targetDirectory . DIRECTORY_SEPARATOR . '20240101_120000.HEIC';
 
         file_put_contents($photoSource, 'photo');
@@ -494,8 +500,8 @@ final class DuplicateDetectionServiceTest extends TestCase
         $sourceDirectory = $this->createTempDirectory();
         $targetDirectory = $this->createTempDirectory();
 
-        $sourceOne = $sourceDirectory . DIRECTORY_SEPARATOR . 'one.jpg';
-        $sourceTwo = $sourceDirectory . DIRECTORY_SEPARATOR . 'two.jpg';
+        $sourceOne  = $sourceDirectory . DIRECTORY_SEPARATOR . 'one.jpg';
+        $sourceTwo  = $sourceDirectory . DIRECTORY_SEPARATOR . 'two.jpg';
         $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . 'renamed.jpg';
 
         file_put_contents($sourceOne, 'one');
@@ -545,9 +551,9 @@ final class DuplicateDetectionServiceTest extends TestCase
             self::fail('Failed to create nested directory: ' . $nestedDirectory);
         }
 
-        $rootFile             = $sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg';
-        $duplicateFile        = $nestedDirectory . DIRECTORY_SEPARATOR . 'photo.jpg';
-        $preRenamedDuplicate  = $nestedDirectory . DIRECTORY_SEPARATOR . 'photo'
+        $rootFile            = $sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg';
+        $duplicateFile       = $nestedDirectory . DIRECTORY_SEPARATOR . 'photo.jpg';
+        $preRenamedDuplicate = $nestedDirectory . DIRECTORY_SEPARATOR . 'photo'
             . FileSystemService::DUPLICATE_IDENTIFIER . '001.jpg';
 
         file_put_contents($rootFile, 'root');
@@ -735,10 +741,10 @@ final class DuplicateDetectionServiceTest extends TestCase
     {
         [$service] = $this->createService();
 
-        $sourceRoot       = $this->createTempDirectory();
-        $sourceDirectory  = $sourceRoot . DIRECTORY_SEPARATOR . 'Photos';
-        $nestedDirectory  = $sourceDirectory . DIRECTORY_SEPARATOR . 'Photos';
-        $targetDirectory  = $this->createTempDirectory();
+        $sourceRoot      = $this->createTempDirectory();
+        $sourceDirectory = $sourceRoot . DIRECTORY_SEPARATOR . 'Photos';
+        $nestedDirectory = $sourceDirectory . DIRECTORY_SEPARATOR . 'Photos';
+        $targetDirectory = $this->createTempDirectory();
 
         if (!mkdir($sourceDirectory, 0777, true) && !is_dir($sourceDirectory)) {
             self::fail('Failed to create source directory: ' . $sourceDirectory);
@@ -801,7 +807,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         $io     = new SymfonyStyle(new ArrayInput([]), $output);
 
         $fileSystemService = new FileSystemService($io);
-        $service            = new DuplicateDetectionService($fileSystemService, $io);
+        $service           = new DuplicateDetectionService($fileSystemService, $io);
 
         return [$service, $output, $fileSystemService];
     }
@@ -819,6 +825,9 @@ final class DuplicateDetectionServiceTest extends TestCase
         return $directory;
     }
 
+    /**
+     * @return RecursiveIteratorIterator<RecursiveDirectoryIterator>
+     */
     private function createIterator(string $directory): RecursiveIteratorIterator
     {
         return new RecursiveIteratorIterator(
@@ -833,12 +842,15 @@ final class DuplicateDetectionServiceTest extends TestCase
             return;
         }
 
+        /** @var RecursiveIteratorIterator<RecursiveDirectoryIterator> $iterator */
         $iterator = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS),
             RecursiveIteratorIterator::CHILD_FIRST,
         );
 
         foreach ($iterator as $fileInfo) {
+            assert($fileInfo instanceof SplFileInfo);
+
             if ($fileInfo->isDir()) {
                 rmdir($fileInfo->getPathname());
                 continue;
@@ -851,15 +863,15 @@ final class DuplicateDetectionServiceTest extends TestCase
     }
 }
 
-final class DummyLivePhotoRenameStrategy implements RenameStrategyInterface
+final readonly class DummyLivePhotoRenameStrategy implements RenameStrategyInterface
 {
     /**
      * @param array<string, string|null> $filenameMap
      * @param array<string, string|null> $identifierMap
      */
     public function __construct(
-        private readonly array $filenameMap,
-        private readonly array $identifierMap,
+        private array $filenameMap,
+        private array $identifierMap,
     ) {
     }
 
@@ -878,16 +890,16 @@ final class DummyLivePhotoRenameStrategy implements RenameStrategyInterface
     }
 }
 
-final class DummyLivePhotoDuplicateIdentifierStrategy implements DuplicateIdentifierStrategyInterface
+final readonly class DummyLivePhotoDuplicateIdentifierStrategy implements DuplicateIdentifierStrategyInterface
 {
     /**
      * @param array<string, string|null> $identifierMap
      */
-    public function __construct(private readonly array $identifierMap)
+    public function __construct(private array $identifierMap)
     {
     }
 
-    public function generateIdentifier(SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo): string|false
+    public function generateIdentifier(SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo): string
     {
         $pathname = $sourceFileInfo->getPathname();
 

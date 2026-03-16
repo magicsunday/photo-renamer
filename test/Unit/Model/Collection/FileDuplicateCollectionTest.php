@@ -1,10 +1,16 @@
 <?php
 
+/**
+ * This file is part of the package magicsunday/photo-renamer.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE file that was distributed with this source code.
+ */
+
 declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Model\Collection;
 
-use InvalidArgumentException;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -37,16 +43,8 @@ class FileDuplicateCollectionTest extends TestCase
 
         $collection->append($duplicate);
 
-        self::assertSame([$duplicate], $collection->asArray());
-    }
-
-    #[Test]
-    public function itRejectsNonFileDuplicateValues(): void
-    {
-        $collection = new FileDuplicateCollection();
-
-        $this->expectException(InvalidArgumentException::class);
-        $collection->append(new class {
-        });
+        $items = $collection->asArray();
+        self::assertCount(1, $items);
+        self::assertSame($duplicate, reset($items));
     }
 }

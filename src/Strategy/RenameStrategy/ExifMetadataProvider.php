@@ -2,6 +2,9 @@
 
 /**
  * This file is part of the package magicsunday/photo-renamer.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE file that was distributed with this source code.
  */
 
 declare(strict_types=1);
@@ -12,7 +15,7 @@ use DateTimeInterface;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Service\Dto\TemporalMetadata;
-use MagicSunday\Renamer\Service\MetadataExtractor;
+use MagicSunday\Renamer\Service\MetadataExtractorInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\ContentIdentifier;
 use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\ExifData;
 use SplFileInfo;
@@ -32,9 +35,9 @@ final class ExifMetadataProvider
      */
     private SplObjectStorage $contentIdentifierCache;
 
-    public function __construct(private readonly MetadataExtractor $metadataExtractor)
+    public function __construct(private readonly MetadataExtractorInterface $metadataExtractor)
     {
-        $this->exifDataCache = new SplObjectStorage();
+        $this->exifDataCache          = new SplObjectStorage();
         $this->contentIdentifierCache = new SplObjectStorage();
     }
 
@@ -44,10 +47,7 @@ final class ExifMetadataProvider
             try {
                 $this->exifDataCache[$splFileInfo] = $this->createExifData($splFileInfo);
             } catch (ExifMetadataReadException $exception) {
-                throw new TargetFilenameException(
-                    sprintf('Unable to read image metadata from "%s": %s', $splFileInfo->getPathname(), $exception->getMessage()),
-                    previous: $exception,
-                );
+                throw new TargetFilenameException(sprintf('Unable to read image metadata from "%s": %s', $splFileInfo->getPathname(), $exception->getMessage()), $exception->getCode(), previous: $exception);
             }
         }
 
@@ -71,18 +71,18 @@ final class ExifMetadataProvider
 
     private function createExifData(SplFileInfo $splFileInfo): ?ExifData
     {
-        $temporalMetadata = $this->metadataExtractor->extractTemporalMetadata($splFileInfo);
+        $temporalMetadata  = $this->metadataExtractor->extractTemporalMetadata($splFileInfo);
         $contentIdentifier = $this->extractContentIdentifier($temporalMetadata);
 
         $this->contentIdentifierCache[$splFileInfo] = $contentIdentifier;
 
-        if ($temporalMetadata === null) {
+        if (!$temporalMetadata instanceof TemporalMetadata) {
             return null;
         }
 
         $captureDateTime = $temporalMetadata->getCaptureDateTime();
 
-        if ($captureDateTime === null) {
+        if (!$captureDateTime instanceof DateTimeInterface) {
             return null;
         }
 
@@ -93,7 +93,7 @@ final class ExifMetadataProvider
 
     private function extractContentIdentifier(?TemporalMetadata $temporalMetadata): ?ContentIdentifier
     {
-        if ($temporalMetadata === null) {
+        if (!$temporalMetadata instanceof TemporalMetadata) {
             return null;
         }
 
@@ -112,7 +112,7 @@ final class ExifMetadataProvider
     private function normaliseCaptureTimestamp(DateTimeInterface $captureDateTime): array
     {
         $dateTimeOriginal = $captureDateTime->format('Y:m:d H:i:s');
-        $microseconds = (int) $captureDateTime->format('u');
+        $microseconds     = (int) $captureDateTime->format('u');
 
         if ($microseconds === 0) {
             return [$dateTimeOriginal, null];

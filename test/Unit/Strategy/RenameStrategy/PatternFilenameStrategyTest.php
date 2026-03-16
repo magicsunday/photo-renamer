@@ -12,8 +12,8 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy;
 
 use MagicSunday\Renamer\Exception\TargetFilenameException;
-use MagicSunday\Renamer\Strategy\RenameStrategy\PatternFilenameStrategy;
 use MagicSunday\Renamer\Service\SafeRegex;
+use MagicSunday\Renamer\Strategy\RenameStrategy\PatternFilenameStrategy;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;

@@ -1,0 +1,7 @@
+.build/cache/
+.git/
+.idea/
+coverage-report-xdebug/
+images/
+images2/
+spc/

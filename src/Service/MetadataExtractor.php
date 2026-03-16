@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * This file is part of the package magicsunday/photo-renamer.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE file that was distributed with this source code.
+ */
+
 declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service;
@@ -22,9 +29,9 @@ use function sprintf;
 use function trim;
 use function ucfirst;
 
-final class MetadataExtractor
+final readonly class MetadataExtractor implements MetadataExtractorInterface
 {
-    public function __construct(private readonly MetadataReader $metadataReader)
+    public function __construct(private MetadataReader $metadataReader)
     {
     }
 
@@ -33,33 +40,31 @@ final class MetadataExtractor
         try {
             $metadata = $this->metadataReader->read($file->getPathname());
         } catch (Throwable $exception) {
-            throw new ExifMetadataReadException(
-                sprintf('Unable to read image metadata from "%s": %s', $file->getPathname(), $exception->getMessage()),
-                previous: $exception,
-            );
-        }
-
-        if ($metadata === null || !method_exists($metadata, 'structured')) {
-            return null;
+            throw new ExifMetadataReadException(sprintf('Unable to read image metadata from "%s": %s', $file->getPathname(), $exception->getMessage()), $exception->getCode(), previous: $exception);
         }
 
         $structured = $metadata->structured();
-        $temporal = $this->extractTemporalPayload($structured);
+        $temporal   = $this->extractTemporalPayload($structured);
 
         if ($temporal === null) {
             return null;
         }
 
         $captureDateTime = $this->normaliseCaptureDateTime($this->readTemporalField($temporal, 'captureDateTime'));
-        $livePhotoId = $this->normaliseLivePhotoId($this->readTemporalField($temporal, 'livePhotoId'));
+        $livePhotoId     = $this->normaliseLivePhotoId($this->readTemporalField($temporal, 'livePhotoId'));
 
-        if ($captureDateTime === null && $livePhotoId === null) {
+        if (!$captureDateTime instanceof DateTimeInterface && $livePhotoId === null) {
             return null;
         }
 
         return new TemporalMetadata($captureDateTime, $livePhotoId);
     }
 
+    /**
+     * @param mixed $structured
+     *
+     * @return object|array<mixed, mixed>|null
+     */
     private function extractTemporalPayload(mixed $structured): object|array|null
     {
         if (is_array($structured)) {
@@ -87,6 +92,9 @@ final class MetadataExtractor
         return null;
     }
 
+    /**
+     * @param object|array<mixed, mixed> $temporal
+     */
     private function readTemporalField(object|array $temporal, string $field): mixed
     {
         if (is_array($temporal)) {
@@ -94,16 +102,19 @@ final class MetadataExtractor
         }
 
         if (property_exists($temporal, $field)) {
+            /** @phpstan-ignore property.dynamicName */
             return $temporal->{$field};
         }
 
         $getter = 'get' . ucfirst($field);
 
         if (method_exists($temporal, $getter)) {
+            /** @phpstan-ignore method.dynamicName */
             return $temporal->{$getter}();
         }
 
         if (method_exists($temporal, $field)) {
+            /** @phpstan-ignore method.dynamicName */
             return $temporal->{$field}();
         }
 

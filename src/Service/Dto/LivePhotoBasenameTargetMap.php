@@ -2,6 +2,9 @@
 
 /**
  * This file is part of the package magicsunday/photo-renamer.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE file that was distributed with this source code.
  */
 
 declare(strict_types=1);
@@ -28,9 +31,9 @@ final class LivePhotoBasenameTargetMap
     /**
      * Remembers the canonical target for the provided source basename.
      *
-     * @param SplFileInfo $source              Asset belonging to the Live Photo group.
-     * @param SplFileInfo $target              Canonical target generated for the group.
-     * @param string      $duplicateIdentifier Identifier that represents the Live Photo group.
+     * @param SplFileInfo $source              asset belonging to the Live Photo group
+     * @param SplFileInfo $target              canonical target generated for the group
+     * @param string      $duplicateIdentifier identifier that represents the Live Photo group
      */
     public function remember(SplFileInfo $source, SplFileInfo $target, string $duplicateIdentifier): void
     {
@@ -88,7 +91,7 @@ final class LivePhotoBasenameTargetMap
 
     private function normalizeBasename(SplFileInfo $file): ?string
     {
-        $basename = $file->getBasename('.' . $file->getExtension());
+        $basename   = $file->getBasename('.' . $file->getExtension());
         $normalized = strtolower(trim($basename));
 
         if ($normalized === '') {

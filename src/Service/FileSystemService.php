@@ -49,33 +49,27 @@ class FileSystemService implements FileSystemServiceInterface
     public const string DUPLICATE_IDENTIFIER = '-duplicate-';
 
     /**
-     * @var SymfonyStyle
-     */
-    private readonly SymfonyStyle $io;
-
-    /**
      * Constructor.
      *
      * @param SymfonyStyle $io
      */
-    public function __construct(SymfonyStyle $io)
+    public function __construct(private readonly SymfonyStyle $io)
     {
-        $this->io = $io;
     }
 
     /**
      * Creates an iterator for traversing files in the given directory.
      *
-     * @param string               $directory         The directory that should be scanned
-     * @param RecursiveIterator|null $recursiveIterator Optional preconfigured iterator to use instead of instantiating a default one
+     * @param string                                      $directory         The directory that should be scanned
+     * @param RecursiveIterator<string, SplFileInfo>|null $recursiveIterator Optional preconfigured iterator to use instead of instantiating a default one
      *
-     * @return RecursiveIteratorIterator Iterator yielding only leaf nodes (files)
+     * @return RecursiveIteratorIterator<RecursiveIterator<string, SplFileInfo>> Iterator yielding only leaf nodes (files)
      */
     public function createFileIterator(
         string $directory,
         ?RecursiveIterator $recursiveIterator = null,
     ): RecursiveIteratorIterator {
-        if (!($recursiveIterator instanceof RecursiveIterator)) {
+        if (!$recursiveIterator instanceof RecursiveIterator) {
             $recursiveIterator = new RecursiveDirectoryIterator(
                 $directory,
                 FilesystemIterator::SKIP_DOTS
@@ -91,7 +85,9 @@ class FileSystemService implements FileSystemServiceInterface
     /**
      * Counts how many files the provided iterator will yield.
      *
-     * @param RecursiveIteratorIterator $iterator Iterator created by {@see createFileIterator()}
+     * @template TInner of RecursiveIterator
+     *
+     * @param RecursiveIteratorIterator<TInner> $iterator Iterator created by {@see createFileIterator()}
      *
      * @return int Number of files encountered while iterating
      */
@@ -133,13 +129,13 @@ class FileSystemService implements FileSystemServiceInterface
         $sourceBaseDirectory = $this->normalizeBaseDirectory($sourceBaseDirectory);
         $targetBaseDirectory = $this->normalizeBaseDirectory($targetBaseDirectory);
 
-        $maxFilenameLength = 0;
-        $fileCount         = 0;
-        $duplicateCount    = 0;
-        $totalOperations   = 0;
-        $plannedMoves      = 0;
-        $plannedCopies     = 0;
-        $plannedSkips      = 0;
+        $maxFilenameLength  = 0;
+        $fileCount          = 0;
+        $duplicateCount     = 0;
+        $totalOperations    = 0;
+        $plannedMoves       = 0;
+        $plannedCopies      = 0;
+        $plannedSkips       = 0;
         $livePhotoGroups    = 0;
         $maxCollisionSuffix = 0;
 
@@ -147,6 +143,7 @@ class FileSystemService implements FileSystemServiceInterface
             if ($this->isLivePhotoIdentifier($duplicateIdentifier)) {
                 ++$livePhotoGroups;
             }
+
             foreach ($fileDuplicate->getRenames() as $rename) {
                 $relativeSource = $this->getRelativePath($rename->getSource(), $sourceBaseDirectory);
 
@@ -177,7 +174,7 @@ class FileSystemService implements FileSystemServiceInterface
             $canonicalTargetPath = $fileDuplicate->getTarget()->getPathname();
 
             foreach ($fileDuplicate->getRenames() as $rename) {
-                if ($progressBar !== null) {
+                if ($progressBar instanceof ProgressBar) {
                     $progressBar->clear();
                 }
 
@@ -212,7 +209,7 @@ class FileSystemService implements FileSystemServiceInterface
                 $shouldSkip = $skipDuplicates && $isDuplicateTarget;
 
                 if ($shouldSkip) {
-                    if ($progressBar !== null) {
+                    if ($progressBar instanceof ProgressBar) {
                         $progressBar->clear();
                     }
 
@@ -243,18 +240,18 @@ class FileSystemService implements FileSystemServiceInterface
                     }
                 }
 
-                if ($progressBar !== null) {
+                if ($progressBar instanceof ProgressBar) {
                     $progressBar->advance();
                     $progressBar->display();
                 }
             }
         }
 
-        if ($progressBar !== null) {
+        if ($progressBar instanceof ProgressBar) {
             $progressBar->finish();
         }
 
-        $scannedFiles = $scannedFiles ?? $totalOperations;
+        $scannedFiles ??= $totalOperations;
 
         $summaryLines = [
             sprintf('Scanned files: %d', $scannedFiles),
@@ -322,7 +319,7 @@ class FileSystemService implements FileSystemServiceInterface
         if (
             str_starts_with($normalizedBase, DIRECTORY_SEPARATOR)
             || str_starts_with($normalizedBase, '\\')
-            || preg_match('/^[A-Za-z]:(?:[\\\/]|$)/', $normalizedBase) === 1
+            || preg_match('/^[A-Za-z]:(?:[\\\\\\/]|$)/', $normalizedBase) === 1
         ) {
             return $pathname;
         }

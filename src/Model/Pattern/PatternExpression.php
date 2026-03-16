@@ -11,11 +11,11 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Model\Pattern;
 
-final class PatternExpression
+final readonly class PatternExpression
 {
     public function __construct(
-        private readonly string $template,
-        private readonly string $regex
+        private string $template,
+        private string $regex,
     ) {
     }
 

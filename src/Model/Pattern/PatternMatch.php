@@ -11,11 +11,11 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Model\Pattern;
 
-final class PatternMatch
+final readonly class PatternMatch
 {
     public function __construct(
-        private readonly string $token,
-        private readonly string $placeholder
+        private string $token,
+        private string $placeholder,
     ) {
     }
 

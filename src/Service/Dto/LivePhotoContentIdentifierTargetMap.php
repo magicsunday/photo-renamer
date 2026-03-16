@@ -2,6 +2,9 @@
 
 /**
  * This file is part of the package magicsunday/photo-renamer.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE file that was distributed with this source code.
  */
 
 declare(strict_types=1);
@@ -23,9 +26,9 @@ final class LivePhotoContentIdentifierTargetMap
     /**
      * Stores a target file for the given content identifier if it is not already tracked.
      *
-     * @param string $contentIdentifier Identifier shared by all assets of a Live Photo.
-     * @param SplFileInfo $target Target file associated with the identifier.
-     * @param string $duplicateIdentifier Collection key referencing the FileDuplicate entry.
+     * @param string      $contentIdentifier   identifier shared by all assets of a Live Photo
+     * @param SplFileInfo $target              target file associated with the identifier
+     * @param string      $duplicateIdentifier collection key referencing the FileDuplicate entry
      */
     public function remember(string $contentIdentifier, SplFileInfo $target, string $duplicateIdentifier): void
     {
@@ -43,9 +46,9 @@ final class LivePhotoContentIdentifierTargetMap
     /**
      * Checks whether a target has been stored for the given content identifier.
      *
-     * @param string $contentIdentifier Identifier to look up.
+     * @param string $contentIdentifier identifier to look up
      *
-     * @return bool True when a target has been remembered.
+     * @return bool true when a target has been remembered
      */
     public function has(string $contentIdentifier): bool
     {
@@ -55,9 +58,9 @@ final class LivePhotoContentIdentifierTargetMap
     /**
      * Retrieves the stored target for the given content identifier.
      *
-     * @param string $contentIdentifier Identifier whose target should be returned.
+     * @param string $contentIdentifier identifier whose target should be returned
      *
-     * @return LivePhotoContentIdentifierTarget Target previously associated with the identifier.
+     * @return LivePhotoContentIdentifierTarget target previously associated with the identifier
      */
     public function get(string $contentIdentifier): LivePhotoContentIdentifierTarget
     {

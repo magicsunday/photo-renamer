@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * This file is part of the package magicsunday/photo-renamer.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE file that was distributed with this source code.
+ */
+
 declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Command;
@@ -81,8 +88,8 @@ final class RenameByHashCommandTest extends TestCase
             ->method('groupFilesByDuplicateIdentifier')
             ->with(
                 self::identicalTo($iterator),
-                self::callback(static fn ($strategy) => $strategy instanceof InheritFilenameStrategy),
-                self::callback(static fn ($strategy) => $strategy instanceof ContentHashStrategy),
+                self::callback(static fn ($strategy): bool => $strategy instanceof InheritFilenameStrategy),
+                self::callback(static fn ($strategy): bool => $strategy instanceof ContentHashStrategy),
             )
             ->willReturn($duplicateCollection);
 
@@ -111,13 +118,13 @@ final class RenameByHashCommandTest extends TestCase
 
         $command = new RenameByHashCommand($fileSystemService, $duplicateDetectionService, new SafeHashCalculator());
 
-        $tester = new CommandTester($command);
+        $tester   = new CommandTester($command);
         $exitCode = $tester->execute([
-            'source-directory' => 'source-dir',
-            'target-directory' => 'target-dir',
-            '--dry-run' => true,
+            'source-directory'  => 'source-dir',
+            'target-directory'  => 'target-dir',
+            '--dry-run'         => true,
             '--skip-duplicates' => true,
-            '--copy' => true,
+            '--copy'            => true,
         ]);
 
         self::assertSame(Command::SUCCESS, $exitCode);
@@ -127,17 +134,17 @@ final class RenameByHashCommandTest extends TestCase
     {
         $workingDirectory = getcwd();
 
-        if (!is_string($workingDirectory) || $workingDirectory === '') {
+        if ($workingDirectory === false) {
             return $relativePath;
         }
 
-        $trimmedWorkingDirectory = rtrim($workingDirectory, "\\/");
+        $trimmedWorkingDirectory = rtrim($workingDirectory, '\\/');
 
         if ($trimmedWorkingDirectory === '') {
             return $relativePath;
         }
 
-        $normalizedRelativePath = ltrim($relativePath, "\\/");
+        $normalizedRelativePath = ltrim($relativePath, '\\/');
 
         if ($normalizedRelativePath === '') {
             return $trimmedWorkingDirectory;

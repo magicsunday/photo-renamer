@@ -25,8 +25,10 @@ use MagicSunday\Renamer\Strategy\RenameStrategy\DatePatternFilenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use Override;
 use RecursiveDirectoryIterator;
+use RecursiveIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
+use SplFileInfo;
 use Symfony\Component\Console\Input\InputOption;
 
 use function is_string;
@@ -53,9 +55,6 @@ class RenameByDatePatternCommand extends AbstractRenameCommand
 
     private ?PatternMatchSet $patternMatchSet = null;
 
-    /**
-     * @var string
-     */
     private string $replacement = '';
 
     /**
@@ -116,10 +115,13 @@ class RenameByDatePatternCommand extends AbstractRenameCommand
         return parent::executeCommand();
     }
 
+    /**
+     * @return RecursiveIteratorIterator<RecursiveIterator<string, SplFileInfo>>
+     */
     #[Override]
     protected function createFileIterator(): RecursiveIteratorIterator
     {
-        if ($this->patternExpression === null) {
+        if (!$this->patternExpression instanceof PatternExpression) {
             throw new RuntimeException('Pattern expression has not been initialised.');
         }
 
@@ -139,7 +141,7 @@ class RenameByDatePatternCommand extends AbstractRenameCommand
     #[Override]
     protected function getTargetFilenameProcessor(): RenameStrategyInterface
     {
-        if ($this->patternExpression === null || $this->patternMatchSet === null) {
+        if (!$this->patternExpression instanceof PatternExpression || !$this->patternMatchSet instanceof PatternMatchSet) {
             throw new RuntimeException('Pattern configuration has not been initialised.');
         }
 

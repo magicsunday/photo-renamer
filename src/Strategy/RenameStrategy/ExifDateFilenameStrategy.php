@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Strategy\RenameStrategy;
 
 use DateTimeImmutable;
 use Exception;
+use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\ExifData;
 use Override;
 use SplFileInfo;
 
@@ -26,16 +27,8 @@ use function substr;
  */
 class ExifDateFilenameStrategy implements RenameStrategyInterface
 {
-    /**
-     * @var string
-     */
-    private readonly string $targetFilenamePattern;
-
-    public function __construct(
-        string $targetFilenamePattern,
-        private readonly ExifMetadataProvider $exifMetadataProvider,
-    ) {
-        $this->targetFilenamePattern = $targetFilenamePattern;
+    public function __construct(private readonly string $targetFilenamePattern, private readonly ExifMetadataProvider $exifMetadataProvider)
+    {
     }
 
     #[Override]
@@ -73,11 +66,11 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
         // Look up EXIF data
         $exifData = $this->exifMetadataProvider->getExifData($splFileInfo);
 
-        if ($exifData === null) {
+        if (!$exifData instanceof ExifData) {
             return null;
         }
 
-        $exifDateTimeOriginal  = $exifData->getDateTimeOriginal();
+        $exifDateTimeOriginal   = $exifData->getDateTimeOriginal();
         $exifSubSecTimeOriginal = $this->normaliseSubSecondValue(
             $exifData->getSubSecTimeOriginal()
         );
@@ -86,14 +79,8 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
             $dateTimeOriginal = new DateTimeImmutable($exifDateTimeOriginal);
 
             if ($exifSubSecTimeOriginal !== null) {
-                $microseconds = substr(str_pad($exifSubSecTimeOriginal, 6, '0'), 0, 6);
-                $modified = $dateTimeOriginal->modify('+' . $microseconds . ' microseconds');
-
-                if ($modified === false) {
-                    return null;
-                }
-
-                $dateTimeOriginal = $modified;
+                $microseconds     = substr(str_pad($exifSubSecTimeOriginal, 6, '0'), 0, 6);
+                $dateTimeOriginal = $dateTimeOriginal->modify('+' . $microseconds . ' microseconds');
             }
         } catch (Exception) {
             // $this->io->warning('=> Invalid EXIF date format in "DateTimeOriginal".');
@@ -112,7 +99,7 @@ class ExifDateFilenameStrategy implements RenameStrategyInterface
 
         $digits = preg_replace('/[^0-9]/', '', $value);
 
-        if ($digits === '') {
+        if ($digits === null || $digits === '') {
             return null;
         }
 

@@ -17,8 +17,10 @@ use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use Override;
+use RecursiveIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
+use SplFileInfo;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -43,79 +45,49 @@ use function str_starts_with;
  */
 abstract class AbstractRenameCommand extends Command
 {
-    /**
-     * @var InputInterface
-     */
     protected InputInterface $input;
 
-    /**
-     * @var SymfonyStyle
-     */
     protected SymfonyStyle $io;
 
     /**
      * The iterator used to search for the files.
      *
-     * @var RecursiveIteratorIterator
+     * @var RecursiveIteratorIterator<RecursiveIterator<string, SplFileInfo>>
      */
     protected RecursiveIteratorIterator $iterator;
 
     /**
-     * @var FileSystemServiceInterface
-     */
-    protected FileSystemServiceInterface $fileSystemService;
-
-    /**
-     * @var DuplicateDetectionServiceInterface
-     */
-    protected DuplicateDetectionServiceInterface $duplicateDetectionService;
-
-    /**
      * Set to TRUE to use the file extension from the current processed source file.
-     *
-     * @var bool
      */
     protected bool $useFileExtensionFromSource = false;
 
     /**
      * The source directory where the processing should take place.
-     *
-     * @var string
      */
     protected string $sourceDirectory = '';
 
     /**
      * The target directory in which the changed files should be stored.
-     *
-     * @var string|null
      */
     protected ?string $targetDirectory = null;
 
     /**
      * Set to TRUE to perform a test run without actually changing anything.
-     *
-     * @var bool
      */
     protected bool $dryRun = false;
 
     /**
      * Set to TRUE to copy the files to the destination directory instead of moving them.
-     *
-     * @var bool
      */
     protected bool $copyFiles = false;
 
     /**
      * Set to TRUE to skip duplicate files when copying/moving.
-     *
-     * @var bool
      */
     protected bool $skipDuplicates = false;
 
     /**
      * Set to TRUE to emit a full listing of originals and duplicates.
-     *
-     * @var bool
      */
     protected bool $listAll = false;
 
@@ -126,13 +98,10 @@ abstract class AbstractRenameCommand extends Command
      * @param DuplicateDetectionServiceInterface $duplicateDetectionService
      */
     public function __construct(
-        FileSystemServiceInterface $fileSystemService,
-        DuplicateDetectionServiceInterface $duplicateDetectionService,
+        protected FileSystemServiceInterface $fileSystemService,
+        protected DuplicateDetectionServiceInterface $duplicateDetectionService,
     ) {
         parent::__construct();
-
-        $this->fileSystemService         = $fileSystemService;
-        $this->duplicateDetectionService = $duplicateDetectionService;
     }
 
     /**
@@ -197,7 +166,7 @@ abstract class AbstractRenameCommand extends Command
 
         $this->input = $input;
 
-        $this->initializeCommandParameters($input, $output);
+        $this->initializeCommandParameters($input);
 
         $validationResult = $this->validateCommandOptions();
         if ($validationResult !== self::SUCCESS) {
@@ -218,12 +187,11 @@ abstract class AbstractRenameCommand extends Command
     /**
      * Initializes command parameters from input.
      *
-     * @param InputInterface  $input
-     * @param OutputInterface $output
+     * @param InputInterface $input
      *
      * @return void
      */
-    private function initializeCommandParameters(InputInterface $input, OutputInterface $output): void
+    private function initializeCommandParameters(InputInterface $input): void
     {
         $this->copyFiles      = (bool) $input->getOption('copy');
         $this->dryRun         = (bool) $input->getOption('dry-run');
@@ -324,7 +292,7 @@ abstract class AbstractRenameCommand extends Command
         if (!$this->isAbsolutePath($directory)) {
             $baseDirectory = getcwd();
 
-            if (!is_string($baseDirectory) || $baseDirectory === '') {
+            if (!is_string($baseDirectory)) {
                 $baseDirectory = $fallbackBase;
             }
 
@@ -417,7 +385,8 @@ abstract class AbstractRenameCommand extends Command
      */
     private function configureDuplicateDetectionService(): void
     {
-        // PHPStan detects $this->targetDirectory as null, even though it is no longer null here.
+        assert(is_string($this->targetDirectory));
+
         $this->duplicateDetectionService
             ->setSourceDirectory($this->sourceDirectory)
             ->setTargetDirectory($this->targetDirectory)
@@ -450,7 +419,7 @@ abstract class AbstractRenameCommand extends Command
     private function processAndRenameFiles(): void
     {
         // Process list of all files
-        $iterator = $this->createFileIterator();
+        $iterator     = $this->createFileIterator();
         $scannedFiles = $this->fileSystemService->countFiles($iterator);
 
         $duplicates = $this->groupFilesByDuplicateIdentifier($iterator);
@@ -487,7 +456,9 @@ abstract class AbstractRenameCommand extends Command
     /**
      * Creates a collection of duplicates. Files with the same unique identifier are grouped together.
      *
-     * @param RecursiveIteratorIterator $iterator
+     * @template TInner of RecursiveIterator
+     *
+     * @param RecursiveIteratorIterator<TInner> $iterator
      *
      * @return FileDuplicateCollection
      */
@@ -538,7 +509,7 @@ abstract class AbstractRenameCommand extends Command
     /**
      * Creates and returns a RecursiveIteratorIterator that is used to find the files for the given command.
      *
-     * @return RecursiveIteratorIterator
+     * @return RecursiveIteratorIterator<RecursiveIterator<string, SplFileInfo>>
      */
     protected function createFileIterator(): RecursiveIteratorIterator
     {

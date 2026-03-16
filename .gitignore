@@ -29,6 +29,8 @@ renamer.phar
 renamer
 renamer.md5
 .env
+images/
+images2/
 
 # Coverage reports
 coverage-report/

@@ -27,10 +27,13 @@ use MagicSunday\Renamer\Strategy\RenameStrategy\ExifMetadataProvider;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use Override;
 use RecursiveDirectoryIterator;
+use RecursiveIterator;
 use RecursiveIteratorIterator;
+use SplFileInfo;
 use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Input\InputOption;
 
+use function is_dir;
 use function is_string;
 
 /**
@@ -51,9 +54,6 @@ class RenameByExifDateCommand extends AbstractRenameCommand
         parent::__construct($fileSystemService, $duplicateDetectionService);
     }
 
-    /**
-     * @var string
-     */
     private string $targetFilenamePattern = '';
 
     private ?ExifDateFilenameStrategy $exifDateFilenameStrategy = null;
@@ -99,36 +99,47 @@ class RenameByExifDateCommand extends AbstractRenameCommand
         $targetFilenamePattern = $this->input->getOption('target-filename-pattern');
 
         if (is_string($targetFilenamePattern)) {
-            $this->targetFilenamePattern = $targetFilenamePattern;
-            $this->exifDateFilenameStrategy = null;
+            $this->targetFilenamePattern       = $targetFilenamePattern;
+            $this->exifDateFilenameStrategy    = null;
             $this->duplicateIdentifierStrategy = null;
         }
 
         return parent::executeCommand();
     }
 
+    /**
+     * @return RecursiveIteratorIterator<RecursiveIterator<string, SplFileInfo>>
+     */
     #[Override]
     protected function createFileIterator(): RecursiveIteratorIterator
     {
         $fileExtensionRegex = '/\.(jpe?g|heic|mov|mp4)$/i';
 
+        $recursiveIterator = null;
+
+        if (is_dir($this->sourceDirectory)) {
+            $recursiveIterator = new RecursiveRegexFileFilterIterator(
+                new RecursiveDirectoryIterator(
+                    $this->sourceDirectory,
+                    FilesystemIterator::SKIP_DOTS
+                ),
+                $fileExtensionRegex
+            );
+        }
+
         return $this->fileSystemService
             ->createFileIterator(
                 $this->sourceDirectory,
-                new RecursiveRegexFileFilterIterator(
-                    new RecursiveDirectoryIterator(
-                        $this->sourceDirectory,
-                        FilesystemIterator::SKIP_DOTS
-                    ),
-                    $fileExtensionRegex
-                )
+                $recursiveIterator
             );
     }
 
     /**
      * Groups files by their duplicate identifier and performs a second pass for Live Photo matches.
      *
-     * @param RecursiveIteratorIterator $iterator Iterator with all files that should be processed.
+     * @template TInner of RecursiveIterator
+     *
+     * @param RecursiveIteratorIterator<TInner> $iterator iterator with all files that should be processed
      *
      * @return FileDuplicateCollection
      */
@@ -175,7 +186,7 @@ class RenameByExifDateCommand extends AbstractRenameCommand
                 continue;
             }
 
-            $fileDuplicate = (new FileDuplicate())
+            $fileDuplicate = new FileDuplicate()
                 ->addFile($pairing->getSourceFile())
                 ->setTarget($pairing->getTargetFile());
 
@@ -207,7 +218,7 @@ class RenameByExifDateCommand extends AbstractRenameCommand
     #[Override]
     protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
     {
-        if ($this->duplicateIdentifierStrategy === null) {
+        if (!$this->duplicateIdentifierStrategy instanceof DuplicateIdentifierStrategyInterface) {
             $this->duplicateIdentifierStrategy = new LivePhotoContentIdentifierStrategy(
                 $this->getExifDateFilenameStrategy(),
             );
@@ -223,7 +234,7 @@ class RenameByExifDateCommand extends AbstractRenameCommand
      */
     private function getExifDateFilenameStrategy(): ExifDateFilenameStrategy
     {
-        if ($this->exifDateFilenameStrategy === null) {
+        if (!$this->exifDateFilenameStrategy instanceof ExifDateFilenameStrategy) {
             $this->exifDateFilenameStrategy = new ExifDateFilenameStrategy(
                 $this->targetFilenamePattern,
                 $this->exifMetadataProvider,

@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * This file is part of the package magicsunday/photo-renamer.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE file that was distributed with this source code.
+ */
+
 declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy;
@@ -8,8 +15,8 @@ use DateTimeImmutable;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Service\Dto\TemporalMetadata;
-use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\Dto\ExifData;
+use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifMetadataProvider;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -115,20 +122,18 @@ final class ExifDateFilenameStrategyTest extends TestCase
         );
     }
 
-
     private function createStrategyWithExifData(
         string $pattern,
         SplFileInfo $file,
         ExifData $exifData,
     ): ExifDateFilenameStrategy {
         $metadataExtractor = new StubMetadataExtractor();
-        $provider = new ExifMetadataProvider($metadataExtractor);
+        $provider          = new ExifMetadataProvider($metadataExtractor);
 
-        $exifDataCache = new SplObjectStorage();
+        $exifDataCache        = new SplObjectStorage();
         $exifDataCache[$file] = $exifData;
 
         $cacheProperty = new ReflectionProperty(ExifMetadataProvider::class, 'exifDataCache');
-        $cacheProperty->setAccessible(true);
         $cacheProperty->setValue($provider, $exifDataCache);
 
         return new ExifDateFilenameStrategy($pattern, $provider);
@@ -150,27 +155,27 @@ final class ExifDateFilenameStrategyTest extends TestCase
     {
         return [
             '1 digit' => [
-                'subSecondValue' => '1',
+                'subSecondValue'       => '1',
                 'expectedMicroseconds' => '100000',
             ],
             '2 digits' => [
-                'subSecondValue' => '12',
+                'subSecondValue'       => '12',
                 'expectedMicroseconds' => '120000',
             ],
             '3 digits' => [
-                'subSecondValue' => '123',
+                'subSecondValue'       => '123',
                 'expectedMicroseconds' => '123000',
             ],
             '4 digits' => [
-                'subSecondValue' => '1234',
+                'subSecondValue'       => '1234',
                 'expectedMicroseconds' => '123400',
             ],
             '5 digits' => [
-                'subSecondValue' => '12345',
+                'subSecondValue'       => '12345',
                 'expectedMicroseconds' => '123450',
             ],
             '6 digits' => [
-                'subSecondValue' => '123456',
+                'subSecondValue'       => '123456',
                 'expectedMicroseconds' => '123456',
             ],
         ];
@@ -184,24 +189,24 @@ final class ExifDateFilenameStrategyTest extends TestCase
         return [
             'basic timestamp' => [
                 'captureDateTime' => '2024-05-05T12:34:56+00:00',
-                'pattern' => 'Y-m-d_H-i-s',
-                'extension' => 'jpg',
-                'expected' => '2024-05-05_12-34-56.jpg',
-                'description' => 'Formats the timestamp using second precision',
+                'pattern'         => 'Y-m-d_H-i-s',
+                'extension'       => 'jpg',
+                'expected'        => '2024-05-05_12-34-56.jpg',
+                'description'     => 'Formats the timestamp using second precision',
             ],
             'millisecond precision' => [
                 'captureDateTime' => '2024-05-05T12:34:56.123+00:00',
-                'pattern' => 'Y-m-d_H-i-s-v',
-                'extension' => 'jpeg',
-                'expected' => '2024-05-05_12-34-56-123.jpeg',
-                'description' => 'Appends millisecond precision from capture time',
+                'pattern'         => 'Y-m-d_H-i-s-v',
+                'extension'       => 'jpeg',
+                'expected'        => '2024-05-05_12-34-56-123.jpeg',
+                'description'     => 'Appends millisecond precision from capture time',
             ],
             'microsecond precision' => [
                 'captureDateTime' => '2024-05-05T12:34:56.123456+00:00',
-                'pattern' => 'Y-m-d_H-i-s-u',
-                'extension' => 'png',
-                'expected' => '2024-05-05_12-34-56-123456.png',
-                'description' => 'Handles microseconds by switching to microsecond modification',
+                'pattern'         => 'Y-m-d_H-i-s-u',
+                'extension'       => 'png',
+                'expected'        => '2024-05-05_12-34-56-123456.png',
+                'description'     => 'Handles microseconds by switching to microsecond modification',
             ],
         ];
     }

@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * This file is part of the package magicsunday/photo-renamer.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE file that was distributed with this source code.
+ */
+
 declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy;
@@ -23,7 +30,7 @@ final class ExifMetadataProviderTest extends TestCase
     #[Test]
     public function itReturnsExifDataWhenMetadataAvailable(): void
     {
-        $path = '/tmp/sample.jpg';
+        $path              = '/tmp/sample.jpg';
         $metadataExtractor = new StubMetadataExtractor();
         $metadataExtractor->withResponse(
             $path,
@@ -43,7 +50,7 @@ final class ExifMetadataProviderTest extends TestCase
     #[Test]
     public function itReturnsNullWhenMetadataMissing(): void
     {
-        $path = '/tmp/missing.jpg';
+        $path              = '/tmp/missing.jpg';
         $metadataExtractor = new StubMetadataExtractor();
 
         $provider = new ExifMetadataProvider($metadataExtractor);
@@ -55,7 +62,7 @@ final class ExifMetadataProviderTest extends TestCase
     #[Test]
     public function itNormalisesCaptureDateMicroseconds(): void
     {
-        $path = '/tmp/video_micro.mov';
+        $path              = '/tmp/video_micro.mov';
         $metadataExtractor = new StubMetadataExtractor();
         $metadataExtractor->withResponse(
             $path,
@@ -74,7 +81,7 @@ final class ExifMetadataProviderTest extends TestCase
     #[Test]
     public function itExtractsLivePhotoIdWhenCaptureDateMissing(): void
     {
-        $path = '/tmp/live.mov';
+        $path              = '/tmp/live.mov';
         $metadataExtractor = new StubMetadataExtractor();
         $metadataExtractor->withResponse($path, new TemporalMetadata(null, 'UUID-5678'));
 
@@ -91,7 +98,7 @@ final class ExifMetadataProviderTest extends TestCase
     #[Test]
     public function itNormalisesLivePhotoIdentifierCasing(): void
     {
-        $path = '/tmp/live-photo.jpg';
+        $path              = '/tmp/live-photo.jpg';
         $metadataExtractor = new StubMetadataExtractor();
         $metadataExtractor->withResponse($path, new TemporalMetadata(null, '  LivePhoto-ID '));
 
@@ -106,7 +113,7 @@ final class ExifMetadataProviderTest extends TestCase
     #[Test]
     public function itConvertsMetadataReadErrorsToTargetFilenameException(): void
     {
-        $path = '/tmp/error.jpg';
+        $path              = '/tmp/error.jpg';
         $metadataExtractor = new StubMetadataExtractor();
         $metadataExtractor->withResponse($path, new ExifMetadataReadException('failure'));
 

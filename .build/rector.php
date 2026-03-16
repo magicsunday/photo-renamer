@@ -78,6 +78,5 @@ return static function (RectorConfig $rectorConfig): void {
         RemoveUnreachableStatementRector::class,
         RemoveUselessParamTagRector::class,
         RemoveUselessReturnTagRector::class,
-        NewMethodCallWithoutParenthesesRector::class,
     ]);
 };

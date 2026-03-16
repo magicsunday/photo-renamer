@@ -39,8 +39,6 @@ class LowerCaseFilenameStrategyTest extends TestCase
 {
     /**
      * The strategy instance being tested.
-     *
-     * @var LowerCaseFilenameStrategy
      */
     private LowerCaseFilenameStrategy $strategy;
 

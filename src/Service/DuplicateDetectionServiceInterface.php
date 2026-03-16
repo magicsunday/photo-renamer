@@ -14,6 +14,7 @@ namespace MagicSunday\Renamer\Service;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
+use RecursiveIterator;
 use RecursiveIteratorIterator;
 
 /**
@@ -56,7 +57,9 @@ interface DuplicateDetectionServiceInterface
     /**
      * Creates a collection of duplicates. Files with the same unique identifier are grouped together.
      *
-     * @param RecursiveIteratorIterator            $iterator
+     * @template TInner of RecursiveIterator
+     *
+     * @param RecursiveIteratorIterator<TInner>    $iterator
      * @param RenameStrategyInterface              $renameStrategy
      * @param DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy
      *

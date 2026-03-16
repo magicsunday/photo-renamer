@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Command\FilterIterator;
 
 use RecursiveIterator;
+use SplFileInfo;
 
 /**
  * A class that filters files to include only those whose filename contains at least one uppercase letter.
@@ -25,7 +26,7 @@ final class RecursiveUppercaseFilenameFilterIterator extends RecursiveRegexFileF
     /**
      * Constructor.
      *
-     * @param RecursiveIterator $iterator
+     * @param RecursiveIterator<string, SplFileInfo> $iterator
      */
     public function __construct(
         RecursiveIterator $iterator,

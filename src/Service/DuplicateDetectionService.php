@@ -19,9 +19,10 @@ use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
-use Symfony\Component\Console\Helper\ProgressBar;
+use RecursiveIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
+use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function array_key_exists;
@@ -50,35 +51,11 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
      */
     private const array LIVE_PHOTO_STILL_EXTENSIONS = ['heic', 'heif', 'jpg', 'jpeg'];
 
-    /**
-     * @var FileSystemService
-     */
-    private readonly FileSystemService $fileSystemService;
-
-    /**
-     * @var SymfonyStyle
-     */
-    private readonly SymfonyStyle $io;
-
-    /**
-     * @var string
-     */
     private string $sourceDirectory;
 
-    /**
-     * @var string
-     */
     private string $targetDirectory;
 
-    /**
-     * @var bool
-     */
     private bool $useFileExtensionFromSource = false;
-
-    /**
-     * @var bool
-     */
-    private bool $listAll = false;
 
     /**
      * Constructor.
@@ -86,20 +63,16 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
      * @param FileSystemService $fileSystemService
      * @param SymfonyStyle      $io
      */
-    public function __construct(
-        FileSystemService $fileSystemService,
-        SymfonyStyle $io,
-    ) {
-        $this->fileSystemService = $fileSystemService;
-        $this->io                = $io;
+    public function __construct(private readonly FileSystemService $fileSystemService, private readonly SymfonyStyle $io)
+    {
     }
 
     /**
      * Defines the directory that will be scanned for potential duplicates.
      *
-     * @param string $sourceDirectory Absolute path to the directory being analysed.
+     * @param string $sourceDirectory absolute path to the directory being analysed
      *
-     * @return DuplicateDetectionService Fluent reference for method chaining.
+     * @return DuplicateDetectionService fluent reference for method chaining
      */
     public function setSourceDirectory(string $sourceDirectory): DuplicateDetectionService
     {
@@ -111,9 +84,9 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     /**
      * Sets the directory in which renamed or copied files should be placed.
      *
-     * @param string $targetDirectory Absolute path to the destination directory.
+     * @param string $targetDirectory absolute path to the destination directory
      *
-     * @return DuplicateDetectionService Fluent reference for method chaining.
+     * @return DuplicateDetectionService fluent reference for method chaining
      */
     public function setTargetDirectory(string $targetDirectory): DuplicateDetectionService
     {
@@ -125,9 +98,9 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     /**
      * Controls whether the original source file extension should be preserved for duplicates.
      *
-     * @param bool $useFileExtensionFromSource When true the source file extension is retained in duplicates.
+     * @param bool $useFileExtensionFromSource when true the source file extension is retained in duplicates
      *
-     * @return DuplicateDetectionService Fluent reference for method chaining.
+     * @return DuplicateDetectionService fluent reference for method chaining
      */
     public function setUseFileExtensionFromSource(bool $useFileExtensionFromSource): DuplicateDetectionService
     {
@@ -143,19 +116,19 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
      */
     public function setListAll(bool $listAll): DuplicateDetectionService
     {
-        $this->listAll = $listAll;
-
         return $this;
     }
 
     /**
      * Creates a collection of duplicates. Files with the same unique identifier are grouped together.
      *
-     * @param RecursiveIteratorIterator            $iterator                     Iterator yielding candidate files.
-     * @param RenameStrategyInterface              $renameStrategy               Strategy used to generate target filenames.
-     * @param DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy Strategy that identifies duplicate groups.
+     * @template TInner of RecursiveIterator
      *
-     * @return FileDuplicateCollection Collection describing discovered duplicate groups.
+     * @param RecursiveIteratorIterator<TInner>    $iterator                    iterator yielding candidate files
+     * @param RenameStrategyInterface              $renameStrategy              strategy used to generate target filenames
+     * @param DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy strategy that identifies duplicate groups
+     *
+     * @return FileDuplicateCollection collection describing discovered duplicate groups
      */
     public function groupFilesByDuplicateIdentifier(
         RecursiveIteratorIterator $iterator,
@@ -196,16 +169,16 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 if (!array_key_exists($normalizedContentIdentifier, $contentIdentifierCache)) {
                     $contentIdentifierCache[$normalizedContentIdentifier] = [
                         'duplicateIdentifier' => null,
-                        'pendingFiles' => [],
-                        'target' => null,
-                        'captureDate' => null,
+                        'pendingFiles'        => [],
+                        'target'              => null,
+                        'captureDate'         => null,
                     ];
                 }
 
                 $contentIdentifierCacheEntry = &$contentIdentifierCache[$normalizedContentIdentifier];
             }
 
-            if ($targetFileInfo === null) {
+            if (!$targetFileInfo instanceof SplFileInfo) {
                 if ($contentIdentifierCacheEntry !== null) {
                     $cachedDuplicateIdentifier = $contentIdentifierCacheEntry['duplicateIdentifier'];
 
@@ -232,14 +205,6 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 continue;
             }
 
-            if (!($targetFileInfo instanceof SplFileInfo)) {
-                if (isset($contentIdentifierCacheEntry)) {
-                    unset($contentIdentifierCacheEntry);
-                }
-
-                continue;
-            }
-
             try {
                 $duplicateIdentifier = $duplicateIdentifierStrategy->generateIdentifier(
                     $sourceFileInfo,
@@ -256,7 +221,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             if ($duplicateIdentifier === false) {
                 if ($contentIdentifierCacheEntry !== null) {
                     $contentIdentifierCacheEntry['pendingFiles'][] = $sourceFileInfo;
-                    $contentIdentifierCacheEntry['target'] = $targetFileInfo;
+                    $contentIdentifierCacheEntry['target']         = $targetFileInfo;
                 }
 
                 if (isset($contentIdentifierCacheEntry)) {
@@ -289,8 +254,8 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
 
             if ($contentIdentifierCacheEntry !== null) {
                 $contentIdentifierCacheEntry['duplicateIdentifier'] = $duplicateIdentifier;
-                $contentIdentifierCacheEntry['target'] = $fileDuplicate->getTarget();
-                $contentIdentifierCacheEntry['captureDate'] = $fileDuplicate->getTarget()
+                $contentIdentifierCacheEntry['target']              = $fileDuplicate->getTarget();
+                $contentIdentifierCacheEntry['captureDate']         = $fileDuplicate->getTarget()
                     ->getBasename('.' . $fileDuplicate->getTarget()->getExtension());
 
                 foreach ($contentIdentifierCacheEntry['pendingFiles'] as $pendingFile) {
@@ -316,9 +281,9 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     /**
      * Creates consecutive filenames for duplicate files in the supplied collection.
      *
-     * @param FileDuplicateCollection $fileDuplicateCollection Collection whose entries should receive duplicate filenames.
+     * @param FileDuplicateCollection $fileDuplicateCollection collection whose entries should receive duplicate filenames
      *
-     * @return FileDuplicateCollection Updated collection with rename operations populated.
+     * @return FileDuplicateCollection updated collection with rename operations populated
      */
     public function createDuplicateFilenames(FileDuplicateCollection $fileDuplicateCollection): FileDuplicateCollection
     {
@@ -368,7 +333,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             $renames->reindex();
             $fileDuplicate->setRenames($renames);
 
-            $duplicateCount = 1;
+            $duplicateCount   = 1;
             $duplicateEntries = 0;
 
             foreach ($fileDuplicate->getRenames() as $rename) {
@@ -380,12 +345,12 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             }
 
             $hasAdditionalRenames = $duplicateEntries > 1;
-            $processedDuplicates = 0;
+            $processedDuplicates  = 0;
 
             // Check if the target file already exists in the file system, so we need to adjust
             // the new target name again.
             foreach ($fileDuplicate->getRenames() as $rename) {
-                $isCanonicalRename = $canonicalRename instanceof Rename && $rename === $canonicalRename;
+                $isCanonicalRename               = $canonicalRename instanceof Rename && $rename === $canonicalRename;
                 $requiresCanonicalDisambiguation = ($canonicalRename instanceof Rename && $rename !== $canonicalRename)
                     && $rename->getTarget()->getPathname() === $canonicalTargetPath;
 
@@ -420,9 +385,9 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     /**
      * Creates and starts a Symfony progress bar tailored to the current workload.
      *
-     * @param int $max Maximum number of steps the progress bar should represent.
+     * @param int $max maximum number of steps the progress bar should represent
      *
-     * @return ProgressBar Configured progress bar instance ready for updates.
+     * @return ProgressBar configured progress bar instance ready for updates
      */
     private function startProgressBar(int $max): ProgressBar
     {
@@ -436,12 +401,12 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     /**
      * Resolves the target file information for a duplicate, ensuring unique filenames.
      *
-     * @param SplFileInfo $source         Source file currently being processed.
-     * @param SplFileInfo $target         Initial target file information.
-     * @param int         $duplicateCount Counter used to create unique duplicate suffixes (passed by reference).
-     * @param bool        $isFirst        Whether the file is the first item within the duplicate group.
+     * @param SplFileInfo $source         source file currently being processed
+     * @param SplFileInfo $target         initial target file information
+     * @param int         $duplicateCount counter used to create unique duplicate suffixes (passed by reference)
+     * @param bool        $isFirst        whether the file is the first item within the duplicate group
      *
-     * @return SplFileInfo File information pointing to the deduplicated target.
+     * @return SplFileInfo file information pointing to the deduplicated target
      */
     private function createDuplicateTargetFileInfo(
         SplFileInfo $source,
@@ -495,12 +460,12 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     /**
      * Generates a new target file info instance whose path does not yet exist on disk.
      *
-     * @param SplFileInfo $source         Source file currently being processed.
-     * @param SplFileInfo $target         Initial target file information.
-     * @param string      $targetBasename Base filename (without extension) used for duplicate naming.
-     * @param int         $duplicateCount Counter used to create unique duplicate suffixes (passed by reference).
+     * @param SplFileInfo $source         source file currently being processed
+     * @param SplFileInfo $target         initial target file information
+     * @param string      $targetBasename base filename (without extension) used for duplicate naming
+     * @param int         $duplicateCount counter used to create unique duplicate suffixes (passed by reference)
      *
-     * @return SplFileInfo Newly generated file info pointing to a non-existing file.
+     * @return SplFileInfo newly generated file info pointing to a non-existing file
      */
     private function getNewUniqueDuplicateTargetFileInfo(
         SplFileInfo $source,
@@ -556,12 +521,12 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     /**
      * Returns a new file info object with a unique filename.
      *
-     * @param SplFileInfo $source         Source file currently being processed.
-     * @param SplFileInfo $target         Initial target file information.
-     * @param string      $targetBasename Base filename (without extension) used for duplicate naming.
-     * @param int         $duplicateCount Counter used to create unique duplicate suffixes (passed by reference).
+     * @param SplFileInfo $source         source file currently being processed
+     * @param SplFileInfo $target         initial target file information
+     * @param string      $targetBasename base filename (without extension) used for duplicate naming
+     * @param int         $duplicateCount counter used to create unique duplicate suffixes (passed by reference)
      *
-     * @return SplFileInfo File info representing the next duplicate candidate.
+     * @return SplFileInfo file info representing the next duplicate candidate
      */
     private function getNewDuplicateTargetFileInfo(
         SplFileInfo $source,
@@ -586,21 +551,21 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     /**
      * Builds the target pathname for a source file and generated filename.
      *
-     * @param SplFileInfo $sourceFileInfo Source file for which the target path should be computed.
-     * @param string      $targetFilename Filename (without directory) to use in the destination.
+     * @param SplFileInfo $sourceFileInfo source file for which the target path should be computed
+     * @param string      $targetFilename filename (without directory) to use in the destination
      *
-     * @return string Absolute pathname pointing to the intended target location.
+     * @return string absolute pathname pointing to the intended target location
      */
     public function getTargetPathname(SplFileInfo $sourceFileInfo, string $targetFilename): string
     {
-        $sourcePath = $sourceFileInfo->getPath();
+        $sourcePath   = $sourceFileInfo->getPath();
         $relativePath = $sourcePath;
 
         if (str_starts_with($sourcePath, $this->sourceDirectory)) {
             $relativePath = substr($sourcePath, strlen($this->sourceDirectory));
         }
 
-        $relativePath = trim((string) $relativePath, DIRECTORY_SEPARATOR);
+        $relativePath = trim($relativePath, DIRECTORY_SEPARATOR);
 
         $targetPath = rtrim($this->targetDirectory, DIRECTORY_SEPARATOR);
 
@@ -614,10 +579,10 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     /**
      * Returns a new target file object for the given source file object.
      *
-     * @param SplFileInfo             $sourceFileInfo Source file that should be renamed.
-     * @param RenameStrategyInterface $renameStrategy Strategy responsible for generating the target filename.
+     * @param SplFileInfo             $sourceFileInfo source file that should be renamed
+     * @param RenameStrategyInterface $renameStrategy strategy responsible for generating the target filename
      *
-     * @return SplFileInfo|null Target file info when the strategy yields a filename, otherwise null.
+     * @return SplFileInfo|null target file info when the strategy yields a filename, otherwise null
      */
     protected function getTargetFileInfo(SplFileInfo $sourceFileInfo, RenameStrategyInterface $renameStrategy): ?SplFileInfo
     {

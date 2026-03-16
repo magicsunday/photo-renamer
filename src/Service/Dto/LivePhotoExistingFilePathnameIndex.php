@@ -2,6 +2,9 @@
 
 /**
  * This file is part of the package magicsunday/photo-renamer.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE file that was distributed with this source code.
  */
 
 declare(strict_types=1);
@@ -21,7 +24,7 @@ final class LivePhotoExistingFilePathnameIndex
     /**
      * Records a file pathname as belonging to a Live Photo group.
      *
-     * @param SplFileInfo $file File whose pathname should be tracked.
+     * @param SplFileInfo $file file whose pathname should be tracked
      *
      * @return void
      */
@@ -33,9 +36,9 @@ final class LivePhotoExistingFilePathnameIndex
     /**
      * Checks whether the provided file has already been recorded.
      *
-     * @param SplFileInfo $file File to look up in the index.
+     * @param SplFileInfo $file file to look up in the index
      *
-     * @return bool True when the pathname is already tracked.
+     * @return bool true when the pathname is already tracked
      */
     public function contains(SplFileInfo $file): bool
     {

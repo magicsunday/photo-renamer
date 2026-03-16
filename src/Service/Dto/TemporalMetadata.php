@@ -1,16 +1,23 @@
 <?php
 
+/**
+ * This file is part of the package magicsunday/photo-renamer.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE file that was distributed with this source code.
+ */
+
 declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Dto;
 
 use DateTimeInterface;
 
-final class TemporalMetadata
+final readonly class TemporalMetadata
 {
     public function __construct(
-        private readonly ?DateTimeInterface $captureDateTime,
-        private readonly ?string $livePhotoId,
+        private ?DateTimeInterface $captureDateTime,
+        private ?string $livePhotoId,
     ) {
     }
 

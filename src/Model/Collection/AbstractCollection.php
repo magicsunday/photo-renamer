@@ -35,20 +35,16 @@ use function uasort;
 abstract class AbstractCollection implements CollectionInterface
 {
     /**
-     * An array containing the elements of this collection.
-     *
-     * @var array<TKey, TValue>
-     */
-    protected array $elements = [];
-
-    /**
      * Constructs a list of values.
      *
-     * @param array<TKey, TValue> $array Array of values
+     * @param array<TKey, TValue> $elements Array of values
      */
-    public function __construct(array $array = [])
-    {
-        $this->elements = $array;
+    public function __construct(
+        /**
+         * An array containing the elements of this collection.
+         */
+        protected array $elements = [],
+    ) {
     }
 
     /**
@@ -135,13 +131,7 @@ abstract class AbstractCollection implements CollectionInterface
      */
     public function get(int|string $key): ?object
     {
-        $value = $this->elements[$key] ?? null;
-
-        if ($value === null) {
-            return null;
-        }
-
-        return $value;
+        return $this->elements[$key] ?? null;
     }
 
     /**

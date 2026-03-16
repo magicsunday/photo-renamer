@@ -1,10 +1,16 @@
 <?php
 
+/**
+ * This file is part of the package magicsunday/photo-renamer.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE file that was distributed with this source code.
+ */
+
 declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Model\Collection;
 
-use InvalidArgumentException;
 use MagicSunday\Renamer\Model\Collection\FileList;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -24,15 +30,5 @@ class FileListTest extends TestCase
 
         self::assertSame([$file], $list->asArray());
         self::assertSame($file, $list->get(0));
-    }
-
-    #[Test]
-    public function itRejectsNonSplFileInfoValues(): void
-    {
-        $list = new FileList();
-
-        $this->expectException(InvalidArgumentException::class);
-        $list->append(new class {
-        });
     }
 }

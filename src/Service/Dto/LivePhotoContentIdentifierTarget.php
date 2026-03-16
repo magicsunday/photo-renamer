@@ -2,6 +2,9 @@
 
 /**
  * This file is part of the package magicsunday/photo-renamer.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE file that was distributed with this source code.
  */
 
 declare(strict_types=1);
@@ -13,11 +16,11 @@ use SplFileInfo;
 /**
  * Descriptor pairing a remembered Live Photo target with its duplicate key.
  */
-final class LivePhotoContentIdentifierTarget
+final readonly class LivePhotoContentIdentifierTarget
 {
     public function __construct(
-        private readonly SplFileInfo $target,
-        private readonly string $duplicateIdentifier,
+        private SplFileInfo $target,
+        private string $duplicateIdentifier,
     ) {
     }
 

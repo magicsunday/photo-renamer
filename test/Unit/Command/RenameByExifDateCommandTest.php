@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * This file is part of the package magicsunday/photo-renamer.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE file that was distributed with this source code.
+ */
+
 declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Command;
@@ -18,10 +25,11 @@ use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\LivePhotoPairingService;
-use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifierStrategy\LivePhotoContentIdentifierStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifMetadataProvider;
+use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
+use Override;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -33,13 +41,12 @@ use ReflectionMethod;
 use ReflectionProperty;
 use SplFileInfo;
 use Symfony\Component\Console\Command\Command;
-use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Helper\ProgressBar;
-use Symfony\Component\Console\Tester\CommandTester;
-use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Output\NullOutput;
-use Override;
+use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Console\Tester\CommandTester;
 
 #[CoversClass(RenameByExifDateCommand::class)]
 final class RenameByExifDateCommandTest extends TestCase
@@ -78,11 +85,11 @@ final class RenameByExifDateCommandTest extends TestCase
         $fileSystemService
             ->expects(self::once())
             ->method('createFileIterator')
-            ->with($expectedSourceDirectory)
+            ->with($expectedSourceDirectory, null)
             ->willReturn($iterator);
 
         $fileSystemService
-            ->expects(self::once())
+            ->expects(self::exactly(2))
             ->method('countFiles')
             ->with($iterator)
             ->willReturn(0);
@@ -107,7 +114,7 @@ final class RenameByExifDateCommandTest extends TestCase
             ->with(false)
             ->willReturnSelf();
 
-        $capturedRenameStrategy = null;
+        $capturedRenameStrategy    = null;
         $capturedDuplicateStrategy = null;
 
         $duplicateDetectionService
@@ -161,6 +168,9 @@ final class RenameByExifDateCommandTest extends TestCase
                 false,
                 false,
                 false,
+                $expectedSourceDirectory,
+                $expectedTargetDirectory,
+                0,
             );
 
         $command = new RenameByExifDateCommand(
@@ -170,11 +180,11 @@ final class RenameByExifDateCommandTest extends TestCase
             $livePhotoPairingService,
         );
 
-        $tester = new CommandTester($command);
+        $tester   = new CommandTester($command);
         $exitCode = $tester->execute([
-            'source-directory' => 'source-dir',
-            'target-directory' => 'target-dir',
-            '--dry-run' => true,
+            'source-directory'          => 'source-dir',
+            'target-directory'          => 'target-dir',
+            '--dry-run'                 => true,
             '--target-filename-pattern' => 'Ymd-His',
         ]);
 
@@ -183,12 +193,10 @@ final class RenameByExifDateCommandTest extends TestCase
         self::assertInstanceOf(LivePhotoContentIdentifierStrategy::class, $capturedDuplicateStrategy);
 
         $renamePatternProperty = new ReflectionProperty(ExifDateFilenameStrategy::class, 'targetFilenamePattern');
-        $renamePatternProperty->setAccessible(true);
 
         self::assertSame('Ymd-His', $renamePatternProperty->getValue($capturedRenameStrategy));
 
         $duplicateRenameStrategyProperty = new ReflectionProperty(LivePhotoContentIdentifierStrategy::class, 'renameStrategy');
-        $duplicateRenameStrategyProperty->setAccessible(true);
 
         self::assertSame($capturedRenameStrategy, $duplicateRenameStrategyProperty->getValue($capturedDuplicateStrategy));
     }
@@ -203,10 +211,10 @@ final class RenameByExifDateCommandTest extends TestCase
             $photo->getBasename('.' . $photo->getExtension()),
             $video->getBasename('.' . $video->getExtension()),
         );
-        $target = new SplFileInfo('/target/20240101_120000.HEIC');
+        $target       = new SplFileInfo('/target/20240101_120000.HEIC');
         $pairedTarget = new SplFileInfo('/source/20240101_120000.MOV');
 
-        $existingDuplicate = (new FileDuplicate())
+        $existingDuplicate = new FileDuplicate()
             ->addFile($photo)
             ->setTarget($target);
 
@@ -250,10 +258,10 @@ final class RenameByExifDateCommandTest extends TestCase
                 self::isTrue(),
             )
             ->willReturnCallback(static function (
-                $iteratorArg,
-                $collection,
-                $resolver,
-                $progressCallback,
+                mixed $iteratorArg,
+                mixed $collection,
+                mixed $resolver,
+                callable $progressCallback,
                 bool $matchByContentIdentifier,
             ) use ($video, $pairedTarget): LivePhotoPairingCollection {
                 self::assertTrue($matchByContentIdentifier);
@@ -289,15 +297,12 @@ final class RenameByExifDateCommandTest extends TestCase
             });
 
         $ioProperty = new ReflectionProperty(RenameByExifDateCommand::class, 'io');
-        $ioProperty->setAccessible(true);
         $ioProperty->setValue($command, $io);
 
         $sourceDirectoryProperty = new ReflectionProperty(RenameByExifDateCommand::class, 'sourceDirectory');
-        $sourceDirectoryProperty->setAccessible(true);
         $sourceDirectoryProperty->setValue($command, '/source');
 
         $method = new ReflectionMethod(RenameByExifDateCommand::class, 'groupFilesByDuplicateIdentifier');
-        $method->setAccessible(true);
 
         /** @var FileDuplicateCollection $result */
         $result = $method->invoke($command, $iterator);
@@ -313,7 +318,7 @@ final class RenameByExifDateCommandTest extends TestCase
         self::assertSame($video->getPathname(), $files[1]->getPathname());
         self::assertSame($target->getPathname(), $duplicate->getTarget()->getPathname());
         self::assertInstanceOf(ProgressBar::class, $capturedProgressBar);
-        self::assertSame(2, $capturedProgressBar?->getProgress());
+        self::assertSame(2, $capturedProgressBar->getProgress());
     }
 
     #[Test]
@@ -324,7 +329,7 @@ final class RenameByExifDateCommandTest extends TestCase
         $photoTarget = new SplFileInfo('/target-dir/20240101_120000.HEIC');
         $videoTarget = new SplFileInfo('/target-dir/20240101_120000.MOV');
 
-        $duplicate = (new FileDuplicate())
+        $duplicate = new FileDuplicate()
             ->addFile($photo)
             ->addFile($video)
             ->setTarget($photoTarget);
@@ -340,6 +345,9 @@ final class RenameByExifDateCommandTest extends TestCase
         $style          = new SymfonyStyle(new ArrayInput([]), $bufferedOutput);
 
         $fileSystemService = new class($style, $iterator) extends FileSystemService {
+            /**
+             * @param RecursiveIteratorIterator<RecursiveArrayIterator<int, SplFileInfo>> $iterator
+             */
             public function __construct(
                 SymfonyStyle $io,
                 private readonly RecursiveIteratorIterator $iterator,
@@ -352,6 +360,7 @@ final class RenameByExifDateCommandTest extends TestCase
                 string $directory,
                 ?RecursiveIterator $recursiveIterator = null,
             ): RecursiveIteratorIterator {
+                // @phpstan-ignore return.type
                 return $this->iterator;
             }
 
@@ -419,9 +428,7 @@ final class RenameByExifDateCommandTest extends TestCase
 
                 return true;
             }))
-            ->willReturnCallback(static function (FileDuplicateCollection $collection): FileDuplicateCollection {
-                return $collection;
-            });
+            ->willReturnCallback(static fn (FileDuplicateCollection $collection): FileDuplicateCollection => $collection);
 
         /** @var LivePhotoPairingService&MockObject $livePhotoPairingService */
         $livePhotoPairingService = $this->createMock(LivePhotoPairingService::class);
@@ -444,11 +451,11 @@ final class RenameByExifDateCommandTest extends TestCase
             $livePhotoPairingService,
         );
 
-        $tester = new CommandTester($command);
+        $tester   = new CommandTester($command);
         $exitCode = $tester->execute([
             'source-directory' => '/source-dir',
             'target-directory' => '/target-dir',
-            '--dry-run' => true,
+            '--dry-run'        => true,
         ]);
 
         self::assertSame(Command::SUCCESS, $exitCode);
@@ -503,11 +510,11 @@ final class RenameByExifDateCommandTest extends TestCase
                 $livePhotoPairingService,
             );
 
-            $tester = new CommandTester($command);
+            $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
                 'source-directory' => $workspace,
-                '--dry-run' => true,
-                '--list-all' => true,
+                '--dry-run'        => true,
+                '--list-all'       => true,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -524,9 +531,15 @@ final class RenameByExifDateCommandTest extends TestCase
     #[Test]
     public function groupFilesByDuplicateIdentifierRewindsIteratorBeforePairing(): void
     {
-        $iterator = new class(new RecursiveArrayIterator([])) extends RecursiveIteratorIterator {
+        /** @var RecursiveArrayIterator<int, SplFileInfo> $emptyArrayIterator */
+        $emptyArrayIterator = new RecursiveArrayIterator([]);
+
+        $iterator = new class($emptyArrayIterator) extends RecursiveIteratorIterator {
             public int $rewindCalls = 0;
 
+            /**
+             * @param RecursiveArrayIterator<int, SplFileInfo> $iterator
+             */
             public function __construct(RecursiveArrayIterator $iterator)
             {
                 parent::__construct($iterator);
@@ -600,15 +613,12 @@ final class RenameByExifDateCommandTest extends TestCase
         $io->expects(self::exactly(2))->method('newLine');
 
         $ioProperty = new ReflectionProperty(RenameByExifDateCommand::class, 'io');
-        $ioProperty->setAccessible(true);
         $ioProperty->setValue($command, $io);
 
         $sourceDirectoryProperty = new ReflectionProperty(RenameByExifDateCommand::class, 'sourceDirectory');
-        $sourceDirectoryProperty->setAccessible(true);
         $sourceDirectoryProperty->setValue($command, '/source');
 
         $method = new ReflectionMethod(RenameByExifDateCommand::class, 'groupFilesByDuplicateIdentifier');
-        $method->setAccessible(true);
 
         $result = $method->invoke($command, $iterator);
 
@@ -627,7 +637,7 @@ final class RenameByExifDateCommandTest extends TestCase
         );
         $targetWithSuffix = new SplFileInfo('/target/20240101_120000-1.HEIC');
 
-        $existingDuplicate = (new FileDuplicate())
+        $existingDuplicate = new FileDuplicate()
             ->addFile($photo)
             ->setTarget($targetWithSuffix);
 
@@ -686,11 +696,9 @@ final class RenameByExifDateCommandTest extends TestCase
                 $capturedPairings = $service->pairByContentIdentifier(
                     iterator: $iteratorArg,
                     fileDuplicateCollection: $collection,
-                    contentIdentifierResolver: static function (SplFileInfo $file) use ($photo, $video): ?string {
-                        return match ($file->getPathname()) {
-                            $photo->getPathname(), $video->getPathname() => 'content-id',
-                            default => null,
-                        };
+                    contentIdentifierResolver: static fn (SplFileInfo $file): ?string => match ($file->getPathname()) {
+                        $photo->getPathname(), $video->getPathname() => 'content-id',
+                        default => null,
                     },
                     onFileInspected: $progressCallback,
                     matchByContentIdentifier: true,
@@ -722,15 +730,12 @@ final class RenameByExifDateCommandTest extends TestCase
             });
 
         $ioProperty = new ReflectionProperty(RenameByExifDateCommand::class, 'io');
-        $ioProperty->setAccessible(true);
         $ioProperty->setValue($command, $io);
 
         $sourceDirectoryProperty = new ReflectionProperty(RenameByExifDateCommand::class, 'sourceDirectory');
-        $sourceDirectoryProperty->setAccessible(true);
         $sourceDirectoryProperty->setValue($command, '/source');
 
         $method = new ReflectionMethod(RenameByExifDateCommand::class, 'groupFilesByDuplicateIdentifier');
-        $method->setAccessible(true);
 
         /** @var FileDuplicateCollection $result */
         $result = $method->invoke($command, $iterator);
@@ -750,10 +755,10 @@ final class RenameByExifDateCommandTest extends TestCase
         self::assertSame($photo->getPathname(), $files[0]->getPathname());
         self::assertSame($video->getPathname(), $files[1]->getPathname());
         self::assertInstanceOf(ProgressBar::class, $capturedProgressBar);
-        self::assertSame(2, $capturedProgressBar?->getProgress());
+        self::assertSame(2, $capturedProgressBar->getProgress());
 
         $canonicalBasename = $duplicate->getTarget()->getBasename('.' . $duplicate->getTarget()->getExtension());
-        $videoBasename = $pairing->getTargetFile()->getBasename('.' . $pairing->getTargetFile()->getExtension());
+        $videoBasename     = $pairing->getTargetFile()->getBasename('.' . $pairing->getTargetFile()->getExtension());
 
         self::assertSame($canonicalBasename, $videoBasename);
     }
@@ -767,17 +772,17 @@ final class RenameByExifDateCommandTest extends TestCase
     {
         $workingDirectory = getcwd();
 
-        if (!is_string($workingDirectory) || $workingDirectory === '') {
+        if ($workingDirectory === false) {
             return $relativePath;
         }
 
-        $trimmedWorkingDirectory = rtrim($workingDirectory, "\\/");
+        $trimmedWorkingDirectory = rtrim($workingDirectory, '\\/');
 
         if ($trimmedWorkingDirectory === '') {
             return $relativePath;
         }
 
-        $normalizedRelativePath = ltrim($relativePath, "\\/");
+        $normalizedRelativePath = ltrim($relativePath, '\\/');
 
         if ($normalizedRelativePath === '') {
             return $trimmedWorkingDirectory;

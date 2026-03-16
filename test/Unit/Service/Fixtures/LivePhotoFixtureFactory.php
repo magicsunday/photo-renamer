@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * This file is part of the package magicsunday/photo-renamer.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE file that was distributed with this source code.
+ */
+
 declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service\Fixtures;
@@ -14,14 +21,14 @@ use function pack;
 use function register_shutdown_function;
 use function rename;
 use function sprintf;
+use function strlen;
 use function sys_get_temp_dir;
 use function tempnam;
 use function unlink;
-use function strlen;
 
 final class LivePhotoFixtureFactory
 {
-    private const JPEG_BASE64 = <<<BASE64
+    private const string JPEG_BASE64 = <<<BASE64
 /9j/4QBYRXhpZgAASUkqAAgAAAABAGmHBAABAAAAGgAAAAAAAAACAAOQAgAUAAAAOAAAAJGSAgAE
 AAAATAAAAAAAAAAyMDI0OjAxOjAyIDEyOjM0OjU2ADEyMwD/4QFgaHR0cDovL25zLmFkb2JlLmNv
 bS94YXAvMS4wL1wwPD94cGFja2V0IGJlZ2luPSdcdUZFRkYnIGlkPSdXNU0wTXBDZWhpSHpyZVN6
@@ -128,7 +135,7 @@ BASE64;
 
             $keysPayload .= $keyPayload;
 
-            $value = $entry['value'];
+            $value       = $entry['value'];
             $dataPayload = pack('N', 16 + strlen($value))
                 . 'data'
                 . "\0\0\0\1"

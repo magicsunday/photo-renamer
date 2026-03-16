@@ -43,8 +43,6 @@ class InheritFilenameStrategyTest extends TestCase
 {
     /**
      * The strategy instance being tested.
-     *
-     * @var InheritFilenameStrategy
      */
     private InheritFilenameStrategy $strategy;
 

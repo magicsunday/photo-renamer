@@ -2,6 +2,9 @@
 
 /**
  * This file is part of the package magicsunday/photo-renamer.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE file that was distributed with this source code.
  */
 
 declare(strict_types=1);
@@ -9,13 +12,13 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service;
 
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
-use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Service\Dto\LivePhotoBasenameTargetMap;
 use MagicSunday\Renamer\Service\Dto\LivePhotoContentIdentifierTarget;
 use MagicSunday\Renamer\Service\Dto\LivePhotoContentIdentifierTargetMap;
 use MagicSunday\Renamer\Service\Dto\LivePhotoExistingFilePathnameIndex;
 use MagicSunday\Renamer\Service\Dto\LivePhotoPairing;
 use MagicSunday\Renamer\Service\Dto\LivePhotoPairingCollection;
+use RecursiveIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
 
@@ -31,10 +34,12 @@ class LivePhotoPairingService
     /**
      * Finds additional files that belong to existing Live Photo groups.
      *
-     * @param RecursiveIteratorIterator        $iterator                 Iterator traversing all source files.
-     * @param FileDuplicateCollection          $fileDuplicateCollection  Collection generated during the first pass.
-     * @param callable(SplFileInfo): ?string    $contentIdentifierResolver Callback resolving the Live Photo content identifier.
-     * @param callable(): void|null             $onFileInspected          Optional callback invoked after each inspected file.
+     * @template TInner of RecursiveIterator
+     *
+     * @param RecursiveIteratorIterator<TInner> $iterator                  iterator traversing all source files
+     * @param FileDuplicateCollection           $fileDuplicateCollection   collection generated during the first pass
+     * @param callable(SplFileInfo): ?string    $contentIdentifierResolver callback resolving the Live Photo content identifier
+     * @param callable(): void|null             $onFileInspected           optional callback invoked after each inspected file
      *
      * @return LivePhotoPairingCollection
      */
@@ -45,16 +50,11 @@ class LivePhotoPairingService
         ?callable $onFileInspected = null,
         bool $matchByContentIdentifier = true,
     ): LivePhotoPairingCollection {
-        $existingFilePathnames = new LivePhotoExistingFilePathnameIndex();
+        $existingFilePathnames    = new LivePhotoExistingFilePathnameIndex();
         $contentIdentifierTargets = new LivePhotoContentIdentifierTargetMap();
-        $basenameTargets = new LivePhotoBasenameTargetMap();
+        $basenameTargets          = new LivePhotoBasenameTargetMap();
 
         foreach ($fileDuplicateCollection->asArray() as $duplicateIdentifier => $fileDuplicate) {
-            if (!is_string($duplicateIdentifier)) {
-                continue;
-            }
-
-            /** @var FileDuplicate $fileDuplicate */
             foreach ($fileDuplicate->getFiles() as $existingFileInfo) {
                 $existingFilePathnames->remember($existingFileInfo);
 
@@ -81,7 +81,7 @@ class LivePhotoPairingService
         $pairs = LivePhotoPairingCollection::empty();
 
         foreach ($iterator as $fileInfo) {
-            if (!($fileInfo instanceof SplFileInfo)) {
+            if (!$fileInfo instanceof SplFileInfo) {
                 continue;
             }
 
@@ -93,10 +93,10 @@ class LivePhotoPairingService
                 continue;
             }
 
-            $contentIdentifier = $contentIdentifierResolver($fileInfo);
+            $contentIdentifier           = $contentIdentifierResolver($fileInfo);
             $normalizedContentIdentifier = $this->normalizeContentIdentifier($contentIdentifier);
 
-            $targetPrototype = null;
+            $targetPrototype   = null;
             $pairingIdentifier = $normalizedContentIdentifier;
 
             if (
@@ -107,12 +107,12 @@ class LivePhotoPairingService
                 $targetPrototype = $contentIdentifierTargets->get($normalizedContentIdentifier);
             }
 
-            if ($targetPrototype === null) {
+            if (!$targetPrototype instanceof LivePhotoContentIdentifierTarget) {
                 $basenameTarget = $basenameTargets->match($fileInfo);
 
                 if ($basenameTarget instanceof LivePhotoContentIdentifierTarget) {
                     $targetPrototype = $basenameTarget;
-                    $basenameKey = $basenameTargets->getBasenameKey($fileInfo);
+                    $basenameKey     = $basenameTargets->getBasenameKey($fileInfo);
 
                     if ($basenameKey !== null) {
                         $pairingIdentifier = 'basename:' . $basenameKey;
@@ -120,11 +120,11 @@ class LivePhotoPairingService
                 }
             }
 
-            if (!($targetPrototype instanceof LivePhotoContentIdentifierTarget)) {
+            if (!$targetPrototype instanceof LivePhotoContentIdentifierTarget) {
                 continue;
             }
 
-            $targetFile = $targetPrototype->getTarget();
+            $targetFile     = $targetPrototype->getTarget();
             $targetBasename = $targetFile->getBasename('.' . $targetFile->getExtension());
 
             $targetFileInfo = new SplFileInfo(

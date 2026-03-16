@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * This file is part of the package magicsunday/photo-renamer.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE file that was distributed with this source code.
+ */
+
 declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Strategy\RenameStrategy\Dto;
@@ -7,9 +14,9 @@ namespace MagicSunday\Renamer\Strategy\RenameStrategy\Dto;
 use function strtolower;
 use function trim;
 
-final class ContentIdentifier
+final readonly class ContentIdentifier
 {
-    private readonly string $value;
+    private string $value;
 
     public function __construct(string $value)
     {

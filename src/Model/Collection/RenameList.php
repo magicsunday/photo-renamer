@@ -11,8 +11,8 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Model\Collection;
 
-use InvalidArgumentException;
 use MagicSunday\Renamer\Model\Rename;
+use Override;
 
 /**
  * @extends AbstractCollection<int, Rename>
@@ -31,35 +31,32 @@ final class RenameList extends AbstractCollection
         }
     }
 
+    /**
+     * @param Rename $value
+     */
+    #[Override]
     public function append(object $value): void
     {
-        if (!($value instanceof Rename)) {
-            throw new InvalidArgumentException('Value must be an instance of Rename.');
-        }
-
         parent::append($value);
     }
 
+    /**
+     * @param int $key
+     */
+    #[Override]
     public function get(int|string $key): ?Rename
     {
-        $value = parent::get($key);
-
-        if ($value === null) {
-            return null;
-        }
-
-        \assert($value instanceof Rename);
-
-        return $value;
+        return parent::get((int) $key);
     }
 
+    /**
+     * @param int    $key
+     * @param Rename $value
+     */
+    #[Override]
     public function set(int|string $key, object $value): void
     {
-        if (!($value instanceof Rename)) {
-            throw new InvalidArgumentException('Value must be an instance of Rename.');
-        }
-
-        parent::set($key, $value);
+        parent::set((int) $key, $value);
     }
 
     public function reindex(): self

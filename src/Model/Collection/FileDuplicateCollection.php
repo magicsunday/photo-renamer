@@ -11,8 +11,8 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Model\Collection;
 
-use InvalidArgumentException;
 use MagicSunday\Renamer\Model\FileDuplicate;
+use Override;
 
 /**
  * A file duplicate collection.
@@ -25,38 +25,31 @@ use MagicSunday\Renamer\Model\FileDuplicate;
  */
 class FileDuplicateCollection extends AbstractCollection
 {
+    /**
+     * @param FileDuplicate $value
+     */
+    #[Override]
     public function append(object $value): void
     {
-        $this->assertInstance($value);
-
         parent::append($value);
     }
 
+    /**
+     * @param string        $key
+     * @param FileDuplicate $value
+     */
+    #[Override]
     public function set(int|string $key, object $value): void
     {
-        $this->assertInstance($value);
-
-        parent::set($key, $value);
-    }
-
-    public function get(int|string $key): ?FileDuplicate
-    {
-        $value = parent::get($key);
-
-        if ($value instanceof FileDuplicate) {
-            return $value;
-        }
-
-        return null;
+        parent::set((string) $key, $value);
     }
 
     /**
-     * @param object $value
+     * @param string $key
      */
-    private function assertInstance(object $value): void
+    #[Override]
+    public function get(int|string $key): ?FileDuplicate
     {
-        if (!($value instanceof FileDuplicate)) {
-            throw new InvalidArgumentException('Value must be an instance of FileDuplicate.');
-        }
+        return parent::get((string) $key);
     }
 }

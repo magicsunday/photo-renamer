@@ -24,6 +24,8 @@ use Traversable;
  *
  * @template TKey of array-key
  * @template TValue of object
+ *
+ * @extends IteratorAggregate<TKey, TValue>
  */
 interface CollectionInterface extends Countable, IteratorAggregate
 {

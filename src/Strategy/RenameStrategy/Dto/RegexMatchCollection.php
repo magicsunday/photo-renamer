@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * This file is part of the package magicsunday/photo-renamer.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE file that was distributed with this source code.
+ */
+
 declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Strategy\RenameStrategy\Dto;
@@ -13,12 +20,12 @@ use function is_int;
 /**
  * Immutable collection representing regex match groups.
  */
-final class RegexMatchCollection
+final readonly class RegexMatchCollection
 {
     /**
      * @param array<int, RegexMatchGroup> $groups
      */
-    private function __construct(private readonly array $groups)
+    private function __construct(private array $groups)
     {
     }
 
@@ -42,17 +49,12 @@ final class RegexMatchCollection
 
     /**
      * Builds a collection from a `preg_match_all` call.
-     *
      */
     public static function fromMatchAll(RegexMatchAllResult $result): self
     {
         $groups = [];
 
         foreach ($result->matches() as $key => $groupMatches) {
-            if (!is_int($key)) {
-                continue;
-            }
-
             $groups[$key] = RegexMatchGroup::fromList($groupMatches);
         }
 

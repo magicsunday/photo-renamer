@@ -33,8 +33,6 @@ class TargetPathnameStrategyTest extends TestCase
 {
     /**
      * The strategy instance being tested.
-     *
-     * @var TargetPathnameStrategy
      */
     private TargetPathnameStrategy $strategy;
 

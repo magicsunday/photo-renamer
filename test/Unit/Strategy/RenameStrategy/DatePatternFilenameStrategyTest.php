@@ -14,8 +14,8 @@ namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Model\Pattern\PatternMatch;
 use MagicSunday\Renamer\Model\Pattern\PatternMatchSet;
-use MagicSunday\Renamer\Strategy\RenameStrategy\DatePatternFilenameStrategy;
 use MagicSunday\Renamer\Service\SafeRegex;
+use MagicSunday\Renamer\Strategy\RenameStrategy\DatePatternFilenameStrategy;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -244,7 +244,6 @@ class DatePatternFilenameStrategyTest extends TestCase
         self::assertStringContainsString('15', $result);
         self::assertStringNotContainsString('.', $result);
     }
-
 
     /**
      * @param string[] $placeholders
