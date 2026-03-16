@@ -16,7 +16,7 @@ parameters:
 
     paths:
         - src/
-        - test/
+        - tests/
 
     excludePaths:
         - src/Renamer.php
