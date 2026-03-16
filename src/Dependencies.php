@@ -20,10 +20,10 @@ use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
 
 use function sprintf;
 
-require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../.build/vendor/autoload.php';
 
-$cachedContainer = __DIR__ . '/../var/cache/DependencyContainer.php';
-$cacheDir        = __DIR__ . '/../var/cache';
+$cachedContainer = __DIR__ . '/../.build/cache/DependencyContainer.php';
+$cacheDir        = __DIR__ . '/../.build/cache';
 
 // Create a cache directory if it doesn't exist
 if (!file_exists($cacheDir)

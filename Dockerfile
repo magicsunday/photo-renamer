@@ -4,6 +4,8 @@ FROM php:8.4-cli-alpine AS dev
 RUN apk add --no-cache \
     bash \
     git \
+    nodejs \
+    npm \
     openssh-client
 
 RUN git config --global --add safe.directory /app

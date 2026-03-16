@@ -4,9 +4,9 @@
 
 #### CI
 
-.PHONY: test lint cgl-check rector-check stan unit
+.PHONY: test lint cgl-check rector-check stan unit cpd
 
-test: .logo ## Runs the full CI pipeline (lint, cgl, rector, phpstan, phpunit).
+test: .logo ## Runs the full CI pipeline (lint, cgl, rector, phpstan, phpunit, cpd).
 	${COMPOSE_BUILD} composer ci:test
 
 lint: .logo ## Runs the PHP linter.
@@ -23,6 +23,9 @@ stan: .logo ## Runs PHPStan analysis.
 
 unit: .logo ## Runs the PHPUnit tests.
 	${COMPOSE_BUILD} composer ci:test:php:unit
+
+cpd: .logo ## Runs copy-paste detection (jscpd).
+	${COMPOSE_BUILD} composer ci:test:php:cpd
 
 
 #### Fix

@@ -1,8 +1,8 @@
 includes:
-    - vendor/phpstan/phpstan-strict-rules/rules.neon
-    - vendor/phpstan/phpstan-deprecation-rules/rules.neon
-    - vendor/phpstan/phpstan-phpunit/extension.neon
-    - vendor/phpstan/phpstan-phpunit/rules.neon
+    - .build/vendor/phpstan/phpstan-strict-rules/rules.neon
+    - .build/vendor/phpstan/phpstan-deprecation-rules/rules.neon
+    - .build/vendor/phpstan/phpstan-phpunit/extension.neon
+    - .build/vendor/phpstan/phpstan-phpunit/rules.neon
     - phpstan-baseline.neon
 
 parameters:

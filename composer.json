@@ -19,6 +19,8 @@
         }
     ],
     "config": {
+        "bin-dir": ".build/bin",
+        "vendor-dir": ".build/vendor",
         "discard-changes": true,
         "sort-packages": true,
         "optimize-autoloader": true,
@@ -86,12 +88,19 @@
         "ci:test:php:unit": [
             "phpunit --configuration phpunit.xml"
         ],
+        "ci:test:php:cpd": [
+            "npx --prefix .build jscpd --config .jscpd.json"
+        ],
         "ci:test": [
             "@ci:test:php:lint",
-            "@ci:test:php:phpstan",
-            "@ci:test:php:rector",
             "@ci:test:php:cgl",
-            "@ci:test:php:unit"
+            "@ci:test:php:rector",
+            "@ci:test:php:phpstan",
+            "@ci:test:php:unit",
+            "@ci:test:php:cpd"
+        ],
+        "post-update-cmd": [
+            "npm install --prefix .build jscpd"
         ]
     }
 }

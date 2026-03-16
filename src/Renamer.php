@@ -16,7 +16,7 @@ use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 require_once __DIR__ . '/Dependencies.php';
-require_once __DIR__ . '/../var/cache/DependencyContainer.php';
+require_once __DIR__ . '/../.build/cache/DependencyContainer.php';
 
 // Create the container
 $container = new DependencyContainer();
