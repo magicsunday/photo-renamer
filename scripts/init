@@ -40,7 +40,7 @@ if [ ! -f "pkgroot/bin/upx" ]; then
 fi
 
 echo "Download SPC extensions"
-../../${BIN_DIR}/spc download --with-php=8.4 --for-extensions "${PHP_EXTENSIONS}" --prefer-pre-built --without-suggestions
+../../${BIN_DIR}/spc download --with-php=8.5 --for-extensions "${PHP_EXTENSIONS}" --prefer-pre-built --without-suggestions
 
 echo "Compile SPC"
 ../../${BIN_DIR}/spc build --build-cli --build-micro --with-micro-fake-cli --with-upx-pack "${PHP_EXTENSIONS}" -I "phar.readonly=Off" -I "memory_limit=-1" -I "error_reporting=-1"
