@@ -9,38 +9,28 @@
 
 declare(strict_types=1);
 
-try
-{
-    $pharFile  = "renamer.phar";
-    $buildDir  = __DIR__ . '/../.build/renamer';
+$pharFile = dirname(__DIR__) . '/renamer.phar';
+$buildDir = dirname(__DIR__) . '/.build/renamer';
 
-    if (file_exists($pharFile)) {
-        unlink($pharFile);
-    }
+// Build the DI container cache before packing
+require_once $buildDir . '/src/Dependencies.php';
 
-    if (file_exists($pharFile . ".gz")) {
-        unlink($pharFile . ".gz");
-    }
-
-    require_once $buildDir . '/src/Dependencies.php';
-
-    $phar = new Phar($pharFile);
-    $phar->startBuffering();
-
-    // Create the default stub
-    $defaultStub = Phar::createDefaultStub('src/Renamer.php');
-
-    $phar->buildFromDirectory($buildDir);
-    $phar->setStub("#!/usr/bin/env php \n" . $defaultStub);
-    $phar->stopBuffering();
-    $phar->compressFiles(Phar::GZ);
-
-    //  Make the file executable
-    chmod($pharFile, 0755);
-
-    echo "$pharFile successfully created" . PHP_EOL;
+if (file_exists($pharFile)) {
+    unlink($pharFile);
 }
-catch (Exception $e)
-{
-    echo $e->getMessage();
-}
+
+$phar = new Phar($pharFile);
+$phar->startBuffering();
+
+// Create the default stub
+$defaultStub = Phar::createDefaultStub('src/Renamer.php');
+
+$phar->buildFromDirectory($buildDir);
+$phar->setStub("#!/usr/bin/env php \n" . $defaultStub);
+$phar->stopBuffering();
+$phar->compressFiles(Phar::GZ);
+
+//  Make the file executable
+chmod($pharFile, 0755);
+
+echo basename($pharFile) . " successfully created" . PHP_EOL;
