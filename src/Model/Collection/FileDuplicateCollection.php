@@ -15,7 +15,9 @@ use MagicSunday\Renamer\Model\FileDuplicate;
 use Override;
 
 /**
- * A file duplicate collection.
+ * String-keyed collection of FileDuplicate groups. Keys are the duplicate identifiers
+ * produced by a DuplicateIdentifierStrategy (e.g. target basename or content hash),
+ * mapping each identifier to its FileDuplicate group of source files.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT

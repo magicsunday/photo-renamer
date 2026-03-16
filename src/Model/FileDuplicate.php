@@ -16,7 +16,9 @@ use MagicSunday\Renamer\Model\Collection\RenameList;
 use SplFileInfo;
 
 /**
- * The object holding info about the file renaming.
+ * Groups multiple source files that share the same duplicate identifier (e.g. same EXIF date
+ * or same target basename). Holds both the raw source file list and the computed rename
+ * operations, plus the canonical target file info used as the base name for the group.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -24,17 +26,34 @@ use SplFileInfo;
  */
 class FileDuplicate
 {
+    /**
+     * Canonical target file info representing the base name assigned to this group.
+     */
     private SplFileInfo $target;
 
+    /**
+     * @param FileList   $files   Source files belonging to this duplicate group
+     * @param RenameList $renames Computed rename operations for all files in this group
+     */
     public function __construct(private readonly FileList $files = new FileList(), private RenameList $renames = new RenameList())
     {
     }
 
+    /**
+     * Returns all source files that belong to this duplicate group.
+     */
     public function getFiles(): FileList
     {
         return $this->files;
     }
 
+    /**
+     * Registers a source file as belonging to this duplicate group.
+     *
+     * @param SplFileInfo $fileInfo Source file to add
+     *
+     * @return self Fluent interface
+     */
     public function addFile(SplFileInfo $fileInfo): self
     {
         $this->files->append($fileInfo);
@@ -42,11 +61,22 @@ class FileDuplicate
         return $this;
     }
 
+    /**
+     * Returns the canonical target file info that defines the base name for this group.
+     */
     public function getTarget(): SplFileInfo
     {
         return $this->target;
     }
 
+    /**
+     * Assigns the canonical target file info, which determines the base filename
+     * all members of this group will share (before duplicate suffixes).
+     *
+     * @param SplFileInfo $target Canonical target to set
+     *
+     * @return FileDuplicate Fluent interface
+     */
     public function setTarget(SplFileInfo $target): FileDuplicate
     {
         $this->target = $target;
@@ -54,11 +84,22 @@ class FileDuplicate
         return $this;
     }
 
+    /**
+     * Returns the list of computed rename operations for all files in this group.
+     */
     public function getRenames(): RenameList
     {
         return $this->renames;
     }
 
+    /**
+     * Replaces the entire rename list, used when hash sub-grouping recomputes
+     * rename targets with sub-group suffixes.
+     *
+     * @param RenameList $renames New rename list to assign
+     *
+     * @return self Fluent interface
+     */
     public function setRenames(RenameList $renames): self
     {
         $this->renames = $renames;
@@ -66,6 +107,13 @@ class FileDuplicate
         return $this;
     }
 
+    /**
+     * Appends a single rename operation to this group's rename list.
+     *
+     * @param Rename $rename Rename operation to add
+     *
+     * @return self Fluent interface
+     */
     public function addRename(Rename $rename): self
     {
         $this->renames->append($rename);

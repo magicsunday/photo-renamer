@@ -21,7 +21,9 @@ use function count;
 use function uasort;
 
 /**
- * An abstract collection of values.
+ * Generic array-backed collection providing iteration, filtering, sorting and
+ * slice operations. Concrete subclasses narrow the key and value types via
+ * template specialization.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -35,20 +37,20 @@ use function uasort;
 abstract class AbstractCollection implements CollectionInterface
 {
     /**
-     * Constructs a list of values.
-     *
-     * @param array<TKey, TValue> $elements Array of values
+     * @param array<TKey, TValue> $elements Initial elements to populate the collection
      */
     public function __construct(
         /**
-         * An array containing the elements of this collection.
+         * Internal storage holding all elements indexed by their key.
+         *
+         * @var array<TKey, TValue>
          */
         protected array $elements = [],
     ) {
     }
 
     /**
-     * Count elements of an object.
+     * Returns the number of elements currently stored in the collection.
      *
      * @return int<0, max>
      */
@@ -58,9 +60,9 @@ abstract class AbstractCollection implements CollectionInterface
     }
 
     /**
-     * Appends a value to the collection.
+     * Appends an element to the end of the collection using an auto-incremented integer key.
      *
-     * @param TValue $value The value to append
+     * @param TValue $value The element to append
      */
     public function append(object $value): void
     {
@@ -78,9 +80,9 @@ abstract class AbstractCollection implements CollectionInterface
     }
 
     /**
-     * Sort the elements using a callback function.
+     * Sorts elements in-place using the provided comparison function while preserving keys.
      *
-     * @param callable $callback The callback function to use
+     * @param callable $callback Comparison function accepting two elements, returning int
      *
      * @return self<TKey, TValue>
      */
@@ -92,9 +94,10 @@ abstract class AbstractCollection implements CollectionInterface
     }
 
     /**
-     * Filters the elements using a callback function.
+     * Removes elements that do not satisfy the predicate. Mutates the internal
+     * array and preserves original keys (gaps may appear in numeric sequences).
      *
-     * @param callable $callback The callback function to use
+     * @param callable $callback Predicate returning true for elements to keep
      *
      * @return self<TKey, TValue>
      */
@@ -125,6 +128,8 @@ abstract class AbstractCollection implements CollectionInterface
     }
 
     /**
+     * Retrieves an element by its key, returning null when the key does not exist.
+     *
      * @param TKey $key
      *
      * @return TValue|null
@@ -135,6 +140,8 @@ abstract class AbstractCollection implements CollectionInterface
     }
 
     /**
+     * Stores an element at the specified key, overwriting any previous value at that position.
+     *
      * @param TKey   $key
      * @param TValue $value
      */
@@ -144,6 +151,8 @@ abstract class AbstractCollection implements CollectionInterface
     }
 
     /**
+     * Checks whether an element with the given key exists in the collection.
+     *
      * @param TKey $key
      */
     public function has(int|string $key): bool
@@ -152,6 +161,8 @@ abstract class AbstractCollection implements CollectionInterface
     }
 
     /**
+     * Removes the element at the given key. No-op if the key does not exist.
+     *
      * @param TKey $key
      */
     public function remove(int|string $key): void
@@ -159,6 +170,11 @@ abstract class AbstractCollection implements CollectionInterface
         unset($this->elements[$key]);
     }
 
+    /**
+     * Returns an iterator over all elements in insertion order.
+     *
+     * @return Traversable<TKey, TValue>
+     */
     public function getIterator(): Traversable
     {
         return new ArrayIterator($this->elements);

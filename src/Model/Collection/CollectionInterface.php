@@ -16,7 +16,8 @@ use IteratorAggregate;
 use Traversable;
 
 /**
- * CollectionInterface.
+ * Contract for typed, countable and iterable object collections with
+ * key-based access, mutation and append semantics.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT

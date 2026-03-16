@@ -15,12 +15,20 @@ use MagicSunday\Renamer\Model\Rename;
 use Override;
 
 /**
+ * Integer-indexed collection of Rename operations. Maintains the ordered list
+ * of source-to-target mappings for a duplicate group, supporting reindexing
+ * after filter operations remove gaps in the numeric key sequence.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
+ *
  * @extends AbstractCollection<int, Rename>
  */
 final class RenameList extends AbstractCollection
 {
     /**
-     * @param Rename[] $array
+     * @param Rename[] $array Initial rename operations to populate the list
      */
     public function __construct(array $array = [])
     {
@@ -59,6 +67,12 @@ final class RenameList extends AbstractCollection
         parent::set((int) $key, $value);
     }
 
+    /**
+     * Re-numbers all keys to a contiguous zero-based integer sequence.
+     * Call after filter() to eliminate gaps left by removed elements.
+     *
+     * @return self Fluent interface
+     */
     public function reindex(): self
     {
         $this->elements = array_values($this->elements);
