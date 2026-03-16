@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
+use Closure;
 use FilesystemIterator;
 use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
@@ -33,7 +34,12 @@ use function is_dir;
 use function iterator_to_array;
 use function mkdir;
 use function rmdir;
+use function rtrim;
+use function str_starts_with;
+use function strlen;
+use function substr;
 use function sys_get_temp_dir;
+use function trim;
 use function uniqid;
 use function unlink;
 
@@ -100,7 +106,7 @@ final class HashSubGroupingServiceTest extends TestCase
         $renameA = new Rename(new SplFileInfo($fileA), new SplFileInfo($target));
         $fileDuplicate->addRename($renameA);
 
-        $result = $service->apply($fileDuplicate, $renameA, null, [], $sourceDirectory, $targetDirectory);
+        $result = $service->apply($fileDuplicate, $renameA, null, [], $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory));
 
         self::assertFalse($result);
     }
@@ -138,7 +144,7 @@ final class HashSubGroupingServiceTest extends TestCase
         $fileDuplicate->addRename($renameA);
         $fileDuplicate->addRename($renameB);
 
-        $result = $service->apply($fileDuplicate, $renameA, null, [], $sourceDirectory, $targetDirectory);
+        $result = $service->apply($fileDuplicate, $renameA, null, [], $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory));
 
         self::assertFalse($result);
     }
@@ -177,7 +183,7 @@ final class HashSubGroupingServiceTest extends TestCase
         $fileDuplicate->addRename($renameA);
         $fileDuplicate->addRename($renameB);
 
-        $result = $service->apply($fileDuplicate, $renameA, null, [], $sourceDirectory, $targetDirectory);
+        $result = $service->apply($fileDuplicate, $renameA, null, [], $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory));
 
         self::assertTrue($result);
 
@@ -245,7 +251,7 @@ final class HashSubGroupingServiceTest extends TestCase
         $fileDuplicate->addRename($renameB2);
         $fileDuplicate->addRename($renameC);
 
-        $result = $service->apply($fileDuplicate, $renameA, null, [], $sourceDirectory, $targetDirectory);
+        $result = $service->apply($fileDuplicate, $renameA, null, [], $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory));
 
         self::assertTrue($result);
 
@@ -323,8 +329,7 @@ final class HashSubGroupingServiceTest extends TestCase
             $renameImageA,
             null,
             [],
-            $sourceDirectory,
-            $targetDirectory,
+            $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
         );
 
         self::assertTrue($result);
@@ -340,6 +345,31 @@ final class HashSubGroupingServiceTest extends TestCase
         self::assertSame('2025-01-01_00-02-28.heic', $renameTargets[$imageA]);
         self::assertSame('2025-01-01_00-02-28-002.mov', $renameTargets[$movA]);
         self::assertSame('2025-01-01_00-02-28-003.heic', $renameTargets[$imageB]);
+    }
+
+    /**
+     * @return Closure(SplFileInfo, string): string
+     */
+    private function createTargetPathnameResolver(string $sourceDirectory, string $targetDirectory): Closure
+    {
+        return static function (SplFileInfo $sourceFileInfo, string $targetFilename) use ($sourceDirectory, $targetDirectory): string {
+            $sourcePath   = $sourceFileInfo->getPath();
+            $relativePath = $sourcePath;
+
+            if (str_starts_with($sourcePath, $sourceDirectory)) {
+                $relativePath = substr($sourcePath, strlen($sourceDirectory));
+            }
+
+            $relativePath = trim($relativePath, DIRECTORY_SEPARATOR);
+
+            $targetPath = rtrim($targetDirectory, DIRECTORY_SEPARATOR);
+
+            if ($relativePath !== '') {
+                $targetPath .= DIRECTORY_SEPARATOR . $relativePath;
+            }
+
+            return $targetPath . DIRECTORY_SEPARATOR . $targetFilename;
+        };
     }
 
     private function createHashSubGroupingService(): HashSubGroupingService

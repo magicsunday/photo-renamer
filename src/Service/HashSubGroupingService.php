@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service;
 
+use Closure;
 use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
@@ -61,20 +62,18 @@ class HashSubGroupingService
      * Returns false when sub-grouping is not needed (single file, single hash group,
      * or only companions).
      *
-     * @param FileDuplicate         $fileDuplicate        the duplicate group to process
-     * @param Rename|null           $canonicalRename      the canonical rename entry
-     * @param Rename|null           $companionRename      the Live Photo companion rename entry
-     * @param array<string, string> $contentIdentifierMap map from source pathname to content identifier
-     * @param string                $sourceDirectory      absolute path to the source directory
-     * @param string                $targetDirectory      absolute path to the target directory
+     * @param FileDuplicate                        $fileDuplicate          the duplicate group to process
+     * @param Rename|null                          $canonicalRename        the canonical rename entry
+     * @param Rename|null                          $companionRename        the Live Photo companion rename entry
+     * @param array<string, string>                $contentIdentifierMap   map from source pathname to content identifier
+     * @param Closure(SplFileInfo, string): string $targetPathnameResolver resolves (sourceFileInfo, targetFilename) to absolute target path
      */
     public function apply(
         FileDuplicate $fileDuplicate,
         ?Rename $canonicalRename,
         ?Rename $companionRename,
         array $contentIdentifierMap,
-        string $sourceDirectory,
-        string $targetDirectory,
+        Closure $targetPathnameResolver,
     ): bool {
         /** @var list<Rename> $nonCompanionRenames */
         $nonCompanionRenames = [];
@@ -213,11 +212,9 @@ class HashSubGroupingService
                     ++$duplicateIndex;
                 }
 
-                $targetPathname = $this->getTargetPathname(
+                $targetPathname = $targetPathnameResolver(
                     $rename->getSource(),
                     $newTargetFilename,
-                    $sourceDirectory,
-                    $targetDirectory,
                 );
 
                 $rename->setTarget(new SplFileInfo($targetPathname));
@@ -295,11 +292,9 @@ class HashSubGroupingService
                 ++$excludedDuplicateCountByContentId[$contentIdKey];
             }
 
-            $targetPathname = $this->getTargetPathname(
+            $targetPathname = $targetPathnameResolver(
                 $rename->getSource(),
                 $newTargetFilename,
-                $sourceDirectory,
-                $targetDirectory,
             );
 
             $rename->setTarget(new SplFileInfo($targetPathname));
@@ -335,40 +330,5 @@ class HashSubGroupingService
         }
 
         return in_array($extension, self::LIVE_PHOTO_STILL_EXTENSIONS, true);
-    }
-
-    /**
-     * Computes the absolute target pathname by mapping the source file's relative
-     * position within the source directory tree into the target directory tree.
-     *
-     * @param SplFileInfo $sourceFileInfo  Source file providing the directory context
-     * @param string      $targetFilename  Filename (without directory) to place in the target
-     * @param string      $sourceDirectory Absolute path to the source directory root
-     * @param string      $targetDirectory Absolute path to the target directory root
-     *
-     * @return string Absolute path to the computed target location
-     */
-    private function getTargetPathname(
-        SplFileInfo $sourceFileInfo,
-        string $targetFilename,
-        string $sourceDirectory,
-        string $targetDirectory,
-    ): string {
-        $sourcePath   = $sourceFileInfo->getPath();
-        $relativePath = $sourcePath;
-
-        if (str_starts_with($sourcePath, $sourceDirectory)) {
-            $relativePath = substr($sourcePath, strlen($sourceDirectory));
-        }
-
-        $relativePath = trim($relativePath, DIRECTORY_SEPARATOR);
-
-        $targetPath = rtrim($targetDirectory, DIRECTORY_SEPARATOR);
-
-        if ($relativePath !== '') {
-            $targetPath .= DIRECTORY_SEPARATOR . $relativePath;
-        }
-
-        return $targetPath . DIRECTORY_SEPARATOR . $targetFilename;
     }
 }

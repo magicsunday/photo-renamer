@@ -501,8 +501,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                     $canonicalRename,
                     $companionRename,
                     $this->contentIdentifierMap,
-                    $this->sourceDirectory,
-                    $this->targetDirectory,
+                    $this->getTargetPathname(...),
                 )
             ) {
                 ++$this->namingCollisions;
