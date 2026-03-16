@@ -23,6 +23,10 @@ services:
     MagicSunday\Renamer\Service\FileSystemServiceInterface:
         class: MagicSunday\Renamer\Service\FileSystemService
 
+    MagicSunday\Renamer\Service\HashSubGroupingService:
+        arguments:
+            $io: '@Symfony\Component\Console\Style\SymfonyStyle'
+
     MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface:
         class: MagicSunday\Renamer\Service\DuplicateDetectionService
         arguments:
