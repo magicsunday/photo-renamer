@@ -16,9 +16,30 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
+/**
+ * Verifies the value-object contract of RenameOptions, the immutable configuration
+ * carrier passed from AbstractRenameCommand to FileSystemService::renameFiles().
+ *
+ * RenameOptions controls dry-run mode, duplicate skipping, copy-vs-move semantics,
+ * list-all output, base directory paths, scanned-file counts, and naming collision
+ * metrics. Correct defaults and explicit overrides are critical because the
+ * FileSystemService branches on every one of these flags.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
+ */
 #[CoversClass(RenameOptions::class)]
 final class RenameOptionsTest extends TestCase
 {
+    /**
+     * Verifies that a default-constructed RenameOptions has all boolean flags
+     * set to false, nullable paths set to null, and numeric counters at zero.
+     *
+     * This ensures that omitting options from the command line does not
+     * accidentally enable dry-run, copy mode, or duplicate skipping,
+     * which would change the rename behaviour in unexpected ways.
+     */
     #[Test]
     public function itUsesDefaultValues(): void
     {
@@ -34,6 +55,14 @@ final class RenameOptionsTest extends TestCase
         self::assertSame(0, $options->namingCollisions);
     }
 
+    /**
+     * Verifies that every constructor parameter is stored and readable from the
+     * corresponding public property when non-default values are provided.
+     *
+     * This ensures that AbstractRenameCommand can pass arbitrary combinations
+     * of flags and paths through to FileSystemService without any value being
+     * silently dropped or overridden.
+     */
     #[Test]
     public function itAcceptsCustomValues(): void
     {

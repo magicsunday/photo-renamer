@@ -18,9 +18,28 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
 
+/**
+ * Verifies the typed-list contract of RenameList, the ordered collection of
+ * source-to-target Rename pairs assigned to a single duplicate group.
+ *
+ * RenameList is the final output of createDuplicateFilenames() and is consumed
+ * by FileSystemService::renameFiles() to execute the actual file operations.
+ * Correct ordering, removal, and re-indexing are essential for the rename pipeline.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
+ */
 #[CoversClass(RenameList::class)]
 class RenameListTest extends TestCase
 {
+    /**
+     * Verifies that a Rename instance appended to the list can be retrieved by its
+     * zero-based index and that asArray() returns the complete contents.
+     *
+     * This is the basic storage contract used when createDuplicateFilenames()
+     * builds up the rename plan one entry at a time.
+     */
     #[Test]
     public function itStoresRenameInstances(): void
     {
@@ -33,6 +52,14 @@ class RenameListTest extends TestCase
         self::assertSame($rename, $list->get(0));
     }
 
+    /**
+     * Verifies that removing an entry and calling reindex() collapses the list
+     * so that subsequent get(0) returns the formerly second element.
+     *
+     * Re-indexing is used after hash sub-grouping replaces the rename list
+     * with a filtered subset. Without correct re-indexing, consumers iterating
+     * by numeric index would encounter gaps or null entries.
+     */
     #[Test]
     public function itReindexesAfterRemoval(): void
     {

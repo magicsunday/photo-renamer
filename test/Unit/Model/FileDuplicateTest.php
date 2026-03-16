@@ -19,9 +19,31 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
 
+/**
+ * Verifies the aggregation contract of FileDuplicate, the central model that
+ * links source files (FileList), a canonical target (SplFileInfo), and the
+ * resulting rename pairs (RenameList) for a single duplicate group.
+ *
+ * Every stage of the rename pipeline reads from or writes to FileDuplicate:
+ * grouping populates files and target, createDuplicateFilenames() populates
+ * renames, and renameFiles() executes them. Correct mutation and retrieval
+ * is therefore essential for the entire workflow.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
+ */
 #[CoversClass(FileDuplicate::class)]
 class FileDuplicateTest extends TestCase
 {
+    /**
+     * Verifies that addFile(), addRename(), and setTarget() correctly populate
+     * their respective collections and that the stored objects are retrievable
+     * as the identical instances via getFiles() and getRenames().
+     *
+     * This covers the primary write path used by groupFilesByDuplicateIdentifier()
+     * and createDuplicateFilenames(), where files and renames are added one by one.
+     */
     #[Test]
     public function itTracksFilesAndRenamesUsingCollections(): void
     {
@@ -40,6 +62,14 @@ class FileDuplicateTest extends TestCase
         self::assertSame($rename, $fileDuplicate->getRenames()->get(0));
     }
 
+    /**
+     * Verifies that setRenames() replaces the entire RenameList in one call and
+     * that getRenames() returns the replacement instance.
+     *
+     * Hash sub-grouping uses setRenames() to swap the preliminary rename list
+     * with the re-ordered, sub-grouped version. This test ensures the bulk
+     * replacement does not silently merge with or discard the new list.
+     */
     #[Test]
     public function itAllowsReplacingRenameLists(): void
     {
