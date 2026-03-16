@@ -43,6 +43,19 @@ use const DIRECTORY_SEPARATOR;
 #[CoversClass(FileDuplicate::class)]
 #[CoversClass(RenameList::class)]
 #[CoversClass(Rename::class)]
+/**
+ * Verifies the HashSubGroupingService, which splits a FileDuplicate group into
+ * sub-groups based on content hashes and assigns sequential -NNN suffixes.
+ *
+ * Hash sub-grouping distinguishes "different photos taken at the same second"
+ * from "true duplicates of the same photo". Files with the same hash stay in one
+ * sub-group and receive -duplicate-NNN suffixes; files with different hashes get
+ * their own sub-group with a sequential number (-002, -003, ...).
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
+ */
 final class HashSubGroupingServiceTest extends TestCase
 {
     /** @var list<string> */
@@ -59,6 +72,13 @@ final class HashSubGroupingServiceTest extends TestCase
         parent::tearDown();
     }
 
+    /**
+     * Verifies that apply() returns false for a group containing only one file,
+     * because sub-grouping is unnecessary when there is nothing to compare.
+     *
+     * Returning false tells the caller that the rename list was not modified
+     * and no further sub-group processing is needed.
+     */
     #[Test]
     public function applyReturnsFalseForSingleFile(): void
     {
@@ -85,6 +105,13 @@ final class HashSubGroupingServiceTest extends TestCase
         self::assertFalse($result);
     }
 
+    /**
+     * Verifies that apply() returns false when all files in the group share the
+     * same hash (all are true duplicates, only one sub-group exists).
+     *
+     * No sequential numbering is needed because there is only one distinct content
+     * variant. The standard -duplicate-NNN suffixes will be assigned by the caller.
+     */
     #[Test]
     public function applyReturnsFalseForSingleHashGroup(): void
     {
@@ -116,6 +143,14 @@ final class HashSubGroupingServiceTest extends TestCase
         self::assertFalse($result);
     }
 
+    /**
+     * Verifies that apply() returns true and assigns sub-group numbers when two
+     * files have different content hashes: the canonical keeps the unsuffixed
+     * base name, the second file gets -002.
+     *
+     * This is the core sub-grouping contract: distinct content within the same
+     * date group produces sequential numbers instead of -duplicate-NNN.
+     */
     #[Test]
     public function applyReturnsTrueAndAssignsSubGroupsForDistinctHashes(): void
     {
@@ -156,6 +191,19 @@ final class HashSubGroupingServiceTest extends TestCase
         self::assertSame('target-002.jpg', $renames[1]->getTarget()->getFilename());
     }
 
+    /**
+     * Verifies the combined sub-grouping and duplicate naming for five files across
+     * three hash groups, each with a mix of unique and duplicate files.
+     *
+     * Expected target filenames:
+     *   A  -> basename.jpg                     (canonical, hash X)
+     *   A' -> basename-duplicate-001.jpg       (duplicate of A, hash X)
+     *   B  -> basename-002.jpg                 (sub-group 002, hash Y)
+     *   B' -> basename-002-duplicate-001.jpg   (duplicate of B, hash Y)
+     *   C  -> basename-003.jpg                 (sub-group 003, hash Z)
+     *
+     * This is the most comprehensive sub-grouping scenario.
+     */
     #[Test]
     public function applyHandlesMixedDistinctAndDuplicateFiles(): void
     {
@@ -216,6 +264,15 @@ final class HashSubGroupingServiceTest extends TestCase
         self::assertSame('basename-003.jpg', $renameTargets[$fileC]);
     }
 
+    /**
+     * Verifies that companion media types (MOV, MP4, etc.) are excluded from hash
+     * sub-grouping and instead receive their own sequential sub-group number.
+     *
+     * Without this exclusion, a Live Photo MOV with a different hash than its
+     * paired HEIC would be incorrectly placed in a separate content-based sub-group.
+     * By excluding companion types from the hash comparison, they can later inherit
+     * the sub-group number from their paired still image.
+     */
     #[Test]
     public function applyExcludesCompanionMediaTypeFromHashGroups(): void
     {

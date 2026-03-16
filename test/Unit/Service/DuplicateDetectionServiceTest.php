@@ -62,6 +62,23 @@ use const DIRECTORY_SEPARATOR;
 #[CoversClass(FileDuplicate::class)]
 #[CoversClass(RenameList::class)]
 #[CoversClass(Rename::class)]
+/**
+ * Verifies the DuplicateDetectionService, the core orchestrator that groups
+ * source files by duplicate identifier, applies hash sub-grouping, and assigns
+ * target filenames with appropriate duplicate/sequential suffixes.
+ *
+ * The service implements the central pipeline stages:
+ * - groupFilesByDuplicateIdentifier: scan/group/pair files into FileDuplicateCollection
+ * - createDuplicateFilenames: resolve canonical targets, assign -NNN sub-groups and
+ *   -duplicate-NNN suffixes, handle idempotency for re-runs
+ *
+ * These tests exercise the service through its public API with real temp files on disk
+ * to validate hash computation, path resolution, and suffix assignment end-to-end.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
+ */
 final class DuplicateDetectionServiceTest extends TestCase
 {
     /** @var list<string> */
@@ -78,6 +95,14 @@ final class DuplicateDetectionServiceTest extends TestCase
         parent::tearDown();
     }
 
+    /**
+     * Verifies that the grouping progress bar includes ETA and remaining-count
+     * information in its output format.
+     *
+     * ETA display is important for large photo libraries where grouping may take
+     * several minutes. This test ensures the custom progress format string is
+     * applied, not the Symfony default.
+     */
     #[Test]
     public function groupFilesByDuplicateIdentifierDisplaysEtaInformation(): void
     {
@@ -119,6 +144,13 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertStringContainsString('| Remaining:', $progressOutput);
     }
 
+    /**
+     * Verifies that the duplicate filename assignment progress bar also includes
+     * ETA and remaining-count information.
+     *
+     * This stage iterates every group and computes hashes, which can be slow for
+     * large files. The ETA helps the user estimate total processing time.
+     */
     #[Test]
     public function createDuplicateFilenamesDisplaysEtaInformation(): void
     {
@@ -153,6 +185,15 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertStringContainsString('| Remaining:', $progressOutput);
     }
 
+    /**
+     * Verifies that a TargetFilenameException thrown by the rename strategy during
+     * grouping is caught, logged as a warning, and the file is skipped without
+     * aborting the entire batch.
+     *
+     * This protects against corrupt or unreadable EXIF data in individual files.
+     * The resulting collection must be empty (the single file was skipped), and
+     * the error message must appear in the console output.
+     */
     #[Test]
     public function groupFilesByDuplicateIdentifierHandlesTargetFilenameException(): void
     {
@@ -193,6 +234,14 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertStringContainsString('boom', $progressOutput);
     }
 
+    /**
+     * Verifies that when a MOV file is encountered before its paired HEIC in iteration
+     * order, the FileDuplicate target is set to the still image's target, not the video's.
+     *
+     * Live Photo groups must always use the still image as canonical because the
+     * companion MOV inherits the base name from the canonical. If the MOV were
+     * canonical, the HEIC would receive a mismatched name.
+     */
     #[Test]
     public function groupFilesByDuplicateIdentifierPrefersStillTargetForLivePhotos(): void
     {
@@ -253,6 +302,16 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertSame($photoPath, $files[1]->getPathname());
     }
 
+    /**
+     * Verifies that a video file whose rename strategy returns null (no date) but
+     * which shares a Live Photo content identifier with a photo is still added to
+     * the same group.
+     *
+     * MOV companions often lack EXIF dates; the content identifier is the only way
+     * to associate them with their paired still image. This test confirms that the
+     * pending-file mechanism correctly defers the video and attaches it once the
+     * photo establishes the group.
+     */
     #[Test]
     public function groupFilesByDuplicateIdentifierAddsPendingFilesWithSharedContentIdentifier(): void
     {
@@ -313,6 +372,15 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertContains($videoPath, $paths);
     }
 
+    /**
+     * Verifies that when the video is iterated before the photo (reverse iteration
+     * order), the pending-file mechanism still pairs them into the same group once
+     * the photo is encountered.
+     *
+     * Iteration order depends on the filesystem and is not guaranteed. This test
+     * ensures the grouping is order-independent for Live Photo content identifier
+     * pairing.
+     */
     #[Test]
     public function groupFilesByDuplicateIdentifierAddsVideoEncounteredBeforePhoto(): void
     {
@@ -373,6 +441,16 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertContains($videoPath, $paths);
     }
 
+    /**
+     * Verifies that files in the parent directory are grouped before files in
+     * subdirectories, even when the underlying filesystem iterator yields
+     * subdirectory files first (depth-first traversal).
+     *
+     * Parent-first ordering ensures that the canonical target for a group is
+     * always the parent-directory file, not the nested one. Without this,
+     * a photo in a subdirectory could become canonical, placing the unsuffixed
+     * target in the wrong directory.
+     */
     #[Test]
     public function groupFilesByDuplicateIdentifierProcessesParentDirectoryBeforeSubdirectories(): void
     {
@@ -431,6 +509,15 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertLessThan($subIndex, $parentIndex, 'Parent directory files must be grouped before subdirectory files');
     }
 
+    /**
+     * Verifies that when useFileExtensionFromSource is enabled, the target filename
+     * preserves each source file's original extension rather than inheriting the
+     * canonical target's extension.
+     *
+     * This is essential for the EXIF date command where mixed extensions (jpg, png,
+     * heic) share the same date-based target basename. Without source-extension
+     * preservation, a PNG file would be incorrectly renamed to .jpg.
+     */
     #[Test]
     public function createDuplicateFilenamesUsesSourceExtensionWhenConfigured(): void
     {
@@ -480,6 +567,16 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertStringEndsWith('.png', $renames[1]->getTarget()->getFilename());
     }
 
+    /**
+     * Verifies that in a Live Photo group without a content-ID map (i.e. without
+     * a prior groupFilesByDuplicateIdentifier call), the photo and video are treated
+     * as separate hash sub-groups: the photo is canonical and keeps the base name,
+     * the video gets sub-group -002.
+     *
+     * This covers the fallback path where companion detection cannot pair the video
+     * because the content-ID map was not populated. The test also confirms the
+     * renames are visible in dry-run output.
+     */
     #[Test]
     public function createDuplicateFilenamesKeepsLivePhotoVideoWithoutDuplicateSuffix(): void
     {
@@ -555,6 +652,14 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertStringContainsString('[R]', $renameOutput);
     }
 
+    /**
+     * Verifies that two files with identical content (same hash) in the same group
+     * receive incremental -duplicate-NNN suffixes, and that the target file already
+     * existing on disk does not cause the canonical to be displaced.
+     *
+     * This is the classic true-duplicate scenario: the canonical target is already
+     * occupied on disk, so both source files get duplicate suffixes starting at 001.
+     */
     #[Test]
     public function createDuplicateFilenamesGeneratesIncrementalDuplicateTargetsForIdenticalContent(): void
     {
@@ -603,6 +708,15 @@ final class DuplicateDetectionServiceTest extends TestCase
         );
     }
 
+    /**
+     * Verifies that files in nested subdirectories retain their relative directory
+     * structure in the target path, and that a pre-renamed file with an existing
+     * -duplicate-NNN suffix keeps a numeric suffix rather than being stripped to
+     * the base name.
+     *
+     * This prevents nested duplicates from being flattened into the root target
+     * directory, which would mix files from different source subdirectories.
+     */
     #[Test]
     public function createDuplicateFilenamesPreservesRelativePathForNestedDuplicates(): void
     {
@@ -679,6 +793,15 @@ final class DuplicateDetectionServiceTest extends TestCase
         );
     }
 
+    /**
+     * Verifies that the canonical file (first in the group, same content) receives
+     * the unsuffixed target path and appears as the first rename entry, while the
+     * duplicate receives -duplicate-001.
+     *
+     * This is the contract relied upon by the --list-all flag: the canonical rename
+     * entry (source == target or source -> base name) must be present in the list
+     * so the output can show it with an [O] status prefix.
+     */
     #[Test]
     public function createDuplicateFilenamesKeepsCanonicalEntriesWhenListAllEnabled(): void
     {
@@ -724,6 +847,14 @@ final class DuplicateDetectionServiceTest extends TestCase
         );
     }
 
+    /**
+     * Verifies idempotency: when a file was already renamed to a -duplicate-001
+     * target in a previous run and the command is run again, the file keeps its
+     * existing suffixed name rather than receiving a new suffix.
+     *
+     * Without this, every re-run would increment the suffix, causing files to
+     * accumulate ever-growing chains of -duplicate-NNN suffixes.
+     */
     #[Test]
     public function createDuplicateFilenamesKeepsExistingDuplicateSuffixOnSubsequentRun(): void
     {
@@ -789,6 +920,15 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertSame($expectedTargetPath, $renames[0]->getTarget()->getPathname());
     }
 
+    /**
+     * Verifies that getTargetPathname() correctly preserves nested directory names
+     * even when a subdirectory has the same name as the source root (e.g.
+     * Photos/Photos/image.jpg).
+     *
+     * The relative path calculation must strip exactly the source root prefix
+     * without accidentally removing deeper path components that happen to share
+     * the same name.
+     */
     #[Test]
     public function getTargetPathnameRetainsNestedDirectoriesWithDuplicateNames(): void
     {
@@ -822,6 +962,14 @@ final class DuplicateDetectionServiceTest extends TestCase
         );
     }
 
+    /**
+     * Verifies that getTargetPathname() maps a file from a nested source directory
+     * to the corresponding nested path under the target directory.
+     *
+     * When source=/tmp/src and target=/tmp/dst, a file at /tmp/src/nested/photo.jpg
+     * must resolve to /tmp/dst/nested/renamed.jpg. This preserves the album/folder
+     * structure during cross-directory renames.
+     */
     #[Test]
     public function getTargetPathnamePreservesRelativeDepthForAbsoluteDirectories(): void
     {
@@ -851,6 +999,15 @@ final class DuplicateDetectionServiceTest extends TestCase
         );
     }
 
+    /**
+     * Verifies that two files with different content hashes in the same date group
+     * receive sequential sub-group numbers (-002, -003, ...) instead of -duplicate-
+     * suffixes, and that the canonical sub-group keeps the unsuffixed base name.
+     *
+     * Hash sub-grouping distinguishes "different photos taken at the same second"
+     * from "true duplicates of the same photo". The former get sequential numbers,
+     * the latter get -duplicate-NNN within their sub-group.
+     */
     #[Test]
     public function createDuplicateFilenamesAssignsSequentialNumbersForDistinctContent(): void
     {
@@ -912,6 +1069,14 @@ final class DuplicateDetectionServiceTest extends TestCase
         );
     }
 
+    /**
+     * Verifies idempotency for sequential suffixes: a single file that already
+     * carries a -001 suffix from a previous run reclaims the unsuffixed base name
+     * when it is the only file in its group.
+     *
+     * This prevents the accumulation of stale sub-group numbers on re-runs when
+     * the other files from the original group have been deleted.
+     */
     #[Test]
     public function createDuplicateFilenamesCanonicalReclaimsBaseNameFromSequentialSuffix(): void
     {
@@ -951,6 +1116,15 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertSame($targetFile, $renames[0]->getTarget()->getPathname());
     }
 
+    /**
+     * Verifies idempotency for compound suffixes: a single file with a combined
+     * -001-duplicate-001 suffix from a previous run reclaims the unsuffixed base
+     * name when it is the only file in its group.
+     *
+     * Compound suffixes arise when hash sub-grouping assigns -NNN and then a true
+     * duplicate within that sub-group gets -duplicate-NNN appended. On re-run with
+     * the file as sole group member, both suffixes must be stripped.
+     */
     #[Test]
     public function createDuplicateFilenamesCanonicalReclaimsBaseNameFromCompoundSuffix(): void
     {
@@ -989,6 +1163,14 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertSame($targetFile, $renames[0]->getTarget()->getPathname());
     }
 
+    /**
+     * Verifies idempotency for legacy -duplicate-NNN suffixes: a single file with
+     * only a -duplicate-001 suffix (no sequential number) reclaims the unsuffixed
+     * base name when it is the only file in its group.
+     *
+     * This covers files renamed by an older version of the tool that did not use
+     * hash sub-grouping. On re-run the canonical must still get the clean name.
+     */
     #[Test]
     public function createDuplicateFilenamesCanonicalReclaimsBaseNameFromLegacyDuplicateSuffix(): void
     {
@@ -1027,6 +1209,16 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertSame($targetFile, $renames[0]->getTarget()->getPathname());
     }
 
+    /**
+     * Verifies that in a Live Photo group without content-ID map population, all
+     * three files (image A, MOV A, image B) with distinct hashes are treated as
+     * separate sub-groups: canonical keeps the base name, MOV gets -002, image B
+     * gets -003.
+     *
+     * This is the fallback when companion detection cannot pair the video (no
+     * groupFilesByDuplicateIdentifier call). Each distinct-hash file becomes its
+     * own sub-group, with extensions preserved from source.
+     */
     #[Test]
     public function createDuplicateFilenamesCompanionInheritsSubGroupNumber(): void
     {
@@ -1089,6 +1281,14 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertSame('2025-01-01_00-02-28-003.heic', $renameTargets[$imageB]);
     }
 
+    /**
+     * Verifies graceful degradation when the hash calculator throws a
+     * HashComputationException for one file in a multi-file group.
+     *
+     * The failing file is treated as having a unique hash (its own sub-group),
+     * the error is logged, and processing continues. Both files still receive
+     * valid target names: canonical keeps the base name, the failing file gets -002.
+     */
     #[Test]
     public function createDuplicateFilenamesHandlesHashComputationFailure(): void
     {
@@ -1154,6 +1354,14 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertStringContainsString('Cannot read file', $progressOutput);
     }
 
+    /**
+     * Verifies that passing skipHashSubGrouping: true bypasses the hash calculator
+     * entirely and falls back to the legacy behaviour where all non-canonical files
+     * get -duplicate-NNN suffixes regardless of content.
+     *
+     * This is used by commands (like rename:hash) that already group by content hash
+     * and therefore do not need a second round of hash-based sub-grouping.
+     */
     #[Test]
     public function createDuplicateFilenamesSkipHashSubGroupingPreservesOldBehavior(): void
     {
@@ -1211,6 +1419,14 @@ final class DuplicateDetectionServiceTest extends TestCase
         );
     }
 
+    /**
+     * Verifies that groups containing a single file skip hash computation entirely,
+     * as there is nothing to compare against.
+     *
+     * This is a performance optimisation: computing xxHash128 for every unique file
+     * would add unnecessary I/O. The mock hash calculator is configured to fail if
+     * called, ensuring the optimisation is active.
+     */
     #[Test]
     public function createDuplicateFilenamesSingleFileGroupSkipsHashing(): void
     {
@@ -1258,6 +1474,21 @@ final class DuplicateDetectionServiceTest extends TestCase
         );
     }
 
+    /**
+     * Verifies the full interplay of hash sub-grouping and duplicate detection across
+     * five files with three distinct hashes: A and A' share hash X, B and B' share
+     * hash Y, C has unique hash Z.
+     *
+     * Expected assignment:
+     *   A  -> basename.jpg                     (canonical sub-group, canonical file)
+     *   A' -> basename-duplicate-001.jpg       (canonical sub-group, true duplicate)
+     *   B  -> basename-002.jpg                 (sub-group 002, canonical)
+     *   B' -> basename-002-duplicate-001.jpg   (sub-group 002, true duplicate)
+     *   C  -> basename-003.jpg                 (sub-group 003, unique)
+     *
+     * This is the most complex real-world scenario and validates the entire
+     * sub-grouping + duplicate naming pipeline.
+     */
     #[Test]
     public function createDuplicateFilenamesHandlesMixedDistinctAndDuplicateFiles(): void
     {
@@ -1323,6 +1554,18 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertSame('basename-003.jpg', $renameTargets[$fileC]);
     }
 
+    /**
+     * Verifies that when all files in a group already have correct names from a
+     * previous run (canonical has base name, duplicates have -duplicate-NNN),
+     * re-running the command does not shuffle them: every file keeps its existing
+     * target path.
+     *
+     * The suffixed files are added to the group BEFORE the canonical to trigger
+     * the edge case where the first file in iteration already carries a suffix.
+     * The canonical selection logic must still promote the unsuffixed file.
+     * This is a regression test for the bug where all files kept -duplicate-NNN
+     * and no file got the clean base name.
+     */
     #[Test]
     public function createDuplicateFilenamesCanonicalKeepsBaseNameWhenDuplicatesPreAssigned(): void
     {
@@ -1378,6 +1621,14 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertSame($duplicate2, $renamesBySource[$duplicate2]);
     }
 
+    /**
+     * Verifies that two files with identical content in the same group produce
+     * exactly one canonical (unsuffixed) and one -duplicate-001 target.
+     *
+     * This is the simplest true-duplicate scenario with no hash sub-grouping
+     * involved (only one hash group exists). It validates the basic duplicate
+     * counter increment.
+     */
     #[Test]
     public function createDuplicateFilenamesAssignsDuplicateSuffixForIdenticalContent(): void
     {
@@ -1429,6 +1680,14 @@ final class DuplicateDetectionServiceTest extends TestCase
         );
     }
 
+    /**
+     * Verifies that createDuplicateTargetFileInfo() returns the target unchanged
+     * and does not increment the duplicate counter when source and target paths
+     * are identical (idempotent rename).
+     *
+     * This prevents a file that is already correctly named from receiving an
+     * unnecessary -duplicate-NNN suffix on re-run.
+     */
     #[Test]
     public function createDuplicateTargetFileInfoReturnsTargetWhenSourceEqualsTarget(): void
     {
@@ -1467,6 +1726,13 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertSame(1, $actualCount, 'Counter must not change for idempotent rename');
     }
 
+    /**
+     * Verifies that resolveCanonicalTarget() returns the target unchanged and does
+     * not increment the counter when source and target are the same path.
+     *
+     * This is the canonical idempotency check at the method level, ensuring the
+     * file already at its correct name does not get displaced.
+     */
     #[Test]
     public function resolveCanonicalTargetReturnsTargetWhenSourceEqualsTarget(): void
     {
@@ -1503,6 +1769,13 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertSame(1, $actualCount, 'Counter must not change for idempotent rename');
     }
 
+    /**
+     * Verifies that resolveCanonicalTarget() returns the target path as-is when
+     * the path is not occupied in the disk index.
+     *
+     * This is the happy path for a new rename: the desired target is available,
+     * so the canonical gets it without any suffix.
+     */
     #[Test]
     public function resolveCanonicalTargetReturnsTargetWhenNotOccupied(): void
     {
@@ -1532,6 +1805,13 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertSame($target->getPathname(), $result->getPathname());
     }
 
+    /**
+     * Verifies that resolveCanonicalTarget() assigns a -duplicate-NNN suffix when
+     * the desired target path is already occupied in the disk index by another file.
+     *
+     * This handles the naming collision scenario where two different groups
+     * resolve to the same target basename but are processed sequentially.
+     */
     #[Test]
     public function resolveCanonicalTargetGetsSuffixWhenOccupied(): void
     {
@@ -1568,6 +1848,13 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertStringContainsString(FileSystemService::DUPLICATE_IDENTIFIER, $result->getPathname());
     }
 
+    /**
+     * Verifies that a non-canonical file (isFirst=true but target occupied) receives
+     * a -duplicate-NNN suffix via the fallback path.
+     *
+     * This covers the edge case where the first file in a group has its target
+     * already taken by a file from a different group in the disk index.
+     */
     #[Test]
     public function createDuplicateTargetFileInfoNonCanonicalGetsSuffixWhenOccupied(): void
     {
@@ -1607,6 +1894,13 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertStringContainsString(FileSystemService::DUPLICATE_IDENTIFIER, $result->getPathname());
     }
 
+    /**
+     * Verifies that a non-first file in a group with additional renames always
+     * receives a -duplicate-NNN suffix, even when the target path is free.
+     *
+     * Non-first files are by definition duplicates and must always carry a suffix
+     * to distinguish them from the canonical.
+     */
     #[Test]
     public function createDuplicateTargetFileInfoNonFirstGetsSuffix(): void
     {
@@ -1640,6 +1934,13 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertStringContainsString(FileSystemService::DUPLICATE_IDENTIFIER, $result->getPathname());
     }
 
+    /**
+     * Verifies that the first file in a group with additional renames still gets
+     * a -duplicate-NNN suffix when the desired target is occupied in the disk index.
+     *
+     * Even though it is first, the occupied path forces a suffix to avoid
+     * overwriting the existing file.
+     */
     #[Test]
     public function createDuplicateTargetFileInfoFirstWithAdditionalRenamesCallsUniqueResolver(): void
     {
@@ -1681,6 +1982,15 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertStringContainsString(FileSystemService::DUPLICATE_IDENTIFIER, $result->getPathname());
     }
 
+    /**
+     * Verifies that a first file with both additional renames and the
+     * requiresCanonicalDisambiguation flag receives a -duplicate-NNN suffix
+     * even when the target path is free.
+     *
+     * Canonical disambiguation is needed when another extension already occupies
+     * the base name (e.g. a .heic file already has "photo.heic" and now a .jpg
+     * tries to claim "photo.jpg" in the same group).
+     */
     #[Test]
     public function createDuplicateTargetFileInfoFirstWithAdditionalRenamesAndDisambiguation(): void
     {
@@ -1715,6 +2025,14 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertStringContainsString(FileSystemService::DUPLICATE_IDENTIFIER, $result->getPathname());
     }
 
+    /**
+     * Verifies that the requiresCanonicalDisambiguation flag alone (without
+     * hasAdditionalRenames) is sufficient to force a -duplicate-NNN suffix
+     * on the first file in a group.
+     *
+     * This covers the scenario where the file is the only one in its sub-group
+     * but another extension already claimed the base name.
+     */
     #[Test]
     public function createDuplicateTargetFileInfoFirstWithCanonicalDisambiguationGetsSuffix(): void
     {
@@ -1748,6 +2066,13 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertStringContainsString(FileSystemService::DUPLICATE_IDENTIFIER, $result->getPathname());
     }
 
+    /**
+     * Verifies that the first (and only) file in a group without additional renames
+     * or disambiguation requirements receives the target path unchanged.
+     *
+     * This is the simplest happy path: one file, one target, no conflicts.
+     * The duplicate counter must not change.
+     */
     #[Test]
     public function createDuplicateTargetFileInfoFirstWithoutAdditionalRenamesReturnsTarget(): void
     {
@@ -1786,6 +2111,14 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertSame(1, $actualCount, 'Counter must not change for single file');
     }
 
+    /**
+     * Verifies that getNewUniqueDuplicateTargetFileInfo() throws a RuntimeException
+     * when all 9999 possible -duplicate-NNN suffixes are already occupied in the
+     * disk index.
+     *
+     * This is a safety net against infinite loops. In practice 9999 true duplicates
+     * of the same file are extremely unlikely, but the guard must exist.
+     */
     #[Test]
     public function getNewUniqueDuplicateTargetFileInfoThrowsWhenMaxSuffixExceeded(): void
     {
@@ -1898,6 +2231,13 @@ final class DuplicateDetectionServiceTest extends TestCase
     }
 }
 
+/**
+ * Test double implementing LivePhotoAwareRenameStrategyInterface with pre-programmed
+ * filename and content identifier responses keyed by source path.
+ *
+ * Used by DuplicateDetectionServiceTest to simulate the ExifDateFilenameStrategy
+ * without requiring real EXIF metadata.
+ */
 final readonly class DummyLivePhotoRenameStrategy implements LivePhotoAwareRenameStrategyInterface
 {
     /**
@@ -1925,6 +2265,14 @@ final readonly class DummyLivePhotoRenameStrategy implements LivePhotoAwareRenam
     }
 }
 
+/**
+ * Test double implementing DuplicateIdentifierStrategyInterface with pre-programmed
+ * identifier responses. Returns "live-photo:<id>" for mapped paths, or the target
+ * filename for unmapped paths.
+ *
+ * Used by DuplicateDetectionServiceTest to simulate TargetBasenameStrategy with
+ * Live Photo content identifier prefixing.
+ */
 final readonly class DummyLivePhotoDuplicateIdentifierStrategy implements DuplicateIdentifierStrategyInterface
 {
     /**

@@ -53,6 +53,19 @@ use const DIRECTORY_SEPARATOR;
 #[CoversClass(FileDuplicate::class)]
 #[CoversClass(Rename::class)]
 #[CoversClass(RenameOptions::class)]
+/**
+ * Verifies the FileSystemService, which executes the final stage of the rename
+ * pipeline: creating target directories, moving or copying files, logging
+ * operations with status prefixes, displaying summary statistics, and respecting
+ * dry-run / skip-duplicates / copy-files options.
+ *
+ * All tests use real temp directories on disk to exercise actual filesystem I/O,
+ * ensuring that move, copy, and directory creation work end-to-end.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
+ */
 final class FileSystemServiceTest extends TestCase
 {
     private string $workspace;
@@ -72,6 +85,11 @@ final class FileSystemServiceTest extends TestCase
         parent::tearDown();
     }
 
+    /**
+     * Verifies the default move behaviour: the source file is removed and the target
+     * file is created with the original content. The summary shows "Planned moves"
+     * and "Files processed" without copy/skip/Live Photo metrics.
+     */
     #[Test]
     public function renameFilesMovesFilesByDefault(): void
     {
@@ -107,6 +125,11 @@ final class FileSystemServiceTest extends TestCase
         self::assertStringNotContainsString('Duplicates found', $buffer);
     }
 
+    /**
+     * Verifies that dry-run mode prevents any actual file operations: the source
+     * remains, the target is not created, and the output shows "Files to process"
+     * and "Planned moves" as a preview.
+     */
     #[Test]
     public function renameFilesRespectsDryRunOption(): void
     {
@@ -143,6 +166,11 @@ final class FileSystemServiceTest extends TestCase
         self::assertStringContainsString('Planned moves', $buffer);
     }
 
+    /**
+     * Verifies that --skip-duplicates leaves source files with -duplicate-NNN
+     * targets untouched, marks them as "Skipped (duplicate)" in the output,
+     * and shows "Duplicates found" and "Planned skips" in the summary.
+     */
     #[Test]
     public function renameFilesSkipsDuplicateTargetsWhenRequested(): void
     {
@@ -185,6 +213,14 @@ final class FileSystemServiceTest extends TestCase
         self::assertStringContainsString('Planned skips', $buffer);
     }
 
+    /**
+     * Verifies that --skip-duplicates still processes files whose target has a
+     * -duplicate-NNN suffix but whose canonical target is already occupied on disk,
+     * because the file itself is not a true duplicate but a naming collision.
+     *
+     * This prevents false skips: a file that simply needs a suffixed name to
+     * avoid overwriting an existing file must be moved, not skipped.
+     */
     #[Test]
     public function renameFilesProcessesCanonicalTargetsWithDuplicateSuffixesWhenSkippingDuplicates(): void
     {
@@ -239,6 +275,11 @@ final class FileSystemServiceTest extends TestCase
         self::assertStringNotContainsString('Duplicates found', $buffer);
     }
 
+    /**
+     * Verifies that --copy preserves the source file and creates the target as a
+     * copy with identical content. The summary shows "Planned copies" instead of
+     * "Planned moves".
+     */
     #[Test]
     public function renameFilesCopiesFilesWhenRequested(): void
     {
@@ -275,6 +316,13 @@ final class FileSystemServiceTest extends TestCase
         self::assertStringNotContainsString('Duplicates found', $buffer);
     }
 
+    /**
+     * Verifies that each planned rename is listed with a [R] status prefix and both
+     * relative source and target paths in the output.
+     *
+     * The log format is consumed by users reviewing dry-run output to verify the
+     * rename plan before executing.
+     */
     #[Test]
     public function renameFilesListsFilesWithStatusAndPaths(): void
     {
@@ -317,6 +365,13 @@ final class FileSystemServiceTest extends TestCase
         self::assertStringContainsString($relativeTarget, $normalized);
     }
 
+    /**
+     * Verifies that when source and target base directories are absolute paths,
+     * the output shows full absolute paths instead of relative ones.
+     *
+     * This matches user expectations for in-place renames where source == target
+     * directory and the absolute path is the most unambiguous display.
+     */
     #[Test]
     public function renameFilesDisplaysAbsolutePathsWhenBaseDirectoryIsAbsolute(): void
     {
@@ -350,6 +405,13 @@ final class FileSystemServiceTest extends TestCase
         self::assertStringContainsString($targetFile, $buffer);
     }
 
+    /**
+     * Verifies that --list-all shows all rename entries with differentiated status
+     * prefixes: [O] for the canonical (source == target), [R] for renames, and
+     * [D] for duplicates, each followed by source and target paths.
+     *
+     * This output format enables users to audit the full rename plan at a glance.
+     */
     #[Test]
     public function renameFilesDisplaysStatusPrefixesWhenListingAll(): void
     {
@@ -404,6 +466,11 @@ final class FileSystemServiceTest extends TestCase
         self::assertStringContainsString('→ ' . $relativeDuplicateTarget, $buffer);
     }
 
+    /**
+     * Verifies that the summary includes "Live Photo groups" and "Duplicates found"
+     * counters when the collection contains Live Photo groups and duplicate entries,
+     * along with "Planned copies" and "Planned skips" for the appropriate options.
+     */
     #[Test]
     public function renameFilesSummarisesLivePhotoGroupsAndCollisions(): void
     {
@@ -451,6 +518,14 @@ final class FileSystemServiceTest extends TestCase
         self::assertStringContainsString('Files processed', $buffer);
     }
 
+    /**
+     * Verifies that the summary displays the "Naming collisions" metric when
+     * namingCollisions > 0 in the RenameOptions.
+     *
+     * Naming collisions occur when multiple files from different groups resolve
+     * to the same target path. The metric helps users understand how many files
+     * needed suffix disambiguation.
+     */
     #[Test]
     public function renameFilesDisplaysNamingCollisionsMetric(): void
     {
@@ -486,6 +561,10 @@ final class FileSystemServiceTest extends TestCase
         self::assertStringContainsString('3', $buffer);
     }
 
+    /**
+     * Verifies that the "Naming collisions" line is suppressed from the summary
+     * when the count is zero, keeping the output clean for the common case.
+     */
     #[Test]
     public function renameFilesHidesNamingCollisionsWhenZero(): void
     {
@@ -520,6 +599,13 @@ final class FileSystemServiceTest extends TestCase
         self::assertStringNotContainsString('Naming collisions', $buffer);
     }
 
+    /**
+     * Verifies that a RuntimeException is thrown when the target directory cannot
+     * be created (e.g. a regular file blocks the path).
+     *
+     * This guards against silent data loss: without the exception the rename would
+     * appear to succeed while the file was never moved.
+     */
     #[Test]
     public function renameFilesThrowsWhenTargetDirectoryCannotBeCreated(): void
     {
@@ -553,6 +639,10 @@ final class FileSystemServiceTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that a RuntimeException is thrown when the source file has been
+     * deleted between planning and execution, causing the move to fail.
+     */
     #[Test]
     public function renameFilesThrowsWhenMoveFails(): void
     {
@@ -582,6 +672,10 @@ final class FileSystemServiceTest extends TestCase
         $service->renameFiles($fileDuplicateCollection);
     }
 
+    /**
+     * Verifies that a RuntimeException is thrown when the source file has been
+     * deleted between planning and execution, causing the copy to fail.
+     */
     #[Test]
     public function renameFilesThrowsWhenCopyFails(): void
     {
@@ -611,6 +705,11 @@ final class FileSystemServiceTest extends TestCase
         $service->renameFiles($fileDuplicateCollection, new RenameOptions(copyFiles: true));
     }
 
+    /**
+     * Verifies that all rename entries within a group are listed in the output
+     * during dry-run, including both source paths, [R] prefixes, and the
+     * "Renaming files" / "Files to process" / "Planned moves" labels.
+     */
     #[Test]
     public function renameFilesListsAllPlannedOperations(): void
     {
@@ -650,6 +749,13 @@ final class FileSystemServiceTest extends TestCase
         self::assertStringContainsString('Planned moves', $buffer);
     }
 
+    /**
+     * Verifies that findAvailableDuplicateTarget() throws a RuntimeException when
+     * all 9999 possible -duplicate-NNN suffixes are occupied in the occupiedPaths set.
+     *
+     * This is the safety limit preventing infinite suffix searches. The exception
+     * message includes the base name to aid debugging.
+     */
     #[Test]
     public function findAvailableDuplicateTargetThrowsWhenMaxSuffixExceeded(): void
     {

@@ -26,9 +26,28 @@ use RecursiveArrayIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
 
+/**
+ * Verifies the LivePhotoPairingService, which scans the file iterator a second
+ * time to discover MOV/video companions for already-grouped still images based
+ * on shared content identifiers.
+ *
+ * Pairing is the bridge between groupFilesByDuplicateIdentifier() (which groups
+ * by target basename) and createDuplicateFilenames() (which assigns suffixes).
+ * The service adds companion videos to their paired group and generates target
+ * filenames that inherit the still image's base name.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
+ */
 #[CoversClass(LivePhotoPairingService::class)]
 final class LivePhotoPairingServiceTest extends TestCase
 {
+    /**
+     * Verifies the happy-path pairing: a video and photo sharing the same content
+     * identifier are paired, with the video receiving a target that inherits the
+     * photo's base name and directory while swapping to the .MOV extension.
+     */
     #[Test]
     public function itPairsVideoFilesSharingTheSameContentIdentifier(): void
     {
@@ -69,6 +88,13 @@ final class LivePhotoPairingServiceTest extends TestCase
         self::assertSame('content-id', $pair->getContentIdentifier());
     }
 
+    /**
+     * Verifies that pairing succeeds even when the content identifier resolver
+     * returns identifiers with surrounding whitespace and different casing.
+     *
+     * Normalisation (trim + lowercase) must happen before comparison, otherwise
+     * "  Content-ID  " from the photo would not match "content-id" from the video.
+     */
     #[Test]
     public function itPairsVideoWhenResolverReturnsWhitespaceIdentifiers(): void
     {
@@ -110,6 +136,14 @@ final class LivePhotoPairingServiceTest extends TestCase
         self::assertSame('content-id', $pair->getContentIdentifier());
     }
 
+    /**
+     * Verifies the basename fallback: when the video has no content identifier from
+     * the resolver, the service pairs it by matching the lowercased source basename
+     * against photos in the group that share the same basename.
+     *
+     * This handles cameras/tools that do not embed Apple content identifiers but
+     * name the HEIC and MOV identically (e.g. IMG_0004.HEIC / IMG_0004.MOV).
+     */
     #[Test]
     public function itPairsVideoByBasenameWhenContentIdentifierIsMissing(): void
     {
@@ -147,6 +181,14 @@ final class LivePhotoPairingServiceTest extends TestCase
         self::assertSame('basename:img_0004', $pair->getContentIdentifier());
     }
 
+    /**
+     * Verifies that the basename fallback is skipped when multiple groups contain
+     * photos with the same basename, making the match ambiguous.
+     *
+     * Without this guard, a video named IMG_0005.MOV could be paired with photos
+     * from two different directories, producing an incorrect pairing. The video
+     * must remain unpaired and not appear in any group.
+     */
     #[Test]
     public function itSkipsBasenameFallbackForAmbiguousMatches(): void
     {
@@ -188,6 +230,13 @@ final class LivePhotoPairingServiceTest extends TestCase
         self::assertSame([], $pairs->toList());
     }
 
+    /**
+     * Verifies that the onFileInspected callback is invoked once per file in the
+     * iterator, enabling progress bar advancement in the UI.
+     *
+     * The callback must fire for every file, not just paired ones, so the progress
+     * bar reaches 100% even when most files are not Live Photos.
+     */
     #[Test]
     public function itInvokesProgressCallbackForEachInspectedFile(): void
     {
@@ -220,6 +269,15 @@ final class LivePhotoPairingServiceTest extends TestCase
         self::assertSame([], $pairs->toList());
     }
 
+    /**
+     * Verifies end-to-end pairing using real fixture files with embedded metadata:
+     * the JPEG contains an XMP ContentIdentifier and the MOV contains a QuickTime
+     * content.identifier atom, both set to the same UUID.
+     *
+     * This integration-style test ensures the full chain from metadata extraction
+     * through ExifDateFilenameStrategy.getLivePhotoContentIdentifier() to
+     * pairByContentIdentifier() works with actual binary file content.
+     */
     #[Test]
     public function itPairsVideoUsingTemporalMetadataContentIdentifiers(): void
     {
