@@ -319,7 +319,7 @@ class FileSystemService implements FileSystemServiceInterface
      * Converts an absolute file path to a display-friendly relative path by stripping
      * the base directory prefix and prepending the base directory's own name. Falls back
      * to the full pathname when the path does not start with the base or when the base
-     * directory is an absolute path.
+     * directory is a relative path.
      *
      * @param SplFileInfo $fileInfo      File whose path should be relativized
      * @param string|null $baseDirectory Normalized base directory (trailing separator stripped)
@@ -341,9 +341,9 @@ class FileSystemService implements FileSystemServiceInterface
         }
 
         if (
-            str_starts_with($normalizedBase, DIRECTORY_SEPARATOR)
-            || str_starts_with($normalizedBase, '\\')
-            || preg_match('/^[A-Za-z]:(?:[\\\\\\/]|$)/', $normalizedBase) === 1
+            !str_starts_with($normalizedBase, DIRECTORY_SEPARATOR)
+            && !str_starts_with($normalizedBase, '\\')
+            && preg_match('/^[A-Za-z]:(?:[\\\\\\/]|$)/', $normalizedBase) !== 1
         ) {
             return $pathname;
         }

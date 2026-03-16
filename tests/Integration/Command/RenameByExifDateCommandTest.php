@@ -361,19 +361,33 @@ final class RenameByExifDateCommandTest extends TestCase
     {
         $clean = preg_replace('/<[^>]+>/', '', $consoleOutput) ?? $consoleOutput;
 
-        $mappings = [];
-        $prefix   = rtrim($workspace, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+        $mappings       = [];
+        $absolutePrefix = rtrim($workspace, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+        $relativePrefix = basename(rtrim($workspace, DIRECTORY_SEPARATOR)) . DIRECTORY_SEPARATOR;
 
         if (preg_match_all('/\[(?:O|D|R)]\s+(\S+)\s+→\s+(\S+)/', $clean, $matches, PREG_SET_ORDER) > 0) {
             foreach ($matches as $match) {
-                $source = str_starts_with($match[1], $prefix) ? substr($match[1], strlen($prefix)) : $match[1];
-                $target = str_starts_with($match[2], $prefix) ? substr($match[2], strlen($prefix)) : $match[2];
+                $source = $this->stripPrefix($match[1], $absolutePrefix, $relativePrefix);
+                $target = $this->stripPrefix($match[2], $absolutePrefix, $relativePrefix);
 
                 $mappings[$source] = $target;
             }
         }
 
         return $mappings;
+    }
+
+    private function stripPrefix(string $path, string $absolutePrefix, string $relativePrefix): string
+    {
+        if (str_starts_with($path, $absolutePrefix)) {
+            return substr($path, strlen($absolutePrefix));
+        }
+
+        if (str_starts_with($path, $relativePrefix)) {
+            return substr($path, strlen($relativePrefix));
+        }
+
+        return $path;
     }
 
     private function removeDirectory(string $directory): void

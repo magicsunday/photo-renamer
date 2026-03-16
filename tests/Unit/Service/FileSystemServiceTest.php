@@ -373,7 +373,7 @@ final class FileSystemServiceTest extends TestCase
      * directory and the absolute path is the most unambiguous display.
      */
     #[Test]
-    public function renameFilesDisplaysAbsolutePathsWhenBaseDirectoryIsAbsolute(): void
+    public function renameFilesDisplaysRelativePathsWhenBaseDirectoryIsAbsolute(): void
     {
         [$service, $output] = $this->createService();
 
@@ -401,8 +401,11 @@ final class FileSystemServiceTest extends TestCase
 
         $buffer = $output->fetch();
 
-        self::assertStringContainsString($sourceFile, $buffer);
-        self::assertStringContainsString($targetFile, $buffer);
+        $relativeSource = $this->relativizePath($sourceFile, $directory);
+        $relativeTarget = $this->relativizePath($targetFile, $directory);
+
+        self::assertStringContainsString($relativeSource, $buffer);
+        self::assertStringContainsString($relativeTarget, $buffer);
     }
 
     /**
@@ -792,9 +795,9 @@ final class FileSystemServiceTest extends TestCase
         }
 
         if (
-            str_starts_with($normalizedBase, DIRECTORY_SEPARATOR)
-            || str_starts_with($normalizedBase, '\\')
-            || preg_match('/^[A-Za-z]:(?:[\\\\\\/]|$)/', $normalizedBase) === 1
+            !str_starts_with($normalizedBase, DIRECTORY_SEPARATOR)
+            && !str_starts_with($normalizedBase, '\\')
+            && preg_match('/^[A-Za-z]:(?:[\\\\\\/]|$)/', $normalizedBase) !== 1
         ) {
             return $path;
         }
