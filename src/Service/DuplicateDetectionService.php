@@ -359,10 +359,8 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 ++$duplicateEntries;
             }
 
-            $hasAdditionalRenames = $companionRename instanceof Rename
-                ? $duplicateEntries > 0
-                : $duplicateEntries > 1;
-            $processedDuplicates = 0;
+            $hasAdditionalRenames = $duplicateEntries > 0;
+            $processedDuplicates  = 0;
 
             // Check if the target file already exists in the file system, so we need to adjust
             // the new target name again.

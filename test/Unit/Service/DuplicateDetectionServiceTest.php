@@ -405,14 +405,11 @@ final class DuplicateDetectionServiceTest extends TestCase
             $targetDirectory . DIRECTORY_SEPARATOR . 'renamed.jpg',
             $renames[0]->getTarget()->getPathname(),
         );
-        self::assertSame(
-            $targetDirectory . DIRECTORY_SEPARATOR . 'renamed.png',
-            $renames[1]->getTarget()->getPathname(),
-        );
-        self::assertStringNotContainsString(
+        self::assertStringContainsString(
             FileSystemService::DUPLICATE_IDENTIFIER,
             $renames[1]->getTarget()->getFilename(),
         );
+        self::assertStringEndsWith('.png', $renames[1]->getTarget()->getFilename());
     }
 
     #[Test]
