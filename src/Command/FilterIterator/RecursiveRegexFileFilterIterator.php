@@ -62,7 +62,7 @@ class RecursiveRegexFileFilterIterator extends RecursiveFilterIterator
      * Creates a new filter instance wrapping the inner iterator's children,
      * propagating the same regex to the child level.
      *
-     * @return self Filter for the child directory
+     * @return RecursiveRegexFileFilterIterator Filter for the child directory
      *
      * @throws RuntimeException When the inner iterator does not support getChildren()
      */

@@ -52,7 +52,7 @@ class FileDuplicate
      *
      * @param SplFileInfo $fileInfo Source file to add
      *
-     * @return self Fluent interface
+     * @return FileDuplicate Fluent interface
      */
     public function addFile(SplFileInfo $fileInfo): self
     {
@@ -75,7 +75,7 @@ class FileDuplicate
      *
      * @param SplFileInfo $target Canonical target to set
      *
-     * @return self Fluent interface
+     * @return FileDuplicate Fluent interface
      */
     public function setTarget(SplFileInfo $target): self
     {
@@ -98,7 +98,7 @@ class FileDuplicate
      *
      * @param RenameList $renames New rename list to assign
      *
-     * @return self Fluent interface
+     * @return FileDuplicate Fluent interface
      */
     public function setRenames(RenameList $renames): self
     {
@@ -112,7 +112,7 @@ class FileDuplicate
      *
      * @param Rename $rename Rename operation to add
      *
-     * @return self Fluent interface
+     * @return FileDuplicate Fluent interface
      */
     public function addRename(Rename $rename): self
     {
