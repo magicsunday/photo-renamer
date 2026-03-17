@@ -424,7 +424,6 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 );
             }
 
-            /** @var RenameList $renames */
             $renames = $fileDuplicate->getRenames();
 
             $canonicalTargetPath     = $fileDuplicate->getTarget()->getPathname();
