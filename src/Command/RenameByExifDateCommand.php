@@ -201,6 +201,9 @@ class RenameByExifDateCommand extends AbstractRenameCommand
         $progressBar?->finish();
         $this->io->newLine();
 
+        // Release cached metadata — all content identifiers have been captured.
+        $this->exifMetadataProvider->clearCache();
+
         return $fileDuplicateCollection;
     }
 
