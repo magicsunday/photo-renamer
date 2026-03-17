@@ -594,6 +594,10 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                     );
                 }
 
+                // Register the assigned target in the disk index so subsequent
+                // groups see it as occupied without needing a stat() call.
+                $this->diskIndex[$rename->getTarget()->getPathname()] = true;
+
                 ++$processedDuplicates;
             }
 
