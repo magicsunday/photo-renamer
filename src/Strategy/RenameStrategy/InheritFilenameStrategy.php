@@ -60,7 +60,7 @@ class InheritFilenameStrategy implements RenameStrategyInterface
     protected function removeDuplicateFileIdentifier(string $filename): string
     {
         return preg_replace(
-            '/' . Constants::DUPLICATE_IDENTIFIER . '\d{3}/',
+            '/' . Constants::DUPLICATE_IDENTIFIER . '\d+/',
             '',
             $filename
         ) ?? $filename;

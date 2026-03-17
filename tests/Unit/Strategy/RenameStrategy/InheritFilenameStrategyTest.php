@@ -154,10 +154,10 @@ class InheritFilenameStrategyTest extends TestCase
                 'expected'    => 'file-duplicate-.txt',
                 'description' => 'Should not remove incomplete duplicate patterns',
             ],
-            'preserves duplicate with wrong digit count' => [
+            'strips duplicate with any digit count' => [
                 'filename'    => 'file-duplicate-1.txt',
-                'expected'    => 'file-duplicate-1.txt',
-                'description' => 'Should not remove duplicate identifier with wrong digit count',
+                'expected'    => 'file.txt',
+                'description' => 'Strips duplicate suffix regardless of digit count (1-9999)',
             ],
             'removes duplicate identifier - path given' => [
                 'filename'    => '/var/www/images/photo-duplicate-001.jpg',
