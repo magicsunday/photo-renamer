@@ -17,7 +17,7 @@ use SplFileInfo;
 /**
  * Contract for extracting temporal metadata (capture date, Live Photo ID) from
  * a media file. Implementations may use EXIF, XMP, QuickTime atoms or any
- * other source. Used by ExifMetadataProvider as the low-level extraction backend.
+ * other source. Used by ExifMetadataProvider as the extraction backend.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT

@@ -18,12 +18,14 @@ use SplFileInfo;
 
 use function array_key_exists;
 use function sprintf;
+use function strtolower;
+use function trim;
 
 /**
- * Caching facade over the MetadataExtractor that converts raw TemporalMetadata
- * into ExifData value objects. Maintains per-file pathname-keyed array caches for
- * both ExifData and ContentIdentifier, so each file is extracted at most once
- * even when queried from multiple pipeline stages.
+ * Thin caching layer over the MetadataExtractor that provides direct access to
+ * the capture timestamp and Live Photo content identifier. Maintains a per-file
+ * pathname-keyed cache so each file is extracted at most once even when queried
+ * from multiple pipeline stages.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -32,156 +34,107 @@ use function sprintf;
 final class ExifMetadataProvider
 {
     /**
-     * Per-file cache of extracted EXIF data (null when the file lacks usable metadata).
+     * Per-file cache of extracted temporal metadata (null when the file lacks usable metadata).
      *
-     * @var array<string, ExifData|null>
+     * @var array<string, TemporalMetadata|null>
      */
-    private array $exifDataCache = [];
-
-    /**
-     * Per-file cache of Live Photo content identifiers, populated as a side-effect
-     * of EXIF extraction so companion detection can query it independently.
-     *
-     * @var array<string, ContentIdentifier|null>
-     */
-    private array $contentIdentifierCache = [];
+    private array $metadataCache = [];
 
     public function __construct(private readonly MetadataExtractorInterface $metadataExtractor)
     {
     }
 
     /**
-     * Returns the ExifData for the given file, extracting and caching it on first access.
-     * Returns null when the file contains no usable EXIF date information.
+     * Returns the capture timestamp for the given file, extracting and caching
+     * metadata on first access. Returns null when the file contains no usable
+     * capture date information.
      *
      * @param SplFileInfo $splFileInfo File to extract metadata from
      *
-     * @return ExifData|null Extracted EXIF data, or null when unavailable
+     * @return DateTimeInterface|null Capture timestamp with potential microsecond precision,
+     *                                or null when unavailable
      *
      * @throws TargetFilenameException When the underlying metadata reader fails
      */
-    public function getExifData(SplFileInfo $splFileInfo): ?ExifData
+    public function getCaptureDateTime(SplFileInfo $splFileInfo): ?DateTimeInterface
     {
-        $key = $splFileInfo->getPathname();
-
-        if (!array_key_exists($key, $this->exifDataCache)) {
-            try {
-                $this->exifDataCache[$key] = $this->createExifData($splFileInfo);
-            } catch (ExifMetadataReadException $exception) {
-                throw new TargetFilenameException(sprintf('Unable to read image metadata from "%s": %s', $splFileInfo->getPathname(), $exception->getMessage()), $exception->getCode(), previous: $exception);
-            }
-        }
-
-        $exifData = $this->exifDataCache[$key];
-
-        return $exifData instanceof ExifData ? $exifData : null;
+        return $this->resolveMetadata($splFileInfo)?->getCaptureDateTime();
     }
 
     /**
-     * Returns the Live Photo content identifier for the given file. Triggers EXIF
-     * extraction if not yet cached, since the content identifier is populated as a
-     * side-effect of createExifData().
+     * Returns the normalized Live Photo content identifier for the given file.
+     * Triggers metadata extraction if not yet cached.
+     *
+     * The identifier is lowercased and trimmed for case-insensitive companion
+     * detection between photo and video assets.
      *
      * @param SplFileInfo $splFileInfo File to query
      *
-     * @return ContentIdentifier|null The content identifier, or null when the file
-     *                                is not part of an Apple Live Photo pair
+     * @return string|null Lowercased, trimmed content identifier, or null when
+     *                     the file is not part of an Apple Live Photo pair
+     *
+     * @throws TargetFilenameException When the underlying metadata reader fails
      */
-    public function getContentIdentifier(SplFileInfo $splFileInfo): ?ContentIdentifier
+    public function getContentIdentifier(SplFileInfo $splFileInfo): ?string
     {
-        $this->getExifData($splFileInfo);
+        $metadata = $this->resolveMetadata($splFileInfo);
 
-        $key = $splFileInfo->getPathname();
-
-        if (!array_key_exists($key, $this->contentIdentifierCache)) {
+        if (!$metadata instanceof TemporalMetadata) {
             return null;
         }
 
-        $contentIdentifier = $this->contentIdentifierCache[$key];
-
-        return $contentIdentifier instanceof ContentIdentifier ? $contentIdentifier : null;
+        return $this->normalizeContentIdentifier($metadata->getLivePhotoId());
     }
 
     /**
-     * Extracts temporal metadata and Live Photo content identifier from the file,
-     * populating the content identifier cache as a side-effect.
+     * Extracts and caches temporal metadata for the given file. Returns the cached
+     * result on subsequent calls for the same pathname.
      *
      * @param SplFileInfo $splFileInfo File to extract metadata from
      *
-     * @return ExifData|null Normalized EXIF data, or null when no capture date is available
+     * @return TemporalMetadata|null Extracted metadata, or null when no relevant fields exist
      *
-     * @throws ExifMetadataReadException When the metadata reader encounters an error
+     * @throws TargetFilenameException When the underlying metadata reader fails
      */
-    private function createExifData(SplFileInfo $splFileInfo): ?ExifData
+    private function resolveMetadata(SplFileInfo $splFileInfo): ?TemporalMetadata
     {
-        $temporalMetadata  = $this->metadataExtractor->extractTemporalMetadata($splFileInfo);
-        $contentIdentifier = $this->extractContentIdentifier($temporalMetadata);
+        $key = $splFileInfo->getPathname();
 
-        $this->contentIdentifierCache[$splFileInfo->getPathname()] = $contentIdentifier;
-
-        if (!$temporalMetadata instanceof TemporalMetadata) {
-            return null;
+        if (!array_key_exists($key, $this->metadataCache)) {
+            try {
+                $this->metadataCache[$key] = $this->metadataExtractor->extractTemporalMetadata($splFileInfo);
+            } catch (ExifMetadataReadException $exception) {
+                throw new TargetFilenameException(
+                    sprintf(
+                        'Unable to read image metadata from "%s": %s',
+                        $splFileInfo->getPathname(),
+                        $exception->getMessage(),
+                    ),
+                    $exception->getCode(),
+                    previous: $exception,
+                );
+            }
         }
 
-        $captureDateTime = $temporalMetadata->getCaptureDateTime();
-
-        if (!$captureDateTime instanceof DateTimeInterface) {
-            return null;
-        }
-
-        [$dateTimeOriginal, $subSecTimeOriginal] = $this->normaliseCaptureTimestamp($captureDateTime);
-
-        return new ExifData($dateTimeOriginal, $subSecTimeOriginal, $contentIdentifier);
+        return $this->metadataCache[$key];
     }
 
     /**
-     * Wraps the raw Live Photo ID string from TemporalMetadata into a
-     * ContentIdentifier value object, normalizing case and whitespace.
+     * Lowercases and trims a Live Photo content identifier string. Returns null
+     * for null, empty, or whitespace-only inputs.
      *
-     * @param TemporalMetadata|null $temporalMetadata Raw metadata to extract from
+     * @param string|null $contentIdentifier Raw content identifier from TemporalMetadata
      *
-     * @return ContentIdentifier|null Normalized identifier, or null when not present
+     * @return string|null Normalized identifier, or null when not present
      */
-    private function extractContentIdentifier(?TemporalMetadata $temporalMetadata): ?ContentIdentifier
+    private function normalizeContentIdentifier(?string $contentIdentifier): ?string
     {
-        if (!$temporalMetadata instanceof TemporalMetadata) {
+        if ($contentIdentifier === null || $contentIdentifier === '') {
             return null;
         }
 
-        $livePhotoId = $temporalMetadata->getLivePhotoId();
+        $normalized = strtolower(trim($contentIdentifier));
 
-        if ($livePhotoId === null || $livePhotoId === '') {
-            return null;
-        }
-
-        return new ContentIdentifier($livePhotoId);
-    }
-
-    /**
-     * Splits a DateTimeInterface into the "Y:m:d H:i:s" date string and an optional
-     * sub-second string. Sub-second precision is expressed as 3 digits (milliseconds)
-     * when the microsecond value is evenly divisible by 1000, or 6 digits otherwise.
-     * Returns null for sub-seconds when the capture time has no fractional component.
-     *
-     * @param DateTimeInterface $captureDateTime Capture timestamp with potential microsecond precision
-     *
-     * @return array{0: string, 1: ?string} Tuple of [dateTimeOriginal, subSecTimeOriginal]
-     */
-    private function normaliseCaptureTimestamp(DateTimeInterface $captureDateTime): array
-    {
-        $dateTimeOriginal = $captureDateTime->format('Y:m:d H:i:s');
-        $microseconds     = (int) $captureDateTime->format('u');
-
-        if ($microseconds === 0) {
-            return [$dateTimeOriginal, null];
-        }
-
-        if ($microseconds % 1000 === 0) {
-            $milliseconds = (int) ($microseconds / 1000);
-
-            return [$dateTimeOriginal, sprintf('%03d', $milliseconds)];
-        }
-
-        return [$dateTimeOriginal, sprintf('%06d', $microseconds)];
+        return $normalized !== '' ? $normalized : null;
     }
 }

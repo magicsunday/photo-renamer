@@ -14,10 +14,10 @@ namespace MagicSunday\Renamer\Metadata;
 use DateTimeInterface;
 
 /**
- * Raw temporal metadata extracted from a media file before normalization.
- * Serves as the intermediate transport between MetadataExtractor (which reads
- * vendor-specific tag structures) and ExifMetadataProvider (which normalizes
- * into the pipeline's ExifData format).
+ * Immutable value object holding the temporal metadata extracted from a media
+ * file: the capture timestamp (with potential microsecond precision) and the
+ * optional Apple Live Photo content identifier. Produced by MetadataExtractor
+ * and cached by ExifMetadataProvider for use throughout the rename pipeline.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT

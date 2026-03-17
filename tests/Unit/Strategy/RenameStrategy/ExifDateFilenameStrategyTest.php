@@ -14,7 +14,6 @@ namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy;
 use DateTimeImmutable;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
-use MagicSunday\Renamer\Metadata\ExifData;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
@@ -23,7 +22,6 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use ReflectionProperty;
 use SplFileInfo;
 
 use function sprintf;
@@ -36,8 +34,8 @@ use function uniqid;
  *
  * Key guarantees verified here:
  * - Capture dates are formatted using the configured PHP date pattern
- * - Sub-second precision (milliseconds, microseconds) from EXIF SubSecTimeOriginal
- *   is correctly normalised and included in the filename
+ * - Sub-second precision (milliseconds, microseconds) from the capture timestamp
+ *   is correctly included in the filename
  * - Files without a capture date return null, allowing the caller to skip them
  * - Live Photo content identifiers are extracted and lowercased for companion pairing
  * - EXIF read failures are wrapped in TargetFilenameException for consistent error handling
@@ -155,47 +153,32 @@ final class ExifDateFilenameStrategyTest extends TestCase
     }
 
     /**
-     * Verifies that SubSecTimeOriginal values of varying digit counts (1-6) are
-     * correctly zero-padded to 6-digit microsecond strings in the generated filename.
+     * Verifies that sub-second values in the capture timestamp are formatted
+     * correctly as microseconds in the generated filename.
      *
-     * Camera manufacturers store sub-second precision inconsistently: some write "1"
-     * meaning 100ms, others write "123456" meaning 123456us. The strategy normalises
-     * all values to 6 digits by right-padding with zeros. Without this, files from
-     * different cameras shot at the same second would receive inconsistent sub-second
-     * suffixes, breaking deterministic rename ordering.
+     * The DateTimeImmutable from the metadata extractor already carries the full
+     * microsecond precision, so the strategy simply formats it with the 'u' pattern.
      */
     #[Test]
     #[DataProvider('subSecondProvider')]
     public function itFormatsSubSecondValuesAsMicroseconds(
-        string $subSecondValue,
+        string $captureDateTime,
         string $expectedMicroseconds,
     ): void {
         $path = '/virtual/' . uniqid('subsec_', true) . '.jpg';
-        $file = new SplFileInfo($path);
 
-        $exifData = new ExifData('2024:05:05 12:34:56', $subSecondValue, null);
-        $strategy = $this->createStrategyWithExifData('Y-m-d_H-i-s-u', $file, $exifData);
+        $metadataExtractor = new StubMetadataExtractor();
+        $metadataExtractor->withResponse(
+            $path,
+            new TemporalMetadata(new DateTimeImmutable($captureDateTime), null),
+        );
+
+        $strategy = $this->createStrategy('Y-m-d_H-i-s-u', $metadataExtractor);
 
         self::assertSame(
             '2024-05-05_12-34-56-' . $expectedMicroseconds . '.jpg',
-            $strategy->generateFilename($file),
+            $strategy->generateFilename(new SplFileInfo($path)),
         );
-    }
-
-    private function createStrategyWithExifData(
-        string $pattern,
-        SplFileInfo $file,
-        ExifData $exifData,
-    ): ExifDateFilenameStrategy {
-        $metadataExtractor = new StubMetadataExtractor();
-        $provider          = new ExifMetadataProvider($metadataExtractor);
-
-        $exifDataCache = [$file->getPathname() => $exifData];
-
-        $cacheProperty = new ReflectionProperty(ExifMetadataProvider::class, 'exifDataCache');
-        $cacheProperty->setValue($provider, $exifDataCache);
-
-        return new ExifDateFilenameStrategy($pattern, $provider);
     }
 
     private function createStrategy(
@@ -208,34 +191,22 @@ final class ExifDateFilenameStrategyTest extends TestCase
     }
 
     /**
-     * @return array<string, array{subSecondValue: string, expectedMicroseconds: string}>
+     * @return array<string, array{captureDateTime: string, expectedMicroseconds: string}>
      */
     public static function subSecondProvider(): array
     {
         return [
-            '1 digit' => [
-                'subSecondValue'       => '1',
-                'expectedMicroseconds' => '100000',
-            ],
-            '2 digits' => [
-                'subSecondValue'       => '12',
-                'expectedMicroseconds' => '120000',
-            ],
-            '3 digits' => [
-                'subSecondValue'       => '123',
+            'milliseconds (3 digits)' => [
+                'captureDateTime'      => '2024-05-05T12:34:56.123+00:00',
                 'expectedMicroseconds' => '123000',
             ],
-            '4 digits' => [
-                'subSecondValue'       => '1234',
-                'expectedMicroseconds' => '123400',
-            ],
-            '5 digits' => [
-                'subSecondValue'       => '12345',
-                'expectedMicroseconds' => '123450',
-            ],
-            '6 digits' => [
-                'subSecondValue'       => '123456',
+            'microseconds (6 digits)' => [
+                'captureDateTime'      => '2024-05-05T12:34:56.123456+00:00',
                 'expectedMicroseconds' => '123456',
+            ],
+            'no sub-seconds' => [
+                'captureDateTime'      => '2024-05-05T12:34:56+00:00',
+                'expectedMicroseconds' => '000000',
             ],
         ];
     }
@@ -265,7 +236,7 @@ final class ExifDateFilenameStrategyTest extends TestCase
                 'pattern'         => 'Y-m-d_H-i-s-u',
                 'extension'       => 'png',
                 'expected'        => '2024-05-05_12-34-56-123456.png',
-                'description'     => 'Handles microseconds by switching to microsecond modification',
+                'description'     => 'Formats full microsecond precision directly from DateTimeInterface',
             ],
         ];
     }

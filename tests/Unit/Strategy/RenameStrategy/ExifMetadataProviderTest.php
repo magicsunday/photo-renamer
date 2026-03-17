@@ -12,10 +12,9 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy;
 
 use DateTimeImmutable;
+use DateTimeInterface;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
-use MagicSunday\Renamer\Metadata\ContentIdentifier;
-use MagicSunday\Renamer\Metadata\ExifData;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
@@ -25,13 +24,11 @@ use PHPUnit\Framework\TestCase;
 use SplFileInfo;
 
 /**
- * Verifies ExifMetadataProvider, the adapter that converts raw TemporalMetadata
- * from the metadata extractor into the ExifData and ContentIdentifier value
- * objects consumed by ExifDateFilenameStrategy.
+ * Verifies ExifMetadataProvider, the caching facade over MetadataExtractor
+ * that provides direct access to capture timestamps and content identifiers.
  *
  * Key guarantees:
- * - Capture dates are split into DateTimeOriginal and SubSecTimeOriginal
- * - Microsecond precision is preserved when the capture date includes fractional seconds
+ * - Capture timestamps are returned as-is from TemporalMetadata (with microsecond precision)
  * - Content identifiers are normalised (lowercased, trimmed) for case-insensitive pairing
  * - Missing metadata returns null instead of throwing
  * - Extraction errors are wrapped in TargetFilenameException with the original cause
@@ -44,15 +41,11 @@ use SplFileInfo;
 final class ExifMetadataProviderTest extends TestCase
 {
     /**
-     * Verifies that a TemporalMetadata with a capture date is converted into an
-     * ExifData instance with the date in EXIF format ("YYYY:MM:DD HH:MM:SS"),
-     * sub-second digits extracted, and content identifier left null.
-     *
-     * This is the happy-path conversion that feeds ExifDateFilenameStrategy
-     * with the components needed to build the target filename.
+     * Verifies that a TemporalMetadata with a capture date yields a DateTimeInterface
+     * with the correct date and microsecond precision preserved.
      */
     #[Test]
-    public function itReturnsExifDataWhenMetadataAvailable(): void
+    public function itReturnsCaptureDateTime(): void
     {
         $path              = '/tmp/sample.jpg';
         $metadataExtractor = new StubMetadataExtractor();
@@ -63,21 +56,17 @@ final class ExifMetadataProviderTest extends TestCase
 
         $provider = new ExifMetadataProvider($metadataExtractor);
 
-        $exifData = $provider->getExifData(new SplFileInfo($path));
+        $captureDateTime = $provider->getCaptureDateTime(new SplFileInfo($path));
 
-        self::assertInstanceOf(ExifData::class, $exifData);
-        self::assertSame('2024:05:05 12:34:56', $exifData->getDateTimeOriginal());
-        self::assertSame('123', $exifData->getSubSecTimeOriginal());
-        self::assertNull($exifData->getContentIdentifier());
+        self::assertInstanceOf(DateTimeInterface::class, $captureDateTime);
+        self::assertSame('2024:05:05 12:34:56', $captureDateTime->format('Y:m:d H:i:s'));
+        self::assertSame('123000', $captureDateTime->format('u'));
+        self::assertNull($provider->getContentIdentifier(new SplFileInfo($path)));
     }
 
     /**
-     * Verifies that both getExifData() and getContentIdentifier() return null
+     * Verifies that both getCaptureDateTime() and getContentIdentifier() return null
      * when the metadata extractor has no response for the given file path.
-     *
-     * This covers files that lack EXIF data entirely (e.g. plain text, screenshots).
-     * Returning null allows the caller to skip the file gracefully rather than
-     * crashing the batch.
      */
     #[Test]
     public function itReturnsNullWhenMetadataMissing(): void
@@ -87,21 +76,16 @@ final class ExifMetadataProviderTest extends TestCase
 
         $provider = new ExifMetadataProvider($metadataExtractor);
 
-        self::assertNull($provider->getExifData(new SplFileInfo($path)));
+        self::assertNull($provider->getCaptureDateTime(new SplFileInfo($path)));
         self::assertNull($provider->getContentIdentifier(new SplFileInfo($path)));
     }
 
     /**
      * Verifies that a capture date with full microsecond precision (6 fractional
-     * digits) is correctly split: the integer seconds go into DateTimeOriginal and
-     * all 6 sub-second digits go into SubSecTimeOriginal.
-     *
-     * This ensures that video files (which typically store creation dates with
-     * higher precision than still images) produce filenames that reflect their
-     * exact capture moment, avoiding false collisions within the same second.
+     * digits) is preserved in the returned DateTimeInterface.
      */
     #[Test]
-    public function itNormalisesCaptureDateMicroseconds(): void
+    public function itPreservesMicrosecondPrecision(): void
     {
         $path              = '/tmp/video_micro.mov';
         $metadataExtractor = new StubMetadataExtractor();
@@ -112,17 +96,16 @@ final class ExifMetadataProviderTest extends TestCase
 
         $provider = new ExifMetadataProvider($metadataExtractor);
 
-        $exifData = $provider->getExifData(new SplFileInfo($path));
+        $captureDateTime = $provider->getCaptureDateTime(new SplFileInfo($path));
 
-        self::assertInstanceOf(ExifData::class, $exifData);
-        self::assertSame('2024:05:05 12:34:56', $exifData->getDateTimeOriginal());
-        self::assertSame('123456', $exifData->getSubSecTimeOriginal());
+        self::assertInstanceOf(DateTimeInterface::class, $captureDateTime);
+        self::assertSame('2024:05:05 12:34:56', $captureDateTime->format('Y:m:d H:i:s'));
+        self::assertSame('123456', $captureDateTime->format('u'));
     }
 
     /**
      * Verifies that the Live Photo content identifier is extracted and lowercased
-     * even when the capture date is absent, and that getExifData() returns null
-     * in this case.
+     * even when the capture date is absent.
      *
      * MOV companions in Live Photos often have no EXIF date but always carry the
      * Apple content identifier. This test ensures they are still discoverable
@@ -137,22 +120,19 @@ final class ExifMetadataProviderTest extends TestCase
 
         $provider = new ExifMetadataProvider($metadataExtractor);
 
-        self::assertNull($provider->getExifData(new SplFileInfo($path)));
+        self::assertNull($provider->getCaptureDateTime(new SplFileInfo($path)));
 
         $identifier = $provider->getContentIdentifier(new SplFileInfo($path));
 
-        self::assertInstanceOf(ContentIdentifier::class, $identifier);
-        self::assertSame('uuid-5678', $identifier->getValue());
+        self::assertSame('uuid-5678', $identifier);
     }
 
     /**
-     * Verifies that the content identifier is lowercased and whitespace-trimmed
-     * before being stored in the ContentIdentifier value object.
+     * Verifies that the content identifier is lowercased and whitespace-trimmed.
      *
      * Different extraction tools may produce identifiers with varying case and
      * leading/trailing whitespace. Normalisation ensures that the still image
-     * and its video companion always match, regardless of how their metadata
-     * was written.
+     * and its video companion always match.
      */
     #[Test]
     public function itNormalisesLivePhotoIdentifierCasing(): void
@@ -165,18 +145,13 @@ final class ExifMetadataProviderTest extends TestCase
 
         $identifier = $provider->getContentIdentifier(new SplFileInfo($path));
 
-        self::assertInstanceOf(ContentIdentifier::class, $identifier);
-        self::assertSame('livephoto-id', $identifier->getValue());
+        self::assertSame('livephoto-id', $identifier);
     }
 
     /**
      * Verifies that an ExifMetadataReadException from the extractor is caught and
      * re-thrown as a TargetFilenameException, preserving the original exception as
      * the previous cause.
-     *
-     * This wrapping allows the grouping pipeline to catch TargetFilenameException
-     * uniformly and log a per-file warning without aborting the entire batch,
-     * while still exposing the root cause for debugging.
      */
     #[Test]
     public function itConvertsMetadataReadErrorsToTargetFilenameException(): void
@@ -190,7 +165,7 @@ final class ExifMetadataProviderTest extends TestCase
         $this->expectException(TargetFilenameException::class);
 
         try {
-            $provider->getExifData(new SplFileInfo($path));
+            $provider->getCaptureDateTime(new SplFileInfo($path));
         } catch (TargetFilenameException $throwable) {
             self::assertInstanceOf(ExifMetadataReadException::class, $throwable->getPrevious());
 
