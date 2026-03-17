@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Strategy\RenameStrategy;
 
+use MagicSunday\Renamer\Exception\TargetFilenameException;
 use SplFileInfo;
 
 /**
@@ -31,6 +32,8 @@ interface RenameStrategyInterface
      * @param SplFileInfo $splFileInfo Source file to generate a target filename for
      *
      * @return string|null Target filename, or null when not applicable
+     *
+     * @throws TargetFilenameException When the strategy encounters an error generating the filename
      */
     public function generateFilename(SplFileInfo $splFileInfo): ?string;
 }

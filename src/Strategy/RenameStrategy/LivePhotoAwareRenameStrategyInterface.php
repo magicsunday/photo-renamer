@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Strategy\RenameStrategy;
 
+use MagicSunday\Renamer\Exception\TargetFilenameException;
 use SplFileInfo;
 
 /**
@@ -32,6 +33,8 @@ interface LivePhotoAwareRenameStrategyInterface extends RenameStrategyInterface
      * @param SplFileInfo $splFileInfo Source file to query
      *
      * @return string|null Lowercased content identifier, or null
+     *
+     * @throws TargetFilenameException When reading metadata fails
      */
     public function getLivePhotoContentIdentifier(SplFileInfo $splFileInfo): ?string;
 }

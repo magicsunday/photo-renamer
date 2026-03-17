@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Strategy\RenameStrategy;
 
 use DateTimeInterface;
+use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use Override;
 use SplFileInfo;
@@ -48,6 +49,8 @@ class ExifDateFilenameStrategy implements LivePhotoAwareRenameStrategyInterface
      * @param SplFileInfo $splFileInfo Source file to read EXIF data from
      *
      * @return string|null Target filename with extension, or null when EXIF date is absent
+     *
+     * @throws TargetFilenameException When reading EXIF metadata fails
      */
     #[Override]
     public function generateFilename(SplFileInfo $splFileInfo): ?string
