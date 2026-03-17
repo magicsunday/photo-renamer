@@ -11,9 +11,9 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Strategy\RenameStrategy\DatePattern;
 
-use RuntimeException;
+use MagicSunday\Renamer\Regex\SafeRegex;
 
-use function preg_replace_callback;
+use function is_string;
 
 /**
  * Maps date placeholder tokens (Y, m, d, H, i, s) to their corresponding
@@ -54,28 +54,24 @@ final readonly class DatePlaceholderExpressionMap
      * Replaces {placeholder} tokens in the pattern with their regex capture groups.
      * Unknown placeholders are left unchanged.
      *
-     * @param string $pattern Template string containing {Y}, {m}, {d}, etc. tokens
+     * @param string    $pattern   Template string containing {Y}, {m}, {d}, etc. tokens
+     * @param SafeRegex $safeRegex Safe wrapper around preg_* functions with error handling
      *
      * @return string PCRE-compatible regex with capture groups in place of tokens
-     *
-     * @throws RuntimeException When preg_replace_callback fails
      */
-    public function replacePlaceholders(string $pattern): string
+    public function replacePlaceholders(string $pattern, SafeRegex $safeRegex = new SafeRegex()): string
     {
-        $result = preg_replace_callback(
+        return $safeRegex->replaceCallback(
             '/{(\\w+)}/',
+            /** @param array<int|string, string> $matches */
             function (array $matches): string {
-                $placeholder = $matches[1];
+                $placeholder = is_string($matches[1]) ? $matches[1] : '';
+                $fullMatch   = is_string($matches[0]) ? $matches[0] : '';
 
-                return $this->expressions[$placeholder] ?? $matches[0];
+                return $this->expressions[$placeholder] ?? $fullMatch;
             },
-            $pattern
+            $pattern,
+            'replacing date placeholders with regex groups',
         );
-
-        if ($result === null) {
-            throw new RuntimeException('Failed to replace placeholders in the given pattern.');
-        }
-
-        return $result;
     }
 }

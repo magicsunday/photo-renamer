@@ -12,12 +12,11 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Strategy\RenameStrategy\DatePattern;
 
 use MagicSunday\Renamer\Model\Collection\AbstractCollection;
+use MagicSunday\Renamer\Regex\SafeRegex;
 use Override;
-use RuntimeException;
 
 use function array_map;
 use function array_values;
-use function preg_match_all;
 
 /**
  * Ordered collection of PatternMatch instances extracted from a date pattern template.
@@ -35,22 +34,22 @@ final class PatternMatchSet extends AbstractCollection
     /**
      * Creates a set of pattern matches for every placeholder token in the given pattern string.
      *
-     * @param string $pattern Pattern string containing placeholder tokens (e.g. `{placeholder}`)
+     * @param string    $pattern   Pattern string containing placeholder tokens (e.g. `{placeholder}`)
+     * @param SafeRegex $safeRegex Safe wrapper around preg_* functions with error handling
      *
      * @return self Collection populated with {@see PatternMatch} instances for each discovered token
      */
-    public static function fromPattern(string $pattern): self
+    public static function fromPattern(string $pattern, SafeRegex $safeRegex = new SafeRegex()): self
     {
-        $matches = [];
-        $result  = preg_match_all('/\{(\w+)\}/', $pattern, $matches);
-
-        if ($result === false) {
-            throw new RuntimeException('Failed to extract placeholders from the given pattern.');
-        }
+        $result = $safeRegex->matchAll(
+            '/\{(\w+)\}/',
+            $pattern,
+            'extracting placeholders from pattern',
+        );
 
         $matchSet = new self();
 
-        foreach ($matches[1] as $placeholder) {
+        foreach ($result->matches()[1] ?? [] as $placeholder) {
             $matchSet->append(new PatternMatch($placeholder));
         }
 
