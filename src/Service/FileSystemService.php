@@ -307,8 +307,22 @@ class FileSystemService implements FileSystemServiceInterface
      */
     private function getRelativePath(SplFileInfo $fileInfo, ?string $baseDirectory): string
     {
-        $pathname = $fileInfo->getPathname();
+        return self::relativizePath($fileInfo->getPathname(), $baseDirectory);
+    }
 
+    /**
+     * Converts an absolute pathname to a display-friendly relative path by stripping
+     * the base directory prefix and prepending the base directory's own name. Falls back
+     * to the full pathname when the path does not start with the base or when the base
+     * directory is a relative path.
+     *
+     * @param string      $pathname      Absolute file path
+     * @param string|null $baseDirectory Normalized base directory (trailing separator stripped)
+     *
+     * @return string Relative or absolute path suitable for display
+     */
+    public static function relativizePath(string $pathname, ?string $baseDirectory): string
+    {
         if ($baseDirectory === null || $baseDirectory === '') {
             return $pathname;
         }

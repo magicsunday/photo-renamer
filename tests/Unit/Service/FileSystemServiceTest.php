@@ -28,21 +28,15 @@ use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
-use function basename;
 use function file_exists;
 use function file_get_contents;
 use function file_put_contents;
 use function is_dir;
 use function mkdir;
-use function preg_match;
 use function rmdir;
-use function rtrim;
 use function scandir;
 use function sprintf;
 use function str_replace;
-use function str_starts_with;
-use function strlen;
-use function substr;
 use function sys_get_temp_dir;
 use function uniqid;
 use function unlink;
@@ -267,8 +261,8 @@ final class FileSystemServiceTest extends TestCase
         self::assertStringNotContainsString('Skipped (duplicate)', $buffer);
         self::assertStringContainsString('[R]', $buffer);
 
-        $relativeSource = $this->relativizePath($sourceFile, $sourceDirectory);
-        $relativeTarget = $this->relativizePath($targetFile, $targetDirectory);
+        $relativeSource = FileSystemService::relativizePath($sourceFile, $sourceDirectory);
+        $relativeTarget = FileSystemService::relativizePath($targetFile, $targetDirectory);
 
         self::assertStringContainsString($relativeSource, $buffer);
         self::assertStringContainsString($relativeTarget, $buffer);
@@ -359,8 +353,8 @@ final class FileSystemServiceTest extends TestCase
         $logPosition = strpos($normalized, '[R]');
         self::assertNotFalse($logPosition);
 
-        $relativeSource = $this->relativizePath($sourceFile, $sourceDirectory);
-        $relativeTarget = $this->relativizePath($targetFile, $targetDirectory);
+        $relativeSource = FileSystemService::relativizePath($sourceFile, $sourceDirectory);
+        $relativeTarget = FileSystemService::relativizePath($targetFile, $targetDirectory);
 
         self::assertStringContainsString($relativeSource, $normalized);
         self::assertStringContainsString($relativeTarget, $normalized);
@@ -402,8 +396,8 @@ final class FileSystemServiceTest extends TestCase
 
         $buffer = $output->fetch();
 
-        $relativeSource = $this->relativizePath($sourceFile, $directory);
-        $relativeTarget = $this->relativizePath($targetFile, $directory);
+        $relativeSource = FileSystemService::relativizePath($sourceFile, $directory);
+        $relativeTarget = FileSystemService::relativizePath($targetFile, $directory);
 
         self::assertStringContainsString($relativeSource, $buffer);
         self::assertStringContainsString($relativeTarget, $buffer);
@@ -455,12 +449,12 @@ final class FileSystemServiceTest extends TestCase
 
         $buffer = $output->fetch();
 
-        $relativeCanonicalSource = $this->relativizePath($canonicalPath, $sourceDirectory);
-        $relativeCanonicalTarget = $this->relativizePath($canonicalPath, $targetDirectory);
-        $relativeRenameSource    = $this->relativizePath($renameSource, $sourceDirectory);
-        $relativeDuplicateSource = $this->relativizePath($duplicateSource, $sourceDirectory);
-        $relativeRenameTarget    = $this->relativizePath($renameTarget, $targetDirectory);
-        $relativeDuplicateTarget = $this->relativizePath($duplicateTarget, $targetDirectory);
+        $relativeCanonicalSource = FileSystemService::relativizePath($canonicalPath, $sourceDirectory);
+        $relativeCanonicalTarget = FileSystemService::relativizePath($canonicalPath, $targetDirectory);
+        $relativeRenameSource    = FileSystemService::relativizePath($renameSource, $sourceDirectory);
+        $relativeDuplicateSource = FileSystemService::relativizePath($duplicateSource, $sourceDirectory);
+        $relativeRenameTarget    = FileSystemService::relativizePath($renameTarget, $targetDirectory);
+        $relativeDuplicateTarget = FileSystemService::relativizePath($duplicateTarget, $targetDirectory);
 
         self::assertStringContainsString('[O] ' . $relativeCanonicalSource, $buffer);
         self::assertStringContainsString('[R] ' . $relativeRenameSource, $buffer);
@@ -982,42 +976,6 @@ final class FileSystemServiceTest extends TestCase
 
         self::assertFileExists($fallbackTarget);
         self::assertSame('incoming-content', file_get_contents($fallbackTarget));
-    }
-
-    private function relativizePath(string $path, ?string $baseDirectory): string
-    {
-        if ($baseDirectory === null || $baseDirectory === '') {
-            return $path;
-        }
-
-        $normalizedBase = rtrim($baseDirectory, DIRECTORY_SEPARATOR);
-
-        if ($normalizedBase === '') {
-            return $path;
-        }
-
-        if (
-            !str_starts_with($normalizedBase, DIRECTORY_SEPARATOR)
-            && !str_starts_with($normalizedBase, '\\')
-            && preg_match('/^[A-Za-z]:(?:[\\\\\\/]|$)/', $normalizedBase) !== 1
-        ) {
-            return $path;
-        }
-
-        $prefix = $normalizedBase . DIRECTORY_SEPARATOR;
-
-        if (str_starts_with($path, $prefix)) {
-            $relativePath = substr($path, strlen($prefix));
-            $baseName     = basename($normalizedBase);
-
-            if ($baseName === '' || $baseName === DIRECTORY_SEPARATOR) {
-                return $relativePath;
-            }
-
-            return $baseName . DIRECTORY_SEPARATOR . $relativePath;
-        }
-
-        return $path;
     }
 
     /**
