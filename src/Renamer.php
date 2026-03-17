@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer;
 
+use Exception;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
@@ -28,9 +29,13 @@ $io     = new SymfonyStyle($input, $output);
 $container->set(SymfonyStyle::class, $io);
 
 // Run the application
-
-/** @var Application $application */
-$application = $container->get(Application::class);
-$result      = $application->run($input, $output);
+try {
+    /** @var Application $application */
+    $application = $container->get(Application::class);
+    $result      = $application->run($input, $output);
+} catch (Exception $exception) {
+    $io->error($exception->getMessage());
+    $result = 1;
+}
 
 exit($result);
