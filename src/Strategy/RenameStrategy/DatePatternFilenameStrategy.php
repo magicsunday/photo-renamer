@@ -106,7 +106,7 @@ class DatePatternFilenameStrategy extends InheritFilenameStrategy
 
                             $matchValue = $matches[$key + 1] ?? '';
 
-                            if ($dateFormatCharacter === 'Y' && strlen($matchValue) === 2) {
+                            if (($dateFormatCharacter === 'Y') && (strlen($matchValue) === 2)) {
                                 $fourDigitYearDate = DateTime::createFromFormat('y', $matchValue);
 
                                 if ($fourDigitYearDate !== false) {

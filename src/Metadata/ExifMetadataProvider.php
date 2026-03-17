@@ -129,7 +129,7 @@ final class ExifMetadataProvider
      */
     private function normalizeContentIdentifier(?string $contentIdentifier): ?string
     {
-        if ($contentIdentifier === null || $contentIdentifier === '') {
+        if (($contentIdentifier === null) || ($contentIdentifier === '')) {
             return null;
         }
 

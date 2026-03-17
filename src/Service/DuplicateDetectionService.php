@@ -214,7 +214,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             $this->diskIndex[$file->getPathname()] = true;
         }
 
-        if ($this->targetDirectory !== $this->sourceDirectory && is_dir($this->targetDirectory)) {
+        if (($this->targetDirectory !== $this->sourceDirectory) && is_dir($this->targetDirectory)) {
             $targetIterator = new RecursiveIteratorIterator(
                 new RecursiveDirectoryIterator($this->targetDirectory, FilesystemIterator::SKIP_DOTS),
                 RecursiveIteratorIterator::LEAVES_ONLY,

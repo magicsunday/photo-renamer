@@ -264,7 +264,7 @@ abstract class AbstractRenameCommand extends Command
     {
         $this->sourceDirectory = $this->canonicalizeDirectoryPath($this->sourceDirectory);
 
-        if ($this->targetDirectory === null || $this->targetDirectory === '') {
+        if (($this->targetDirectory === null) || ($this->targetDirectory === '')) {
             $this->targetDirectory = $this->sourceDirectory;
 
             return;
@@ -292,7 +292,7 @@ abstract class AbstractRenameCommand extends Command
                 $baseDirectory = $fallbackBase;
             }
 
-            if (is_string($baseDirectory) && $baseDirectory !== '') {
+            if (is_string($baseDirectory) && ($baseDirectory !== '')) {
                 $baseDirectory = $this->trimTrailingDirectorySeparator($baseDirectory);
 
                 $directory = $this->combinePath($baseDirectory, $directory);

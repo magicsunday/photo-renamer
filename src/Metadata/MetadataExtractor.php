@@ -63,7 +63,7 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         $captureDateTime = $this->extractCaptureDateTime($structured);
         $livePhotoId     = $this->extractContentIdentifier($structured);
 
-        if (!$captureDateTime instanceof DateTimeInterface && $livePhotoId === null) {
+        if (!($captureDateTime instanceof DateTimeInterface) && ($livePhotoId === null)) {
             return null;
         }
 

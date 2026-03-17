@@ -323,7 +323,7 @@ class FileSystemService implements FileSystemServiceInterface
      */
     public static function relativizePath(string $pathname, ?string $baseDirectory): string
     {
-        if ($baseDirectory === null || $baseDirectory === '') {
+        if (($baseDirectory === null) || ($baseDirectory === '')) {
             return $pathname;
         }
 
@@ -347,7 +347,7 @@ class FileSystemService implements FileSystemServiceInterface
             $relativePath = substr($pathname, strlen($prefix));
             $baseName     = basename($normalizedBase);
 
-            if ($baseName === '' || $baseName === DIRECTORY_SEPARATOR) {
+            if (($baseName === '') || ($baseName === DIRECTORY_SEPARATOR)) {
                 return $relativePath;
             }
 
