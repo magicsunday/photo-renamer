@@ -246,10 +246,14 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 $renameStrategy
             );
 
-            $normalizedContentIdentifier = $this->resolveNormalizedContentIdentifier(
-                $renameStrategy,
-                $sourceFileInfo,
-            );
+            try {
+                $normalizedContentIdentifier = $this->resolveNormalizedContentIdentifier(
+                    $renameStrategy,
+                    $sourceFileInfo,
+                );
+            } catch (TargetFilenameException) {
+                $normalizedContentIdentifier = null;
+            }
 
             // Store content identifier for companion detection in createDuplicateFilenames.
             if ($normalizedContentIdentifier !== null) {
