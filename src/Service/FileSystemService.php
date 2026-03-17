@@ -112,7 +112,7 @@ class FileSystemService implements FileSystemServiceInterface
             }
 
             foreach ($fileDuplicate->getRenames() as $rename) {
-                $relativeSource = $this->getRelativePath($rename->getSource(), $sourceBaseDirectory);
+                $relativeSource = self::relativizePath($rename->getSource()->getPathname(), $sourceBaseDirectory);
 
                 if (strlen($relativeSource) > $maxFilenameLength) {
                     $maxFilenameLength = strlen($relativeSource);
@@ -173,8 +173,8 @@ class FileSystemService implements FileSystemServiceInterface
                 $isCanonicalEntry  = $isNoOp
                     || ($options->listAll && $rename->getSource()->getPathname() === $canonicalTargetPath);
 
-                $sourcePath = $this->getRelativePath($rename->getSource(), $sourceBaseDirectory);
-                $targetPath = $this->getRelativePath($rename->getTarget(), $targetBaseDirectory);
+                $sourcePath = self::relativizePath($rename->getSource()->getPathname(), $sourceBaseDirectory);
+                $targetPath = self::relativizePath($rename->getTarget()->getPathname(), $targetBaseDirectory);
 
                 if ($isDuplicateTarget) {
                     $statusTag = '<fg=red>[D]</>';
@@ -301,22 +301,6 @@ class FileSystemService implements FileSystemServiceInterface
     }
 
     /**
-     * Converts an absolute file path to a display-friendly relative path by stripping
-     * the base directory prefix and prepending the base directory's own name. Falls back
-     * to the full pathname when the path does not start with the base or when the base
-     * directory is a relative path.
-     *
-     * @param SplFileInfo $fileInfo      File whose path should be relativized
-     * @param string|null $baseDirectory Normalized base directory (trailing separator stripped)
-     *
-     * @return string Relative or absolute path suitable for display
-     */
-    private function getRelativePath(SplFileInfo $fileInfo, ?string $baseDirectory): string
-    {
-        return self::relativizePath($fileInfo->getPathname(), $baseDirectory);
-    }
-
-    /**
      * Converts an absolute pathname to a display-friendly relative path by stripping
      * the base directory prefix and prepending the base directory's own name. Falls back
      * to the full pathname when the path does not start with the base or when the base
@@ -399,7 +383,7 @@ class FileSystemService implements FileSystemServiceInterface
      *
      * @throws RuntimeException When the directory cannot be created or the file operation fails
      */
-    protected function copyOrMoveFile(
+    private function copyOrMoveFile(
         SplFileInfo $sourceFileInfo,
         SplFileInfo $targetFileInfo,
         bool $copy = false,
