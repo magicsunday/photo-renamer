@@ -23,21 +23,11 @@ namespace MagicSunday\Renamer\Strategy\RenameStrategy\DatePattern;
 final readonly class PatternMatch
 {
     /**
-     * @param string $token       Full token including braces, e.g. "{Y}"
      * @param string $placeholder Bare placeholder name, e.g. "Y"
      */
     public function __construct(
-        private string $token,
         private string $placeholder,
     ) {
-    }
-
-    /**
-     * Returns the full token string including braces, as found in the template.
-     */
-    public function getToken(): string
-    {
-        return $this->token;
     }
 
     /**

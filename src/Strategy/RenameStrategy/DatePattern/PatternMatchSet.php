@@ -50,8 +50,8 @@ final class PatternMatchSet extends AbstractCollection
 
         $matchSet = new self();
 
-        foreach ($matches[0] as $index => $token) {
-            $matchSet->append(new PatternMatch($token, $matches[1][$index] ?? ''));
+        foreach ($matches[1] as $placeholder) {
+            $matchSet->append(new PatternMatch($placeholder));
         }
 
         return $matchSet;
@@ -97,22 +97,6 @@ final class PatternMatchSet extends AbstractCollection
         return array_values(
             array_map(
                 static fn (PatternMatch $match): string => $match->getPlaceholder(),
-                $this->asArray()
-            )
-        );
-    }
-
-    /**
-     * Returns all full tokens (e.g. ["{Y}", "{m}", "{d}"]) in the order they
-     * appear in the original pattern. Used for string replacement operations.
-     *
-     * @return string[]
-     */
-    public function tokens(): array
-    {
-        return array_values(
-            array_map(
-                static fn (PatternMatch $match): string => $match->getToken(),
                 $this->asArray()
             )
         );

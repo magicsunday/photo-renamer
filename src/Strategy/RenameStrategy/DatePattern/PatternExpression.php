@@ -23,11 +23,9 @@ namespace MagicSunday\Renamer\Strategy\RenameStrategy\DatePattern;
 final readonly class PatternExpression
 {
     /**
-     * @param string $template Original template string with {placeholder} tokens
-     * @param string $regex    Compiled PCRE regex derived from the template
+     * @param string $regex Compiled PCRE regex derived from the template
      */
     public function __construct(
-        private string $template,
         private string $regex,
     ) {
     }
@@ -45,15 +43,7 @@ final readonly class PatternExpression
     {
         $regex = $expressionMap->replacePlaceholders($template);
 
-        return new self($template, $regex);
-    }
-
-    /**
-     * Returns the original template string with {placeholder} tokens intact.
-     */
-    public function getTemplate(): string
-    {
-        return $this->template;
+        return new self($regex);
     }
 
     /**

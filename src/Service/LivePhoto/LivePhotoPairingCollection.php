@@ -62,18 +62,6 @@ final class LivePhotoPairingCollection implements IteratorAggregate
     }
 
     /**
-     * Creates a collection from an existing list of pairings.
-     *
-     * @param list<LivePhotoPairing> $pairings items to seed the collection with
-     *
-     * @return self collection containing the supplied pairings
-     */
-    public static function fromList(array $pairings): self
-    {
-        return new self($pairings);
-    }
-
-    /**
      * Appends a pairing to the collection.
      *
      * @param LivePhotoPairing $pairing pairing that should be tracked

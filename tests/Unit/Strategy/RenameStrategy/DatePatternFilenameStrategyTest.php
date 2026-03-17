@@ -241,7 +241,7 @@ class DatePatternFilenameStrategyTest extends TestCase
         $set = new PatternMatchSet();
 
         foreach ($placeholders as $placeholder) {
-            $set->append(new PatternMatch('{' . $placeholder . '}', $placeholder));
+            $set->append(new PatternMatch($placeholder));
         }
 
         return $set;

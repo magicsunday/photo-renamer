@@ -47,7 +47,6 @@ class PatternMatchSetTest extends TestCase
     {
         $set = PatternMatchSet::fromPattern('/^{Y}-{m}-{d}$/');
 
-        self::assertSame(['{Y}', '{m}', '{d}'], $set->tokens());
         self::assertSame(['Y', 'm', 'd'], $set->placeholders());
     }
 
@@ -66,7 +65,6 @@ class PatternMatchSetTest extends TestCase
         $match = $set->get(0);
 
         self::assertNotNull($match);
-        self::assertSame('{H}', $match->getToken());
         self::assertSame('H', $match->getPlaceholder());
     }
 }

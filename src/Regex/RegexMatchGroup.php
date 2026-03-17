@@ -53,14 +53,6 @@ final readonly class RegexMatchGroup
     }
 
     /**
-     * Returns the first captured value, or null when the group is empty.
-     */
-    public function first(): ?string
-    {
-        return $this->values[0] ?? null;
-    }
-
-    /**
      * Returns all captured values as a zero-based list.
      *
      * @return list<string>

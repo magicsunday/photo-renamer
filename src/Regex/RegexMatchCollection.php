@@ -11,7 +11,6 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Regex;
 
-use function array_key_last;
 use function is_int;
 
 /**
@@ -96,20 +95,5 @@ final readonly class RegexMatchCollection
     public function group(int $index): ?RegexMatchGroup
     {
         return $this->groups[$index] ?? null;
-    }
-
-    /**
-     * Returns the last capture group in the collection, or null when empty.
-     * Useful for accessing trailing suffix captures.
-     */
-    public function lastGroup(): ?RegexMatchGroup
-    {
-        $lastKey = array_key_last($this->groups);
-
-        if ($lastKey === null) {
-            return null;
-        }
-
-        return $this->groups[$lastKey];
     }
 }

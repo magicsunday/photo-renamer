@@ -49,7 +49,6 @@ class PatternExpressionTest extends TestCase
             DatePlaceholderExpressionMap::default()
         );
 
-        self::assertSame($template, $expression->getTemplate());
         self::assertSame('/^(\\d{4})(\\d{2})$/', $expression->getRegex());
     }
 }
