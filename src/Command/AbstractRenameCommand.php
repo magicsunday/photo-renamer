@@ -342,7 +342,13 @@ abstract class AbstractRenameCommand extends Command
         }
 
         if ($this->isWindowsDriveRoot($path)) {
-            $separator = str_contains($path, '\\') ? '\\' : (str_contains($path, '/') ? '/' : DIRECTORY_SEPARATOR);
+            if (str_contains($path, '\\')) {
+                $separator = '\\';
+            } elseif (str_contains($path, '/')) {
+                $separator = '/';
+            } else {
+                $separator = DIRECTORY_SEPARATOR;
+            }
 
             return rtrim($path, '/\\') . $separator;
         }
