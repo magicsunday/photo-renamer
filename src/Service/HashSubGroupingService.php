@@ -17,6 +17,7 @@ use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
+use Override;
 use SplFileInfo;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
@@ -36,7 +37,7 @@ use function strtolower;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-class HashSubGroupingService
+class HashSubGroupingService implements HashSubGroupingServiceInterface
 {
     /**
      * Extensions that identify still image assets within Live Photo groups.
@@ -69,6 +70,7 @@ class HashSubGroupingService
      * @param array<string, string>                $contentIdentifierMap   map from source pathname to content identifier
      * @param Closure(SplFileInfo, string): string $targetPathnameResolver resolves (sourceFileInfo, targetFilename) to absolute target path
      */
+    #[Override]
     public function apply(
         FileDuplicate $fileDuplicate,
         ?Rename $canonicalRename,
@@ -322,6 +324,7 @@ class HashSubGroupingService
      *
      * @return bool True when the file extension matches a known still image format
      */
+    #[Override]
     public function isLivePhotoStill(SplFileInfo $fileInfo): bool
     {
         $extension = strtolower($fileInfo->getExtension());

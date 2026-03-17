@@ -101,12 +101,12 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     private int $lastScannedFileCount = 0;
 
     /**
-     * @param SymfonyStyle           $io                     Console IO for progress bars and error output
-     * @param HashSubGroupingService $hashSubGroupingService Service for content-hash-based sub-grouping
+     * @param SymfonyStyle                    $io                     Console IO for progress bars and error output
+     * @param HashSubGroupingServiceInterface $hashSubGroupingService Service for content-hash-based sub-grouping
      */
     public function __construct(
         private readonly SymfonyStyle $io,
-        private readonly HashSubGroupingService $hashSubGroupingService,
+        private readonly HashSubGroupingServiceInterface $hashSubGroupingService,
     ) {
     }
 
