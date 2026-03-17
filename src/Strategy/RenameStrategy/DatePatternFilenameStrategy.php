@@ -36,13 +36,46 @@ use function strlen;
 readonly class DatePatternFilenameStrategy extends InheritFilenameStrategy
 {
     /**
+     * Pre-computed date format characters from the pattern placeholders.
+     *
+     * @var list<string>
+     */
+    private array $dateFormatCharacters;
+
+    /**
+     * Pre-computed target filename pattern with placeholders resolved to bare names.
+     */
+    private string $targetFilenamePattern;
+
+    /**
      * @param string          $pattern        PCRE regex to extract date components from the filename
      * @param string          $replacement    PHP date() format template with {placeholder} tokens
      * @param PatternMatchSet $patternMatches Set of placeholder-to-date-format-character mappings
      * @param SafeRegex       $regex          Safe wrapper around preg_* functions with error handling
      */
-    public function __construct(private string $pattern, private string $replacement, private PatternMatchSet $patternMatches, private SafeRegex $regex)
+    public function __construct(private string $pattern, private string $replacement, PatternMatchSet $patternMatches, private SafeRegex $regex)
     {
+        $this->dateFormatCharacters = $patternMatches->placeholders();
+
+        $replacementMatches = RegexMatchCollection::fromMatchAll(
+            $this->regex->matchAll(
+                '/{(\w+)}/',
+                $this->replacement . '$1',
+                'resolving date pattern placeholders',
+            ),
+        );
+
+        $resolvedPattern = $this->replacement;
+
+        if ($replacementMatches->hasGroup(0) && $replacementMatches->hasGroup(1)) {
+            $resolvedPattern = str_replace(
+                $replacementMatches->group(0)?->values() ?? [],
+                $replacementMatches->group(1)?->values() ?? [],
+                $this->replacement,
+            );
+        }
+
+        $this->targetFilenamePattern = $resolvedPattern;
     }
 
     /**
@@ -70,24 +103,8 @@ readonly class DatePatternFilenameStrategy extends InheritFilenameStrategy
                 ),
             );
 
-            $replacementMatches = RegexMatchCollection::fromMatchAll(
-                $this->regex->matchAll(
-                    '/{(\w+)}/',
-                    $this->replacement . '$1',
-                    'resolving date pattern placeholders',
-                ),
-            );
-
-            $dateFormatCharacters  = $this->patternMatches->placeholders();
-            $targetFilenamePattern = $this->replacement;
-
-            if ($replacementMatches->hasGroup(0) && $replacementMatches->hasGroup(1)) {
-                $targetFilenamePattern = str_replace(
-                    $replacementMatches->group(0)?->values() ?? [],
-                    $replacementMatches->group(1)?->values() ?? [],
-                    $this->replacement,
-                );
-            }
+            $dateFormatCharacters  = $this->dateFormatCharacters;
+            $targetFilenamePattern = $this->targetFilenamePattern;
 
             $suffixIndex = $filePartMatches->count() > 0 ? $filePartMatches->count() - 1 : 0;
 

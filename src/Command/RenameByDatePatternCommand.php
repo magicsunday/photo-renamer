@@ -19,7 +19,6 @@ use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetPathnameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\DatePattern\DatePlaceholderExpressionMap;
-use MagicSunday\Renamer\Strategy\RenameStrategy\DatePattern\PatternExpression;
 use MagicSunday\Renamer\Strategy\RenameStrategy\DatePattern\PatternMatchSet;
 use MagicSunday\Renamer\Strategy\RenameStrategy\DatePatternFilenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
@@ -53,7 +52,7 @@ class RenameByDatePatternCommand extends AbstractRenameCommand
         parent::__construct($fileSystemService, $duplicateDetectionService);
     }
 
-    private ?PatternExpression $patternExpression = null;
+    private ?string $patternRegex = null;
 
     private ?PatternMatchSet $patternMatchSet = null;
 
@@ -103,10 +102,8 @@ class RenameByDatePatternCommand extends AbstractRenameCommand
             throw new RuntimeException('Failed to extract the date pattern from given pattern');
         }
 
-        $this->patternExpression = PatternExpression::fromTemplate(
-            $patternOption,
-            DatePlaceholderExpressionMap::default()
-        );
+        $this->patternRegex = DatePlaceholderExpressionMap::default()
+            ->replacePlaceholders($patternOption);
 
         $this->patternMatchSet = PatternMatchSet::fromPattern($patternOption);
         $this->replacement     = $replacementOption;
@@ -120,8 +117,8 @@ class RenameByDatePatternCommand extends AbstractRenameCommand
     #[Override]
     protected function createFileIterator(): RecursiveIteratorIterator
     {
-        if (!$this->patternExpression instanceof PatternExpression) {
-            throw new RuntimeException('Pattern expression has not been initialised.');
+        if ($this->patternRegex === null) {
+            throw new RuntimeException('Pattern regex has not been initialised.');
         }
 
         return $this->fileSystemService
@@ -132,7 +129,7 @@ class RenameByDatePatternCommand extends AbstractRenameCommand
                         $this->sourceDirectory,
                         FilesystemIterator::SKIP_DOTS
                     ),
-                    $this->patternExpression->getRegex()
+                    $this->patternRegex
                 )
             );
     }
@@ -140,12 +137,12 @@ class RenameByDatePatternCommand extends AbstractRenameCommand
     #[Override]
     protected function getTargetFilenameStrategy(): RenameStrategyInterface
     {
-        if (!($this->patternExpression instanceof PatternExpression) || !($this->patternMatchSet instanceof PatternMatchSet)) {
+        if (($this->patternRegex === null) || !($this->patternMatchSet instanceof PatternMatchSet)) {
             throw new RuntimeException('Pattern configuration has not been initialised.');
         }
 
         return new DatePatternFilenameStrategy(
-            $this->patternExpression->getRegex(),
+            $this->patternRegex,
             $this->replacement,
             $this->patternMatchSet,
             $this->safeRegex,
