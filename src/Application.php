@@ -65,7 +65,7 @@ class Application extends \Symfony\Component\Console\Application
         );
 
         foreach ($commands as $command) {
-            $this->addCommand($command);
+            $this->add($command);
         }
     }
 
