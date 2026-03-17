@@ -305,6 +305,12 @@ abstract class AbstractRenameCommand extends Command
             return $this->trimTrailingDirectorySeparator($resolved);
         }
 
+        if (str_contains($directory, '..')) {
+            throw new RuntimeException(
+                sprintf('Directory "%s" does not exist and contains path traversal components', $directory)
+            );
+        }
+
         return $this->trimTrailingDirectorySeparator($directory);
     }
 
