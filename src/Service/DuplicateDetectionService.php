@@ -33,8 +33,10 @@ use function array_column;
 use function array_key_exists;
 use function count;
 use function is_dir;
+use function is_string;
 use function sprintf;
 use function str_contains;
+use function strlen;
 use function strtolower;
 use function substr_count;
 
@@ -794,7 +796,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
      * @param SplFileInfo $source         source file currently being processed
      * @param SplFileInfo $target         initial target file information
      * @param string      $targetBasename base filename (without extension) used for duplicate naming
-     * @param int         $duplicateCount counter used to create unique duplicate suffixes (passed by reference)
+     * @param int         $duplicateCount counter used to create unique duplicate suffixes
      *
      * @return SplFileInfo file info representing the next duplicate candidate
      */
@@ -802,7 +804,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         SplFileInfo $source,
         SplFileInfo $target,
         string $targetBasename,
-        int &$duplicateCount,
+        int $duplicateCount,
     ): SplFileInfo {
         $newTargetBasename = sprintf(
             '%s' . Constants::DUPLICATE_IDENTIFIER . '%003d',
