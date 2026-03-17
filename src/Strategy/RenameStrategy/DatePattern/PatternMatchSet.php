@@ -57,28 +57,18 @@ final class PatternMatchSet extends AbstractCollection
         return $matchSet;
     }
 
-    /**
-     * @param PatternMatch $value
-     */
     #[Override]
     public function append(object $value): void
     {
         parent::append($value);
     }
 
-    /**
-     * @param int $key
-     */
     #[Override]
     public function get(int|string $key): ?PatternMatch
     {
         return parent::get((int) $key);
     }
 
-    /**
-     * @param int          $key
-     * @param PatternMatch $value
-     */
     #[Override]
     public function set(int|string $key, object $value): void
     {
