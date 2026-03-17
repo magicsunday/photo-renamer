@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service;
 
 use FilesystemIterator;
+use MagicSunday\Renamer\Command\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
@@ -72,9 +73,12 @@ class FileSystemService implements FileSystemServiceInterface
         ?RecursiveIterator $recursiveIterator = null,
     ): RecursiveIteratorIterator {
         if (!$recursiveIterator instanceof RecursiveIterator) {
-            $recursiveIterator = new RecursiveDirectoryIterator(
-                $directory,
-                FilesystemIterator::SKIP_DOTS
+            $recursiveIterator = new RecursiveRegexFileFilterIterator(
+                new RecursiveDirectoryIterator(
+                    $directory,
+                    FilesystemIterator::SKIP_DOTS
+                ),
+                '/^.+$/'
             );
         }
 
