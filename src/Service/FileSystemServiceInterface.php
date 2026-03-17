@@ -39,17 +39,6 @@ interface FileSystemServiceInterface
     public function createFileIterator(string $directory, ?RecursiveIterator $recursiveIterator = null): RecursiveIteratorIterator;
 
     /**
-     * Counts the number of files in the given iterator.
-     *
-     * @template TInner of RecursiveIterator
-     *
-     * @param RecursiveIteratorIterator<TInner> $iterator The file iterator
-     *
-     * @return int The number of files
-     */
-    public function countFiles(RecursiveIteratorIterator $iterator): int;
-
-    /**
      * Renames all the files in the collection.
      *
      * @param FileDuplicateCollection $fileDuplicateCollection Collection of file duplicates

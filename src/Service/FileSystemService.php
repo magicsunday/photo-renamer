@@ -79,26 +79,6 @@ class FileSystemService implements FileSystemServiceInterface
     }
 
     /**
-     * Counts how many files the provided iterator will yield.
-     *
-     * @template TInner of RecursiveIterator
-     *
-     * @param RecursiveIteratorIterator<TInner> $iterator Iterator created by {@see createFileIterator()}
-     *
-     * @return int Number of files encountered while iterating
-     */
-    public function countFiles(RecursiveIteratorIterator $iterator): int
-    {
-        $fileCount = 0;
-
-        foreach ($iterator as $ignored) {
-            ++$fileCount;
-        }
-
-        return $fileCount;
-    }
-
-    /**
      * Renames or copies files represented by the provided duplicate collection.
      *
      * @param FileDuplicateCollection $fileDuplicateCollection Collection describing source/target file pairs grouped by duplicate identifier
