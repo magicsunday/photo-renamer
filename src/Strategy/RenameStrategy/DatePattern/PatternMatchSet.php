@@ -11,33 +11,33 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Strategy\RenameStrategy\DatePattern;
 
-use MagicSunday\Renamer\Model\Collection\AbstractCollection;
 use MagicSunday\Renamer\Regex\SafeRegex;
-use Override;
-
-use function array_map;
-use function array_values;
 
 /**
- * Ordered collection of PatternMatch instances extracted from a date pattern template.
- * Provides convenience methods to retrieve all placeholder names (for date format
- * reconstruction) or all tokens (for string replacement).
+ * Ordered set of placeholder names extracted from a date pattern template.
+ * Used to map regex capture groups back to their PHP date() format characters.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
- *
- * @extends AbstractCollection<int, PatternMatch>
  */
-final class PatternMatchSet extends AbstractCollection
+final readonly class PatternMatchSet
 {
     /**
-     * Creates a set of pattern matches for every placeholder token in the given pattern string.
+     * @param list<string> $placeholders Bare placeholder names (e.g. ["Y", "m", "d"])
+     */
+    private function __construct(
+        private array $placeholders,
+    ) {
+    }
+
+    /**
+     * Creates a set of placeholder names for every placeholder token in the given pattern string.
      *
      * @param string    $pattern   Pattern string containing placeholder tokens (e.g. `{placeholder}`)
      * @param SafeRegex $safeRegex Safe wrapper around preg_* functions with error handling
      *
-     * @return self Collection populated with {@see PatternMatch} instances for each discovered token
+     * @return PatternMatchSet Set populated with placeholder names for each discovered token
      */
     public static function fromPattern(string $pattern, SafeRegex $safeRegex = new SafeRegex()): self
     {
@@ -47,31 +47,10 @@ final class PatternMatchSet extends AbstractCollection
             'extracting placeholders from pattern',
         );
 
-        $matchSet = new self();
+        /** @var list<string> $matches */
+        $matches = $result->matches()[1] ?? [];
 
-        foreach ($result->matches()[1] ?? [] as $placeholder) {
-            $matchSet->append(new PatternMatch($placeholder));
-        }
-
-        return $matchSet;
-    }
-
-    #[Override]
-    public function append(object $value): void
-    {
-        parent::append($value);
-    }
-
-    #[Override]
-    public function get(int|string $key): ?PatternMatch
-    {
-        return parent::get((int) $key);
-    }
-
-    #[Override]
-    public function set(int|string $key, object $value): void
-    {
-        parent::set((int) $key, $value);
+        return new self($matches);
     }
 
     /**
@@ -79,15 +58,10 @@ final class PatternMatchSet extends AbstractCollection
      * they appear in the original pattern. Used to map regex capture groups
      * back to their date format characters.
      *
-     * @return string[]
+     * @return list<string>
      */
     public function placeholders(): array
     {
-        return array_values(
-            array_map(
-                static fn (PatternMatch $match): string => $match->getPlaceholder(),
-                $this->asArray()
-            )
-        );
+        return $this->placeholders;
     }
 }

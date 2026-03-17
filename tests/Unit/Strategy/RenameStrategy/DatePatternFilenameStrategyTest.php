@@ -13,13 +13,15 @@ namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy;
 
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Regex\SafeRegex;
-use MagicSunday\Renamer\Strategy\RenameStrategy\DatePattern\PatternMatch;
 use MagicSunday\Renamer\Strategy\RenameStrategy\DatePattern\PatternMatchSet;
 use MagicSunday\Renamer\Strategy\RenameStrategy\DatePatternFilenameStrategy;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
+
+use function array_map;
+use function implode;
 
 /**
  * Unit tests for DatePatternFilenameStrategy class.
@@ -238,12 +240,11 @@ class DatePatternFilenameStrategyTest extends TestCase
      */
     private function createPatternMatchSet(array $placeholders): PatternMatchSet
     {
-        $set = new PatternMatchSet();
+        $pattern = '/^' . implode('-', array_map(
+            static fn (string $p): string => '{' . $p . '}',
+            $placeholders,
+        )) . '$/';
 
-        foreach ($placeholders as $placeholder) {
-            $set->append(new PatternMatch($placeholder));
-        }
-
-        return $set;
+        return PatternMatchSet::fromPattern($pattern);
     }
 }
