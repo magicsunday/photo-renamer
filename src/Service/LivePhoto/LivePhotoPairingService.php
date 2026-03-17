@@ -17,8 +17,6 @@ use RecursiveIteratorIterator;
 use SplFileInfo;
 
 use function is_callable;
-use function strtolower;
-use function trim;
 
 /**
  * Discovers companion files (typically MOV videos) that belong to existing Live Photo
@@ -57,9 +55,7 @@ class LivePhotoPairingService
             foreach ($fileDuplicate->getFiles() as $existingFileInfo) {
                 $existingFilePathnames->remember($existingFileInfo);
 
-                $contentIdentifier = $contentIdentifierResolver($existingFileInfo);
-
-                $normalizedContentIdentifier = $this->normalizeContentIdentifier($contentIdentifier);
+                $normalizedContentIdentifier = $contentIdentifierResolver($existingFileInfo);
 
                 if ($matchByContentIdentifier && $normalizedContentIdentifier !== null) {
                     $contentIdentifierTargets->remember(
@@ -92,8 +88,7 @@ class LivePhotoPairingService
                 continue;
             }
 
-            $contentIdentifier           = $contentIdentifierResolver($fileInfo);
-            $normalizedContentIdentifier = $this->normalizeContentIdentifier($contentIdentifier);
+            $normalizedContentIdentifier = $contentIdentifierResolver($fileInfo);
 
             $targetPrototype   = null;
             $pairingIdentifier = $normalizedContentIdentifier;
@@ -145,28 +140,5 @@ class LivePhotoPairingService
         }
 
         return $pairs;
-    }
-
-    /**
-     * Lowercases and trims a content identifier string. Returns null for empty
-     * or null inputs.
-     *
-     * @param string|null $contentIdentifier Raw content identifier to normalize
-     *
-     * @return string|null Normalized identifier, or null
-     */
-    private function normalizeContentIdentifier(?string $contentIdentifier): ?string
-    {
-        if ($contentIdentifier === null) {
-            return null;
-        }
-
-        $normalized = strtolower(trim($contentIdentifier));
-
-        if ($normalized === '') {
-            return null;
-        }
-
-        return $normalized;
     }
 }

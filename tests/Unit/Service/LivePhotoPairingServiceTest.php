@@ -89,14 +89,13 @@ final class LivePhotoPairingServiceTest extends TestCase
     }
 
     /**
-     * Verifies that pairing succeeds even when the content identifier resolver
-     * returns identifiers with surrounding whitespace and different casing.
+     * Verifies that pairing succeeds when the content identifier resolver returns
+     * already-normalized identifiers (lowercase, trimmed) from both photo and video.
      *
-     * Normalisation (trim + lowercase) must happen before comparison, otherwise
-     * "  Content-ID  " from the photo would not match "content-id" from the video.
+     * Normalization is the provider's responsibility; the service trusts the contract.
      */
     #[Test]
-    public function itPairsVideoWhenResolverReturnsWhitespaceIdentifiers(): void
+    public function itPairsVideoWhenResolverReturnsNormalizedIdentifiers(): void
     {
         $photo  = new SplFileInfo('/source/IMG_0002.HEIC');
         $video  = new SplFileInfo('/source/IMG_0002.MOV');
@@ -119,9 +118,8 @@ final class LivePhotoPairingServiceTest extends TestCase
             iterator: $iterator,
             fileDuplicateCollection: $duplicateCollection,
             contentIdentifierResolver: static fn (SplFileInfo $file): ?string => match ($file->getPathname()) {
-                $photo->getPathname() => "  \tContent-ID  \n",
-                $video->getPathname() => 'content-id',
-                default               => null,
+                $photo->getPathname(), $video->getPathname() => 'content-id',
+                default => null,
             },
         );
 

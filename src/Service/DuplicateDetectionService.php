@@ -33,12 +33,10 @@ use function array_column;
 use function array_key_exists;
 use function count;
 use function is_dir;
-use function is_string;
 use function sprintf;
 use function str_contains;
 use function strtolower;
 use function substr_count;
-use function trim;
 
 /**
  * Central orchestrator of the rename pipeline's grouping and suffix-assignment phases.
@@ -999,14 +997,18 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     }
 
     /**
-     * Extracts and normalizes the Live Photo content identifier from the rename strategy,
+     * Extracts the Live Photo content identifier from the rename strategy,
      * returning null when the strategy does not support Live Photo awareness or when the
      * file has no content identifier.
+     *
+     * The value returned by {@see LivePhotoAwareRenameStrategyInterface::getLivePhotoContentIdentifier()}
+     * is already normalized (lowercased, trimmed) by the provider, so no further
+     * normalization is applied here.
      *
      * @param RenameStrategyInterface $renameStrategy Strategy that may implement LivePhotoAwareRenameStrategyInterface
      * @param SplFileInfo             $sourceFileInfo File to extract the content identifier from
      *
-     * @return string|null Lowercased, trimmed content identifier, or null
+     * @return string|null Already-normalized content identifier, or null
      */
     private function resolveNormalizedContentIdentifier(
         RenameStrategyInterface $renameStrategy,
@@ -1016,18 +1018,6 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             return null;
         }
 
-        $contentIdentifier = $renameStrategy->getLivePhotoContentIdentifier($sourceFileInfo);
-
-        if (!is_string($contentIdentifier)) {
-            return null;
-        }
-
-        $normalized = strtolower(trim($contentIdentifier));
-
-        if ($normalized === '') {
-            return null;
-        }
-
-        return $normalized;
+        return $renameStrategy->getLivePhotoContentIdentifier($sourceFileInfo);
     }
 }
