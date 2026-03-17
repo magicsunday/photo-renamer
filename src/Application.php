@@ -14,6 +14,10 @@ namespace MagicSunday\Renamer;
 use Override;
 use Symfony\Component\Console\Command\Command;
 
+use function file_exists;
+use function file_get_contents;
+use function trim;
+
 /**
  * Symfony Console application entry point. Registers all rename commands
  * injected via the DI container, reads the application version from the

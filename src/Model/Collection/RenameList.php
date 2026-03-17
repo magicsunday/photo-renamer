@@ -14,6 +14,8 @@ namespace MagicSunday\Renamer\Model\Collection;
 use MagicSunday\Renamer\Model\Rename;
 use Override;
 
+use function array_values;
+
 /**
  * Integer-indexed collection of Rename operations. Maintains the ordered list
  * of source-to-target mappings for a duplicate group, supporting reindexing

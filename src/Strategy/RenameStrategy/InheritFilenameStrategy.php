@@ -15,6 +15,8 @@ use MagicSunday\Renamer\Constants;
 use Override;
 use SplFileInfo;
 
+use function preg_replace;
+
 /**
  * Base rename strategy that keeps the original filename intact, only stripping
  * any previously applied "-duplicate-NNN" suffix. Serves as the foundation for

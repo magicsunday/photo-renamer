@@ -19,6 +19,10 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Dumper\PhpDumper;
 use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
 
+use function file_exists;
+use function file_put_contents;
+use function is_dir;
+use function mkdir;
 use function sprintf;
 
 require_once __DIR__ . '/../.build/vendor/autoload.php';

@@ -21,6 +21,7 @@ use Override;
 use SplFileInfo;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
+use function array_keys;
 use function count;
 use function in_array;
 use function spl_object_id;

@@ -14,6 +14,8 @@ namespace MagicSunday\Renamer\Strategy\RenameStrategy;
 use Override;
 use SplFileInfo;
 
+use function mb_strtolower;
+
 /**
  * Converts the inherited filename to lowercase using multibyte-safe conversion.
  * Applied by the rename:lowercase command to normalize mixed-case filenames

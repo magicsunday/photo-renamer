@@ -24,10 +24,16 @@ use SplFileInfo;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function basename;
+use function copy;
+use function file_exists;
 use function is_dir;
 use function is_string;
+use function max;
+use function mkdir;
 use function preg_match;
 use function preg_quote;
+use function preg_replace;
+use function rename;
 use function rtrim;
 use function sprintf;
 use function str_starts_with;
