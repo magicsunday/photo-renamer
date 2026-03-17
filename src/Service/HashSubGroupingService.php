@@ -279,10 +279,7 @@ class HashSubGroupingService implements HashSubGroupingServiceInterface
             // First file per content ID is the companion (no duplicate suffix).
             $contentIdKey = $renameContentId ?? '__none_' . $renamePath;
 
-            if (!isset($excludedDuplicateCountByContentId[$contentIdKey])) {
-                $excludedDuplicateCountByContentId[$contentIdKey] = 1;
-                $newTargetFilename                                = $fileBasename . '.' . $ext;
-            } else {
+            if (isset($excludedDuplicateCountByContentId[$contentIdKey])) {
                 $dupIdx            = $excludedDuplicateCountByContentId[$contentIdKey];
                 $newTargetFilename = sprintf(
                     '%s%s%03d.%s',
@@ -293,6 +290,9 @@ class HashSubGroupingService implements HashSubGroupingServiceInterface
                 );
 
                 ++$excludedDuplicateCountByContentId[$contentIdKey];
+            } else {
+                $excludedDuplicateCountByContentId[$contentIdKey] = 1;
+                $newTargetFilename                                = $fileBasename . '.' . $ext;
             }
 
             $targetPathname = $targetPathnameResolver(
