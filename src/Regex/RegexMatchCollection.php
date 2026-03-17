@@ -60,13 +60,12 @@ final readonly class RegexMatchCollection
      */
     public static function fromMatchAll(RegexMatchAllResult $result): self
     {
-        $groups = [];
-
-        foreach ($result->matches() as $key => $groupMatches) {
-            $groups[$key] = RegexMatchGroup::fromList($groupMatches);
-        }
-
-        return new self($groups);
+        return new self(
+            array_map(
+                static fn (array $groupMatches): RegexMatchGroup => RegexMatchGroup::fromList($groupMatches),
+                $result->matches(),
+            ),
+        );
     }
 
     /**
