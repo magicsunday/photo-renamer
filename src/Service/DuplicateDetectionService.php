@@ -458,7 +458,6 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 // Priority 1: source already has the canonical base name (idempotency).
                 if ($exactName && !$canonicalExactName) {
                     $canonicalRename    = $rename;
-                    $canonicalHasLpId   = $hasLpId;
                     $canonicalExactName = true;
 
                     break;
