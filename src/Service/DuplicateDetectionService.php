@@ -1003,6 +1003,8 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
      * @param SplFileInfo             $sourceFileInfo File to extract the content identifier from
      *
      * @return string|null Already-normalized content identifier, or null
+     *
+     * @throws TargetFilenameException When reading metadata fails
      */
     private function resolveNormalizedContentIdentifier(
         RenameStrategyInterface $renameStrategy,
