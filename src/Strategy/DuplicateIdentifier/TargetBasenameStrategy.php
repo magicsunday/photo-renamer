@@ -24,7 +24,7 @@ use SplFileInfo;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-class TargetBasenameStrategy implements DuplicateIdentifierStrategyInterface
+readonly class TargetBasenameStrategy implements DuplicateIdentifierStrategyInterface
 {
     /**
      * Extracts the target filename without its extension. For example,

@@ -33,7 +33,7 @@ use function strlen;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-class DatePatternFilenameStrategy extends InheritFilenameStrategy
+readonly class DatePatternFilenameStrategy extends InheritFilenameStrategy
 {
     /**
      * @param string          $pattern        PCRE regex to extract date components from the filename
@@ -41,7 +41,7 @@ class DatePatternFilenameStrategy extends InheritFilenameStrategy
      * @param PatternMatchSet $patternMatches Set of placeholder-to-date-format-character mappings
      * @param SafeRegex       $regex          Safe wrapper around preg_* functions with error handling
      */
-    public function __construct(private readonly string $pattern, private readonly string $replacement, private readonly PatternMatchSet $patternMatches, private readonly SafeRegex $regex)
+    public function __construct(private string $pattern, private string $replacement, private PatternMatchSet $patternMatches, private SafeRegex $regex)
     {
     }
 

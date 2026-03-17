@@ -26,14 +26,14 @@ use SplFileInfo;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-class PatternFilenameStrategy extends InheritFilenameStrategy
+readonly class PatternFilenameStrategy extends InheritFilenameStrategy
 {
     /**
      * @param string    $pattern     PCRE regex pattern to match against the filename
      * @param string    $replacement Replacement string (may contain back-references)
      * @param SafeRegex $regex       Safe wrapper around preg_* functions with error handling
      */
-    public function __construct(private readonly string $pattern, private readonly string $replacement, private readonly SafeRegex $regex)
+    public function __construct(private string $pattern, private string $replacement, private SafeRegex $regex)
     {
     }
 

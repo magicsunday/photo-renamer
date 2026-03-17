@@ -24,7 +24,7 @@ use SplFileInfo;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-class TargetPathnameStrategy implements DuplicateIdentifierStrategyInterface
+readonly class TargetPathnameStrategy implements DuplicateIdentifierStrategyInterface
 {
     /**
      * Returns the full target pathname as the grouping key, ensuring files in

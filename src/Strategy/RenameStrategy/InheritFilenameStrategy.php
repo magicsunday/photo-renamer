@@ -27,7 +27,7 @@ use function preg_replace;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-class InheritFilenameStrategy implements RenameStrategyInterface
+readonly class InheritFilenameStrategy implements RenameStrategyInterface
 {
     /**
      * Returns the original filename with any "-duplicate-NNN" suffix removed.
