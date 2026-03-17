@@ -336,7 +336,7 @@ class FileSystemService implements FileSystemServiceInterface
         if (
             !str_starts_with($normalizedBase, DIRECTORY_SEPARATOR)
             && !str_starts_with($normalizedBase, '\\')
-            && preg_match('/^[A-Za-z]:(?:[\\\\\\/]|$)/', $normalizedBase) !== 1
+            && (preg_match('/^[A-Za-z]:(?:[\\\\\\/]|$)/', $normalizedBase) !== 1)
         ) {
             return $pathname;
         }

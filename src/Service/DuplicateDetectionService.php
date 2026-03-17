@@ -582,9 +582,9 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                     // Non-canonical files sharing the canonical target path need a suffix.
                     // When the canonical itself doesn't need promotion (base name already
                     // occupied by another extension), it also needs disambiguation.
-                    $requiresCanonicalDisambiguation = $canonicalRename instanceof Rename
-                        && ($rename !== $canonicalRename || !$canonicalNeedsPromotion)
-                        && $rename->getTarget()->getPathname() === $canonicalTargetPath;
+                    $requiresCanonicalDisambiguation = ($canonicalRename instanceof Rename)
+                        && (($rename !== $canonicalRename) || !$canonicalNeedsPromotion)
+                        && ($rename->getTarget()->getPathname() === $canonicalTargetPath);
 
                     $rename->setTarget(
                         $this->createDuplicateTargetFileInfo(
