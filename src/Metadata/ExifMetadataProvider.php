@@ -45,6 +45,16 @@ final class ExifMetadataProvider
     }
 
     /**
+     * Releases all cached metadata to free memory.
+     * Safe to call after the grouping phase when all content identifiers
+     * have been captured into the content identifier map.
+     */
+    public function clearCache(): void
+    {
+        $this->metadataCache = [];
+    }
+
+    /**
      * Returns the capture timestamp for the given file, extracting and caching
      * metadata on first access. Returns null when the file contains no usable
      * capture date information.
