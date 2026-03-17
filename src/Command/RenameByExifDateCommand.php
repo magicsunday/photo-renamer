@@ -13,11 +13,11 @@ namespace MagicSunday\Renamer\Command;
 
 use FilesystemIterator;
 use MagicSunday\Renamer\Command\FilterIterator\RecursiveRegexFileFilterIterator;
+use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
-use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairing;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingService;
@@ -166,7 +166,7 @@ class RenameByExifDateCommand extends AbstractRenameCommand
 
         if ($fileCount > 0) {
             $progressBar = $this->io->createProgressBar($fileCount);
-            $progressBar->setFormat(FileSystemService::PROGRESS_BAR_FORMAT);
+            $progressBar->setFormat(Constants::PROGRESS_BAR_FORMAT);
             $progressBar->start();
         }
 

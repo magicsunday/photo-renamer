@@ -11,7 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Strategy\RenameStrategy;
 
-use MagicSunday\Renamer\Service\FileSystemService;
+use MagicSunday\Renamer\Constants;
 use Override;
 use SplFileInfo;
 
@@ -60,7 +60,7 @@ class InheritFilenameStrategy implements RenameStrategyInterface
     protected function removeDuplicateFileIdentifier(string $filename): string
     {
         return preg_replace(
-            '/' . FileSystemService::DUPLICATE_IDENTIFIER . '\d{3}/',
+            '/' . Constants::DUPLICATE_IDENTIFIER . '\d{3}/',
             '',
             $filename
         ) ?? $filename;

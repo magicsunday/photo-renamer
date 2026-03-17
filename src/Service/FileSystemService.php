@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service;
 
 use FilesystemIterator;
+use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\RenameOptions;
@@ -44,27 +45,6 @@ use function substr;
  */
 class FileSystemService implements FileSystemServiceInterface
 {
-    /**
-     * Symfony progress bar format string shared across all pipeline phases.
-     */
-    public const string PROGRESS_BAR_FORMAT = ' %current%/%max% [%bar%] %percent:3s%% | ETA: %estimated:-6s% | Remaining: %remaining:-6s%';
-
-    /**
-     * String inserted between the base name and the sequential number
-     * when creating duplicate-suffixed filenames (e.g. "photo-duplicate-001.jpg").
-     */
-    public const string DUPLICATE_IDENTIFIER = '-duplicate-';
-
-    /**
-     * Upper bound for the runtime duplicate suffix fallback loop.
-     */
-    public const int MAX_DUPLICATE_SUFFIX = 9999;
-
-    /**
-     * Prefix used to identify Live Photo groups by their duplicate identifier string.
-     */
-    public const string LIVE_PHOTO_IDENTIFIER_PREFIX = 'live-photo:';
-
     /**
      * @param SymfonyStyle $io Console IO for progress bars, status output and error messages
      */
@@ -312,7 +292,7 @@ class FileSystemService implements FileSystemServiceInterface
             return false;
         }
 
-        return str_starts_with($duplicateIdentifier, self::LIVE_PHOTO_IDENTIFIER_PREFIX);
+        return str_starts_with($duplicateIdentifier, Constants::LIVE_PHOTO_IDENTIFIER_PREFIX);
     }
 
     /**
@@ -478,14 +458,14 @@ class FileSystemService implements FileSystemServiceInterface
         $dir      = $target->getPath();
 
         // Strip any existing duplicate suffix to avoid nested suffixes (e.g. -duplicate-003-duplicate-001).
-        $basename = preg_replace('/' . preg_quote(self::DUPLICATE_IDENTIFIER, '/') . '\d+$/', '', $basename) ?? $basename;
+        $basename = preg_replace('/' . preg_quote(Constants::DUPLICATE_IDENTIFIER, '/') . '\d+$/', '', $basename) ?? $basename;
 
         $counter = 1;
 
         do {
-            if ($counter > self::MAX_DUPLICATE_SUFFIX) {
+            if ($counter > Constants::MAX_DUPLICATE_SUFFIX) {
                 throw new RuntimeException(
-                    sprintf('Exceeded %d attempts finding available target for "%s"', self::MAX_DUPLICATE_SUFFIX, $basename)
+                    sprintf('Exceeded %d attempts finding available target for "%s"', Constants::MAX_DUPLICATE_SUFFIX, $basename)
                 );
             }
 
@@ -494,7 +474,7 @@ class FileSystemService implements FileSystemServiceInterface
                 $dir,
                 DIRECTORY_SEPARATOR,
                 $basename,
-                self::DUPLICATE_IDENTIFIER,
+                Constants::DUPLICATE_IDENTIFIER,
                 $counter,
                 $ext,
             );

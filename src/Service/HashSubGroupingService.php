@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service;
 
 use Closure;
+use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
@@ -204,7 +205,7 @@ class HashSubGroupingService
                     $newTargetFilename = sprintf(
                         '%s%s%03d.%s',
                         $subGroupBasename,
-                        FileSystemService::DUPLICATE_IDENTIFIER,
+                        Constants::DUPLICATE_IDENTIFIER,
                         $duplicateIndex,
                         $ext,
                     );
@@ -284,7 +285,7 @@ class HashSubGroupingService
                 $newTargetFilename = sprintf(
                     '%s%s%03d.%s',
                     $fileBasename,
-                    FileSystemService::DUPLICATE_IDENTIFIER,
+                    Constants::DUPLICATE_IDENTIFIER,
                     $dupIdx,
                     $ext,
                 );

@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
 use FilesystemIterator;
+use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
@@ -561,7 +562,7 @@ final class DuplicateDetectionServiceTest extends TestCase
             $renames[0]->getTarget()->getPathname(),
         );
         self::assertStringContainsString(
-            FileSystemService::DUPLICATE_IDENTIFIER,
+            Constants::DUPLICATE_IDENTIFIER,
             $renames[1]->getTarget()->getFilename(),
         );
         self::assertStringEndsWith('.png', $renames[1]->getTarget()->getFilename());
@@ -732,7 +733,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         $rootFile            = $sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg';
         $duplicateFile       = $nestedDirectory . DIRECTORY_SEPARATOR . 'photo.jpg';
         $preRenamedDuplicate = $nestedDirectory . DIRECTORY_SEPARATOR . 'photo'
-            . FileSystemService::DUPLICATE_IDENTIFIER . '001.jpg';
+            . Constants::DUPLICATE_IDENTIFIER . '001.jpg';
 
         file_put_contents($rootFile, 'same-content');
         file_put_contents($duplicateFile, 'same-content');
@@ -784,7 +785,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         // nested/photo-duplicate-001.jpg keeps its suffix (target photo.jpg is occupied).
         self::assertArrayHasKey($preRenamedDuplicate, $renamesBySource);
 
-        $pattern = '/' . preg_quote(FileSystemService::DUPLICATE_IDENTIFIER, '/') . '(\d{3})\.jpg$/';
+        $pattern = '/' . preg_quote(Constants::DUPLICATE_IDENTIFIER, '/') . '(\d{3})\.jpg$/';
 
         self::assertSame(
             1,
@@ -891,7 +892,7 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         $expectedTargetPath = $firstRenames[0]->getTarget()->getPathname();
         self::assertStringContainsString(
-            FileSystemService::DUPLICATE_IDENTIFIER . '001',
+            Constants::DUPLICATE_IDENTIFIER . '001',
             $firstRenames[0]->getTarget()->getFilename(),
         );
 
@@ -1060,11 +1061,11 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         // Neither contains -duplicate-
         self::assertStringNotContainsString(
-            FileSystemService::DUPLICATE_IDENTIFIER,
+            Constants::DUPLICATE_IDENTIFIER,
             $renames[0]->getTarget()->getFilename(),
         );
         self::assertStringNotContainsString(
-            FileSystemService::DUPLICATE_IDENTIFIER,
+            Constants::DUPLICATE_IDENTIFIER,
             $renames[1]->getTarget()->getFilename(),
         );
     }
@@ -1845,7 +1846,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         ]);
 
         self::assertNotSame($target->getPathname(), $result->getPathname());
-        self::assertStringContainsString(FileSystemService::DUPLICATE_IDENTIFIER, $result->getPathname());
+        self::assertStringContainsString(Constants::DUPLICATE_IDENTIFIER, $result->getPathname());
     }
 
     /**
@@ -1891,7 +1892,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         ]);
 
         self::assertNotSame($target->getPathname(), $result->getPathname());
-        self::assertStringContainsString(FileSystemService::DUPLICATE_IDENTIFIER, $result->getPathname());
+        self::assertStringContainsString(Constants::DUPLICATE_IDENTIFIER, $result->getPathname());
     }
 
     /**
@@ -1931,7 +1932,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         ]);
 
         self::assertNotSame($target->getPathname(), $result->getPathname());
-        self::assertStringContainsString(FileSystemService::DUPLICATE_IDENTIFIER, $result->getPathname());
+        self::assertStringContainsString(Constants::DUPLICATE_IDENTIFIER, $result->getPathname());
     }
 
     /**
@@ -1979,7 +1980,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         // Target is occupied, so it falls through to the occupied branch
         // and gets a suffix regardless of isFirst/hasAdditionalRenames
         self::assertNotSame($target->getPathname(), $result->getPathname());
-        self::assertStringContainsString(FileSystemService::DUPLICATE_IDENTIFIER, $result->getPathname());
+        self::assertStringContainsString(Constants::DUPLICATE_IDENTIFIER, $result->getPathname());
     }
 
     /**
@@ -2022,7 +2023,7 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         // requiresCanonicalDisambiguation forces a duplicate suffix
         self::assertNotSame($target->getPathname(), $result->getPathname());
-        self::assertStringContainsString(FileSystemService::DUPLICATE_IDENTIFIER, $result->getPathname());
+        self::assertStringContainsString(Constants::DUPLICATE_IDENTIFIER, $result->getPathname());
     }
 
     /**
@@ -2063,7 +2064,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         ]);
 
         self::assertNotSame($target->getPathname(), $result->getPathname());
-        self::assertStringContainsString(FileSystemService::DUPLICATE_IDENTIFIER, $result->getPathname());
+        self::assertStringContainsString(Constants::DUPLICATE_IDENTIFIER, $result->getPathname());
     }
 
     /**
@@ -2146,7 +2147,7 @@ final class DuplicateDetectionServiceTest extends TestCase
                 '%s%sphoto%s%03d.jpg',
                 $targetDirectory,
                 DIRECTORY_SEPARATOR,
-                FileSystemService::DUPLICATE_IDENTIFIER,
+                Constants::DUPLICATE_IDENTIFIER,
                 $i,
             )] = true;
         }

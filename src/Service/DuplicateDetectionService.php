@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service;
 
 use FilesystemIterator;
+use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
@@ -619,7 +620,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     private function startProgressBar(int $max): ProgressBar
     {
         $progressBar = $this->io->createProgressBar(max($max, 1));
-        $progressBar->setFormat(FileSystemService::PROGRESS_BAR_FORMAT);
+        $progressBar->setFormat(Constants::PROGRESS_BAR_FORMAT);
         $progressBar->start();
 
         return $progressBar;
@@ -771,9 +772,9 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         }
 
         while ($this->isTargetOccupied($duplicateFileInfo, $source, $groupSourcePaths)) {
-            if ($duplicateCount > FileSystemService::MAX_DUPLICATE_SUFFIX) {
+            if ($duplicateCount > Constants::MAX_DUPLICATE_SUFFIX) {
                 throw new RuntimeException(
-                    sprintf('Exceeded %d duplicate suffix attempts', FileSystemService::MAX_DUPLICATE_SUFFIX)
+                    sprintf('Exceeded %d duplicate suffix attempts', Constants::MAX_DUPLICATE_SUFFIX)
                 );
             }
 
@@ -813,7 +814,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         int &$duplicateCount,
     ): SplFileInfo {
         $newTargetBasename = sprintf(
-            '%s' . FileSystemService::DUPLICATE_IDENTIFIER . '%003d',
+            '%s' . Constants::DUPLICATE_IDENTIFIER . '%003d',
             $targetBasename,
             $duplicateCount
         );
@@ -903,7 +904,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         FileDuplicate $fileDuplicate,
         SplFileInfo $candidateTarget,
     ): void {
-        if (!str_starts_with($duplicateIdentifier, FileSystemService::LIVE_PHOTO_IDENTIFIER_PREFIX)) {
+        if (!str_starts_with($duplicateIdentifier, Constants::LIVE_PHOTO_IDENTIFIER_PREFIX)) {
             return;
         }
 

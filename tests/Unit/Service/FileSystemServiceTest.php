@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
+use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
@@ -184,7 +185,7 @@ final class FileSystemServiceTest extends TestCase
         $sourceFile      = $sourceDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
         $canonicalTarget = $targetDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
         $targetFile      = $targetDirectory . DIRECTORY_SEPARATOR
-            . sprintf('image%s001.jpg', FileSystemService::DUPLICATE_IDENTIFIER);
+            . sprintf('image%s001.jpg', Constants::DUPLICATE_IDENTIFIER);
 
         file_put_contents($sourceFile, 'duplicate');
 
@@ -237,7 +238,7 @@ final class FileSystemServiceTest extends TestCase
 
         $sourceFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'incoming.jpg';
         $targetFile = $targetDirectory . DIRECTORY_SEPARATOR
-            . 'image' . FileSystemService::DUPLICATE_IDENTIFIER . '001.jpg';
+            . 'image' . Constants::DUPLICATE_IDENTIFIER . '001.jpg';
 
         file_put_contents($sourceFile, 'incoming');
 
@@ -431,7 +432,7 @@ final class FileSystemServiceTest extends TestCase
         $renameTarget    = $canonicalPath;
         $duplicateSource = $sourceDirectory . DIRECTORY_SEPARATOR . 'duplicate.jpg';
         $duplicateTarget = $targetDirectory . DIRECTORY_SEPARATOR . 'photo'
-            . FileSystemService::DUPLICATE_IDENTIFIER . '001.jpg';
+            . Constants::DUPLICATE_IDENTIFIER . '001.jpg';
 
         $fileDuplicate = new FileDuplicate();
         $fileDuplicate->setTarget(new SplFileInfo($canonicalPath));
@@ -489,7 +490,7 @@ final class FileSystemServiceTest extends TestCase
         $duplicateSource = $sourceDirectory . DIRECTORY_SEPARATOR . 'video.mov';
         $targetFile      = $targetDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
         $duplicateTarget = $targetDirectory . DIRECTORY_SEPARATOR
-            . 'image' . FileSystemService::DUPLICATE_IDENTIFIER . '007.mov';
+            . 'image' . Constants::DUPLICATE_IDENTIFIER . '007.mov';
 
         file_put_contents($sourceFile, 'original');
         file_put_contents($duplicateSource, 'duplicate');
@@ -771,7 +772,7 @@ final class FileSystemServiceTest extends TestCase
         $occupiedPaths = [];
 
         for ($i = 1; $i <= 9999; ++$i) {
-            $occupiedPaths[sprintf('/tmp/dir/photo%s%03d.jpg', FileSystemService::DUPLICATE_IDENTIFIER, $i)] = true;
+            $occupiedPaths[sprintf('/tmp/dir/photo%s%03d.jpg', Constants::DUPLICATE_IDENTIFIER, $i)] = true;
         }
 
         $method = new ReflectionMethod($service, 'findAvailableDuplicateTarget');
@@ -843,7 +844,7 @@ final class FileSystemServiceTest extends TestCase
         self::assertFileDoesNotExist($sourceB);
 
         $fallbackTarget = $targetDirectory . DIRECTORY_SEPARATOR
-            . 'photo' . FileSystemService::DUPLICATE_IDENTIFIER . '001.jpg';
+            . 'photo' . Constants::DUPLICATE_IDENTIFIER . '001.jpg';
 
         self::assertFileExists($fallbackTarget);
         self::assertSame('content-B', file_get_contents($fallbackTarget));
@@ -864,7 +865,7 @@ final class FileSystemServiceTest extends TestCase
         [$service] = $this->createService();
 
         $target = new SplFileInfo(
-            '/tmp/dir/photo' . FileSystemService::DUPLICATE_IDENTIFIER . '003.jpg'
+            '/tmp/dir/photo' . Constants::DUPLICATE_IDENTIFIER . '003.jpg'
         );
 
         // The unsuffixed "photo-duplicate-001.jpg" is free, so it should be selected.
@@ -880,7 +881,7 @@ final class FileSystemServiceTest extends TestCase
 
         // The result should be "photo-duplicate-001.jpg", NOT "photo-duplicate-003-duplicate-001.jpg"
         self::assertSame(
-            '/tmp/dir/photo' . FileSystemService::DUPLICATE_IDENTIFIER . '001.jpg',
+            '/tmp/dir/photo' . Constants::DUPLICATE_IDENTIFIER . '001.jpg',
             $result->getPathname(),
         );
 
@@ -905,15 +906,15 @@ final class FileSystemServiceTest extends TestCase
         [$service] = $this->createService();
 
         $target = new SplFileInfo(
-            '/tmp/dir/photo' . FileSystemService::DUPLICATE_IDENTIFIER . '005.jpg'
+            '/tmp/dir/photo' . Constants::DUPLICATE_IDENTIFIER . '005.jpg'
         );
 
         // Block suffix 001 and 002 to force the method to find 003.
         /** @var array<string, true> $occupiedPaths */
         $occupiedPaths = [
-            $target->getPathname()                                                 => true,
-            '/tmp/dir/photo' . FileSystemService::DUPLICATE_IDENTIFIER . '001.jpg' => true,
-            '/tmp/dir/photo' . FileSystemService::DUPLICATE_IDENTIFIER . '002.jpg' => true,
+            $target->getPathname()                                         => true,
+            '/tmp/dir/photo' . Constants::DUPLICATE_IDENTIFIER . '001.jpg' => true,
+            '/tmp/dir/photo' . Constants::DUPLICATE_IDENTIFIER . '002.jpg' => true,
         ];
 
         $method = new ReflectionMethod($service, 'findAvailableDuplicateTarget');
@@ -922,7 +923,7 @@ final class FileSystemServiceTest extends TestCase
         $result = $method->invoke($service, $target, $occupiedPaths);
 
         self::assertSame(
-            '/tmp/dir/photo' . FileSystemService::DUPLICATE_IDENTIFIER . '003.jpg',
+            '/tmp/dir/photo' . Constants::DUPLICATE_IDENTIFIER . '003.jpg',
             $result->getPathname(),
         );
     }
