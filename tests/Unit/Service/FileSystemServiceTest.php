@@ -928,6 +928,62 @@ final class FileSystemServiceTest extends TestCase
         );
     }
 
+    /**
+     * Verifies that a pre-existing file in the target directory is not overwritten
+     * when a rename operation targets the same path. The service must detect the
+     * occupied target and redirect to a -duplicate-NNN fallback.
+     */
+    #[Test]
+    public function renameFilesDoesNotOverwritePreExistingTargetDirectoryFile(): void
+    {
+        [$service, $output] = $this->createService();
+
+        $sourceDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'source-preexist';
+        $targetDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'target-preexist';
+
+        mkdir($sourceDirectory);
+        mkdir($targetDirectory);
+
+        // Pre-existing file in target directory
+        $existingTarget = $targetDirectory . DIRECTORY_SEPARATOR . 'photo.jpg';
+        file_put_contents($existingTarget, 'existing-content');
+
+        // Source file that wants to land at the same target path
+        $sourceFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'incoming.jpg';
+        file_put_contents($sourceFile, 'incoming-content');
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate->setTarget(new SplFileInfo($existingTarget));
+        $fileDuplicate->addRename(new Rename(
+            new SplFileInfo($sourceFile),
+            new SplFileInfo($existingTarget),
+        ));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('preexist', $fileDuplicate);
+
+        $service->renameFiles(
+            $collection,
+            new RenameOptions(
+                sourceBaseDirectory: $sourceDirectory,
+                targetBaseDirectory: $targetDirectory,
+            ),
+        );
+
+        // The pre-existing file must keep its original content
+        self::assertFileExists($existingTarget);
+        self::assertSame('existing-content', file_get_contents($existingTarget));
+
+        // The incoming file must have been redirected to a fallback path
+        self::assertFileDoesNotExist($sourceFile);
+
+        $fallbackTarget = $targetDirectory . DIRECTORY_SEPARATOR
+            . 'photo' . Constants::DUPLICATE_IDENTIFIER . '001.jpg';
+
+        self::assertFileExists($fallbackTarget);
+        self::assertSame('incoming-content', file_get_contents($fallbackTarget));
+    }
+
     private function relativizePath(string $path, ?string $baseDirectory): string
     {
         if ($baseDirectory === null || $baseDirectory === '') {

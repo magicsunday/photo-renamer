@@ -24,6 +24,7 @@ use SplFileInfo;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function basename;
+use function is_dir;
 use function is_string;
 use function preg_match;
 use function preg_quote;
@@ -142,6 +143,24 @@ class FileSystemService implements FileSystemServiceInterface
         foreach ($fileDuplicateCollection as $fileDuplicate) {
             foreach ($fileDuplicate->getRenames() as $rename) {
                 $occupiedPaths[$rename->getSource()->getPathname()] = true;
+            }
+        }
+
+        // Seed with existing files in the target directory so pre-existing files
+        // are not overwritten by the runtime collision fallback.
+        if (
+            $targetBaseDirectory !== null
+            && $targetBaseDirectory !== $sourceBaseDirectory
+            && is_dir($targetBaseDirectory)
+        ) {
+            $targetIterator = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($targetBaseDirectory, FilesystemIterator::SKIP_DOTS),
+                RecursiveIteratorIterator::LEAVES_ONLY,
+            );
+
+            /** @var SplFileInfo $targetFile */
+            foreach ($targetIterator as $targetFile) {
+                $occupiedPaths[$targetFile->getPathname()] = true;
             }
         }
 
