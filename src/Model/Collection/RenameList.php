@@ -63,7 +63,7 @@ final class RenameList extends AbstractCollection
      * Re-numbers all keys to a contiguous zero-based integer sequence.
      * Call after filter() to eliminate gaps left by removed elements.
      *
-     * @return self Fluent interface
+     * @return RenameList Fluent interface
      */
     public function reindex(): self
     {
