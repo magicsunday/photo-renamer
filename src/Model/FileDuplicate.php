@@ -37,6 +37,7 @@ class FileDuplicate
      */
     public function __construct(private readonly FileList $files = new FileList(), private RenameList $renames = new RenameList())
     {
+        $this->target = new SplFileInfo('');
     }
 
     /**
