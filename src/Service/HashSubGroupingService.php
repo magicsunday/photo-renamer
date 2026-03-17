@@ -166,7 +166,7 @@ class HashSubGroupingService implements HashSubGroupingServiceInterface
         $hashToSubGroup = [];
 
         // Process canonical's hash group first (no sub-group number).
-        if ($canonicalHash !== null && isset($hashGroups[$canonicalHash])) {
+        if (($canonicalHash !== null) && isset($hashGroups[$canonicalHash])) {
             $hashToSubGroup[$canonicalHash] = 0;
         }
 

@@ -476,7 +476,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             // base name is already taken by a different extension variant.
             $canonicalNeedsPromotion = true;
 
-            if ($canonicalRename instanceof Rename && !$canonicalExactName) {
+            if (($canonicalRename instanceof Rename) && !$canonicalExactName) {
                 foreach ($renames as $rename) {
                     if ($rename === $canonicalRename) {
                         continue;
@@ -534,11 +534,11 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             foreach ($fileDuplicate->getRenames() as $rename) {
                 $groupSourcePaths[$rename->getSource()->getPathname()] = true;
 
-                if ($canonicalRename !== null && $rename === $canonicalRename) {
+                if (($canonicalRename !== null) && ($rename === $canonicalRename)) {
                     continue;
                 }
 
-                if ($companionRename instanceof Rename && $rename === $companionRename) {
+                if (($companionRename instanceof Rename) && ($rename === $companionRename)) {
                     continue;
                 }
 
@@ -551,10 +551,10 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             // Assign unique target filenames to remaining renames.
 
             foreach ($fileDuplicate->getRenames() as $rename) {
-                $isCanonicalRename = $canonicalRename !== null
-                    && $rename === $canonicalRename
+                $isCanonicalRename = ($canonicalRename !== null)
+                    && ($rename === $canonicalRename)
                     && $canonicalNeedsPromotion;
-                $isCompanionRename = $companionRename instanceof Rename && $rename === $companionRename;
+                $isCompanionRename = ($companionRename instanceof Rename) && ($rename === $companionRename);
 
                 // Live Photo companions are treated like canonicals: same base name, no suffix.
                 if ($isCompanionRename) {
@@ -606,7 +606,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 ++$processedDuplicates;
             }
 
-            if ($canonicalRename instanceof Rename && $canonicalNeedsPromotion) {
+            if (($canonicalRename instanceof Rename) && $canonicalNeedsPromotion) {
                 $fileDuplicate->setTarget($canonicalRename->getTarget());
             }
 
