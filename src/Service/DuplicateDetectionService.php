@@ -437,9 +437,9 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             );
 
             /** @var Rename|null $canonicalRename */
-            $canonicalRename    = null;
-            $canonicalHasLpId   = false;
-            $canonicalExactName = false;
+            $canonicalRename         = null;
+            $canonicalHasLivePhotoId = false;
+            $canonicalExactName      = false;
 
             foreach ($renames as $rename) {
                 if ($rename->getTarget()->getPathname() !== $canonicalTargetPath) {
@@ -451,13 +451,13 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                     '.' . $rename->getSource()->getExtension()
                 );
 
-                $hasLpId   = isset($this->contentIdentifierMap[$sourcePath]);
-                $exactName = $sourceBasename === $canonicalTargetBasename;
+                $hasLivePhotoId = isset($this->contentIdentifierMap[$sourcePath]);
+                $exactName      = $sourceBasename === $canonicalTargetBasename;
 
                 if ($canonicalRename === null) {
-                    $canonicalRename    = $rename;
-                    $canonicalHasLpId   = $hasLpId;
-                    $canonicalExactName = $exactName;
+                    $canonicalRename         = $rename;
+                    $canonicalHasLivePhotoId = $hasLivePhotoId;
+                    $canonicalExactName      = $exactName;
                 }
 
                 // Priority 1: source already has the canonical base name (idempotency).
@@ -469,9 +469,9 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 }
 
                 // Priority 2: file has a Live Photo content ID (original capture).
-                if ($hasLpId && !$canonicalHasLpId && !$canonicalExactName) {
-                    $canonicalRename  = $rename;
-                    $canonicalHasLpId = true;
+                if ($hasLivePhotoId && !$canonicalHasLivePhotoId && !$canonicalExactName) {
+                    $canonicalRename         = $rename;
+                    $canonicalHasLivePhotoId = true;
                 }
             }
 
@@ -866,7 +866,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
      *
      * @return SplFileInfo|null target file info when the strategy yields a filename, otherwise null
      */
-    protected function getTargetFileInfo(SplFileInfo $sourceFileInfo, RenameStrategyInterface $renameStrategy): ?SplFileInfo
+    private function getTargetFileInfo(SplFileInfo $sourceFileInfo, RenameStrategyInterface $renameStrategy): ?SplFileInfo
     {
         try {
             $targetFilename = $renameStrategy->generateFilename($sourceFileInfo);
