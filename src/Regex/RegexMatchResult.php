@@ -13,6 +13,10 @@ namespace MagicSunday\Renamer\Regex;
 
 /**
  * Immutable wrapper around the result of a single regular expression match.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
  */
 final readonly class RegexMatchResult
 {
