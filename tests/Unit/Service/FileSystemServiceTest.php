@@ -755,7 +755,7 @@ final class FileSystemServiceTest extends TestCase
 
     /**
      * Verifies that findAvailableDuplicateTarget() throws a RuntimeException when
-     * all 9999 possible -duplicate-NNN suffixes are occupied in the occupiedPaths set.
+     * all 999 possible -duplicate-NNN suffixes are occupied in the occupiedPaths set.
      *
      * This is the safety limit preventing infinite suffix searches. The exception
      * message includes the base name to aid debugging.
@@ -767,18 +767,18 @@ final class FileSystemServiceTest extends TestCase
 
         $target = new SplFileInfo('/tmp/dir/photo.jpg');
 
-        // Build occupiedPaths that block every suffix from 001..9999
+        // Build occupiedPaths that block every suffix from 001..999
         /** @var array<string, true> $occupiedPaths */
         $occupiedPaths = [];
 
-        for ($i = 1; $i <= 9999; ++$i) {
+        for ($i = 1; $i <= 999; ++$i) {
             $occupiedPaths[sprintf('/tmp/dir/photo%s%03d.jpg', Constants::DUPLICATE_IDENTIFIER, $i)] = true;
         }
 
         $method = new ReflectionMethod($service, 'findAvailableDuplicateTarget');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Exceeded 9999 attempts finding available target for "photo"');
+        $this->expectExceptionMessage('Exceeded 999 attempts finding available target for "photo"');
 
         $method->invoke($service, $target, $occupiedPaths);
     }

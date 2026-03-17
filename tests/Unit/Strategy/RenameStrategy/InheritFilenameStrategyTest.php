@@ -157,7 +157,7 @@ class InheritFilenameStrategyTest extends TestCase
             'strips duplicate with any digit count' => [
                 'filename'    => 'file-duplicate-1.txt',
                 'expected'    => 'file.txt',
-                'description' => 'Strips duplicate suffix regardless of digit count (1-9999)',
+                'description' => 'Strips duplicate suffix regardless of digit count (1-999)',
             ],
             'removes duplicate identifier - path given' => [
                 'filename'    => '/var/www/images/photo-duplicate-001.jpg',

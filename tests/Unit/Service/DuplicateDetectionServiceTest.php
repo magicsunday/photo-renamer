@@ -252,7 +252,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         $targetDirectory = $this->createTempDirectory();
 
         $videoPath = $sourceDirectory . DIRECTORY_SEPARATOR . '0001.MOV';
-        $photoPath = $sourceDirectory . DIRECTORY_SEPARATOR . '9999.HEIC';
+        $photoPath = $sourceDirectory . DIRECTORY_SEPARATOR . '999.HEIC';
 
         file_put_contents($videoPath, 'video');
         file_put_contents($photoPath, 'photo');
@@ -2114,10 +2114,10 @@ final class DuplicateDetectionServiceTest extends TestCase
 
     /**
      * Verifies that getNewUniqueDuplicateTargetFileInfo() throws a RuntimeException
-     * when all 9999 possible -duplicate-NNN suffixes are already occupied in the
+     * when all 999 possible -duplicate-NNN suffixes are already occupied in the
      * disk index.
      *
-     * This is a safety net against infinite loops. In practice 9999 true duplicates
+     * This is a safety net against infinite loops. In practice 999 true duplicates
      * of the same file are extremely unlikely, but the guard must exist.
      */
     #[Test]
@@ -2136,13 +2136,13 @@ final class DuplicateDetectionServiceTest extends TestCase
         $target   = new SplFileInfo($targetDirectory . DIRECTORY_SEPARATOR . 'photo.jpg');
         $basename = 'photo';
 
-        // Populate the diskIndex with entries that block every suffix 001..9999
+        // Populate the diskIndex with entries that block every suffix 001..999
         $diskIndexProp = new ReflectionProperty($service, 'diskIndex');
 
         /** @var array<string, true> $diskIndex */
         $diskIndex = [];
 
-        for ($i = 1; $i <= 9999; ++$i) {
+        for ($i = 1; $i <= 999; ++$i) {
             $diskIndex[sprintf(
                 '%s%sphoto%s%03d.jpg',
                 $targetDirectory,
@@ -2159,7 +2159,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         $method = new ReflectionMethod($service, 'getNewUniqueDuplicateTargetFileInfo');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Exceeded 9999 duplicate suffix attempts');
+        $this->expectExceptionMessage('Exceeded 999 duplicate suffix attempts');
 
         $method->invoke($service, $source, $target, $basename, $duplicateCount, true, []);
     }

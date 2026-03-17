@@ -34,7 +34,7 @@ final class Constants
     /**
      * Upper bound for the runtime duplicate suffix fallback loop.
      */
-    public const int MAX_DUPLICATE_SUFFIX = 9999;
+    public const int MAX_DUPLICATE_SUFFIX = 999;
 
     /**
      * Prefix used to identify Live Photo groups by their duplicate identifier string.
