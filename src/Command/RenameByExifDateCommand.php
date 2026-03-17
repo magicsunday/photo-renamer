@@ -157,7 +157,7 @@ class RenameByExifDateCommand extends AbstractRenameCommand
         $this->io->newLine();
         $this->io->text('<fg=cyan>Pairing Live Photos</>');
 
-        $fileCount = $this->fileSystemService->countFiles($iterator);
+        $fileCount = $this->duplicateDetectionService->getLastScannedFileCount();
 
         $iterator->rewind();
 

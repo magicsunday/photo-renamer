@@ -117,12 +117,6 @@ final class RenameByExifDateCommandTest extends TestCase
             ->with($expectedSourceDirectory, null)
             ->willReturn($iterator);
 
-        $fileSystemService
-            ->expects(self::once())
-            ->method('countFiles')
-            ->with($iterator)
-            ->willReturn(0);
-
         $duplicateCollection = new FileDuplicateCollection();
 
         $duplicateDetectionService
@@ -169,6 +163,16 @@ final class RenameByExifDateCommandTest extends TestCase
             ->method('createDuplicateFilenames')
             ->with(self::identicalTo($duplicateCollection))
             ->willReturn($duplicateCollection);
+
+        $duplicateDetectionService
+            ->expects(self::atLeastOnce())
+            ->method('getLastScannedFileCount')
+            ->willReturn(0);
+
+        $duplicateDetectionService
+            ->expects(self::atLeastOnce())
+            ->method('getNamingCollisions')
+            ->willReturn(0);
 
         $livePhotoPairingService
             ->expects(self::once())
@@ -254,13 +258,7 @@ final class RenameByExifDateCommandTest extends TestCase
             new RecursiveArrayIterator([$photo, $video], RecursiveArrayIterator::CHILD_ARRAYS_ONLY),
         );
 
-        /** @var FileSystemServiceInterface&MockObject $fileSystemService */
-        $fileSystemService = $this->createMock(FileSystemServiceInterface::class);
-        $fileSystemService
-            ->expects(self::once())
-            ->method('countFiles')
-            ->with(self::identicalTo($iterator))
-            ->willReturn(2);
+        $fileSystemService = self::createStub(FileSystemServiceInterface::class);
 
         /** @var DuplicateDetectionServiceInterface&MockObject $duplicateDetectionService */
         $duplicateDetectionService = $this->createMock(DuplicateDetectionServiceInterface::class);
@@ -273,6 +271,11 @@ final class RenameByExifDateCommandTest extends TestCase
                 self::isInstanceOf(TargetBasenameStrategy::class),
             )
             ->willReturn($duplicateCollection);
+
+        $duplicateDetectionService
+            ->expects(self::atLeastOnce())
+            ->method('getLastScannedFileCount')
+            ->willReturn(2);
 
         /** @var LivePhotoPairingService&MockObject $livePhotoPairingService */
         $livePhotoPairingService = $this->createMock(LivePhotoPairingService::class);
@@ -397,12 +400,6 @@ final class RenameByExifDateCommandTest extends TestCase
                 // @phpstan-ignore return.type
                 return $this->iterator;
             }
-
-            #[Override]
-            public function countFiles(RecursiveIteratorIterator $iterator): int
-            {
-                return 2;
-            }
         };
 
         /** @var DuplicateDetectionServiceInterface&MockObject $duplicateDetectionService */
@@ -434,6 +431,16 @@ final class RenameByExifDateCommandTest extends TestCase
                 self::isInstanceOf(TargetBasenameStrategy::class),
             )
             ->willReturn($duplicateCollection);
+
+        $duplicateDetectionService
+            ->expects(self::atLeastOnce())
+            ->method('getLastScannedFileCount')
+            ->willReturn(2);
+
+        $duplicateDetectionService
+            ->expects(self::atLeastOnce())
+            ->method('getNamingCollisions')
+            ->willReturn(0);
 
         $duplicateDetectionService
             ->expects(self::once())
@@ -601,13 +608,7 @@ final class RenameByExifDateCommandTest extends TestCase
 
         $duplicateCollection = new FileDuplicateCollection();
 
-        /** @var FileSystemServiceInterface&MockObject $fileSystemService */
-        $fileSystemService = $this->createMock(FileSystemServiceInterface::class);
-        $fileSystemService
-            ->expects(self::once())
-            ->method('countFiles')
-            ->with(self::identicalTo($iterator))
-            ->willReturn(0);
+        $fileSystemService = self::createStub(FileSystemServiceInterface::class);
 
         /** @var DuplicateDetectionServiceInterface&MockObject $duplicateDetectionService */
         $duplicateDetectionService = $this->createMock(DuplicateDetectionServiceInterface::class);
@@ -620,6 +621,11 @@ final class RenameByExifDateCommandTest extends TestCase
                 self::isInstanceOf(TargetBasenameStrategy::class),
             )
             ->willReturn($duplicateCollection);
+
+        $duplicateDetectionService
+            ->expects(self::atLeastOnce())
+            ->method('getLastScannedFileCount')
+            ->willReturn(0);
 
         /** @var LivePhotoPairingService&MockObject $livePhotoPairingService */
         $livePhotoPairingService = $this->createMock(LivePhotoPairingService::class);
@@ -703,13 +709,7 @@ final class RenameByExifDateCommandTest extends TestCase
             new RecursiveArrayIterator([$photo, $video], RecursiveArrayIterator::CHILD_ARRAYS_ONLY),
         );
 
-        /** @var FileSystemServiceInterface&MockObject $fileSystemService */
-        $fileSystemService = $this->createMock(FileSystemServiceInterface::class);
-        $fileSystemService
-            ->expects(self::once())
-            ->method('countFiles')
-            ->with(self::identicalTo($iterator))
-            ->willReturn(2);
+        $fileSystemService = self::createStub(FileSystemServiceInterface::class);
 
         /** @var DuplicateDetectionServiceInterface&MockObject $duplicateDetectionService */
         $duplicateDetectionService = $this->createMock(DuplicateDetectionServiceInterface::class);
@@ -722,6 +722,11 @@ final class RenameByExifDateCommandTest extends TestCase
                 self::isInstanceOf(TargetBasenameStrategy::class),
             )
             ->willReturn($duplicateCollection);
+
+        $duplicateDetectionService
+            ->expects(self::atLeastOnce())
+            ->method('getLastScannedFileCount')
+            ->willReturn(2);
 
         $capturedPairings = null;
 
