@@ -2240,6 +2240,21 @@ final class DuplicateDetectionServiceTest extends TestCase
     }
 
     /**
+     * Verifies that createDuplicateFilenames() throws a RuntimeException when
+     * setSourceDirectory() and setTargetDirectory() have not been called.
+     */
+    #[Test]
+    public function createDuplicateFilenamesThrowsWhenDirectoriesNotConfigured(): void
+    {
+        [$service] = $this->createService();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('setSourceDirectory() and setTargetDirectory() must be called');
+
+        $service->createDuplicateFilenames(new FileDuplicateCollection());
+    }
+
+    /**
      * @return array{DuplicateDetectionService, BufferedOutput, FileSystemService}
      */
     private function createService(): array

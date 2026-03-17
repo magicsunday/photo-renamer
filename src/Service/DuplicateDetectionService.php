@@ -378,6 +378,12 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         FileDuplicateCollection $fileDuplicateCollection,
         bool $skipHashSubGrouping = false,
     ): FileDuplicateCollection {
+        if (!isset($this->sourceDirectory, $this->targetDirectory)) {
+            throw new RuntimeException(
+                'setSourceDirectory() and setTargetDirectory() must be called before createDuplicateFilenames()'
+            );
+        }
+
         $this->namingCollisions = 0;
 
         // Ensure disk index is populated when called without prior groupFilesByDuplicateIdentifier.
