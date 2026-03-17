@@ -123,7 +123,7 @@ class RenameByPatternCommand extends AbstractRenameCommand
     }
 
     #[Override]
-    protected function getTargetFilenameProcessor(): RenameStrategyInterface
+    protected function getTargetFilenameStrategy(): RenameStrategyInterface
     {
         return new PatternFilenameStrategy(
             $this->pattern,

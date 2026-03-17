@@ -208,7 +208,7 @@ class RenameByExifDateCommand extends AbstractRenameCommand
      * Returns the strategy that builds the target filename based on EXIF dates.
      */
     #[Override]
-    protected function getTargetFilenameProcessor(): RenameStrategyInterface
+    protected function getTargetFilenameStrategy(): RenameStrategyInterface
     {
         return $this->getExifDateFilenameStrategy();
     }

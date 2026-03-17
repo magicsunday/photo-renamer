@@ -138,7 +138,7 @@ class RenameByDatePatternCommand extends AbstractRenameCommand
     }
 
     #[Override]
-    protected function getTargetFilenameProcessor(): RenameStrategyInterface
+    protected function getTargetFilenameStrategy(): RenameStrategyInterface
     {
         if (!($this->patternExpression instanceof PatternExpression) || !($this->patternMatchSet instanceof PatternMatchSet)) {
             throw new RuntimeException('Pattern configuration has not been initialised.');

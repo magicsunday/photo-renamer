@@ -486,7 +486,7 @@ abstract class AbstractRenameCommand extends Command
         return $this->duplicateDetectionService
             ->groupFilesByDuplicateIdentifier(
                 iterator: $iterator,
-                renameStrategy: $this->getTargetFilenameProcessor(),
+                renameStrategy: $this->getTargetFilenameStrategy(),
                 duplicateIdentifierStrategy: $this->getDuplicateIdentifierStrategy()
             );
     }
@@ -524,7 +524,7 @@ abstract class AbstractRenameCommand extends Command
      * Returns the rename strategy that computes target filenames from source files.
      * Each concrete command provides its own strategy (EXIF date, pattern, lowercase, etc.).
      */
-    abstract protected function getTargetFilenameProcessor(): RenameStrategyInterface;
+    abstract protected function getTargetFilenameStrategy(): RenameStrategyInterface;
 
     /**
      * Returns the duplicate identifier strategy that determines how files are grouped.

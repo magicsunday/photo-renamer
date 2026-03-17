@@ -134,7 +134,7 @@ final class AbstractRenameCommandTest extends TestCase
                 $this->setName('test:rename');
             }
 
-            protected function getTargetFilenameProcessor(): RenameStrategyInterface
+            protected function getTargetFilenameStrategy(): RenameStrategyInterface
             {
                 return $this->renameStrategy;
             }
@@ -242,7 +242,7 @@ final class AbstractRenameCommandTest extends TestCase
                 $this->setName('test:rename');
             }
 
-            protected function getTargetFilenameProcessor(): RenameStrategyInterface
+            protected function getTargetFilenameStrategy(): RenameStrategyInterface
             {
                 return $this->renameStrategy;
             }
@@ -345,7 +345,7 @@ final class AbstractRenameCommandTest extends TestCase
                 $this->setName('test:rename');
             }
 
-            protected function getTargetFilenameProcessor(): RenameStrategyInterface
+            protected function getTargetFilenameStrategy(): RenameStrategyInterface
             {
                 return $this->renameStrategy;
             }
@@ -465,7 +465,7 @@ final class AbstractRenameCommandTest extends TestCase
                 $this->setName('test:rename');
             }
 
-            protected function getTargetFilenameProcessor(): RenameStrategyInterface
+            protected function getTargetFilenameStrategy(): RenameStrategyInterface
             {
                 return $this->renameStrategy;
             }
