@@ -14,11 +14,8 @@ namespace MagicSunday\Renamer\Model\Collection;
 use ArrayIterator;
 use Traversable;
 
-use function array_filter;
 use function array_key_exists;
-use function array_slice;
 use function count;
-use function uasort;
 
 /**
  * Generic array-backed collection providing iteration, filtering, sorting and
@@ -77,54 +74,6 @@ abstract class AbstractCollection implements CollectionInterface
     public function asArray(): array
     {
         return $this->elements;
-    }
-
-    /**
-     * Sorts elements in-place using the provided comparison function while preserving keys.
-     *
-     * @param callable $callback Comparison function accepting two elements, returning int
-     *
-     * @return self<TKey, TValue>
-     */
-    public function sort(callable $callback): self
-    {
-        uasort($this->elements, $callback);
-
-        return $this;
-    }
-
-    /**
-     * Removes elements that do not satisfy the predicate. Mutates the internal
-     * array and preserves original keys (gaps may appear in numeric sequences).
-     *
-     * @param callable $callback Predicate returning true for elements to keep
-     *
-     * @return self<TKey, TValue>
-     */
-    public function filter(callable $callback): self
-    {
-        $this->elements = array_filter($this->elements, $callback);
-
-        return $this;
-    }
-
-    /**
-     * Extract a slice of the array.
-     *
-     * @param int      $offset If the offset is non-negative, the sequence will start at that offset in the array. If
-     *                         offset is negative, the sequence will start that far from the end of the array.
-     * @param int|null $length If length is given and is positive, then the sequence will have that many elements
-     *                         in it. If length is given and is negative, then the sequence will stop that many
-     *                         elements from the end of the array. If it is omitted, then the sequence will have
-     *                         everything from offset up until the end of the array.
-     *
-     * @return self<TKey, TValue>
-     */
-    public function slice(int $offset, ?int $length = null): self
-    {
-        $this->elements = array_slice($this->elements, $offset, $length);
-
-        return $this;
     }
 
     /**
