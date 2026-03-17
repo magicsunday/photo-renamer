@@ -57,13 +57,6 @@ abstract class AbstractRenameCommand extends Command
     protected SymfonyStyle $io;
 
     /**
-     * Iterator yielding all candidate files from the source directory tree.
-     *
-     * @var RecursiveIteratorIterator<RecursiveIterator<string, SplFileInfo>>
-     */
-    protected RecursiveIteratorIterator $iterator;
-
-    /**
      * When true, duplicate targets preserve the source file's original extension
      * instead of inheriting the canonical target's extension. Enabled by the
      * EXIF date command where JPG, HEIC and MOV share the same target basename.
