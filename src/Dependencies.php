@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer;
 
+use Exception;
 use RuntimeException;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\Console\Style\SymfonyStyle;
@@ -44,8 +45,12 @@ if (!file_exists($cachedContainer)) {
     $containerBuilder = new ContainerBuilder();
 
     // Load services from YAML configuration
-    $yamlFileLoader = new YamlFileLoader($containerBuilder, new FileLocator(__DIR__ . '/../config'));
-    $yamlFileLoader->load('Services.yaml');
+    try {
+        $yamlFileLoader = new YamlFileLoader($containerBuilder, new FileLocator(__DIR__ . '/../config'));
+        $yamlFileLoader->load('Services.yaml');
+    } catch (Exception $exception) {
+        throw new RuntimeException('Failed to load service configuration: ' . $exception->getMessage(), 0, $exception);
+    }
 
     // Register SymfonyStyle as a service
     $containerBuilder
