@@ -697,43 +697,27 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             return $target;
         }
 
+        $targetOccupied = $this->isTargetOccupied($target, $source, $groupSourcePaths);
+        $needsSuffix    = $targetOccupied || !$isFirst || $hasAdditionalRenames || $requiresCanonicalDisambiguation;
+
+        if (!$needsSuffix) {
+            return $target;
+        }
+
         $duplicateBasename = $target->getBasename('.' . $target->getExtension());
 
-        if ($this->isTargetOccupied($target, $source, $groupSourcePaths)) {
-            return $this->getNewUniqueDuplicateTargetFileInfo(
-                $source,
-                $target,
-                $duplicateBasename,
-                $duplicateCount,
-                $requiresCanonicalDisambiguation,
-                $groupSourcePaths,
-            );
-        }
+        $forceSuffix = $targetOccupied
+            ? $requiresCanonicalDisambiguation
+            : ($hasAdditionalRenames || $requiresCanonicalDisambiguation);
 
-        if (!$isFirst) {
-            return $this->getNewUniqueDuplicateTargetFileInfo(
-                $source,
-                $target,
-                $duplicateBasename,
-                $duplicateCount,
-                $hasAdditionalRenames || $requiresCanonicalDisambiguation,
-                $groupSourcePaths,
-            );
-        }
-
-        if ($hasAdditionalRenames || $requiresCanonicalDisambiguation) {
-            return $this->getNewUniqueDuplicateTargetFileInfo(
-                $source,
-                $target,
-                $duplicateBasename,
-                $duplicateCount,
-                $requiresCanonicalDisambiguation,
-                $groupSourcePaths,
-            );
-        }
-
-        // Single file without additional renames: keep as-is.
-        return $target;
+        return $this->getNewUniqueDuplicateTargetFileInfo(
+            $source,
+            $target,
+            $duplicateBasename,
+            $duplicateCount,
+            $forceSuffix,
+            $groupSourcePaths,
+        );
     }
 
     /**
