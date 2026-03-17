@@ -534,7 +534,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             foreach ($fileDuplicate->getRenames() as $rename) {
                 $groupSourcePaths[$rename->getSource()->getPathname()] = true;
 
-                if ($canonicalRename instanceof Rename && $rename === $canonicalRename) {
+                if ($canonicalRename !== null && $rename === $canonicalRename) {
                     continue;
                 }
 
@@ -551,7 +551,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             // Assign unique target filenames to remaining renames.
 
             foreach ($fileDuplicate->getRenames() as $rename) {
-                $isCanonicalRename = $canonicalRename instanceof Rename
+                $isCanonicalRename = $canonicalRename !== null
                     && $rename === $canonicalRename
                     && $canonicalNeedsPromotion;
                 $isCompanionRename = $companionRename instanceof Rename && $rename === $companionRename;
