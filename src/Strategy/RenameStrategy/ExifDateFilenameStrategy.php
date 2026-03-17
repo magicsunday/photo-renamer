@@ -29,15 +29,15 @@ use function basename;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-class ExifDateFilenameStrategy implements LivePhotoAwareRenameStrategyInterface
+readonly class ExifDateFilenameStrategy implements LivePhotoAwareRenameStrategyInterface
 {
     /**
      * @param string               $targetFilenamePattern PHP date() format string defining the target basename
      * @param ExifMetadataProvider $exifMetadataProvider  Caching EXIF metadata accessor
      */
     public function __construct(
-        private readonly string $targetFilenamePattern,
-        private readonly ExifMetadataProvider $exifMetadataProvider,
+        private string $targetFilenamePattern,
+        private ExifMetadataProvider $exifMetadataProvider,
     ) {
     }
 

@@ -24,10 +24,10 @@ use SplFileInfo;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-class ContentHashStrategy implements DuplicateIdentifierStrategyInterface
+readonly class ContentHashStrategy implements DuplicateIdentifierStrategyInterface
 {
     public function __construct(
-        private readonly SafeHashCalculator $hashCalculator,
+        private SafeHashCalculator $hashCalculator,
     ) {
     }
 
