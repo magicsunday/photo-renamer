@@ -17,6 +17,9 @@ renamer.md5
 # Environment
 .env
 
+# Docker
+compose.override.yaml
+
 # Test data
 images/
 images2/

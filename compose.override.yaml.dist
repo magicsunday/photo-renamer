@@ -1,0 +1,6 @@
+# Copy this file to compose.override.yaml and adjust the paths to your needs.
+# Docker Compose merges this automatically with compose.yaml.
+services:
+    buildbox:
+        volumes:
+            - /volume1/photos:/data
