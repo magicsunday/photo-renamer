@@ -12,6 +12,8 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Model\Collection;
 
 use ArrayIterator;
+use Countable;
+use IteratorAggregate;
 use Traversable;
 
 use function array_key_exists;
@@ -29,9 +31,9 @@ use function count;
  * @template TKey of array-key
  * @template TValue of object
  *
- * @implements CollectionInterface<TKey, TValue>
+ * @implements IteratorAggregate<TKey, TValue>
  */
-abstract class AbstractCollection implements CollectionInterface
+abstract class AbstractCollection implements Countable, IteratorAggregate
 {
     /**
      * @param array<TKey, TValue> $elements Initial elements to populate the collection
