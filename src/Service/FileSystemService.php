@@ -435,28 +435,24 @@ class FileSystemService implements FileSystemServiceInterface
 
         if ($copy) {
             $result = copy($sourcePath, $targetPath);
-
-            if ($result === false) {
-                throw new RuntimeException(
-                    sprintf('Failed to copy file to "%s"', $targetPath),
-                );
-            }
-
-            // Copy adds a new occupied path without freeing the source.
-            $occupiedPaths[$targetPath] = true;
+            $action = 'copy';
         } else {
             $result = rename($sourcePath, $targetPath);
-
-            if ($result === false) {
-                throw new RuntimeException(
-                    sprintf('Failed to move file to "%s"', $targetPath),
-                );
-            }
-
-            // Move: source freed, target occupied.
-            unset($occupiedPaths[$sourcePath]);
-            $occupiedPaths[$targetPath] = true;
+            $action = 'move';
         }
+
+        if ($result === false) {
+            throw new RuntimeException(
+                sprintf('Failed to %s file to "%s"', $action, $targetPath),
+            );
+        }
+
+        if (!$copy) {
+            // Move: source freed.
+            unset($occupiedPaths[$sourcePath]);
+        }
+
+        $occupiedPaths[$targetPath] = true;
     }
 
     /**
