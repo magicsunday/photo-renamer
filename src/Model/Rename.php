@@ -54,9 +54,9 @@ class Rename
      *
      * @param SplFileInfo $target New target path to use
      *
-     * @return Rename Fluent interface
+     * @return self Fluent interface
      */
-    public function setTarget(SplFileInfo $target): Rename
+    public function setTarget(SplFileInfo $target): self
     {
         $this->target = $target;
 

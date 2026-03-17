@@ -116,9 +116,9 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
      *
      * @param string $sourceDirectory absolute path to the directory being analysed
      *
-     * @return DuplicateDetectionService fluent reference for method chaining
+     * @return self fluent reference for method chaining
      */
-    public function setSourceDirectory(string $sourceDirectory): DuplicateDetectionService
+    public function setSourceDirectory(string $sourceDirectory): self
     {
         $this->sourceDirectory = $sourceDirectory;
 
@@ -130,9 +130,9 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
      *
      * @param string $targetDirectory absolute path to the destination directory
      *
-     * @return DuplicateDetectionService fluent reference for method chaining
+     * @return self fluent reference for method chaining
      */
-    public function setTargetDirectory(string $targetDirectory): DuplicateDetectionService
+    public function setTargetDirectory(string $targetDirectory): self
     {
         $this->targetDirectory = $targetDirectory;
 
@@ -144,9 +144,9 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
      *
      * @param bool $useFileExtensionFromSource when true the source file extension is retained in duplicates
      *
-     * @return DuplicateDetectionService fluent reference for method chaining
+     * @return self fluent reference for method chaining
      */
-    public function setUseFileExtensionFromSource(bool $useFileExtensionFromSource): DuplicateDetectionService
+    public function setUseFileExtensionFromSource(bool $useFileExtensionFromSource): self
     {
         $this->useFileExtensionFromSource = $useFileExtensionFromSource;
 

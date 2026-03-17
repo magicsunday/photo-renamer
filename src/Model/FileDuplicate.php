@@ -75,9 +75,9 @@ class FileDuplicate
      *
      * @param SplFileInfo $target Canonical target to set
      *
-     * @return FileDuplicate Fluent interface
+     * @return self Fluent interface
      */
-    public function setTarget(SplFileInfo $target): FileDuplicate
+    public function setTarget(SplFileInfo $target): self
     {
         $this->target = $target;
 

@@ -62,17 +62,17 @@ class RecursiveRegexFileFilterIterator extends RecursiveFilterIterator
      * Creates a new filter instance wrapping the inner iterator's children,
      * propagating the same regex to the child level.
      *
-     * @return RecursiveRegexFileFilterIterator Filter for the child directory
+     * @return self Filter for the child directory
      *
      * @throws RuntimeException When the inner iterator does not support getChildren()
      */
-    public function getChildren(): RecursiveRegexFileFilterIterator
+    public function getChildren(): self
     {
         if (!$this->getInnerIterator() instanceof RecursiveIterator) {
             throw new RuntimeException('Missing "getChildren" method in inner iterator');
         }
 
-        return new RecursiveRegexFileFilterIterator(
+        return new self(
             $this->getInnerIterator()->getChildren(),
             $this->regex
         );
