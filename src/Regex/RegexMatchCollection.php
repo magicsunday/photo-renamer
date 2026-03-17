@@ -62,7 +62,7 @@ final readonly class RegexMatchCollection
     {
         return new self(
             array_map(
-                static fn (array $groupMatches): RegexMatchGroup => RegexMatchGroup::fromList($groupMatches),
+                RegexMatchGroup::fromList(...),
                 $result->matches(),
             ),
         );
