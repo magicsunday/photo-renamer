@@ -29,7 +29,6 @@ use SplFileInfo;
 use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
-use function array_column;
 use function array_key_exists;
 use function count;
 use function is_dir;
@@ -39,6 +38,7 @@ use function str_contains;
 use function strlen;
 use function strtolower;
 use function substr_count;
+use function usort;
 
 /**
  * Central orchestrator of the rename pipeline's grouping and suffix-assignment phases.
@@ -195,14 +195,14 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             $files[] = $fileInfo;
         }
 
-        $decorated = [];
+        usort($files, static function (SplFileInfo $a, SplFileInfo $b): int {
+            $depthA = substr_count($a->getPath(), DIRECTORY_SEPARATOR);
+            $depthB = substr_count($b->getPath(), DIRECTORY_SEPARATOR);
 
-        foreach ($files as $file) {
-            $decorated[] = [substr_count($file->getPath(), DIRECTORY_SEPARATOR), $file->getPathname(), $file];
-        }
-
-        usort($decorated, static fn (array $a, array $b): int => $a[0] !== $b[0] ? $a[0] <=> $b[0] : $a[1] <=> $b[1]);
-        $files = array_column($decorated, 2);
+            return ($depthA !== $depthB)
+                ? $depthA <=> $depthB
+                : $a->getPathname() <=> $b->getPathname();
+        });
 
         $this->lastScannedFileCount = count($files);
 
