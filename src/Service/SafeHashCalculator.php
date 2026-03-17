@@ -31,6 +31,13 @@ use function sprintf;
 class SafeHashCalculator
 {
     /**
+     * Cache of previously computed hashes keyed by "algorithm:pathname".
+     *
+     * @var array<string, string>
+     */
+    private array $cache = [];
+
+    /**
      * Calculates a hash for the given file while converting PHP warnings into domain exceptions.
      *
      * @param SplFileInfo $file      file whose contents should be hashed
@@ -40,6 +47,12 @@ class SafeHashCalculator
      */
     public function hashFile(SplFileInfo $file, string $algorithm): string
     {
+        $key = $algorithm . ':' . $file->getPathname();
+
+        if (isset($this->cache[$key])) {
+            return $this->cache[$key];
+        }
+
         $path = $file->getPathname();
 
         set_error_handler(
@@ -61,6 +74,8 @@ class SafeHashCalculator
                 sprintf('Failed to compute %s hash for "%s": Unknown error.', $algorithm, $path),
             );
         }
+
+        $this->cache[$key] = $hash;
 
         return $hash;
     }
