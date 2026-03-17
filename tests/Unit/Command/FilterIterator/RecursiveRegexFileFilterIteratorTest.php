@@ -52,14 +52,16 @@ final class RecursiveRegexFileFilterIteratorTest extends TestCase
      * @param bool        $isDir    Whether the entry should be a directory
      * @param bool        $isFile   Whether the entry should be a file
      * @param string|null $filename The filename to return (null for directories)
+     * @param bool        $isLink   Whether the entry is a symbolic link
      *
      * @return Stub&SplFileInfo A stubbed SplFileInfo object
      */
-    private function createFileInfoStub(bool $isDir, bool $isFile, ?string $filename = null): Stub&SplFileInfo
+    private function createFileInfoStub(bool $isDir, bool $isFile, ?string $filename = null, bool $isLink = false): Stub&SplFileInfo
     {
         $stub = self::createStub(SplFileInfo::class);
         $stub->method('isDir')->willReturn($isDir);
         $stub->method('isFile')->willReturn($isFile);
+        $stub->method('isLink')->willReturn($isLink);
 
         if ($filename !== null) {
             $stub->method('getFilename')->willReturn($filename);
@@ -123,7 +125,7 @@ final class RecursiveRegexFileFilterIteratorTest extends TestCase
      * - The filename (if applicable)
      * - The expected result of the accept() method
      *
-     * @return array<string, array{isDir: bool, isFile: bool, filename: ?string, expectedResult: bool}>
+     * @return array<string, array{isDir: bool, isFile: bool, filename: ?string, expectedResult: bool, isLink?: bool}>
      */
     public static function acceptTestDataProvider(): array
     {
@@ -158,6 +160,20 @@ final class RecursiveRegexFileFilterIteratorTest extends TestCase
                 'filename'       => 'example.TXT',
                 'expectedResult' => false,
             ],
+            'symlink to file should be rejected' => [
+                'isDir'          => false,
+                'isFile'         => true,
+                'filename'       => 'link.txt',
+                'expectedResult' => false,
+                'isLink'         => true,
+            ],
+            'symlink to directory should be rejected' => [
+                'isDir'          => true,
+                'isFile'         => false,
+                'filename'       => 'linkdir',
+                'expectedResult' => false,
+                'isLink'         => true,
+            ],
         ];
     }
 
@@ -173,10 +189,10 @@ final class RecursiveRegexFileFilterIteratorTest extends TestCase
      */
     #[Test]
     #[DataProvider('acceptTestDataProvider')]
-    public function accept(bool $isDir, bool $isFile, ?string $filename, bool $expectedResult): void
+    public function accept(bool $isDir, bool $isFile, ?string $filename, bool $expectedResult, bool $isLink = false): void
     {
         // Arrange: Create a file info stub with specified properties
-        $fileInfoStub   = $this->createFileInfoStub($isDir, $isFile, $filename);
+        $fileInfoStub   = $this->createFileInfoStub($isDir, $isFile, $filename, $isLink);
         $filterIterator = $this->createFilterIterator($fileInfoStub);
 
         // Act & Assert: Verify the accept() method returns expected result

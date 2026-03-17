@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Command\FilterIterator;
 
+use MagicSunday\Renamer\Regex\SafeRegex;
 use RecursiveFilterIterator;
 use RecursiveIterator;
 use RuntimeException;
@@ -29,12 +30,14 @@ use SplFileInfo;
 class RecursiveRegexFileFilterIterator extends RecursiveFilterIterator
 {
     /**
-     * @param RecursiveIterator<string, SplFileInfo> $iterator Inner directory iterator to filter
-     * @param string                                 $regex    PCRE pattern matched against filenames
+     * @param RecursiveIterator<string, SplFileInfo> $iterator  Inner directory iterator to filter
+     * @param string                                 $regex     PCRE pattern matched against filenames
+     * @param SafeRegex                              $safeRegex Safe wrapper around preg_* functions with error handling
      */
     public function __construct(
         RecursiveIterator $iterator,
         private readonly string $regex,
+        private readonly SafeRegex $safeRegex = new SafeRegex(),
     ) {
         parent::__construct($iterator);
     }
@@ -48,6 +51,11 @@ class RecursiveRegexFileFilterIterator extends RecursiveFilterIterator
         /** @var SplFileInfo $fileInfo */
         $fileInfo = $this->getInnerIterator()->current();
 
+        // Reject symlinks to prevent directory escape
+        if ($fileInfo->isLink()) {
+            return false;
+        }
+
         // Check if the current element is a directory: always accept (so recursion works)
         if ($fileInfo->isDir()) {
             return true;
@@ -55,7 +63,7 @@ class RecursiveRegexFileFilterIterator extends RecursiveFilterIterator
 
         // Only files that match the regex are accepted
         return $fileInfo->isFile()
-            && (preg_match($this->regex, $fileInfo->getFilename()) === 1);
+            && $this->safeRegex->match($this->regex, $fileInfo->getFilename(), 'filtering files by regex')->isMatch();
     }
 
     /**
@@ -74,7 +82,8 @@ class RecursiveRegexFileFilterIterator extends RecursiveFilterIterator
 
         return new self(
             $this->getInnerIterator()->getChildren(),
-            $this->regex
+            $this->regex,
+            $this->safeRegex,
         );
     }
 }

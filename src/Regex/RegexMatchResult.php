@@ -26,6 +26,14 @@ final readonly class RegexMatchResult
     }
 
     /**
+     * Returns whether the pattern matched the subject.
+     */
+    public function isMatch(): bool
+    {
+        return $this->matches !== [];
+    }
+
+    /**
      * Returns the captured match data.
      *
      * @return array<int|string, string> match data returned by the regex engine
