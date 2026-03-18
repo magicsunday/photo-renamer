@@ -14,7 +14,7 @@ namespace MagicSunday\Renamer\Model;
 use function sprintf;
 
 /**
- * Defines the five output entry types displayed during the rename phase.
+ * Defines the output entry types displayed during the rename phase.
  * Acts as single source of truth for the tag letter, formatted Symfony
  * Console tag string, and color used in both rendering and filtering.
  *
@@ -28,6 +28,7 @@ enum OutputEntryTag: string
     case Fallback  = 'F';
     case Duplicate = 'D';
     case Original  = 'O';
+    case Warning   = 'W';
     case Skipped   = 'S';
     case Error     = 'E';
 
@@ -57,6 +58,7 @@ enum OutputEntryTag: string
             self::Fallback  => 'yellow',
             self::Duplicate => 'red',
             self::Original  => 'blue',
+            self::Warning   => 'magenta',
             self::Skipped   => 'gray',
             self::Error     => 'red',
         };

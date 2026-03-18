@@ -34,6 +34,7 @@ use function array_map;
 use function assert;
 use function explode;
 use function getcwd;
+use function getenv;
 use function is_dir;
 use function is_string;
 use function ltrim;
@@ -105,6 +106,13 @@ abstract class AbstractRenameCommand extends Command
      * When true, the output lists all files including unchanged originals.
      */
     protected bool $listAll = false;
+
+    /**
+     * Maximum allowed date drift in days between source filename and target date.
+     * Files exceeding this threshold are tagged as Warning and skipped.
+     * Null or 0 disables the check.
+     */
+    protected ?int $maxDateDrift = null;
 
     /**
      * When set, only output entries matching these tags are shown (e.g. ['R', 'D']).
@@ -186,6 +194,12 @@ abstract class AbstractRenameCommand extends Command
                 null,
                 InputOption::VALUE_REQUIRED,
                 'Timezone for video files without timezone metadata (e.g. Europe/Berlin). Overrides TIMEZONE env var.'
+            )
+            ->addOption(
+                'max-date-drift',
+                null,
+                InputOption::VALUE_REQUIRED,
+                'Maximum allowed date drift in days between source filename and target date. Files exceeding this are skipped. Default: 30.',
             );
     }
 
@@ -231,6 +245,15 @@ abstract class AbstractRenameCommand extends Command
         $this->skipDuplicates = (bool) $input->getOption('skip-duplicates');
         $this->skipFallback   = (bool) $input->getOption('skip-fallback');
         $this->listAll        = (bool) $input->getOption('list-all');
+
+        $driftOption = $input->getOption('max-date-drift');
+
+        if (is_string($driftOption)) {
+            $this->maxDateDrift = (int) $driftOption;
+        } else {
+            $envDrift           = getenv('MAX_DATE_DRIFT');
+            $this->maxDateDrift = is_string($envDrift) && $envDrift !== '' ? (int) $envDrift : 30;
+        }
 
         $showOption = $input->getOption('show');
 
@@ -486,6 +509,7 @@ abstract class AbstractRenameCommand extends Command
                     listAll: $this->listAll,
                     sourceBaseDirectory: $this->sourceDirectory,
                     targetBaseDirectory: $this->targetDirectory,
+                    maxDateDrift: $this->maxDateDrift,
                 ),
                 $result,
                 $this->showFilter,

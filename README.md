@@ -79,7 +79,8 @@ Large photo collections accumulated from multiple devices and backup sources ten
 | `--skip-duplicates` | `-s`  | Leave duplicates untouched.                                                               |
 | `--skip-fallback`   |       | Skip files whose date comes from the fallback DateTime tag (0x0132) instead of DateTimeOriginal. |
 | `--list-all`        |       | Show all files including originals and duplicates.                                        |
-| `--show=TAGS`       |       | Filter output by entry type (comma-separated: `R`=renamed, `F`=fallback, `D`=duplicate, `O`=original, `S`=skipped, `E`=error). |
+| `--show=TAGS`       |       | Filter output by entry type (comma-separated: `R`=renamed, `F`=fallback, `D`=duplicate, `O`=original, `W`=warning, `S`=skipped, `E`=error). |
+| `--max-date-drift=N`|       | Maximum allowed date drift in days between source filename date and target date. Files exceeding this are skipped with `[W]`. Default: 30. Set to 0 to disable. |
 
 ### `rename:exif` options
 
@@ -166,6 +167,7 @@ Each file in the output is prefixed with a status indicator:
 | `[F]` | **Fallback** -- date derived from DateTime (0x0132) instead of DateTimeOriginal.     |
 | `[D]` | **Duplicate** -- file is a duplicate and receives a suffix.                          |
 | `[O]` | **Original** -- file already has the correct name; no action taken.                  |
+| `[W]` | **Warning** -- date drift between source filename and target exceeds `--max-date-drift` (default 30 days); file is skipped. |
 | `[S]` | **Skipped** -- file has no usable metadata (no capture date found).                   |
 | `[E]` | **Error** -- metadata could not be read (parser error).                               |
 
@@ -197,6 +199,7 @@ cp .env.dist .env
 | `USERID`   | `1000`          | User ID for the Docker container.                                           |
 | `GROUPID`  | `1000`          | Group ID for the Docker container.                                          |
 | `TIMEZONE` | `Europe/Berlin` | Default timezone for video files without timezone metadata (see above).      |
+| `MAX_DATE_DRIFT` | `30`    | Maximum date drift in days between source filename date and target date. Set to `0` to disable. |
 
 ## 🛠️ Development
 

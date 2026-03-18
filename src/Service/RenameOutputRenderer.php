@@ -11,6 +11,8 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service;
 
+use DateMalformedStringException;
+use DateTimeImmutable;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
@@ -19,10 +21,13 @@ use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
+use function abs;
+use function basename;
 use function count;
 use function is_string;
 use function max;
 use function mb_strlen;
+use function preg_match;
 use function sprintf;
 use function str_contains;
 use function str_starts_with;
@@ -115,9 +120,23 @@ class RenameOutputRenderer
                     $tag = OutputEntryTag::Rename;
                 }
 
+                if (
+                    ($tag === OutputEntryTag::Rename || $tag === OutputEntryTag::Fallback)
+                    && ($options->maxDateDrift !== null)
+                    && ($options->maxDateDrift > 0)
+                ) {
+                    $driftDays = $this->computeDateDrift($sourcePath, $targetPath);
+
+                    if ($driftDays !== null && $driftDays > $options->maxDateDrift) {
+                        $tag = OutputEntryTag::Warning;
+                    }
+                }
+
+                $isWarning       = $tag === OutputEntryTag::Warning;
                 $isFallbackEntry = $tag === OutputEntryTag::Fallback;
                 $shouldSkip      = ($options->skipDuplicates && $isDuplicateTarget)
-                    || ($options->skipFallback && $isFallbackEntry);
+                    || ($options->skipFallback && $isFallbackEntry)
+                    || $isWarning;
                 $shouldPerformOperation = ($shouldSkip === false) && ($isCanonicalEntry === false);
 
                 $outputEntries[] = [
@@ -279,5 +298,68 @@ class RenameOutputRenderer
         }
 
         return $totalOperations;
+    }
+
+    /**
+     * Computes the date drift in days between dates found in source and target filenames.
+     * Returns null when either filename does not contain a recognizable date pattern.
+     *
+     * Supports:
+     * - YYYY-MM-DD, YYYY_MM_DD, YYYY.MM.DD (with any separator)
+     * - YYYYMMDD (compact, also embedded like IMG_20240330_121624.jpg)
+     */
+    private function computeDateDrift(string $sourcePath, string $targetPath): ?int
+    {
+        $sourceDate = $this->extractDateFromPath($sourcePath);
+        $targetDate = $this->extractDateFromPath($targetPath);
+
+        if (!$sourceDate instanceof DateTimeImmutable || !$targetDate instanceof DateTimeImmutable) {
+            return null;
+        }
+
+        $days = $sourceDate->diff($targetDate)->days;
+
+        if ($days === false) {
+            return null;
+        }
+
+        return abs($days);
+    }
+
+    private function extractDateFromPath(string $path): ?DateTimeImmutable
+    {
+        $basename = basename($path);
+
+        // Pattern 1: YYYY-MM-DD or YYYY_MM_DD or YYYY.MM.DD
+        if (preg_match('/(\d{4})[-_.](\d{2})[-_.](\d{2})/', $basename, $matches) === 1) {
+            return $this->tryCreateDate((int) $matches[1], (int) $matches[2], (int) $matches[3]);
+        }
+
+        // Pattern 2: YYYYMMDD (8 digits starting with 19xx or 20xx)
+        if (preg_match('/((?:19|20)\d{2})(\d{2})(\d{2})/', $basename, $matches) === 1) {
+            return $this->tryCreateDate((int) $matches[1], (int) $matches[2], (int) $matches[3]);
+        }
+
+        return null;
+    }
+
+    private function tryCreateDate(int $year, int $month, int $day): ?DateTimeImmutable
+    {
+        if ($month < 1 || $month > 12 || $day < 1 || $day > 31) {
+            return null;
+        }
+
+        try {
+            $date = new DateTimeImmutable(sprintf('%04d-%02d-%02d', $year, $month, $day));
+
+            // Validate the date is real (not Feb 30 etc.)
+            if ((int) $date->format('Y') !== $year || (int) $date->format('m') !== $month || (int) $date->format('d') !== $day) {
+                return null;
+            }
+
+            return $date;
+        } catch (DateMalformedStringException) {
+            return null;
+        }
     }
 }

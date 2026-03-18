@@ -328,6 +328,180 @@ final class RenameOutputRendererTest extends TestCase
     }
 
     /**
+     * Verifies that a rename entry with a large date drift between source and target
+     * filenames is tagged as Warning and marked for skipping.
+     */
+    #[Test]
+    public function buildOutputEntriesTagsWarningOnLargeDateDrift(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $sourceDir = '/tmp/source';
+        $targetDir = '/tmp/target';
+
+        $source = $sourceDir . '/2024-03-30_12-16-24.mov';
+        $target = $targetDir . '/2024-09-19_02-21-38-000.mov';
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate->setTarget(new SplFileInfo($target));
+        $fileDuplicate->addRename(new Rename(new SplFileInfo($source), new SplFileInfo($target)));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('test', $fileDuplicate);
+
+        [$entries] = $renderer->buildOutputEntries(
+            $collection,
+            new RenameOptions(maxDateDrift: 30),
+            new RenameResult(),
+            $sourceDir,
+            $targetDir,
+        );
+
+        self::assertCount(1, $entries);
+        self::assertSame(OutputEntryTag::Warning, $entries[0]['tag']);
+        self::assertTrue($entries[0]['shouldSkip']);
+    }
+
+    /**
+     * Verifies that a rename entry with matching dates in source and target
+     * is NOT tagged as Warning even when date drift checking is enabled.
+     */
+    #[Test]
+    public function buildOutputEntriesDoesNotWarnOnSameDate(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $sourceDir = '/tmp/source';
+        $targetDir = '/tmp/target';
+
+        $source = $sourceDir . '/2024-03-30_12-16-24.jpg';
+        $target = $targetDir . '/2024-03-30_12-16-24-000.jpg';
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate->setTarget(new SplFileInfo($target));
+        $fileDuplicate->addRename(new Rename(new SplFileInfo($source), new SplFileInfo($target)));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('test', $fileDuplicate);
+
+        [$entries] = $renderer->buildOutputEntries(
+            $collection,
+            new RenameOptions(maxDateDrift: 30),
+            new RenameResult(),
+            $sourceDir,
+            $targetDir,
+        );
+
+        self::assertCount(1, $entries);
+        self::assertSame(OutputEntryTag::Rename, $entries[0]['tag']);
+        self::assertFalse($entries[0]['shouldSkip']);
+    }
+
+    /**
+     * Verifies that a rename entry where the source has no recognizable date
+     * is NOT tagged as Warning (drift cannot be computed).
+     */
+    #[Test]
+    public function buildOutputEntriesDoesNotWarnWhenSourceHasNoDate(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $sourceDir = '/tmp/source';
+        $targetDir = '/tmp/target';
+
+        $source = $sourceDir . '/IMG_1234.jpg';
+        $target = $targetDir . '/2024-03-30_12-16-24.jpg';
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate->setTarget(new SplFileInfo($target));
+        $fileDuplicate->addRename(new Rename(new SplFileInfo($source), new SplFileInfo($target)));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('test', $fileDuplicate);
+
+        [$entries] = $renderer->buildOutputEntries(
+            $collection,
+            new RenameOptions(maxDateDrift: 30),
+            new RenameResult(),
+            $sourceDir,
+            $targetDir,
+        );
+
+        self::assertCount(1, $entries);
+        self::assertSame(OutputEntryTag::Rename, $entries[0]['tag']);
+        self::assertFalse($entries[0]['shouldSkip']);
+    }
+
+    /**
+     * Verifies that date drift checking is disabled when maxDateDrift is 0.
+     */
+    #[Test]
+    public function buildOutputEntriesSkipsDriftCheckWhenDisabled(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $sourceDir = '/tmp/source';
+        $targetDir = '/tmp/target';
+
+        $source = $sourceDir . '/2024-03-30_12-16-24.mov';
+        $target = $targetDir . '/2024-09-19_02-21-38-000.mov';
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate->setTarget(new SplFileInfo($target));
+        $fileDuplicate->addRename(new Rename(new SplFileInfo($source), new SplFileInfo($target)));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('test', $fileDuplicate);
+
+        [$entries] = $renderer->buildOutputEntries(
+            $collection,
+            new RenameOptions(maxDateDrift: 0),
+            new RenameResult(),
+            $sourceDir,
+            $targetDir,
+        );
+
+        self::assertCount(1, $entries);
+        self::assertSame(OutputEntryTag::Rename, $entries[0]['tag']);
+        self::assertFalse($entries[0]['shouldSkip']);
+    }
+
+    /**
+     * Verifies that compact YYYYMMDD date patterns (e.g. IMG_20240330_121624.jpg)
+     * are recognized for date drift detection.
+     */
+    #[Test]
+    public function buildOutputEntriesRecognizesCompactDatePattern(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $sourceDir = '/tmp/source';
+        $targetDir = '/tmp/target';
+
+        $source = $sourceDir . '/IMG_20240330_121624.jpg';
+        $target = $targetDir . '/2024-09-19_02-21-38-000.jpg';
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate->setTarget(new SplFileInfo($target));
+        $fileDuplicate->addRename(new Rename(new SplFileInfo($source), new SplFileInfo($target)));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('test', $fileDuplicate);
+
+        [$entries] = $renderer->buildOutputEntries(
+            $collection,
+            new RenameOptions(maxDateDrift: 30),
+            new RenameResult(),
+            $sourceDir,
+            $targetDir,
+        );
+
+        self::assertCount(1, $entries);
+        self::assertSame(OutputEntryTag::Warning, $entries[0]['tag']);
+        self::assertTrue($entries[0]['shouldSkip']);
+    }
+
+    /**
      * @return array{RenameOutputRenderer, BufferedOutput}
      */
     private function createRenderer(): array

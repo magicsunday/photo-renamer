@@ -30,6 +30,7 @@ final readonly class RenameOptions
      * @param bool        $listAll             When true, all files are listed in output including unchanged ones
      * @param string|null $sourceBaseDirectory Absolute path to the directory scanned for source files
      * @param string|null $targetBaseDirectory Absolute path to the directory where renamed files are placed
+     * @param int|null    $maxDateDrift        Maximum allowed date drift in days (0 = disabled, null = disabled)
      */
     public function __construct(
         public bool $dryRun = false,
@@ -39,6 +40,7 @@ final readonly class RenameOptions
         public bool $listAll = false,
         public ?string $sourceBaseDirectory = null,
         public ?string $targetBaseDirectory = null,
+        public ?int $maxDateDrift = null,
     ) {
     }
 }
