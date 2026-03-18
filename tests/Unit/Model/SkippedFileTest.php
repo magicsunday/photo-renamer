@@ -42,5 +42,22 @@ final class SkippedFileTest extends TestCase
 
         self::assertSame($file, $skippedFile->getFile());
         self::assertSame($reason, $skippedFile->getReason());
+        self::assertFalse($skippedFile->isError());
+    }
+
+    /**
+     * Verifies that the isError flag distinguishes metadata read errors
+     * from files that simply lack usable metadata.
+     */
+    #[Test]
+    public function itDistinguishesReadErrors(): void
+    {
+        $skippedFile = new SkippedFile(
+            new SplFileInfo('/tmp/broken.mov'),
+            'audio sample entry vendor must be 0',
+            isError: true,
+        );
+
+        self::assertTrue($skippedFile->isError());
     }
 }

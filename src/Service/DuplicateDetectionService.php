@@ -29,6 +29,7 @@ use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Throwable;
 
 use function array_key_exists;
 use function count;
@@ -319,9 +320,13 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                         $contentIdentifierCacheEntry['pendingFiles'][] = $sourceFileInfo;
                     }
                 } else {
+                    $reason  = $this->lastSkipReason ?? 'no capture date';
+                    $isError = $reason !== 'no capture date';
+
                     $this->skippedFiles[] = new SkippedFile(
                         $sourceFileInfo,
-                        $this->lastSkipReason ?? 'no capture date',
+                        $reason,
+                        $isError,
                     );
                 }
 
@@ -917,8 +922,15 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
 
             $this->lastSkipReason = 'no capture date';
         } catch (TargetFilenameException $exception) {
-            $this->lastSkipReason = sprintf('metadata read error: %s', $exception->getMessage());
-            $this->io->error($exception->getMessage());
+            // Extract the root cause message from the exception chain to avoid
+            // double-wrapped "Unable to read..." prefixes in the output.
+            $rootCause = $exception;
+
+            while ($rootCause->getPrevious() instanceof Throwable) {
+                $rootCause = $rootCause->getPrevious();
+            }
+
+            $this->lastSkipReason = $rootCause->getMessage();
         }
 
         return null;

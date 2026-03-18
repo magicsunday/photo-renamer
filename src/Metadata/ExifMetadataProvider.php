@@ -17,7 +17,6 @@ use MagicSunday\Renamer\Exception\TargetFilenameException;
 use SplFileInfo;
 
 use function array_key_exists;
-use function sprintf;
 use function strtolower;
 use function trim;
 
@@ -114,12 +113,12 @@ final class ExifMetadataProvider
             try {
                 $this->metadataCache[$key] = $this->metadataExtractor->extractTemporalMetadata($splFileInfo);
             } catch (ExifMetadataReadException $exception) {
+                // Cache null so subsequent calls (e.g. Live Photo pairing) return
+                // gracefully instead of re-throwing.
+                $this->metadataCache[$key] = null;
+
                 throw new TargetFilenameException(
-                    sprintf(
-                        'Unable to read image metadata from "%s": %s',
-                        $splFileInfo->getPathname(),
-                        $exception->getMessage(),
-                    ),
+                    $exception->getMessage(),
                     $exception->getCode(),
                     previous: $exception,
                 );

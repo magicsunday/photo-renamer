@@ -25,12 +25,14 @@ use SplFileInfo;
 final readonly class SkippedFile
 {
     /**
-     * @param SplFileInfo $file   The source file that was skipped
-     * @param string      $reason Human-readable explanation (e.g. "no capture date", "metadata read error: ...")
+     * @param SplFileInfo $file    The source file that was skipped
+     * @param string      $reason  Human-readable explanation (e.g. "no capture date", "audio sample entry vendor must be 0")
+     * @param bool        $isError Whether the skip was caused by a metadata read error (true) or simply missing metadata (false)
      */
     public function __construct(
         private SplFileInfo $file,
         private string $reason,
+        private bool $isError = false,
     ) {
     }
 
@@ -48,5 +50,13 @@ final readonly class SkippedFile
     public function getReason(): string
     {
         return $this->reason;
+    }
+
+    /**
+     * Returns whether the skip was caused by a metadata read error.
+     */
+    public function isError(): bool
+    {
+        return $this->isError;
     }
 }

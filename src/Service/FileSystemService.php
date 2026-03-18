@@ -27,7 +27,6 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function basename;
 use function copy;
-use function count;
 use function file_exists;
 use function is_dir;
 use function is_string;
@@ -171,7 +170,7 @@ class FileSystemService implements FileSystemServiceInterface
         /**
          * @var list<
          *     array{sortKey: string, type: 'rename', sourcePath: string, targetPath: string, statusTag: string, isDuplicateTarget: bool, shouldSkip: bool, shouldPerformOperation: bool, rename: Rename}
-         *     |array{sortKey: string, type: 'skip', sourcePath: string, reason: string}
+         *     |array{sortKey: string, type: 'skip', sourcePath: string, reason: string, isError: bool}
          * > $outputEntries
          */
         $outputEntries = [];
@@ -221,18 +220,26 @@ class FileSystemService implements FileSystemServiceInterface
             }
         }
 
+        $skippedCount = 0;
+        $errorCount   = 0;
+
         foreach ($options->skippedFiles as $skippedFile) {
+            if ($skippedFile->isError()) {
+                ++$errorCount;
+            } else {
+                ++$skippedCount;
+            }
+
             $outputEntries[] = [
                 'sortKey'    => $skippedFile->getFile()->getPathname(),
                 'type'       => 'skip',
                 'sourcePath' => self::relativizePath($skippedFile->getFile()->getPathname(), $sourceBaseDirectory),
                 'reason'     => ucfirst($skippedFile->getReason()),
+                'isError'    => $skippedFile->isError(),
             ];
         }
 
         usort($outputEntries, static fn (array $a, array $b): int => $a['sortKey'] <=> $b['sortKey']);
-
-        $skippedCount = count($options->skippedFiles);
 
         $this->io->newLine();
         $this->io->text(sprintf(
@@ -249,11 +256,14 @@ class FileSystemService implements FileSystemServiceInterface
             $formatString = ' %s <fg=yellow>%-' . $padWidth . 's</> <fg=cyan>→</> %s';
 
             if ($entry['type'] === 'skip') {
+                $tag   = $entry['isError'] ? '<fg=red>[E]</>' : '<fg=gray>[S]</>';
+                $color = $entry['isError'] ? 'red' : 'gray';
+
                 $this->io->text(sprintf(
                     $formatString,
-                    '<fg=gray>[S]</>',
+                    $tag,
                     $entry['sourcePath'],
-                    sprintf('<fg=gray>%s</>', $entry['reason']),
+                    sprintf('<fg=%s>%s</>', $color, $entry['reason']),
                 ));
 
                 continue;
@@ -307,6 +317,10 @@ class FileSystemService implements FileSystemServiceInterface
 
         if ($skippedCount > 0) {
             $rows[] = ['Skipped (no metadata)', (string) $skippedCount];
+        }
+
+        if ($errorCount > 0) {
+            $rows[] = ['Skipped (read errors)', (string) $errorCount];
         }
 
         if ($plannedMoves > 0) {

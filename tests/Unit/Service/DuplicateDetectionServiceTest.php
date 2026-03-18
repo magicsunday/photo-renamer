@@ -229,10 +229,13 @@ final class DuplicateDetectionServiceTest extends TestCase
             $duplicateIdentifierStrategy,
         );
 
-        $progressOutput = $output->fetch();
-
         self::assertCount(0, $collection);
-        self::assertStringContainsString('boom', $progressOutput);
+
+        $skippedFiles = $service->getSkippedFiles();
+
+        self::assertCount(1, $skippedFiles);
+        self::assertSame('boom', $skippedFiles[0]->getReason());
+        self::assertTrue($skippedFiles[0]->isError());
     }
 
     /**
