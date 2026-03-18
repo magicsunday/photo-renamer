@@ -98,10 +98,10 @@ final class SafeRegex
     /**
      * Wrapper for {@see preg_replace_callback()} that converts warnings into exceptions.
      *
-     * @param string   $pattern            regular expression pattern to search for
-     * @param callable $callback           callback invoked for each match
-     * @param string   $subject            input string being modified
-     * @param string   $contextDescription description inserted into error messages on failure
+     * @param string                                      $pattern            regular expression pattern to search for
+     * @param callable(array<int|string, string>): string $callback           callback invoked for each match
+     * @param string                                      $subject            input string being modified
+     * @param string                                      $contextDescription description inserted into error messages on failure
      *
      * @return string resulting string after replacements
      */

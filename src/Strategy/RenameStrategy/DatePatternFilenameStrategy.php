@@ -60,7 +60,7 @@ readonly class DatePatternFilenameStrategy extends InheritFilenameStrategy
         $replacementMatches = RegexMatchCollection::fromMatchAll(
             $this->regex->matchAll(
                 '/{(\w+)}/',
-                $this->replacement . '$1',
+                $this->replacement,
                 'resolving date pattern placeholders',
             ),
         );
@@ -103,52 +103,58 @@ readonly class DatePatternFilenameStrategy extends InheritFilenameStrategy
                 ),
             );
 
-            $dateFormatCharacters  = $this->dateFormatCharacters;
-            $targetFilenamePattern = $this->targetFilenamePattern;
-
             $suffixIndex = $filePartMatches->count() > 0 ? $filePartMatches->count() - 1 : 0;
 
             return $this->regex
                 ->replaceCallback(
                     $this->pattern,
-                    /** @param array<int|string, string> $matches */
-                    static function (array $matches) use ($dateFormatCharacters, $targetFilenamePattern, $suffixIndex): string {
-                        /** @var array<int|string, string> $matches */
-                        $dateParts = [];
-
-                        foreach ($dateFormatCharacters as $key => $dateFormatCharacter) {
-                            if ($dateFormatCharacter === 'y') {
-                                $dateFormatCharacter = 'Y';
-                            }
-
-                            $matchValue = $matches[$key + 1] ?? '';
-
-                            if (($dateFormatCharacter === 'Y') && (strlen($matchValue) === 2)) {
-                                $fourDigitYearDate = DateTime::createFromFormat('y', $matchValue);
-
-                                if ($fourDigitYearDate !== false) {
-                                    $matchValue        = $fourDigitYearDate->format('Y');
-                                    $matches[$key + 1] = $matchValue;
-                                }
-                            }
-
-                            $dateParts[$dateFormatCharacter] = (int) $matchValue;
-                        }
-
-                        $dateTimeCreated = new DateTime();
-                        $dateTimeCreated
-                            ->setDate($dateParts['Y'] ?? 0, $dateParts['m'] ?? 1, $dateParts['d'] ?? 1)
-                            ->setTime($dateParts['H'] ?? 0, $dateParts['i'] ?? 0, $dateParts['s'] ?? 0);
-
-                        $suffix = $matches[$suffixIndex] ?? '';
-
-                        return $dateTimeCreated->format($targetFilenamePattern) . $suffix;
-                    },
+                    fn (array $matches): string => $this->buildDateFromMatches($matches, $suffixIndex),
                     $targetFilename,
                     'executing preg_replace_callback for date pattern',
                 );
         } catch (RegexExecutionException $exception) {
             throw new TargetFilenameException('Date pattern error: ' . $exception->getMessage(), $exception->getCode(), previous: $exception);
         }
+    }
+
+    /**
+     * Builds a formatted date string from regex capture group matches.
+     *
+     * @param array<int|string, string> $matches     Regex capture group results
+     * @param int                       $suffixIndex Index of the trailing suffix capture group
+     *
+     * @return string Formatted date string with optional suffix
+     */
+    private function buildDateFromMatches(array $matches, int $suffixIndex): string
+    {
+        $dateParts = [];
+
+        foreach ($this->dateFormatCharacters as $key => $dateFormatCharacter) {
+            if ($dateFormatCharacter === 'y') {
+                $dateFormatCharacter = 'Y';
+            }
+
+            $matchValue = $matches[$key + 1] ?? '';
+
+            if (($dateFormatCharacter === 'Y') && (strlen($matchValue) === 2)) {
+                $fourDigitYearDate = DateTime::createFromFormat('y', $matchValue);
+
+                if ($fourDigitYearDate !== false) {
+                    $matchValue        = $fourDigitYearDate->format('Y');
+                    $matches[$key + 1] = $matchValue;
+                }
+            }
+
+            $dateParts[$dateFormatCharacter] = (int) $matchValue;
+        }
+
+        $dateTimeCreated = new DateTime();
+        $dateTimeCreated
+            ->setDate($dateParts['Y'] ?? 0, $dateParts['m'] ?? 1, $dateParts['d'] ?? 1)
+            ->setTime($dateParts['H'] ?? 0, $dateParts['i'] ?? 0, $dateParts['s'] ?? 0);
+
+        $suffix = $matches[$suffixIndex] ?? '';
+
+        return $dateTimeCreated->format($this->targetFilenamePattern) . $suffix;
     }
 }

@@ -13,8 +13,6 @@ namespace MagicSunday\Renamer\Strategy\RenameStrategy\DatePattern;
 
 use MagicSunday\Renamer\Regex\SafeRegex;
 
-use function is_string;
-
 /**
  * Maps date placeholder tokens (Y, m, d, H, i, s) to their corresponding
  * regex capture groups (e.g. Y -> (\d{4})). Used to convert a user-supplied
@@ -63,13 +61,7 @@ final readonly class DatePlaceholderExpressionMap
     {
         return $safeRegex->replaceCallback(
             '/{(\\w+)}/',
-            /** @param array<int|string, string> $matches */
-            function (array $matches): string {
-                $placeholder = is_string($matches[1]) ? $matches[1] : '';
-                $fullMatch   = is_string($matches[0]) ? $matches[0] : '';
-
-                return $this->expressions[$placeholder] ?? $fullMatch;
-            },
+            fn (array $matches): string => $this->expressions[$matches[1] ?? ''] ?? ($matches[0] ?? ''),
             $pattern,
             'replacing date placeholders with regex groups',
         );
