@@ -36,12 +36,16 @@ final readonly class TemporalMetadata
      * @param bool                   $isUtcWithoutTimezone Whether the capture timestamp is UTC and the file
      *                                                     contains no explicit timezone information (e.g.
      *                                                     QuickTime/MP4 files that store dates in UTC)
+     * @param bool                   $isAmbiguousTimezone  Whether the timezone could not be determined
+     *                                                     (file modification time altered, cannot distinguish
+     *                                                     UTC from local time)
      */
     public function __construct(
         private ?DateTimeInterface $captureDateTime,
         private ?string $livePhotoId,
         private bool $isFallbackDateTime = false,
         private bool $isUtcWithoutTimezone = false,
+        private bool $isAmbiguousTimezone = false,
     ) {
     }
 
@@ -79,5 +83,15 @@ final readonly class TemporalMetadata
     public function isUtcWithoutTimezone(): bool
     {
         return $this->isUtcWithoutTimezone;
+    }
+
+    /**
+     * Returns whether the timezone is ambiguous — the file modification time
+     * was altered so we cannot determine if the QuickTime timestamp is UTC
+     * or local time. These files should be flagged as warnings.
+     */
+    public function isAmbiguousTimezone(): bool
+    {
+        return $this->isAmbiguousTimezone;
     }
 }

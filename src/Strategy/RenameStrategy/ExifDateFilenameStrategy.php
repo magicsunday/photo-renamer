@@ -106,6 +106,14 @@ readonly class ExifDateFilenameStrategy implements LivePhotoAwareRenameStrategyI
     }
 
     /**
+     * Returns whether the given file has an ambiguous timezone.
+     */
+    public function isAmbiguousTimezone(SplFileInfo $splFileInfo): bool
+    {
+        return $this->exifMetadataProvider->isAmbiguousTimezone($splFileInfo);
+    }
+
+    /**
      * {@inheritDoc}
      */
     #[Override]

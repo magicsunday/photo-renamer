@@ -66,13 +66,13 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
 
         $isQuickTimeContainer = $metadata->quickTime instanceof QuickTimeMeta;
 
-        [$captureDateTime, $isFallback, $isUtcWithoutTimezone] = $this->extractCaptureDateTimeWithFallbackFlag($structured, $file, $isQuickTimeContainer);
+        [$captureDateTime, $isFallback, $isUtcWithoutTimezone, $isAmbiguousTimezone] = $this->extractCaptureDateTimeWithFallbackFlag($structured, $file, $isQuickTimeContainer);
 
         if (!($captureDateTime instanceof DateTimeInterface) && ($livePhotoId === null)) {
             return null;
         }
 
-        return new TemporalMetadata($captureDateTime, $livePhotoId, $isFallback, $isUtcWithoutTimezone);
+        return new TemporalMetadata($captureDateTime, $livePhotoId, $isFallback, $isUtcWithoutTimezone, $isAmbiguousTimezone);
     }
 
     /**
@@ -86,7 +86,7 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
      * is null and both resolve to the same timestamp, the date came from the
      * generic capture fallback (0x0132), not from a dedicated date tag.
      *
-     * @return array{DateTimeInterface|null, bool, bool} Tuple of [captureDateTime, isFallback, isUtcWithoutTimezone]
+     * @return array{DateTimeInterface|null, bool, bool, bool} Tuple of [captureDateTime, isFallback, isUtcWithoutTimezone, isAmbiguousTimezone]
      */
     private function extractCaptureDateTimeWithFallbackFlag(StructuredMetadata $structured, SplFileInfo $file, bool $isQuickTimeContainer): array
     {
@@ -100,7 +100,7 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         $dateTime = $original ?? $create ?? $capture;
 
         if (!$dateTime instanceof DateTimeInterface) {
-            return [null, false, false];
+            return [null, false, false, false];
         }
 
         // Fallback detection: if there's no dedicated create date (0x9004) and the
@@ -124,6 +124,7 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         // This works because file modification time is set by the camera when writing
         // the file, and most file transfer tools preserve it.
         $isUtcWithoutTimezone = false;
+        $isAmbiguousTimezone  = false;
 
         if (
             $isQuickTimeContainer
@@ -144,13 +145,14 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
                 // local time as Mac epoch. The offset IS the timezone difference.
                 $isUtcWithoutTimezone = false;
             } else {
-                // File modification time was altered (copy/sync). Assume UTC — this
-                // is the safer default for modern video files.
-                $isUtcWithoutTimezone = true;
+                // File modification time was altered (copy/sync). Cannot determine
+                // if the timestamp is UTC or local time. Flag as ambiguous so the
+                // pipeline can warn the user instead of silently guessing wrong.
+                $isAmbiguousTimezone = true;
             }
         }
 
-        return [$dateTime, $isFallback, $isUtcWithoutTimezone];
+        return [$dateTime, $isFallback, $isUtcWithoutTimezone, $isAmbiguousTimezone];
     }
 
     /**

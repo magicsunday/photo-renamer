@@ -122,6 +122,13 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     private array $fallbackDateFiles = [];
 
     /**
+     * Pathnames of files with ambiguous timezone (cannot determine UTC vs local).
+     *
+     * @var array<string, true>
+     */
+    private array $ambiguousTimezoneFiles = [];
+
+    /**
      * @param SymfonyStyle                    $io                     Console IO for progress bars and error output
      * @param HashSubGroupingServiceInterface $hashSubGroupingService Service for content-hash-based sub-grouping
      * @param MediaTypeClassifierInterface    $mediaTypeClassifier    Classifies files by media type (still vs. video)
@@ -170,6 +177,14 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     public function getFallbackDateFiles(): array
     {
         return $this->fallbackDateFiles;
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    public function getAmbiguousTimezoneFiles(): array
+    {
+        return $this->ambiguousTimezoneFiles;
     }
 
     /**
@@ -270,6 +285,14 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 && $renameStrategy->isFallbackDateTime($sourceFileInfo)
             ) {
                 $this->fallbackDateFiles[$sourceFileInfo->getPathname()] = true;
+            }
+
+            // Track files with ambiguous timezone (UTC vs local undetermined).
+            if (
+                ($renameStrategy instanceof ExifDateFilenameStrategy)
+                && $renameStrategy->isAmbiguousTimezone($sourceFileInfo)
+            ) {
+                $this->ambiguousTimezoneFiles[$sourceFileInfo->getPathname()] = true;
             }
 
             // Video companions with content identifiers defer to Live Photo pairing
@@ -740,10 +763,11 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
      */
     private function buildDiskIndex(array $files): void
     {
-        $this->diskIndex            = [];
-        $this->contentIdentifierMap = [];
-        $this->skippedFiles         = [];
-        $this->fallbackDateFiles    = [];
+        $this->diskIndex              = [];
+        $this->contentIdentifierMap   = [];
+        $this->skippedFiles           = [];
+        $this->fallbackDateFiles      = [];
+        $this->ambiguousTimezoneFiles = [];
 
         foreach ($files as $file) {
             $this->diskIndex[$file->getPathname()] = true;

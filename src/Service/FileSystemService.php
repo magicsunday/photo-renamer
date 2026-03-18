@@ -264,7 +264,7 @@ class FileSystemService implements FileSystemServiceInterface
                 if ($shouldSkip) {
                     $skipReason = match ($entryTag) {
                         OutputEntryTag::Fallback => 'fallback date',
-                        OutputEntryTag::Warning  => 'date drift',
+                        OutputEntryTag::Warning  => 'suspicious date',
                         default                  => 'duplicate',
                     };
                     $this->io->text(sprintf('       <fg=red>⏭ Skipped (%s)</>', $skipReason));

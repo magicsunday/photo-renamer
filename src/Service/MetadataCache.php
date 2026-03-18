@@ -57,7 +57,7 @@ final class MetadataCache
      * - The file is not in the cache
      * - The file's mtime or size has changed.
      *
-     * @return array{mtime: int, size: int, captureDateTime: string|null, contentId: string|null, isFallback: bool, isUtcWithoutTimezone: bool}|null
+     * @return array{mtime: int, size: int, captureDateTime: string|null, contentId: string|null, isFallback: bool, isUtcWithoutTimezone: bool, isAmbiguousTimezone?: bool}|null
      */
     public function get(SplFileInfo $file): ?array
     {
@@ -88,6 +88,7 @@ final class MetadataCache
         ?string $contentId,
         bool $isFallback,
         bool $isUtcWithoutTimezone,
+        bool $isAmbiguousTimezone = false,
     ): void {
         $this->entries[$file->getPathname()] = [
             'mtime'                => $file->getMTime(),
@@ -96,6 +97,7 @@ final class MetadataCache
             'contentId'            => $contentId,
             'isFallback'           => $isFallback,
             'isUtcWithoutTimezone' => $isUtcWithoutTimezone,
+            'isAmbiguousTimezone'  => $isAmbiguousTimezone,
         ];
 
         $this->dirty = true;

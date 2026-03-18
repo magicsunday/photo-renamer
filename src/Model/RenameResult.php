@@ -23,16 +23,18 @@ namespace MagicSunday\Renamer\Model;
 final readonly class RenameResult
 {
     /**
-     * @param int                 $scannedFiles      Total number of files discovered during the scan phase
-     * @param int                 $namingCollisions  Count of target filename collisions resolved by the safe-rename fallback
-     * @param list<SkippedFile>   $skippedFiles      Files skipped because the rename strategy produced no target filename
-     * @param array<string, true> $fallbackDateFiles Pathnames of files using the DateTime (0x0132) fallback
+     * @param int                 $scannedFiles           Total number of files discovered during the scan phase
+     * @param int                 $namingCollisions       Count of target filename collisions resolved by the safe-rename fallback
+     * @param list<SkippedFile>   $skippedFiles           Files skipped because the rename strategy produced no target filename
+     * @param array<string, true> $fallbackDateFiles      Pathnames of files using the DateTime (0x0132) fallback
+     * @param array<string, true> $ambiguousTimezoneFiles Pathnames of files with ambiguous timezone (UTC vs local)
      */
     public function __construct(
         public int $scannedFiles = 0,
         public int $namingCollisions = 0,
         public array $skippedFiles = [],
         public array $fallbackDateFiles = [],
+        public array $ambiguousTimezoneFiles = [],
     ) {
     }
 }

@@ -90,4 +90,12 @@ interface DuplicateDetectionServiceInterface
      * @return array<string, true>
      */
     public function getFallbackDateFiles(): array;
+
+    /**
+     * Returns pathnames of files with ambiguous timezone (cannot determine
+     * if the QuickTime timestamp is UTC or local time).
+     *
+     * @return array<string, true>
+     */
+    public function getAmbiguousTimezoneFiles(): array;
 }

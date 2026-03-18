@@ -110,11 +110,15 @@ class RenameOutputRenderer
                 $sourcePath = FileSystemService::relativizePath($rename->getSource()->getPathname(), $sourceBaseDirectory);
                 $targetPath = FileSystemService::relativizePath($rename->getTarget()->getPathname(), $targetBaseDirectory);
 
+                $sourcePathname = $rename->getSource()->getPathname();
+
                 if ($isDuplicateTarget) {
                     $tag = OutputEntryTag::Duplicate;
                 } elseif ($isCanonicalEntry) {
                     $tag = OutputEntryTag::Original;
-                } elseif (isset($result->fallbackDateFiles[$rename->getSource()->getPathname()])) {
+                } elseif (isset($result->ambiguousTimezoneFiles[$sourcePathname])) {
+                    $tag = OutputEntryTag::Warning;
+                } elseif (isset($result->fallbackDateFiles[$sourcePathname])) {
                     $tag = OutputEntryTag::Fallback;
                 } else {
                     $tag = OutputEntryTag::Rename;

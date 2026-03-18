@@ -496,6 +496,7 @@ abstract class AbstractRenameCommand extends Command
             namingCollisions: $this->duplicateDetectionService->getNamingCollisions(),
             skippedFiles: $this->duplicateDetectionService->getSkippedFiles(),
             fallbackDateFiles: $this->duplicateDetectionService->getFallbackDateFiles(),
+            ambiguousTimezoneFiles: $this->duplicateDetectionService->getAmbiguousTimezoneFiles(),
         );
 
         $this->fileSystemService
