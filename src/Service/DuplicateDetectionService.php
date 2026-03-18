@@ -174,38 +174,11 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     ): FileDuplicateCollection {
         $this->sourceDirectory = $sourceDirectory;
         $this->targetDirectory = $targetDirectory;
-        // Collect and sort files: parent directories before subdirectories.
-        /** @var list<SplFileInfo> $files */
-        $files = [];
 
-        /** @var SplFileInfo $fileInfo */
-        foreach ($iterator as $fileInfo) {
-            $files[] = $fileInfo;
-        }
-
-        usort($files, static function (SplFileInfo $a, SplFileInfo $b): int {
-            $depthA = substr_count($a->getPath(), DIRECTORY_SEPARATOR);
-            $depthB = substr_count($b->getPath(), DIRECTORY_SEPARATOR);
-
-            return ($depthA !== $depthB)
-                ? $depthA <=> $depthB
-                : $a->getPathname() <=> $b->getPathname();
-        });
-
+        $files                      = $this->collectAndSortFiles($iterator);
         $this->lastScannedFileCount = count($files);
 
-        // Build in-memory disk index to avoid stat() calls during planning.
-        $this->diskIndex            = [];
-        $this->contentIdentifierMap = [];
-        $this->skippedFiles         = [];
-
-        foreach ($files as $file) {
-            $this->diskIndex[$file->getPathname()] = true;
-        }
-
-        if (($this->targetDirectory !== $this->sourceDirectory) && is_dir($this->targetDirectory)) {
-            $this->diskIndex += FileSystemService::scanDirectoryPaths($this->targetDirectory);
-        }
+        $this->buildDiskIndex($files);
 
         $progressBar = $this->startProgressBar(count($files));
 
@@ -257,28 +230,12 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             }
 
             if ($result->isSkipped()) {
-                if ($contentIdentifierCacheEntry !== null) {
-                    $cachedDuplicateIdentifier = $contentIdentifierCacheEntry['duplicateIdentifier'];
-
-                    if (
-                        is_string($cachedDuplicateIdentifier)
-                        && $fileDuplicateCollection->has($cachedDuplicateIdentifier)
-                    ) {
-                        $existingDuplicate = $fileDuplicateCollection->get($cachedDuplicateIdentifier);
-
-                        if ($existingDuplicate instanceof FileDuplicate) {
-                            $existingDuplicate->addFile($sourceFileInfo);
-                        }
-                    } else {
-                        $contentIdentifierCacheEntry['pendingFiles'][] = $sourceFileInfo;
-                    }
-                } else {
-                    $this->skippedFiles[] = new SkippedFile(
-                        $sourceFileInfo,
-                        $result->getSkipReason() ?? 'no capture date',
-                        $result->isError(),
-                    );
-                }
+                $this->handleSkippedFile(
+                    $sourceFileInfo,
+                    $result,
+                    $fileDuplicateCollection,
+                    $contentIdentifierCacheEntry,
+                );
 
                 unset($contentIdentifierCacheEntry);
 
@@ -633,6 +590,106 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         $progressBar->start();
 
         return $progressBar;
+    }
+
+    /**
+     * Collects all files from the iterator and sorts them so that parent directories
+     * appear before subdirectories, with ties broken by pathname.
+     *
+     * @template TInner of RecursiveIterator
+     *
+     * @param RecursiveIteratorIterator<TInner> $iterator iterator yielding candidate files
+     *
+     * @return list<SplFileInfo> sorted file list
+     */
+    private function collectAndSortFiles(RecursiveIteratorIterator $iterator): array
+    {
+        /** @var list<SplFileInfo> $files */
+        $files = [];
+
+        /** @var SplFileInfo $fileInfo */
+        foreach ($iterator as $fileInfo) {
+            $files[] = $fileInfo;
+        }
+
+        usort($files, static function (SplFileInfo $a, SplFileInfo $b): int {
+            $depthA = substr_count($a->getPath(), DIRECTORY_SEPARATOR);
+            $depthB = substr_count($b->getPath(), DIRECTORY_SEPARATOR);
+
+            return ($depthA !== $depthB)
+                ? $depthA <=> $depthB
+                : $a->getPathname() <=> $b->getPathname();
+        });
+
+        return $files;
+    }
+
+    /**
+     * Resets per-run state and populates the in-memory disk index from the given
+     * files and (when different from the source) the target directory.
+     *
+     * @param list<SplFileInfo> $files files discovered by the iterator
+     */
+    private function buildDiskIndex(array $files): void
+    {
+        $this->diskIndex            = [];
+        $this->contentIdentifierMap = [];
+        $this->skippedFiles         = [];
+
+        foreach ($files as $file) {
+            $this->diskIndex[$file->getPathname()] = true;
+        }
+
+        if (($this->targetDirectory !== $this->sourceDirectory) && is_dir($this->targetDirectory)) {
+            $this->diskIndex += FileSystemService::scanDirectoryPaths($this->targetDirectory);
+        }
+    }
+
+    /**
+     * Handles a file whose rename strategy returned a skipped or error result.
+     *
+     * When a content identifier cache entry exists, the file is either added to an
+     * already-resolved duplicate group or queued as pending. Otherwise, it is recorded
+     * as a skipped file with its reason.
+     *
+     * @param SplFileInfo             $sourceFileInfo          the source file being processed
+     * @param TargetFileResult        $result                  the skipped/error result from the rename strategy
+     * @param FileDuplicateCollection $fileDuplicateCollection collection of discovered duplicate groups
+     * @param array{
+     *     duplicateIdentifier: string|null,
+     *     pendingFiles: list<SplFileInfo>,
+     *     target: SplFileInfo|null,
+     *     captureDate: string|null
+     * }|null                              $contentIdentifierCacheEntry cache entry for the file's content identifier (passed by reference)
+     */
+    private function handleSkippedFile(
+        SplFileInfo $sourceFileInfo,
+        TargetFileResult $result,
+        FileDuplicateCollection $fileDuplicateCollection,
+        ?array &$contentIdentifierCacheEntry,
+    ): void {
+        if ($contentIdentifierCacheEntry !== null) {
+            $cachedDuplicateIdentifier = $contentIdentifierCacheEntry['duplicateIdentifier'];
+
+            if (
+                is_string($cachedDuplicateIdentifier)
+                && $fileDuplicateCollection->has($cachedDuplicateIdentifier)
+            ) {
+                $existingDuplicate = $fileDuplicateCollection->get($cachedDuplicateIdentifier);
+
+                if ($existingDuplicate instanceof FileDuplicate) {
+                    $existingDuplicate->addFile($sourceFileInfo);
+                }
+            } else {
+                $contentIdentifierCacheEntry['pendingFiles'][] = $sourceFileInfo;
+            }
+        } else {
+            $this->skippedFiles[] = new SkippedFile(
+                $sourceFileInfo,
+                $result->getSkipReason() ?? 'no capture date',
+                $result->isError(),
+            );
+        }
     }
 
     /**
