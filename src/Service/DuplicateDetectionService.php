@@ -244,6 +244,40 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 continue;
             }
 
+            // Video companions with content identifiers defer to Live Photo pairing
+            // instead of being grouped by their own EXIF date. This ensures they
+            // receive the paired still image's timestamp, not their own.
+            if (
+                ($contentIdentifierCacheEntry !== null)
+                && !$this->mediaTypeClassifier->isLivePhotoStill($sourceFileInfo)
+            ) {
+                $cachedDuplicateIdentifier = $contentIdentifierCacheEntry['duplicateIdentifier'];
+
+                if (
+                    is_string($cachedDuplicateIdentifier)
+                    && $fileDuplicateCollection->has($cachedDuplicateIdentifier)
+                ) {
+                    // Still image already processed — add video directly to its group.
+                    $existingDuplicate = $fileDuplicateCollection->get($cachedDuplicateIdentifier);
+
+                    if ($existingDuplicate instanceof FileDuplicate) {
+                        $existingDuplicate->addFile($sourceFileInfo);
+                    }
+                } else {
+                    // Still image not yet seen — queue for later resolution.
+                    // Store the target so we can fall back to the video's own date
+                    // if no companion still is found by end of loop.
+                    $contentIdentifierCacheEntry['pendingFiles'][] = $sourceFileInfo;
+                    $contentIdentifierCacheEntry['target'] ??= $result->getTargetFile();
+                }
+
+                unset($contentIdentifierCacheEntry);
+
+                $progressBar->advance();
+
+                continue;
+            }
+
             // Guaranteed non-null after isSkipped() guard above
             $targetFileInfo = $result->getTargetFile();
             assert($targetFileInfo instanceof SplFileInfo);
@@ -314,6 +348,52 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
 
         $progressBar->finish();
         $this->io->newLine();
+
+        // Resolve remaining pending video companions that have no paired still image.
+        // These deferred videos fall back to their own EXIF date group.
+        foreach ($contentIdentifierCache as $cacheEntry) {
+            if ($cacheEntry['pendingFiles'] === []) {
+                continue;
+            }
+
+            if (!$cacheEntry['target'] instanceof SplFileInfo) {
+                continue;
+            }
+
+            // No still image resolved this content ID — use the stored target.
+            $targetFileInfo = $cacheEntry['target'];
+
+            try {
+                $duplicateIdentifier = $duplicateIdentifierStrategy->generateIdentifier(
+                    $cacheEntry['pendingFiles'][0],
+                    $targetFileInfo,
+                );
+            } catch (HashComputationException) {
+                continue;
+            }
+
+            if ($duplicateIdentifier === false) {
+                continue;
+            }
+
+            if ($fileDuplicateCollection->has($duplicateIdentifier)) {
+                $fileDuplicate = $fileDuplicateCollection->get($duplicateIdentifier);
+
+                if (!$fileDuplicate instanceof FileDuplicate) {
+                    continue;
+                }
+            } else {
+                $fileDuplicate = new FileDuplicate()->setTarget($targetFileInfo);
+            }
+
+            foreach ($cacheEntry['pendingFiles'] as $pendingFile) {
+                $fileDuplicate->addFile($pendingFile);
+            }
+
+            if (!$fileDuplicateCollection->has($duplicateIdentifier)) {
+                $fileDuplicateCollection->set($duplicateIdentifier, $fileDuplicate);
+            }
+        }
 
         return $fileDuplicateCollection;
     }

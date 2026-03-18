@@ -26,6 +26,7 @@ use MagicSunday\Renamer\Service\HashSubGroupingService;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\LivePhotoAwareRenameStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -64,6 +65,7 @@ use const DIRECTORY_SEPARATOR;
 #[CoversClass(FileDuplicate::class)]
 #[CoversClass(RenameList::class)]
 #[CoversClass(Rename::class)]
+#[CoversClass(TargetBasenameStrategy::class)]
 /**
  * Verifies the DuplicateDetectionService, the core orchestrator that groups
  * source files by duplicate identifier, applies hash sub-grouping, and assigns
@@ -2227,6 +2229,133 @@ final class DuplicateDetectionServiceTest extends TestCase
         $this->expectExceptionMessage('must not contain directory separators');
 
         $service->getTargetPathname($sourceFile, 'sub' . DIRECTORY_SEPARATOR . 'file.jpg');
+    }
+
+    /**
+     * Verifies that a video companion (MOV) with its own EXIF date defers to the
+     * still image's group when both share the same Live Photo content identifier.
+     *
+     * Without the fix, the MOV creates its own group by EXIF date, and the Live
+     * Photo pairing second pass skips it because it's already in the collection.
+     * After the fix, the MOV defers during Phase 1 and joins the still image's
+     * group, ensuring it receives the paired still image's timestamp.
+     */
+    #[Test]
+    public function groupFilesByDuplicateIdentifierDefersVideoCompanionToStillImageGroup(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $jpgPath = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.jpg';
+        $movPath = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.mov';
+
+        file_put_contents($jpgPath, 'photo-content');
+        file_put_contents($movPath, 'video-content');
+
+        // DIR_CONTEXT: src=$sourceDirectory tgt=$targetDirectory ext=None
+        // JPG first, then MOV — both have EXIF dates and the same content ID.
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveArrayIterator([
+                new SplFileInfo($jpgPath),
+                new SplFileInfo($movPath),
+            ], RecursiveArrayIterator::CHILD_ARRAYS_ONLY),
+        );
+
+        $renameStrategy = new DummyLivePhotoRenameStrategy([
+            $jpgPath => '2025-01-01_12-00-00-000.jpg',
+            $movPath => '2025-01-01_11-00-00-000.mov',
+        ], [
+            $jpgPath => 'content-id-123',
+            $movPath => 'content-id-123',
+        ]);
+
+        // TargetBasenameStrategy groups by target basename (without extension).
+        // JPG => "2025-01-01_12-00-00-000", MOV => "2025-01-01_11-00-00-000".
+        // Without the fix, these produce two separate groups.
+        $duplicateIdentifierStrategy = new TargetBasenameStrategy();
+
+        $collection = $service->groupFilesByDuplicateIdentifier(
+            $iterator,
+            $renameStrategy,
+            $duplicateIdentifierStrategy,
+            $sourceDirectory,
+            $targetDirectory,
+        );
+
+        // After the fix: 1 group (JPG's), MOV is a member of it.
+        self::assertCount(1, $collection);
+        self::assertTrue($collection->has('2025-01-01_12-00-00-000'));
+
+        $duplicate = $collection->get('2025-01-01_12-00-00-000');
+        self::assertInstanceOf(FileDuplicate::class, $duplicate);
+
+        $files = iterator_to_array($duplicate->getFiles());
+        self::assertCount(2, $files);
+
+        $paths = [
+            $files[0]->getPathname(),
+            $files[1]->getPathname(),
+        ];
+
+        self::assertContains($jpgPath, $paths);
+        self::assertContains($movPath, $paths);
+    }
+
+    /**
+     * Verifies that a standalone video with a content identifier but no paired
+     * still image still gets its own EXIF date group via the post-loop fallback.
+     *
+     * When the video defers to Live Photo pairing but no still image is ever
+     * found for its content ID, the video must not be lost. The post-loop
+     * fallback creates a group using the video's own EXIF date target.
+     */
+    #[Test]
+    public function groupFilesByDuplicateIdentifierFallsBackForStandaloneVideoWithContentId(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $movPath = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0099.mov';
+
+        file_put_contents($movPath, 'orphan-video-content');
+
+        // DIR_CONTEXT: src=$sourceDirectory tgt=$targetDirectory ext=None
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveArrayIterator([
+                new SplFileInfo($movPath),
+            ], RecursiveArrayIterator::CHILD_ARRAYS_ONLY),
+        );
+
+        $renameStrategy = new DummyLivePhotoRenameStrategy([
+            $movPath => '2025-01-01_11-00-00-000.mov',
+        ], [
+            $movPath => 'orphan-id',
+        ]);
+
+        $duplicateIdentifierStrategy = new TargetBasenameStrategy();
+
+        $collection = $service->groupFilesByDuplicateIdentifier(
+            $iterator,
+            $renameStrategy,
+            $duplicateIdentifierStrategy,
+            $sourceDirectory,
+            $targetDirectory,
+        );
+
+        // The standalone video must still have its own group (not be lost).
+        self::assertCount(1, $collection);
+        self::assertTrue($collection->has('2025-01-01_11-00-00-000'));
+
+        $duplicate = $collection->get('2025-01-01_11-00-00-000');
+        self::assertInstanceOf(FileDuplicate::class, $duplicate);
+
+        $files = iterator_to_array($duplicate->getFiles());
+        self::assertCount(1, $files);
+        self::assertSame($movPath, $files[0]->getPathname());
     }
 
     /**
