@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Strategy\RenameStrategy;
 
+use DateTimeImmutable;
 use DateTimeInterface;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
@@ -62,6 +63,31 @@ readonly class ExifDateFilenameStrategy implements LivePhotoAwareRenameStrategyI
         }
 
         $targetBasename = basename($captureDateTime->format($this->targetFilenamePattern));
+
+        // Strip the zero-time portion when the capture date has no time info
+        // (midnight with zero subseconds). Formats the same pattern with a known
+        // non-zero time and compares to find what the zero-time suffix looks like,
+        // then removes it. This works with any user-supplied pattern.
+        if ($captureDateTime->format('H:i:s.v') === '00:00:00.000') {
+            $referenceDate = DateTimeImmutable::createFromInterface($captureDateTime)
+                ->setTime(12, 34, 56, 789000);
+
+            $withTime    = basename($referenceDate->format($this->targetFilenamePattern));
+            $withoutTime = basename($captureDateTime->format($this->targetFilenamePattern));
+
+            // Find the common prefix between "date+nonzero-time" and "date+zero-time".
+            // Everything after the common prefix in the zero-time version is the zero suffix.
+            $commonLen = 0;
+            $minLen    = min(mb_strlen($withTime), mb_strlen($withoutTime));
+
+            while ($commonLen < $minLen && mb_substr($withTime, $commonLen, 1) === mb_substr($withoutTime, $commonLen, 1)) {
+                ++$commonLen;
+            }
+
+            if ($commonLen > 0) {
+                $targetBasename = rtrim(mb_substr($withoutTime, 0, $commonLen), '-_.');
+            }
+        }
 
         return $targetBasename . '.' . $splFileInfo->getExtension();
     }
