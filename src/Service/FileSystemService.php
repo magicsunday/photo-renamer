@@ -259,7 +259,7 @@ class FileSystemService implements FileSystemServiceInterface
                     $formatString,
                     $entryTag->formattedTag(),
                     $sourcePath,
-                    sprintf('<fg=green>%s</>', $targetPath),
+                    $this->highlightDiff($sourcePath, $targetPath, 'green'),
                 ));
 
                 if ($shouldSkip) {
@@ -302,6 +302,63 @@ class FileSystemService implements FileSystemServiceInterface
             'plannedCopies'  => $plannedCopies,
             'plannedSkips'   => $plannedSkips,
         ];
+    }
+
+    /**
+     * Formats a target path with the changed portion highlighted in bold.
+     * Compares source and target character by character to find the common
+     * prefix and suffix, then wraps the differing middle in bold formatting.
+     *
+     * @param string $source    Source display path
+     * @param string $target    Target display path
+     * @param string $baseColor Symfony Console color name for unchanged text
+     *
+     * @return string Formatted string with diff highlighted
+     */
+    private function highlightDiff(string $source, string $target, string $baseColor): string
+    {
+        if ($source === $target) {
+            return sprintf('<fg=%s>%s</>', $baseColor, $target);
+        }
+
+        $sourceLen = mb_strlen($source);
+        $targetLen = mb_strlen($target);
+        $minLen    = min($sourceLen, $targetLen);
+
+        // Find common prefix length (in characters).
+        $prefixLen = 0;
+
+        while ($prefixLen < $minLen && mb_substr($source, $prefixLen, 1) === mb_substr($target, $prefixLen, 1)) {
+            ++$prefixLen;
+        }
+
+        // Find common suffix length (in characters).
+        $suffixLen = 0;
+
+        while (
+            $suffixLen < ($minLen - $prefixLen)
+            && mb_substr($source, $sourceLen - 1 - $suffixLen, 1) === mb_substr($target, $targetLen - 1 - $suffixLen, 1)
+        ) {
+            ++$suffixLen;
+        }
+
+        $prefix = mb_substr($target, 0, $prefixLen);
+        $diff   = mb_substr($target, $prefixLen, $targetLen - $prefixLen - $suffixLen);
+        $suffix = $suffixLen > 0 ? mb_substr($target, $targetLen - $suffixLen) : '';
+
+        if ($diff === '') {
+            return sprintf('<fg=%s>%s</>', $baseColor, $target);
+        }
+
+        return sprintf(
+            '<fg=%s>%s</><fg=bright-%s;options=bold>%s</><fg=%s>%s</>',
+            $baseColor,
+            $prefix,
+            $baseColor,
+            $diff,
+            $baseColor,
+            $suffix,
+        );
     }
 
     /**
