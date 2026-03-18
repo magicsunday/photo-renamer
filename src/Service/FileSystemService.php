@@ -424,8 +424,9 @@ class FileSystemService implements FileSystemServiceInterface
 
             $runLength = $runEnd - $runStart;
 
-            // Short common run surrounded by highlights → merge into highlight.
-            if (($runLength < $threshold) && ($runStart > 0) && ($runEnd < $count)) {
+            // Short common run → merge into highlight. Single-character matches
+            // are likely coincidental (e.g. "0" matching between "08" and "10").
+            if ($runLength < $threshold) {
                 for ($k = $runStart; $k < $runEnd; ++$k) {
                     $flags[$k] = false;
                 }
