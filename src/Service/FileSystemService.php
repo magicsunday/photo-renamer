@@ -40,6 +40,7 @@ use function preg_replace;
 use function rename;
 use function rtrim;
 use function sprintf;
+use function str_contains;
 use function str_starts_with;
 use function strlen;
 use function substr;
@@ -186,9 +187,10 @@ class FileSystemService implements FileSystemServiceInterface
                 $renameBasename = $rename->getTarget()->getBasename(
                     '.' . $rename->getTarget()->getExtension()
                 );
-                $isDuplicateTarget = $renameBasename !== $canonicalBasename;
-                $isNoOp            = $rename->getSource()->getPathname() === $rename->getTarget()->getPathname();
-                $isCanonicalEntry  = $isNoOp
+                $isDuplicateTarget = $renameBasename !== $canonicalBasename
+                    && str_contains($renameBasename, Constants::DUPLICATE_IDENTIFIER);
+                $isNoOp           = $rename->getSource()->getPathname() === $rename->getTarget()->getPathname();
+                $isCanonicalEntry = $isNoOp
                     || ($options->listAll && $rename->getSource()->getPathname() === $canonicalTargetPath);
 
                 $sourcePath = self::relativizePath($rename->getSource()->getPathname(), $sourceBaseDirectory);
