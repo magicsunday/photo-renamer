@@ -16,6 +16,7 @@ use MagicSunday\Renamer\Command\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
+use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Model\RenameOptions;
 use RecursiveDirectoryIterator;
 use RecursiveIterator;
@@ -26,10 +27,12 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function basename;
 use function copy;
+use function count;
 use function file_exists;
 use function is_dir;
 use function is_string;
 use function max;
+use function mb_strlen;
 use function mkdir;
 use function preg_match;
 use function preg_quote;
@@ -40,6 +43,7 @@ use function sprintf;
 use function str_starts_with;
 use function strlen;
 use function substr;
+use function usort;
 
 /**
  * Handles all direct file system interactions: creating file iterators, counting files,
@@ -118,11 +122,19 @@ class FileSystemService implements FileSystemServiceInterface
             foreach ($fileDuplicate->getRenames() as $rename) {
                 $relativeSource = self::relativizePath($rename->getSource()->getPathname(), $sourceBaseDirectory);
 
-                if (strlen($relativeSource) > $maxFilenameLength) {
-                    $maxFilenameLength = strlen($relativeSource);
+                if (mb_strlen($relativeSource) > $maxFilenameLength) {
+                    $maxFilenameLength = mb_strlen($relativeSource);
                 }
 
                 ++$totalOperations;
+            }
+        }
+
+        foreach ($options->skippedFiles as $skippedFile) {
+            $relativeSource = self::relativizePath($skippedFile->getFile()->getPathname(), $sourceBaseDirectory);
+
+            if (mb_strlen($relativeSource) > $maxFilenameLength) {
+                $maxFilenameLength = mb_strlen($relativeSource);
             }
         }
 
@@ -154,12 +166,14 @@ class FileSystemService implements FileSystemServiceInterface
             }
         }
 
-        $this->io->newLine();
-        $this->io->text(sprintf(
-            '<fg=cyan>%s files</>',
-            $options->copyFiles ? 'Copying' : 'Renaming',
-        ));
-        $this->io->newLine();
+        // Build a merged list of all output entries (renames + skipped) for sorted output.
+        /**
+         * @var list<
+         *     array{sortKey: string, type: 'rename', sourcePath: string, targetPath: string, statusTag: string, isDuplicateTarget: bool, shouldSkip: bool, shouldPerformOperation: bool, rename: Rename}
+         *     |array{sortKey: string, type: 'skip', sourcePath: string, reason: string}
+         * > $outputEntries
+         */
+        $outputEntries = [];
 
         /** @var FileDuplicate $fileDuplicate */
         foreach ($fileDuplicateCollection as $fileDuplicate) {
@@ -188,46 +202,93 @@ class FileSystemService implements FileSystemServiceInterface
                     $statusTag = '<fg=green>[R]</>';
                 }
 
+                $shouldSkip             = $options->skipDuplicates && $isDuplicateTarget;
+                $shouldPerformOperation = ($shouldSkip === false) && ($isCanonicalEntry === false);
+
+                $outputEntries[] = [
+                    'sortKey'                => $rename->getSource()->getPathname(),
+                    'type'                   => 'rename',
+                    'sourcePath'             => $sourcePath,
+                    'targetPath'             => $targetPath,
+                    'statusTag'              => $statusTag,
+                    'isDuplicateTarget'      => $isDuplicateTarget,
+                    'shouldSkip'             => $shouldSkip,
+                    'shouldPerformOperation' => $shouldPerformOperation,
+                    'rename'                 => $rename,
+                ];
+            }
+        }
+
+        foreach ($options->skippedFiles as $skippedFile) {
+            $outputEntries[] = [
+                'sortKey'    => $skippedFile->getFile()->getPathname(),
+                'type'       => 'skip',
+                'sourcePath' => self::relativizePath($skippedFile->getFile()->getPathname(), $sourceBaseDirectory),
+                'reason'     => ucfirst($skippedFile->getReason()),
+            ];
+        }
+
+        usort($outputEntries, static fn (array $a, array $b): int => $a['sortKey'] <=> $b['sortKey']);
+
+        $skippedCount = count($options->skippedFiles);
+
+        $this->io->newLine();
+        $this->io->text(sprintf(
+            '<fg=cyan>%s files</>',
+            $options->copyFiles ? 'Copying' : 'Renaming',
+        ));
+        $this->io->newLine();
+
+        foreach ($outputEntries as $entry) {
+            // Compensate for multi-byte characters: sprintf pads by byte length,
+            // but the terminal aligns by display width (mb_strlen).
+            $padWidth = $maxFilenameLength + strlen($entry['sourcePath']) - mb_strlen($entry['sourcePath']);
+
+            $formatString = ' %s <fg=yellow>%-' . $padWidth . 's</> <fg=cyan>→</> %s';
+
+            if ($entry['type'] === 'skip') {
                 $this->io->text(sprintf(
-                    ' %s <fg=yellow>%-' . $maxFilenameLength . 's</> <fg=cyan>→</> <fg=green>%s</>',
-                    $statusTag,
-                    $sourcePath,
-                    $targetPath,
+                    $formatString,
+                    '<fg=gray>[S]</>',
+                    $entry['sourcePath'],
+                    sprintf('<fg=gray>%s</>', $entry['reason']),
                 ));
 
-                if ($isDuplicateTarget) {
-                    ++$duplicateCount;
+                continue;
+            }
+
+            $this->io->text(sprintf(
+                $formatString,
+                $entry['statusTag'],
+                $entry['sourcePath'],
+                sprintf('<fg=green>%s</>', $entry['targetPath']),
+            ));
+
+            if ($entry['isDuplicateTarget']) {
+                ++$duplicateCount;
+            }
+
+            if ($entry['shouldSkip']) {
+                $this->io->text('       <fg=red>⏭ Skipped (duplicate)</>');
+                ++$plannedSkips;
+            }
+
+            if ($entry['shouldPerformOperation']) {
+                if ($options->copyFiles) {
+                    ++$plannedCopies;
+                } else {
+                    ++$plannedMoves;
                 }
 
-                $shouldSkip = $options->skipDuplicates && $isDuplicateTarget;
+                ++$fileCount;
 
-                if ($shouldSkip) {
-                    $this->io->text('       <fg=red>⏭ Skipped (duplicate)</>');
-                }
-
-                $shouldPerformOperation = $shouldSkip === false && $isCanonicalEntry === false;
-
-                if ($shouldSkip) {
-                    ++$plannedSkips;
-                }
-
-                if ($shouldPerformOperation) {
-                    if ($options->copyFiles) {
-                        ++$plannedCopies;
-                    } else {
-                        ++$plannedMoves;
-                    }
-
-                    ++$fileCount;
-
-                    if ($options->dryRun === false) {
-                        $this->copyOrMoveFile(
-                            $rename->getSource(),
-                            $rename->getTarget(),
-                            $options->copyFiles,
-                            $occupiedPaths,
-                        );
-                    }
+                if ($options->dryRun === false) {
+                    $this->copyOrMoveFile(
+                        $entry['rename']->getSource(),
+                        $entry['rename']->getTarget(),
+                        $options->copyFiles,
+                        $occupiedPaths,
+                    );
                 }
             }
         }
@@ -241,6 +302,10 @@ class FileSystemService implements FileSystemServiceInterface
         $rows = [
             ['Scanned files', (string) $scannedFiles],
         ];
+
+        if ($skippedCount > 0) {
+            $rows[] = ['Skipped (no metadata)', (string) $skippedCount];
+        }
 
         if ($plannedMoves > 0) {
             $rows[] = ['Planned moves', (string) $plannedMoves];

@@ -12,9 +12,11 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Model;
 
 use MagicSunday\Renamer\Model\RenameOptions;
+use MagicSunday\Renamer\Model\SkippedFile;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use SplFileInfo;
 
 /**
  * Verifies the value-object contract of RenameOptions, the immutable configuration
@@ -53,6 +55,7 @@ final class RenameOptionsTest extends TestCase
         self::assertNull($options->targetBaseDirectory);
         self::assertNull($options->scannedFiles);
         self::assertSame(0, $options->namingCollisions);
+        self::assertSame([], $options->skippedFiles);
     }
 
     /**
@@ -66,6 +69,10 @@ final class RenameOptionsTest extends TestCase
     #[Test]
     public function itAcceptsCustomValues(): void
     {
+        $skippedFiles = [
+            new SkippedFile(new SplFileInfo('/tmp/video.mov'), 'no capture date'),
+        ];
+
         $options = new RenameOptions(
             dryRun: true,
             skipDuplicates: true,
@@ -75,6 +82,7 @@ final class RenameOptionsTest extends TestCase
             targetBaseDirectory: '/target',
             scannedFiles: 42,
             namingCollisions: 3,
+            skippedFiles: $skippedFiles,
         );
 
         self::assertTrue($options->dryRun);
@@ -85,5 +93,6 @@ final class RenameOptionsTest extends TestCase
         self::assertSame('/target', $options->targetBaseDirectory);
         self::assertSame(42, $options->scannedFiles);
         self::assertSame(3, $options->namingCollisions);
+        self::assertSame($skippedFiles, $options->skippedFiles);
     }
 }

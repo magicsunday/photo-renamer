@@ -152,13 +152,14 @@ renamer rename:date --dry-run -p "/^{y}-{m}-{d}.{H}-{i}-{s}(.+)$/" -r "{Y}-{m}-{
 
 Each file in the output is prefixed with a status indicator:
 
-| Tag   | Meaning                                                             |
-|-------|---------------------------------------------------------------------|
-| `[R]` | **Rename** -- file will be moved (or copied) to a new name.        |
-| `[D]` | **Duplicate** -- file is a duplicate and receives a suffix.         |
-| `[O]` | **Original** -- file already has the correct name; no action taken. |
+| Tag   | Meaning                                                                              |
+|-------|--------------------------------------------------------------------------------------|
+| `[R]` | **Rename** -- file will be moved (or copied) to a new name.                         |
+| `[D]` | **Duplicate** -- file is a duplicate and receives a suffix.                          |
+| `[O]` | **Original** -- file already has the correct name; no action taken.                  |
+| `[S]` | **Skipped** -- file has no usable metadata (no capture date or metadata read error). |
 
-After processing, a summary table shows scanned files, planned moves/copies/skips, Live Photo groups, duplicates found, naming collisions, and total files to process.
+After processing, a summary table shows scanned files, skipped files (no metadata), planned moves/copies/skips, Live Photo groups, duplicates found, naming collisions, and total files to process.
 
 ## 🔒 Behaviour & guarantees
 

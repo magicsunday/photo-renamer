@@ -18,6 +18,7 @@ use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
+use MagicSunday\Renamer\Model\SkippedFile;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\LivePhotoAwareRenameStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
@@ -102,6 +103,20 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     private int $lastScannedFileCount = 0;
 
     /**
+     * Files skipped during the last grouping pass because the rename strategy
+     * could not produce a target filename (no capture date or metadata read error).
+     *
+     * @var list<SkippedFile>
+     */
+    private array $skippedFiles = [];
+
+    /**
+     * Reason why the last {@see getTargetFileInfo()} call returned null.
+     * Set as a side effect so the calling loop can record it when appropriate.
+     */
+    private ?string $lastSkipReason = null;
+
+    /**
      * @param SymfonyStyle                    $io                     Console IO for progress bars and error output
      * @param HashSubGroupingServiceInterface $hashSubGroupingService Service for content-hash-based sub-grouping
      */
@@ -171,6 +186,17 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     }
 
     /**
+     * Returns files skipped during the last grouping pass because the rename
+     * strategy could not produce a target filename.
+     *
+     * @return list<SkippedFile>
+     */
+    public function getSkippedFiles(): array
+    {
+        return $this->skippedFiles;
+    }
+
+    /**
      * Creates a collection of duplicates. Files with the same unique identifier are grouped together.
      *
      * @template TInner of RecursiveIterator
@@ -209,6 +235,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         // Build in-memory disk index to avoid stat() calls during planning.
         $this->diskIndex            = [];
         $this->contentIdentifierMap = [];
+        $this->skippedFiles         = [];
 
         foreach ($files as $file) {
             $this->diskIndex[$file->getPathname()] = true;
@@ -291,6 +318,11 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                     } else {
                         $contentIdentifierCacheEntry['pendingFiles'][] = $sourceFileInfo;
                     }
+                } else {
+                    $this->skippedFiles[] = new SkippedFile(
+                        $sourceFileInfo,
+                        $this->lastSkipReason ?? 'no capture date',
+                    );
                 }
 
                 unset($contentIdentifierCacheEntry);
@@ -868,6 +900,8 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
      */
     private function getTargetFileInfo(SplFileInfo $sourceFileInfo, RenameStrategyInterface $renameStrategy): ?SplFileInfo
     {
+        $this->lastSkipReason = null;
+
         try {
             $targetFilename = $renameStrategy->generateFilename($sourceFileInfo);
 
@@ -880,7 +914,10 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                     )
                 );
             }
+
+            $this->lastSkipReason = 'no capture date';
         } catch (TargetFilenameException $exception) {
+            $this->lastSkipReason = sprintf('metadata read error: %s', $exception->getMessage());
             $this->io->error($exception->getMessage());
         }
 

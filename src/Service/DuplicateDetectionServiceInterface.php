@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service;
 
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
+use MagicSunday\Renamer\Model\SkippedFile;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use RecursiveIterator;
@@ -91,4 +92,12 @@ interface DuplicateDetectionServiceInterface
      * {@see groupFilesByDuplicateIdentifier()}.
      */
     public function getLastScannedFileCount(): int;
+
+    /**
+     * Returns files skipped during the last grouping pass because the rename
+     * strategy could not produce a target filename.
+     *
+     * @return list<SkippedFile>
+     */
+    public function getSkippedFiles(): array;
 }
