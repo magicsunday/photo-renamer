@@ -130,9 +130,20 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         ) {
             $metadataTimestamp = $dateTime->getTimestamp();
             $fileModTimestamp  = $file->getMTime();
+            $diff              = abs($metadataTimestamp - $fileModTimestamp);
 
-            // Within 60 seconds = genuine UTC (metadata matches filesystem)
-            $isUtcWithoutTimezone = abs($metadataTimestamp - $fileModTimestamp) < 60;
+            if ($diff < 60) {
+                // Timestamps match: metadata is genuine UTC (filesystem confirms).
+                $isUtcWithoutTimezone = true;
+            } elseif ($diff >= 3600 && $diff <= 43200 && ($diff % 3600) < 60) {
+                // Difference is an exact whole-hour offset (1-12h): the camera wrote
+                // local time as Mac epoch. The offset IS the timezone difference.
+                $isUtcWithoutTimezone = false;
+            } else {
+                // File modification time was altered (copy/sync). Assume UTC — this
+                // is the safer default for modern video files.
+                $isUtcWithoutTimezone = true;
+            }
         }
 
         return [$dateTime, $isFallback, $isUtcWithoutTimezone];
