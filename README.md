@@ -167,9 +167,10 @@ After processing, a summary table shows scanned files, skipped files (no metadat
 
 - **Dry-run first:** All commands support `--dry-run` to preview changes before touching files.
 - **Idempotent:** Running the same command twice produces the same result. Files already carrying the correct name keep their name. Duplicate suffixes and hash sub-group numbers are stable across re-runs.
-- **Live Photo pairing:** JPEG/HEIC + MOV files sharing the same Apple Content Identifier are treated as a pair. The video companion receives the same base name as its still image, without a duplicate suffix.
+- **Live Photo pairing:** JPEG/HEIC + MOV files sharing the same Apple Content Identifier are treated as a pair. The video companion always receives the same base name as its still image, even when the video has its own (different) EXIF timestamp.
 - **Unified grouping:** All files with the same EXIF date are placed into one group regardless of their Live Photo Content Identifier. This ensures consistent numbering across the entire timestamp.
 - **Hash sub-grouping:** When multiple distinct files share the same EXIF date, they are grouped by content hash. True duplicates (same hash) receive `-duplicate-NNN` suffixes, while different files get sequential group numbers (`-002`, `-003`, ...).
+- **Semantic duplicate detection:** Files that are the same capture but have different hashes (e.g., re-saved JPEGs) are detected as duplicates via two heuristics: (1) if all companion videos in a group share the same hash, the stills are treated as duplicates; (2) if the EXIF timestamp includes non-zero subsecond precision, files sharing that exact millisecond are treated as duplicates.
 - **Subdirectory ordering:** Parent directory files are processed before subdirectories, so the first file encountered in the top-level directory wins the canonical (unsuffixed) name.
 - **Safe renames:** Files are never overwritten. An in-memory disk index tracks all occupied paths during a run, and a fallback to the next available duplicate suffix prevents data loss even when multiple files compete for the same target path.
 - **Non-destructive:** Original files are moved or copied, never deleted.
