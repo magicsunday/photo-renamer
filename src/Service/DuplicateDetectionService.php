@@ -1062,6 +1062,11 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
      * Uses the content identifier map to find a file that shares the canonical's
      * Live Photo content ID but has a different media type (e.g. MOV for a JPG canonical).
      *
+     * When no exact content-ID match is found (e.g. the MOV companion lacks a content
+     * identifier in its metadata), falls back to the first file of a different media
+     * type. This ensures video companions are excluded from hash sub-grouping even
+     * when only the still image carries the Live Photo content identifier.
+     *
      * @return Rename|null the companion rename, or null if no companion was found
      */
     private function detectLivePhotoCompanion(
@@ -1081,27 +1086,37 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
 
         $canonicalIsStill = $this->mediaTypeClassifier->isLivePhotoStill($canonicalRename->getSource());
 
+        /** @var Rename|null $fallbackCompanion */
+        $fallbackCompanion = null;
+
         foreach ($fileDuplicate->getRenames() as $rename) {
             if ($rename === $canonicalRename) {
+                continue;
+            }
+
+            $renameIsStill = $this->mediaTypeClassifier->isLivePhotoStill($rename->getSource());
+
+            // Only consider files of a different media type as companions.
+            if ($canonicalIsStill === $renameIsStill) {
                 continue;
             }
 
             $renamePath      = $rename->getSource()->getPathname();
             $renameContentId = $this->contentIdentifierMap[$renamePath] ?? null;
 
-            // Companion must share the canonical's content ID and be a different media type.
-            if ($renameContentId !== $canonicalContentId) {
-                continue;
-            }
-
-            $renameIsStill = $this->mediaTypeClassifier->isLivePhotoStill($rename->getSource());
-
-            if ($canonicalIsStill !== $renameIsStill) {
+            // Exact content-ID match: this is the paired companion.
+            if ($renameContentId === $canonicalContentId) {
                 return $rename;
             }
+
+            // Track the first different-media-type file as a fallback companion.
+            // This handles the case where the MOV lacks a content identifier but
+            // is still a Live Photo companion (the canonical's content ID proves
+            // this is a Live Photo group).
+            $fallbackCompanion ??= $rename;
         }
 
-        return null;
+        return $fallbackCompanion;
     }
 
     /**

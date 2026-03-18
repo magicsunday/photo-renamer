@@ -2359,6 +2359,523 @@ final class DuplicateDetectionServiceTest extends TestCase
     }
 
     /**
+     * Verifies that two Live Photo pairs sharing the same EXIF timestamp but with
+     * different content hashes produce correct sub-group assignments for BOTH the
+     * still images AND their video companions.
+     *
+     * The MOV companions have their own EXIF dates (same as their paired stills)
+     * and content IDs. Both MOVs are deferred during Phase 1 grouping and added
+     * to the still image's group via the content identifier cache.
+     *
+     * Expected assignment:
+     *   pair1.jpg -> 2025-01-01_12-00-00-000.jpg       (canonical, sub-group 0)
+     *   pair1.mov -> 2025-01-01_12-00-00-000.mov       (companion, sub-group 0)
+     *   pair2.jpg -> 2025-01-01_12-00-00-000-002.jpg   (sub-group 2)
+     *   pair2.mov -> 2025-01-01_12-00-00-000-002.mov   (companion, sub-group 2)
+     */
+    #[Test]
+    public function createDuplicateFilenamesVideoCompanionsInheritPairedStillSubGroupNumber(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        // Two Live Photo pairs with different content but same EXIF timestamp.
+        $pair1Jpg = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.jpg';
+        $pair1Mov = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.mov';
+        $pair2Jpg = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0002.jpg';
+        $pair2Mov = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0002.mov';
+
+        // Different content per pair so hashes differ between pairs.
+        file_put_contents($pair1Jpg, 'pair1-photo-content');
+        file_put_contents($pair1Mov, 'pair1-video-content');
+        file_put_contents($pair2Jpg, 'pair2-photo-content-different');
+        file_put_contents($pair2Mov, 'pair2-video-content-different');
+
+        // All four files produce the same target basename from EXIF date.
+        // Each pair shares a content ID: pair1 = "content-id-A", pair2 = "content-id-B".
+        $renameStrategy = new DummyLivePhotoRenameStrategy([
+            $pair1Jpg => '2025-01-01_12-00-00-000.jpg',
+            $pair1Mov => '2025-01-01_12-00-00-000.mov',
+            $pair2Jpg => '2025-01-01_12-00-00-000.jpg',
+            $pair2Mov => '2025-01-01_12-00-00-000.mov',
+        ], [
+            $pair1Jpg => 'content-id-A',
+            $pair1Mov => 'content-id-A',
+            $pair2Jpg => 'content-id-B',
+            $pair2Mov => 'content-id-B',
+        ]);
+
+        $duplicateIdentifierStrategy = new TargetBasenameStrategy();
+
+        // Phase 1: group files by duplicate identifier.
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveArrayIterator([
+                new SplFileInfo($pair1Jpg),
+                new SplFileInfo($pair1Mov),
+                new SplFileInfo($pair2Jpg),
+                new SplFileInfo($pair2Mov),
+            ], RecursiveArrayIterator::CHILD_ARRAYS_ONLY),
+        );
+
+        $collection = $service->groupFilesByDuplicateIdentifier(
+            $iterator,
+            $renameStrategy,
+            $duplicateIdentifierStrategy,
+            $sourceDirectory,
+            $targetDirectory,
+        );
+
+        // All four files must land in one group (same target basename).
+        self::assertCount(1, $collection);
+
+        $duplicate = $collection->get('2025-01-01_12-00-00-000');
+        self::assertInstanceOf(FileDuplicate::class, $duplicate);
+
+        $files = iterator_to_array($duplicate->getFiles());
+        self::assertCount(4, $files);
+
+        // Phase 2: assign duplicate filenames with hash sub-grouping.
+        $service->createDuplicateFilenames(
+            $collection,
+            $sourceDirectory,
+            $targetDirectory,
+            useFileExtensionFromSource: true,
+        );
+
+        $renames       = iterator_to_array($duplicate->getRenames());
+        $renameTargets = [];
+
+        foreach ($renames as $rename) {
+            $renameTargets[$rename->getSource()->getPathname()] = $rename->getTarget()->getFilename();
+        }
+
+        self::assertCount(4, $renames);
+
+        // pair1: canonical sub-group (no number).
+        self::assertSame('2025-01-01_12-00-00-000.jpg', $renameTargets[$pair1Jpg]);
+        self::assertSame('2025-01-01_12-00-00-000.mov', $renameTargets[$pair1Mov]);
+
+        // pair2: sub-group 002 — both still AND video companion.
+        self::assertSame('2025-01-01_12-00-00-000-002.jpg', $renameTargets[$pair2Jpg]);
+        self::assertSame('2025-01-01_12-00-00-000-002.mov', $renameTargets[$pair2Mov]);
+    }
+
+    /**
+     * Verifies that two Live Photo pairs sharing the same EXIF timestamp but with
+     * different content hashes produce correct sub-group assignments when the MOV
+     * companions have NO EXIF date (generateFilename returns null) and are only
+     * attached to the group via the pending-file mechanism.
+     *
+     * Without the fix, the video companion of the non-canonical pair loses its
+     * sub-group number: pair2.mov gets sub-group 0 instead of sub-group 2,
+     * colliding with pair1.mov and receiving a -duplicate-001 suffix.
+     *
+     * Expected assignment:
+     *   pair1.jpg -> 2025-01-01_12-00-00-000.jpg       (canonical, sub-group 0)
+     *   pair1.mov -> 2025-01-01_12-00-00-000.mov       (companion, sub-group 0)
+     *   pair2.jpg -> 2025-01-01_12-00-00-000-002.jpg   (sub-group 2)
+     *   pair2.mov -> 2025-01-01_12-00-00-000-002.mov   (companion, sub-group 2)
+     */
+    #[Test]
+    public function createDuplicateFilenamesVideoCompanionsWithoutExifInheritSubGroupNumber(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        // Two Live Photo pairs with different content but same EXIF timestamp.
+        $pair1Jpg = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.jpg';
+        $pair1Mov = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.mov';
+        $pair2Jpg = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0002.jpg';
+        $pair2Mov = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0002.mov';
+
+        // Different content per pair so hashes differ between pairs.
+        file_put_contents($pair1Jpg, 'pair1-photo-content');
+        file_put_contents($pair1Mov, 'pair1-video-content');
+        file_put_contents($pair2Jpg, 'pair2-photo-content-different');
+        file_put_contents($pair2Mov, 'pair2-video-content-different');
+
+        // MOV files return null for generateFilename (no EXIF date).
+        // They are only attached to the group via content ID pending-file mechanism.
+        $renameStrategy = new DummyLivePhotoRenameStrategy([
+            $pair1Jpg => '2025-01-01_12-00-00-000.jpg',
+            $pair1Mov => null,
+            $pair2Jpg => '2025-01-01_12-00-00-000.jpg',
+            $pair2Mov => null,
+        ], [
+            $pair1Jpg => 'content-id-A',
+            $pair1Mov => 'content-id-A',
+            $pair2Jpg => 'content-id-B',
+            $pair2Mov => 'content-id-B',
+        ]);
+
+        $duplicateIdentifierStrategy = new TargetBasenameStrategy();
+
+        // Phase 1: group files by duplicate identifier.
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveArrayIterator([
+                new SplFileInfo($pair1Jpg),
+                new SplFileInfo($pair1Mov),
+                new SplFileInfo($pair2Jpg),
+                new SplFileInfo($pair2Mov),
+            ], RecursiveArrayIterator::CHILD_ARRAYS_ONLY),
+        );
+
+        $collection = $service->groupFilesByDuplicateIdentifier(
+            $iterator,
+            $renameStrategy,
+            $duplicateIdentifierStrategy,
+            $sourceDirectory,
+            $targetDirectory,
+        );
+
+        // All four files must land in one group (same target basename).
+        self::assertCount(1, $collection);
+
+        $duplicate = $collection->get('2025-01-01_12-00-00-000');
+        self::assertInstanceOf(FileDuplicate::class, $duplicate);
+
+        $files = iterator_to_array($duplicate->getFiles());
+        self::assertCount(4, $files);
+
+        // Phase 2: assign duplicate filenames with hash sub-grouping.
+        $service->createDuplicateFilenames(
+            $collection,
+            $sourceDirectory,
+            $targetDirectory,
+            useFileExtensionFromSource: true,
+        );
+
+        $renames       = iterator_to_array($duplicate->getRenames());
+        $renameTargets = [];
+
+        foreach ($renames as $rename) {
+            $renameTargets[$rename->getSource()->getPathname()] = $rename->getTarget()->getFilename();
+        }
+
+        self::assertCount(4, $renames);
+
+        // pair1: canonical sub-group (no number).
+        self::assertSame('2025-01-01_12-00-00-000.jpg', $renameTargets[$pair1Jpg]);
+        self::assertSame('2025-01-01_12-00-00-000.mov', $renameTargets[$pair1Mov]);
+
+        // pair2: sub-group 002 — both still AND video companion.
+        self::assertSame('2025-01-01_12-00-00-000-002.jpg', $renameTargets[$pair2Jpg]);
+        self::assertSame('2025-01-01_12-00-00-000-002.mov', $renameTargets[$pair2Mov]);
+    }
+
+    /**
+     * Verifies that two Live Photo pairs sharing the same EXIF timestamp but with
+     * different content hashes produce correct sub-group assignments when only the
+     * still images have content identifiers (MOVs have no content ID in metadata).
+     *
+     * When MOVs lack content identifiers, the content-ID-to-sub-group mapping in
+     * HashSubGroupingService cannot pair them with their stills. The MOVs default
+     * to sub-group 0 instead of inheriting their paired still's sub-group number.
+     *
+     * Expected assignment:
+     *   pair1.jpg -> 2025-01-01_12-00-00-000.jpg       (canonical, sub-group 0)
+     *   pair1.mov -> 2025-01-01_12-00-00-000.mov       (companion, sub-group 0)
+     *   pair2.jpg -> 2025-01-01_12-00-00-000-002.jpg   (sub-group 2)
+     *   pair2.mov -> 2025-01-01_12-00-00-000-002.mov   (companion, sub-group 2)
+     */
+    #[Test]
+    public function createDuplicateFilenamesVideoCompanionsWithoutContentIdInheritSubGroup(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        // Two Live Photo pairs with different content but same EXIF timestamp.
+        $pair1Jpg = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.jpg';
+        $pair1Mov = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.mov';
+        $pair2Jpg = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0002.jpg';
+        $pair2Mov = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0002.mov';
+
+        // Different content per pair so hashes differ between pairs.
+        file_put_contents($pair1Jpg, 'pair1-photo-content');
+        file_put_contents($pair1Mov, 'pair1-video-content');
+        file_put_contents($pair2Jpg, 'pair2-photo-content-different');
+        file_put_contents($pair2Mov, 'pair2-video-content-different');
+
+        // Only stills have content identifiers. MOVs return null (no content ID
+        // in metadata). Without content IDs, MOVs are NOT deferred and create
+        // their own EXIF date group entry. But with the same target basename,
+        // all files end up in the same group.
+        $renameStrategy = new DummyLivePhotoRenameStrategy([
+            $pair1Jpg => '2025-01-01_12-00-00-000.jpg',
+            $pair1Mov => '2025-01-01_12-00-00-000.mov',
+            $pair2Jpg => '2025-01-01_12-00-00-000.jpg',
+            $pair2Mov => '2025-01-01_12-00-00-000.mov',
+        ], [
+            $pair1Jpg => 'content-id-A',
+            $pair1Mov => null,
+            $pair2Jpg => 'content-id-B',
+            $pair2Mov => null,
+        ]);
+
+        $duplicateIdentifierStrategy = new TargetBasenameStrategy();
+
+        // Phase 1: group files by duplicate identifier.
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveArrayIterator([
+                new SplFileInfo($pair1Jpg),
+                new SplFileInfo($pair1Mov),
+                new SplFileInfo($pair2Jpg),
+                new SplFileInfo($pair2Mov),
+            ], RecursiveArrayIterator::CHILD_ARRAYS_ONLY),
+        );
+
+        $collection = $service->groupFilesByDuplicateIdentifier(
+            $iterator,
+            $renameStrategy,
+            $duplicateIdentifierStrategy,
+            $sourceDirectory,
+            $targetDirectory,
+        );
+
+        // All four files must land in one group (same target basename).
+        self::assertCount(1, $collection);
+
+        $duplicate = $collection->get('2025-01-01_12-00-00-000');
+        self::assertInstanceOf(FileDuplicate::class, $duplicate);
+
+        $files = iterator_to_array($duplicate->getFiles());
+        self::assertCount(4, $files);
+
+        // Phase 2: assign duplicate filenames with hash sub-grouping.
+        $service->createDuplicateFilenames(
+            $collection,
+            $sourceDirectory,
+            $targetDirectory,
+            useFileExtensionFromSource: true,
+        );
+
+        $renames       = iterator_to_array($duplicate->getRenames());
+        $renameTargets = [];
+
+        foreach ($renames as $rename) {
+            $renameTargets[$rename->getSource()->getPathname()] = $rename->getTarget()->getFilename();
+        }
+
+        self::assertCount(4, $renames);
+
+        // pair1: canonical sub-group (no number).
+        self::assertSame('2025-01-01_12-00-00-000.jpg', $renameTargets[$pair1Jpg]);
+        self::assertSame('2025-01-01_12-00-00-000.mov', $renameTargets[$pair1Mov]);
+
+        // pair2: sub-group 002 — both still AND video companion.
+        self::assertSame('2025-01-01_12-00-00-000-002.jpg', $renameTargets[$pair2Jpg]);
+        self::assertSame('2025-01-01_12-00-00-000-002.mov', $renameTargets[$pair2Mov]);
+    }
+
+    /**
+     * Verifies the idempotent re-run scenario where pair1 already has its target
+     * names on disk (source == target for both .jpg and .mov) while pair2 still
+     * needs renaming. This is the exact scenario from the reported bug.
+     *
+     * Without the fix, pair2.mov gets sub-group 0 instead of inheriting sub-group 2
+     * from its paired still image, causing pair1.mov to receive a -duplicate-001
+     * suffix and pair2.mov to steal the unsuffixed base name.
+     *
+     * Expected assignment:
+     *   pair1.jpg -> 2025-01-01_12-00-00-000.jpg       (canonical, idempotent)
+     *   pair1.mov -> 2025-01-01_12-00-00-000.mov       (companion, idempotent)
+     *   pair2.jpg -> 2025-01-01_12-00-00-000-002.jpg   (sub-group 2)
+     *   pair2.mov -> 2025-01-01_12-00-00-000-002.mov   (companion, sub-group 2)
+     */
+    #[Test]
+    public function createDuplicateFilenamesIdempotentRerunWithTwoLivePhotoPairs(): void
+    {
+        [$service] = $this->createService();
+
+        $directory = $this->createTempDirectory();
+
+        // Pair1 already has correct target names on disk (from a previous run).
+        $pair1Jpg = $directory . DIRECTORY_SEPARATOR . '2025-01-01_12-00-00-000.jpg';
+        $pair1Mov = $directory . DIRECTORY_SEPARATOR . '2025-01-01_12-00-00-000.mov';
+        // Pair2 still has original camera names.
+        $pair2Jpg = $directory . DIRECTORY_SEPARATOR . 'IMG_0002.jpg';
+        $pair2Mov = $directory . DIRECTORY_SEPARATOR . 'IMG_0002.mov';
+
+        // Different content per pair so hashes differ between pairs.
+        file_put_contents($pair1Jpg, 'pair1-photo-content');
+        file_put_contents($pair1Mov, 'pair1-video-content');
+        file_put_contents($pair2Jpg, 'pair2-photo-content-different');
+        file_put_contents($pair2Mov, 'pair2-video-content-different');
+
+        // All four files produce the same target basename from EXIF date.
+        $renameStrategy = new DummyLivePhotoRenameStrategy([
+            $pair1Jpg => '2025-01-01_12-00-00-000.jpg',
+            $pair1Mov => '2025-01-01_12-00-00-000.mov',
+            $pair2Jpg => '2025-01-01_12-00-00-000.jpg',
+            $pair2Mov => '2025-01-01_12-00-00-000.mov',
+        ], [
+            $pair1Jpg => 'content-id-A',
+            $pair1Mov => 'content-id-A',
+            $pair2Jpg => 'content-id-B',
+            $pair2Mov => 'content-id-B',
+        ]);
+
+        $duplicateIdentifierStrategy = new TargetBasenameStrategy();
+
+        // Phase 1: group files by duplicate identifier.
+        // source == target directory to trigger idempotent code paths.
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveArrayIterator([
+                new SplFileInfo($pair1Jpg),
+                new SplFileInfo($pair1Mov),
+                new SplFileInfo($pair2Jpg),
+                new SplFileInfo($pair2Mov),
+            ], RecursiveArrayIterator::CHILD_ARRAYS_ONLY),
+        );
+
+        $collection = $service->groupFilesByDuplicateIdentifier(
+            $iterator,
+            $renameStrategy,
+            $duplicateIdentifierStrategy,
+            $directory,
+            $directory,
+        );
+
+        // All four files must land in one group (same target basename).
+        self::assertCount(1, $collection);
+
+        $duplicate = $collection->get('2025-01-01_12-00-00-000');
+        self::assertInstanceOf(FileDuplicate::class, $duplicate);
+
+        $files = iterator_to_array($duplicate->getFiles());
+        self::assertCount(4, $files);
+
+        // Phase 2: assign duplicate filenames with hash sub-grouping.
+        $service->createDuplicateFilenames(
+            $collection,
+            $directory,
+            $directory,
+            useFileExtensionFromSource: true,
+        );
+
+        $renames       = iterator_to_array($duplicate->getRenames());
+        $renameTargets = [];
+
+        foreach ($renames as $rename) {
+            $renameTargets[$rename->getSource()->getPathname()] = $rename->getTarget()->getFilename();
+        }
+
+        self::assertCount(4, $renames);
+
+        // pair1: canonical sub-group — already named correctly.
+        self::assertSame('2025-01-01_12-00-00-000.jpg', $renameTargets[$pair1Jpg]);
+        self::assertSame('2025-01-01_12-00-00-000.mov', $renameTargets[$pair1Mov]);
+
+        // pair2: sub-group 002 — both still AND video companion.
+        self::assertSame('2025-01-01_12-00-00-000-002.jpg', $renameTargets[$pair2Jpg]);
+        self::assertSame('2025-01-01_12-00-00-000-002.mov', $renameTargets[$pair2Mov]);
+    }
+
+    /**
+     * Verifies that two Live Photo pairs sharing the same EXIF timestamp correctly
+     * inherit sub-group numbers when the MOV companions have their own EXIF dates
+     * but those dates produce a DIFFERENT basename than their paired stills.
+     *
+     * In real-world scenarios, a MOV's EXIF date may be in a different timezone
+     * or slightly different, producing a different target basename. The video
+     * deferral mechanism should still group the MOV with its paired still, and
+     * hash sub-grouping should assign the correct sub-group number.
+     *
+     * Expected assignment:
+     *   pair1.jpg -> 2025-01-01_12-00-00-000.jpg       (canonical, sub-group 0)
+     *   pair1.mov -> 2025-01-01_12-00-00-000.mov       (companion, sub-group 0)
+     *   pair2.jpg -> 2025-01-01_12-00-00-000-002.jpg   (sub-group 2)
+     *   pair2.mov -> 2025-01-01_12-00-00-000-002.mov   (companion, sub-group 2)
+     */
+    #[Test]
+    public function createDuplicateFilenamesVideoCompanionsWithDifferentExifDateInheritSubGroup(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $pair1Jpg = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.jpg';
+        $pair1Mov = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.mov';
+        $pair2Jpg = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0002.jpg';
+        $pair2Mov = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0002.mov';
+
+        file_put_contents($pair1Jpg, 'pair1-photo-content');
+        file_put_contents($pair1Mov, 'pair1-video-content');
+        file_put_contents($pair2Jpg, 'pair2-photo-content-different');
+        file_put_contents($pair2Mov, 'pair2-video-content-different');
+
+        // MOVs have DIFFERENT target basenames from their paired stills (different EXIF dates).
+        // The video deferral mechanism must still group them with their paired stills.
+        $renameStrategy = new DummyLivePhotoRenameStrategy([
+            $pair1Jpg => '2025-01-01_12-00-00-000.jpg',
+            $pair1Mov => '2025-01-01_11-00-00-000.mov',
+            $pair2Jpg => '2025-01-01_12-00-00-000.jpg',
+            $pair2Mov => '2025-01-01_11-00-00-000.mov',
+        ], [
+            $pair1Jpg => 'content-id-A',
+            $pair1Mov => 'content-id-A',
+            $pair2Jpg => 'content-id-B',
+            $pair2Mov => 'content-id-B',
+        ]);
+
+        $duplicateIdentifierStrategy = new TargetBasenameStrategy();
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveArrayIterator([
+                new SplFileInfo($pair1Jpg),
+                new SplFileInfo($pair1Mov),
+                new SplFileInfo($pair2Jpg),
+                new SplFileInfo($pair2Mov),
+            ], RecursiveArrayIterator::CHILD_ARRAYS_ONLY),
+        );
+
+        $collection = $service->groupFilesByDuplicateIdentifier(
+            $iterator,
+            $renameStrategy,
+            $duplicateIdentifierStrategy,
+            $sourceDirectory,
+            $targetDirectory,
+        );
+
+        self::assertCount(1, $collection);
+
+        $duplicate = $collection->get('2025-01-01_12-00-00-000');
+        self::assertInstanceOf(FileDuplicate::class, $duplicate);
+
+        $files = iterator_to_array($duplicate->getFiles());
+        self::assertCount(4, $files);
+
+        $service->createDuplicateFilenames(
+            $collection,
+            $sourceDirectory,
+            $targetDirectory,
+            useFileExtensionFromSource: true,
+        );
+
+        $renames       = iterator_to_array($duplicate->getRenames());
+        $renameTargets = [];
+
+        foreach ($renames as $rename) {
+            $renameTargets[$rename->getSource()->getPathname()] = $rename->getTarget()->getFilename();
+        }
+
+        self::assertCount(4, $renames);
+
+        self::assertSame('2025-01-01_12-00-00-000.jpg', $renameTargets[$pair1Jpg]);
+        self::assertSame('2025-01-01_12-00-00-000.mov', $renameTargets[$pair1Mov]);
+
+        self::assertSame('2025-01-01_12-00-00-000-002.jpg', $renameTargets[$pair2Jpg]);
+        self::assertSame('2025-01-01_12-00-00-000-002.mov', $renameTargets[$pair2Mov]);
+    }
+
+    /**
      * @return array{DuplicateDetectionService, BufferedOutput, FileSystemService}
      */
     private function createService(): array

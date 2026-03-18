@@ -243,16 +243,26 @@ class HashSubGroupingService implements HashSubGroupingServiceInterface, MediaTy
         /** @var array<string, int> $contentIdToSubGroup */
         $contentIdToSubGroup = [];
 
+        // Pre-build source filename stem -> sub-group map as fallback for
+        // excluded files that lack a content identifier (e.g. MOV companions
+        // whose metadata does not include the Live Photo content ID).
+        /** @var array<string, int> $sourceBasenameToSubGroup */
+        $sourceBasenameToSubGroup = [];
+
         foreach ($nonCompanionRenames as $stillRename) {
-            $stillPath      = $stillRename->getSource()->getPathname();
+            $stillPath     = $stillRename->getSource()->getPathname();
+            $stillHash     = $renameToHash[$stillPath] ?? null;
+            $stillSubGroup = ($stillHash !== null && isset($hashToSubGroup[$stillHash]))
+                ? $hashToSubGroup[$stillHash]
+                : 0;
             $stillContentId = $contentIdentifierMap[$stillPath] ?? null;
 
             if ($stillContentId !== null) {
-                $stillHash                            = $renameToHash[$stillPath] ?? null;
-                $contentIdToSubGroup[$stillContentId] = ($stillHash !== null && isset($hashToSubGroup[$stillHash]))
-                    ? $hashToSubGroup[$stillHash]
-                    : 0;
+                $contentIdToSubGroup[$stillContentId] = $stillSubGroup;
             }
+
+            $stillBasename                            = Constants::basenameWithoutExtension($stillRename->getSource());
+            $sourceBasenameToSubGroup[$stillBasename] = $stillSubGroup;
         }
 
         foreach ($fileDuplicate->getRenames() as $rename) {
@@ -265,9 +275,15 @@ class HashSubGroupingService implements HashSubGroupingServiceInterface, MediaTy
             $renamePath      = $rename->getSource()->getPathname();
             $renameContentId = $contentIdentifierMap[$renamePath] ?? null;
 
-            $subGroupNum = ($renameContentId !== null)
-                ? ($contentIdToSubGroup[$renameContentId] ?? 0)
-                : 0;
+            if ($renameContentId !== null) {
+                $subGroupNum = $contentIdToSubGroup[$renameContentId] ?? 0;
+            } else {
+                // Fallback: match by source filename stem (e.g. IMG_0001.mov -> IMG_0001).
+                // This handles MOV companions that lack a content identifier in their metadata
+                // but share the same source filename stem as their paired still image.
+                $renameBasename = Constants::basenameWithoutExtension($rename->getSource());
+                $subGroupNum    = $sourceBasenameToSubGroup[$renameBasename] ?? 0;
+            }
 
             $fileBasename = $subGroupNum === 0
                 ? $canonicalBasename
