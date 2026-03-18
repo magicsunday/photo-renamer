@@ -460,9 +460,11 @@ final class RenameByExifDateCommandTest extends TestCase
         $output = new BufferedOutput();
         $style  = new SymfonyStyle(new ArrayInput([]), $output);
 
+        $hashSubGroupingService = new HashSubGroupingService(new SafeHashCalculator(), $style);
+
         $command = new RenameByExifDateCommand(
             new FileSystemService($style),
-            new DuplicateDetectionService($style, new HashSubGroupingService(new SafeHashCalculator(), $style)),
+            new DuplicateDetectionService($style, $hashSubGroupingService, $hashSubGroupingService),
             new ExifMetadataProvider($metadataExtractor),
             new LivePhotoPairingService(),
         );

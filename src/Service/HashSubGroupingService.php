@@ -38,7 +38,7 @@ use function strtolower;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-class HashSubGroupingService implements HashSubGroupingServiceInterface
+class HashSubGroupingService implements HashSubGroupingServiceInterface, MediaTypeClassifierInterface
 {
     /**
      * Extensions that identify still image assets within Live Photo groups.

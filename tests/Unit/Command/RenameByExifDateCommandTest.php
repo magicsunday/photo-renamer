@@ -545,7 +545,8 @@ final class RenameByExifDateCommandTest extends TestCase
             $metadataProvider = new ExifMetadataProvider($metadataExtractor);
 
             $hashCalculator            = new SafeHashCalculator();
-            $duplicateDetectionService = new DuplicateDetectionService($style, new HashSubGroupingService($hashCalculator, $style));
+            $hashSubGroupingService    = new HashSubGroupingService($hashCalculator, $style);
+            $duplicateDetectionService = new DuplicateDetectionService($style, $hashSubGroupingService, $hashSubGroupingService);
             $livePhotoPairingService   = new LivePhotoPairingService();
 
             $command = new RenameByExifDateCommand(

@@ -45,14 +45,4 @@ interface HashSubGroupingServiceInterface
         array $contentIdentifierMap,
         Closure $targetPathnameResolver,
     ): bool;
-
-    /**
-     * Checks whether the given file is a still image (HEIC, HEIF, JPG, JPEG) as opposed
-     * to a video companion (MOV, MP4).
-     *
-     * @param SplFileInfo $fileInfo File to classify
-     *
-     * @return bool True when the file extension matches a known still image format
-     */
-    public function isLivePhotoStill(SplFileInfo $fileInfo): bool;
 }

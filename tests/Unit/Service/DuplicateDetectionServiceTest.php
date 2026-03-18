@@ -1324,7 +1324,8 @@ final class DuplicateDetectionServiceTest extends TestCase
         $output = new BufferedOutput();
         $io     = new SymfonyStyle(new ArrayInput([]), $output);
 
-        $service = new DuplicateDetectionService($io, new HashSubGroupingService($hashCalculator, $io));
+        $hashSubGroupingService = new HashSubGroupingService($hashCalculator, $io);
+        $service                = new DuplicateDetectionService($io, $hashSubGroupingService, $hashSubGroupingService);
 
         $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . 'target.jpg';
 
@@ -1377,7 +1378,8 @@ final class DuplicateDetectionServiceTest extends TestCase
         $output = new BufferedOutput();
         $io     = new SymfonyStyle(new ArrayInput([]), $output);
 
-        $service = new DuplicateDetectionService($io, new HashSubGroupingService($hashCalculator, $io));
+        $hashSubGroupingService = new HashSubGroupingService($hashCalculator, $io);
+        $service                = new DuplicateDetectionService($io, $hashSubGroupingService, $hashSubGroupingService);
 
         $sourceDirectory = $this->createTempDirectory();
         $targetDirectory = $this->createTempDirectory();
@@ -1442,7 +1444,8 @@ final class DuplicateDetectionServiceTest extends TestCase
         $output = new BufferedOutput();
         $io     = new SymfonyStyle(new ArrayInput([]), $output);
 
-        $service = new DuplicateDetectionService($io, new HashSubGroupingService($hashCalculator, $io));
+        $hashSubGroupingService = new HashSubGroupingService($hashCalculator, $io);
+        $service                = new DuplicateDetectionService($io, $hashSubGroupingService, $hashSubGroupingService);
 
         $sourceDirectory = $this->createTempDirectory();
         $targetDirectory = $this->createTempDirectory();
@@ -2268,7 +2271,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         $fileSystemService      = new FileSystemService($io);
         $hashCalculator         = new SafeHashCalculator();
         $hashSubGroupingService = new HashSubGroupingService($hashCalculator, $io);
-        $service                = new DuplicateDetectionService($io, $hashSubGroupingService);
+        $service                = new DuplicateDetectionService($io, $hashSubGroupingService, $hashSubGroupingService);
 
         return [$service, $output, $fileSystemService];
     }

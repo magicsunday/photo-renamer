@@ -115,10 +115,12 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     /**
      * @param SymfonyStyle                    $io                     Console IO for progress bars and error output
      * @param HashSubGroupingServiceInterface $hashSubGroupingService Service for content-hash-based sub-grouping
+     * @param MediaTypeClassifierInterface    $mediaTypeClassifier    Classifies files by media type (still vs. video)
      */
     public function __construct(
         private readonly SymfonyStyle $io,
         private readonly HashSubGroupingServiceInterface $hashSubGroupingService,
+        private readonly MediaTypeClassifierInterface $mediaTypeClassifier,
     ) {
     }
 
@@ -946,11 +948,11 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             return;
         }
 
-        if (!$this->hashSubGroupingService->isLivePhotoStill($candidateTarget)) {
+        if (!$this->mediaTypeClassifier->isLivePhotoStill($candidateTarget)) {
             return;
         }
 
-        if ($this->hashSubGroupingService->isLivePhotoStill($fileDuplicate->getTarget())) {
+        if ($this->mediaTypeClassifier->isLivePhotoStill($fileDuplicate->getTarget())) {
             return;
         }
 
@@ -980,7 +982,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             return null;
         }
 
-        $canonicalIsStill = $this->hashSubGroupingService->isLivePhotoStill($canonicalRename->getSource());
+        $canonicalIsStill = $this->mediaTypeClassifier->isLivePhotoStill($canonicalRename->getSource());
 
         foreach ($fileDuplicate->getRenames() as $rename) {
             if ($rename === $canonicalRename) {
@@ -995,7 +997,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 continue;
             }
 
-            $renameIsStill = $this->hashSubGroupingService->isLivePhotoStill($rename->getSource());
+            $renameIsStill = $this->mediaTypeClassifier->isLivePhotoStill($rename->getSource());
 
             if ($canonicalIsStill !== $renameIsStill) {
                 return $rename;
