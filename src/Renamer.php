@@ -16,6 +16,10 @@ use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
+// Remove memory limit — large photo collections need significant memory for
+// file iteration, metadata caching, and duplicate grouping.
+ini_set('memory_limit', '-1');
+
 require_once __DIR__ . '/Dependencies.php';
 require_once __DIR__ . '/../.build/cache/DependencyContainer.php';
 
