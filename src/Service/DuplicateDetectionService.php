@@ -1086,6 +1086,11 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
 
         $canonicalIsStill = $this->mediaTypeClassifier->isLivePhotoStill($canonicalRename->getSource());
 
+        $canonicalTargetBasename = Constants::basenameWithoutExtension($canonicalRename->getTarget());
+
+        /** @var Rename|null $contentIdCompanion */
+        $contentIdCompanion = null;
+
         /** @var Rename|null $fallbackCompanion */
         $fallbackCompanion = null;
 
@@ -1104,19 +1109,26 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             $renamePath      = $rename->getSource()->getPathname();
             $renameContentId = $this->contentIdentifierMap[$renamePath] ?? null;
 
-            // Exact content-ID match: this is the paired companion.
             if ($renameContentId === $canonicalContentId) {
-                return $rename;
+                $renameBasename = Constants::basenameWithoutExtension($rename->getSource());
+
+                // Idempotency: prefer the companion whose source name already matches
+                // the canonical target (file is already correctly named).
+                if ($renameBasename === $canonicalTargetBasename) {
+                    return $rename;
+                }
+
+                // Track first content-ID match as candidate.
+                $contentIdCompanion ??= $rename;
+
+                continue;
             }
 
             // Track the first different-media-type file as a fallback companion.
-            // This handles the case where the MOV lacks a content identifier but
-            // is still a Live Photo companion (the canonical's content ID proves
-            // this is a Live Photo group).
             $fallbackCompanion ??= $rename;
         }
 
-        return $fallbackCompanion;
+        return $contentIdCompanion ?? $fallbackCompanion;
     }
 
     /**
