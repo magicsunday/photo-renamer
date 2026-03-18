@@ -12,9 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Metadata;
 
 use DateTimeInterface;
-use DateTimeZone;
 use MagicSunday\ImageMeta\MetadataReader;
-use MagicSunday\ImageMeta\Model\QuickTime\QuickTimeMeta;
 use MagicSunday\ImageMeta\Value\StructuredMetadata;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use SplFileInfo;
@@ -64,9 +62,7 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         $structured  = $metadata->structured();
         $livePhotoId = $this->extractContentIdentifier($structured);
 
-        $isQuickTimeContainer = $metadata->quickTime instanceof QuickTimeMeta;
-
-        [$captureDateTime, $isFallback, $isUtcWithoutTimezone] = $this->extractCaptureDateTimeWithFallbackFlag($structured, $isQuickTimeContainer);
+        [$captureDateTime, $isFallback, $isUtcWithoutTimezone] = $this->extractCaptureDateTimeWithFallbackFlag($structured);
 
         if (!($captureDateTime instanceof DateTimeInterface) && ($livePhotoId === null)) {
             return null;
@@ -88,7 +84,7 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
      *
      * @return array{DateTimeInterface|null, bool, bool} Tuple of [captureDateTime, isFallback, isUtcWithoutTimezone]
      */
-    private function extractCaptureDateTimeWithFallbackFlag(StructuredMetadata $structured, bool $isQuickTimeContainer): array
+    private function extractCaptureDateTimeWithFallbackFlag(StructuredMetadata $structured): array
     {
         $temporal = $structured->locationTime->temporal;
         $original = $temporal->original;
@@ -110,17 +106,21 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
             && ($modify instanceof DateTimeInterface)
             && ($dateTime->getTimestamp() === $modify->getTimestamp());
 
-        // UTC-without-timezone detection: QuickTime containers store timestamps in UTC
-        // (from Mac epoch) without embedding timezone info. EXIF dates in images are
-        // already in local camera time (even though PHP may show them as UTC when the
-        // container's default timezone is UTC).
-        $timezoneName         = $dateTime->getTimezone()->getName();
-        $isUtcWithoutTimezone = $isQuickTimeContainer
-            && !($temporal->tz instanceof DateTimeZone)
-            && ($temporal->offsetTimeOriginal === null)
-            && ($temporal->offsetTimeDigitized === null)
-            && ($temporal->offsetTime === null)
-            && (($timezoneName === '+00:00') || ($timezoneName === 'UTC'));
+        // UTC-without-timezone detection: QuickTime containers may store timestamps
+        // as Mac epoch (seconds since 1904) which are truly UTC, or as date strings
+        // which are in the camera's local time. Unfortunately, there is no reliable way
+        // to distinguish between the two — old cameras wrote local time, modern ones
+        // write UTC, both end up with timezone "+00:00" after imagemeta processing.
+        //
+        // We only flag as "UTC without timezone" when the file has an explicit timezone
+        // from the Keys CreationDate (Apple devices: temporal->tz is set) but the
+        // resolved timestamp still appears to be UTC. This covers iPhone re-encodes
+        // that have Keys metadata but whose mvhd dates are in UTC.
+        //
+        // For all other QuickTime files (no Keys metadata), we trust the timestamp
+        // as-is and rely on the --timezone CLI option for manual correction and the
+        // date-drift warning (--max-date-drift) to flag suspicious changes.
+        $isUtcWithoutTimezone = false;
 
         return [$dateTime, $isFallback, $isUtcWithoutTimezone];
     }
