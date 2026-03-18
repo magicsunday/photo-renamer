@@ -120,18 +120,6 @@ final class RenameByExifDateCommandTest extends TestCase
 
         $duplicateCollection = new FileDuplicateCollection();
 
-        $duplicateDetectionService
-            ->expects(self::once())
-            ->method('setSourceDirectory')
-            ->with($expectedSourceDirectory)
-            ->willReturnSelf();
-
-        $duplicateDetectionService
-            ->expects(self::once())
-            ->method('setTargetDirectory')
-            ->with($expectedTargetDirectory)
-            ->willReturnSelf();
-
         $capturedRenameStrategy    = null;
         $capturedDuplicateStrategy = null;
 
@@ -150,19 +138,20 @@ final class RenameByExifDateCommandTest extends TestCase
 
                     return $strategy instanceof TargetBasenameStrategy;
                 }),
+                $expectedSourceDirectory,
+                $expectedTargetDirectory,
             )
             ->willReturn($duplicateCollection);
 
         $duplicateDetectionService
             ->expects(self::once())
-            ->method('setUseFileExtensionFromSource')
-            ->with(true)
-            ->willReturnSelf();
-
-        $duplicateDetectionService
-            ->expects(self::once())
             ->method('createDuplicateFilenames')
-            ->with(self::identicalTo($duplicateCollection))
+            ->with(
+                self::identicalTo($duplicateCollection),
+                $expectedSourceDirectory,
+                $expectedTargetDirectory,
+                true,
+            )
             ->willReturn($duplicateCollection);
 
         $duplicateDetectionService
@@ -274,6 +263,8 @@ final class RenameByExifDateCommandTest extends TestCase
                 self::identicalTo($iterator),
                 self::isInstanceOf(ExifDateFilenameStrategy::class),
                 self::isInstanceOf(TargetBasenameStrategy::class),
+                '/source',
+                '/target',
             )
             ->willReturn($duplicateCollection);
 
@@ -338,6 +329,9 @@ final class RenameByExifDateCommandTest extends TestCase
 
         $sourceDirectoryProperty = new ReflectionProperty(RenameByExifDateCommand::class, 'sourceDirectory');
         $sourceDirectoryProperty->setValue($command, '/source');
+
+        $targetDirectoryProperty = new ReflectionProperty(RenameByExifDateCommand::class, 'targetDirectory');
+        $targetDirectoryProperty->setValue($command, '/target');
 
         $method = new ReflectionMethod(RenameByExifDateCommand::class, 'groupFilesByDuplicateIdentifier');
 
@@ -411,29 +405,13 @@ final class RenameByExifDateCommandTest extends TestCase
         $duplicateDetectionService = $this->createMock(DuplicateDetectionServiceInterface::class);
         $duplicateDetectionService
             ->expects(self::once())
-            ->method('setSourceDirectory')
-            ->with('/source-dir')
-            ->willReturnSelf();
-
-        $duplicateDetectionService
-            ->expects(self::once())
-            ->method('setTargetDirectory')
-            ->with('/target-dir')
-            ->willReturnSelf();
-
-        $duplicateDetectionService
-            ->expects(self::once())
-            ->method('setUseFileExtensionFromSource')
-            ->with(true)
-            ->willReturnSelf();
-
-        $duplicateDetectionService
-            ->expects(self::once())
             ->method('groupFilesByDuplicateIdentifier')
             ->with(
                 self::identicalTo($iterator),
                 self::isInstanceOf(ExifDateFilenameStrategy::class),
                 self::isInstanceOf(TargetBasenameStrategy::class),
+                '/source-dir',
+                '/target-dir',
             )
             ->willReturn($duplicateCollection);
 
@@ -450,24 +428,29 @@ final class RenameByExifDateCommandTest extends TestCase
         $duplicateDetectionService
             ->expects(self::once())
             ->method('createDuplicateFilenames')
-            ->with(self::callback(function (FileDuplicateCollection $collection) use ($photo, $video, $photoTarget, $videoTarget): bool {
-                self::assertTrue($collection->has('live-photo:content-id'));
+            ->with(
+                self::callback(function (FileDuplicateCollection $collection) use ($photo, $video, $photoTarget, $videoTarget): bool {
+                    self::assertTrue($collection->has('live-photo:content-id'));
 
-                $duplicate = $collection->get('live-photo:content-id');
-                self::assertInstanceOf(FileDuplicate::class, $duplicate);
+                    $duplicate = $collection->get('live-photo:content-id');
+                    self::assertInstanceOf(FileDuplicate::class, $duplicate);
 
-                $files = iterator_to_array($duplicate->getFiles());
-                self::assertCount(2, $files);
-                self::assertSame($photo->getPathname(), $files[0]->getPathname());
-                self::assertSame($video->getPathname(), $files[1]->getPathname());
+                    $files = iterator_to_array($duplicate->getFiles());
+                    self::assertCount(2, $files);
+                    self::assertSame($photo->getPathname(), $files[0]->getPathname());
+                    self::assertSame($video->getPathname(), $files[1]->getPathname());
 
-                $duplicate->setRenames(new RenameList([
-                    new Rename($photo, $photoTarget),
-                    new Rename($video, $videoTarget),
-                ]));
+                    $duplicate->setRenames(new RenameList([
+                        new Rename($photo, $photoTarget),
+                        new Rename($video, $videoTarget),
+                    ]));
 
-                return true;
-            }))
+                    return true;
+                }),
+                '/source-dir',
+                '/target-dir',
+                true,
+            )
             ->willReturnCallback(static fn (FileDuplicateCollection $collection): FileDuplicateCollection => $collection);
 
         /** @var LivePhotoPairingService&MockObject $livePhotoPairingService */
@@ -625,6 +608,8 @@ final class RenameByExifDateCommandTest extends TestCase
                 self::identicalTo($iterator),
                 self::isInstanceOf(ExifDateFilenameStrategy::class),
                 self::isInstanceOf(TargetBasenameStrategy::class),
+                '/source',
+                '/target',
             )
             ->willReturn($duplicateCollection);
 
@@ -676,6 +661,9 @@ final class RenameByExifDateCommandTest extends TestCase
         $sourceDirectoryProperty = new ReflectionProperty(RenameByExifDateCommand::class, 'sourceDirectory');
         $sourceDirectoryProperty->setValue($command, '/source');
 
+        $targetDirectoryProperty = new ReflectionProperty(RenameByExifDateCommand::class, 'targetDirectory');
+        $targetDirectoryProperty->setValue($command, '/target');
+
         $method = new ReflectionMethod(RenameByExifDateCommand::class, 'groupFilesByDuplicateIdentifier');
 
         $result = $method->invoke($command, $iterator);
@@ -726,6 +714,8 @@ final class RenameByExifDateCommandTest extends TestCase
                 self::identicalTo($iterator),
                 self::isInstanceOf(ExifDateFilenameStrategy::class),
                 self::isInstanceOf(TargetBasenameStrategy::class),
+                '/source',
+                '/target',
             )
             ->willReturn($duplicateCollection);
 
@@ -800,6 +790,9 @@ final class RenameByExifDateCommandTest extends TestCase
 
         $sourceDirectoryProperty = new ReflectionProperty(RenameByExifDateCommand::class, 'sourceDirectory');
         $sourceDirectoryProperty->setValue($command, '/source');
+
+        $targetDirectoryProperty = new ReflectionProperty(RenameByExifDateCommand::class, 'targetDirectory');
+        $targetDirectoryProperty->setValue($command, '/target');
 
         $method = new ReflectionMethod(RenameByExifDateCommand::class, 'groupFilesByDuplicateIdentifier');
 

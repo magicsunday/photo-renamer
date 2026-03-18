@@ -29,56 +29,38 @@ use RecursiveIteratorIterator;
 interface DuplicateDetectionServiceInterface
 {
     /**
-     * Defines the directory scanned for source files. Must be called before
-     * {@see groupFilesByDuplicateIdentifier()}.
-     *
-     * @param string $sourceDirectory Absolute path to the source directory
-     *
-     * @return self Fluent interface
-     */
-    public function setSourceDirectory(string $sourceDirectory): self;
-
-    /**
-     * Defines the directory where renamed/copied files are placed. Must be
-     * called before {@see groupFilesByDuplicateIdentifier()}.
-     *
-     * @param string $targetDirectory Absolute path to the target directory
-     *
-     * @return self Fluent interface
-     */
-    public function setTargetDirectory(string $targetDirectory): self;
-
-    /**
-     * Controls whether duplicate targets preserve the source file's original extension
-     * instead of inheriting the canonical target's extension.
-     *
-     * @param bool $useFileExtensionFromSource When true, source extension is retained
-     *
-     * @return self Fluent interface
-     */
-    public function setUseFileExtensionFromSource(bool $useFileExtensionFromSource): self;
-
-    /**
      * Creates a collection of duplicates. Files with the same unique identifier are grouped together.
      *
      * @template TInner of RecursiveIterator
      *
-     * @param RecursiveIteratorIterator<TInner> $iterator
+     * @param RecursiveIteratorIterator<TInner>    $iterator                    iterator yielding candidate files
+     * @param RenameStrategyInterface              $renameStrategy              strategy used to generate target filenames
+     * @param DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy strategy that identifies duplicate groups
+     * @param string                               $sourceDirectory             absolute path to the source directory
+     * @param string                               $targetDirectory             absolute path to the target directory
      */
     public function groupFilesByDuplicateIdentifier(
         RecursiveIteratorIterator $iterator,
         RenameStrategyInterface $renameStrategy,
         DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy,
+        string $sourceDirectory,
+        string $targetDirectory,
     ): FileDuplicateCollection;
 
     /**
      * Creates a consecutive new filename for all duplicate files.
      *
-     * @param FileDuplicateCollection $fileDuplicateCollection collection whose entries should receive duplicate filenames
-     * @param bool                    $skipHashSubGrouping     when true, content-hash sub-grouping is skipped entirely
+     * @param FileDuplicateCollection $fileDuplicateCollection    collection whose entries should receive duplicate filenames
+     * @param string                  $sourceDirectory            absolute path to the source directory
+     * @param string                  $targetDirectory            absolute path to the target directory
+     * @param bool                    $useFileExtensionFromSource when true, source extension is retained
+     * @param bool                    $skipHashSubGrouping        when true, content-hash sub-grouping is skipped entirely
      */
     public function createDuplicateFilenames(
         FileDuplicateCollection $fileDuplicateCollection,
+        string $sourceDirectory,
+        string $targetDirectory,
+        bool $useFileExtensionFromSource = false,
         bool $skipHashSubGrouping = false,
     ): FileDuplicateCollection;
 

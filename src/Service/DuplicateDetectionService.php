@@ -61,13 +61,15 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
 {
     /**
      * Absolute path to the directory being scanned for source files.
+     * Set at the start of each public pipeline method.
      */
-    private string $sourceDirectory;
+    private string $sourceDirectory = '';
 
     /**
      * Absolute path to the directory where renamed files are placed.
+     * Set at the start of each public pipeline method.
      */
-    private string $targetDirectory;
+    private string $targetDirectory = '';
 
     /**
      * When true, duplicate targets preserve the source file's original extension
@@ -123,48 +125,6 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     }
 
     /**
-     * Defines the directory that will be scanned for potential duplicates.
-     *
-     * @param string $sourceDirectory absolute path to the directory being analysed
-     *
-     * @return DuplicateDetectionService fluent reference for method chaining
-     */
-    public function setSourceDirectory(string $sourceDirectory): self
-    {
-        $this->sourceDirectory = $sourceDirectory;
-
-        return $this;
-    }
-
-    /**
-     * Sets the directory in which renamed or copied files should be placed.
-     *
-     * @param string $targetDirectory absolute path to the destination directory
-     *
-     * @return DuplicateDetectionService fluent reference for method chaining
-     */
-    public function setTargetDirectory(string $targetDirectory): self
-    {
-        $this->targetDirectory = $targetDirectory;
-
-        return $this;
-    }
-
-    /**
-     * Controls whether the original source file extension should be preserved for duplicates.
-     *
-     * @param bool $useFileExtensionFromSource when true the source file extension is retained in duplicates
-     *
-     * @return DuplicateDetectionService fluent reference for method chaining
-     */
-    public function setUseFileExtensionFromSource(bool $useFileExtensionFromSource): self
-    {
-        $this->useFileExtensionFromSource = $useFileExtensionFromSource;
-
-        return $this;
-    }
-
-    /**
      * Returns the number of groups where content-hash sub-grouping was applied.
      */
     public function getNamingCollisions(): int
@@ -200,6 +160,8 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
      * @param RecursiveIteratorIterator<TInner>    $iterator                    iterator yielding candidate files
      * @param RenameStrategyInterface              $renameStrategy              strategy used to generate target filenames
      * @param DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy strategy that identifies duplicate groups
+     * @param string                               $sourceDirectory             absolute path to the source directory
+     * @param string                               $targetDirectory             absolute path to the target directory
      *
      * @return FileDuplicateCollection collection describing discovered duplicate groups
      */
@@ -207,7 +169,11 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         RecursiveIteratorIterator $iterator,
         RenameStrategyInterface $renameStrategy,
         DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy,
+        string $sourceDirectory,
+        string $targetDirectory,
     ): FileDuplicateCollection {
+        $this->sourceDirectory = $sourceDirectory;
+        $this->targetDirectory = $targetDirectory;
         // Collect and sort files: parent directories before subdirectories.
         /** @var list<SplFileInfo> $files */
         $files = [];
@@ -401,21 +367,25 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
      * NOTE: {@see groupFilesByDuplicateIdentifier()} must be called first to populate
      * {@see $contentIdentifierMap}, which is required for Live Photo companion detection.
      *
-     * @param FileDuplicateCollection $fileDuplicateCollection collection whose entries should receive duplicate filenames
+     * @param FileDuplicateCollection $fileDuplicateCollection    collection whose entries should receive duplicate filenames
+     * @param string                  $sourceDirectory            absolute path to the source directory
+     * @param string                  $targetDirectory            absolute path to the target directory
+     * @param bool                    $useFileExtensionFromSource when true, source extension is retained
+     * @param bool                    $skipHashSubGrouping        when true, content-hash sub-grouping is skipped entirely
      *
      * @return FileDuplicateCollection updated collection with rename operations populated
      */
     public function createDuplicateFilenames(
         FileDuplicateCollection $fileDuplicateCollection,
+        string $sourceDirectory,
+        string $targetDirectory,
+        bool $useFileExtensionFromSource = false,
         bool $skipHashSubGrouping = false,
     ): FileDuplicateCollection {
-        if (!isset($this->sourceDirectory, $this->targetDirectory)) {
-            throw new RuntimeException(
-                'setSourceDirectory() and setTargetDirectory() must be called before createDuplicateFilenames()'
-            );
-        }
-
-        $this->namingCollisions = 0;
+        $this->sourceDirectory            = $sourceDirectory;
+        $this->targetDirectory            = $targetDirectory;
+        $this->useFileExtensionFromSource = $useFileExtensionFromSource;
+        $this->namingCollisions           = 0;
 
         // Ensure disk index is populated when called without prior groupFilesByDuplicateIdentifier.
         if ($this->diskIndex === []) {

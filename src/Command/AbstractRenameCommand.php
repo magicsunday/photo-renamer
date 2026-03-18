@@ -200,7 +200,6 @@ abstract class AbstractRenameCommand extends Command
         }
 
         $this->normalizeDirectoryPaths();
-        $this->configureDuplicateDetectionService();
 
         return $this->executeCommand();
     }
@@ -419,18 +418,6 @@ abstract class AbstractRenameCommand extends Command
     }
 
     /**
-     * Configures the duplicate detection service with source and target directories.
-     */
-    private function configureDuplicateDetectionService(): void
-    {
-        assert(is_string($this->targetDirectory));
-
-        $this->duplicateDetectionService
-            ->setSourceDirectory($this->sourceDirectory)
-            ->setTargetDirectory($this->targetDirectory);
-    }
-
-    /**
      * Template method that runs the rename pipeline (scan, group, assign, execute).
      * Subclasses may override to add pre/post-processing steps (e.g. Live Photo pairing).
      *
@@ -514,12 +501,16 @@ abstract class AbstractRenameCommand extends Command
     {
         $this->io->text(sprintf('<fg=cyan>Scanning:</> %s', $this->sourceDirectory));
 
+        assert(is_string($this->targetDirectory));
+
         // Process list of all files
         return $this->duplicateDetectionService
             ->groupFilesByDuplicateIdentifier(
                 iterator: $iterator,
                 renameStrategy: $this->getTargetFilenameStrategy(),
-                duplicateIdentifierStrategy: $this->getDuplicateIdentifierStrategy()
+                duplicateIdentifierStrategy: $this->getDuplicateIdentifierStrategy(),
+                sourceDirectory: $this->sourceDirectory,
+                targetDirectory: $this->targetDirectory,
             );
     }
 
@@ -534,12 +525,19 @@ abstract class AbstractRenameCommand extends Command
      */
     private function createDuplicateFilenames(FileDuplicateCollection $fileDuplicateCollection): FileDuplicateCollection
     {
+        assert(is_string($this->targetDirectory));
+
         $this->io->newLine();
         $this->io->text('<fg=cyan>Resolving duplicates</>');
 
         return $this->duplicateDetectionService
-            ->setUseFileExtensionFromSource($this->useFileExtensionFromSource)
-            ->createDuplicateFilenames($fileDuplicateCollection, $this->skipHashSubGrouping());
+            ->createDuplicateFilenames(
+                $fileDuplicateCollection,
+                $this->sourceDirectory,
+                $this->targetDirectory,
+                $this->useFileExtensionFromSource,
+                $this->skipHashSubGrouping(),
+            );
     }
 
     /**

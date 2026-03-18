@@ -75,36 +75,25 @@ final class AbstractRenameCommandTest extends TestCase
 
         $duplicateDetectionService
             ->expects(self::once())
-            ->method('setSourceDirectory')
-            ->with('/source-directory')
-            ->willReturnSelf();
-
-        $duplicateDetectionService
-            ->expects(self::once())
-            ->method('setTargetDirectory')
-            ->with('/source-directory')
-            ->willReturnSelf();
-
-        $duplicateDetectionService
-            ->expects(self::once())
-            ->method('setUseFileExtensionFromSource')
-            ->with(false)
-            ->willReturnSelf();
-
-        $duplicateDetectionService
-            ->expects(self::once())
             ->method('groupFilesByDuplicateIdentifier')
             ->with(
                 self::identicalTo($iteratorOne),
                 self::identicalTo($renameStrategy),
                 self::identicalTo($duplicateIdentifierStrategy),
+                '/source-directory',
+                '/source-directory',
             )
             ->willReturn($fileDuplicateCollection);
 
         $duplicateDetectionService
             ->expects(self::once())
             ->method('createDuplicateFilenames')
-            ->with(self::identicalTo($fileDuplicateCollection))
+            ->with(
+                self::identicalTo($fileDuplicateCollection),
+                '/source-directory',
+                '/source-directory',
+                false,
+            )
             ->willReturn($fileDuplicateCollection);
 
         $fileSystemService
@@ -188,36 +177,25 @@ final class AbstractRenameCommandTest extends TestCase
 
         $duplicateDetectionService
             ->expects(self::once())
-            ->method('setSourceDirectory')
-            ->with('/source-directory')
-            ->willReturnSelf();
-
-        $duplicateDetectionService
-            ->expects(self::once())
-            ->method('setTargetDirectory')
-            ->with('/source-directory')
-            ->willReturnSelf();
-
-        $duplicateDetectionService
-            ->expects(self::once())
-            ->method('setUseFileExtensionFromSource')
-            ->with(false)
-            ->willReturnSelf();
-
-        $duplicateDetectionService
-            ->expects(self::once())
             ->method('groupFilesByDuplicateIdentifier')
             ->with(
                 self::identicalTo($iteratorOne),
                 self::identicalTo($renameStrategy),
                 self::identicalTo($duplicateIdentifierStrategy),
+                '/source-directory',
+                '/source-directory',
             )
             ->willReturn($fileDuplicateCollection);
 
         $duplicateDetectionService
             ->expects(self::once())
             ->method('createDuplicateFilenames')
-            ->with(self::identicalTo($fileDuplicateCollection))
+            ->with(
+                self::identicalTo($fileDuplicateCollection),
+                '/source-directory',
+                '/source-directory',
+                false,
+            )
             ->willReturn($fileDuplicateCollection);
 
         $fileSystemService
@@ -301,31 +279,25 @@ final class AbstractRenameCommandTest extends TestCase
 
         $duplicateDetectionService
             ->expects(self::once())
-            ->method('setSourceDirectory')
-            ->with('/source-directory')
-            ->willReturnSelf();
-
-        $duplicateDetectionService
-            ->expects(self::once())
-            ->method('setTargetDirectory')
-            ->with('/target-directory')
-            ->willReturnSelf();
-
-        $duplicateDetectionService
-            ->expects(self::once())
-            ->method('setUseFileExtensionFromSource')
-            ->with(false)
-            ->willReturnSelf();
-
-        $duplicateDetectionService
-            ->expects(self::once())
             ->method('groupFilesByDuplicateIdentifier')
+            ->with(
+                self::identicalTo($iterator),
+                self::anything(),
+                self::anything(),
+                '/source-directory',
+                '/target-directory',
+            )
             ->willReturn($fileDuplicateCollection);
 
         $duplicateDetectionService
             ->expects(self::once())
             ->method('createDuplicateFilenames')
-            ->with(self::identicalTo($fileDuplicateCollection))
+            ->with(
+                self::identicalTo($fileDuplicateCollection),
+                '/source-directory',
+                '/target-directory',
+                false,
+            )
             ->willReturn($fileDuplicateCollection);
 
         $fileSystemService
@@ -413,44 +385,25 @@ final class AbstractRenameCommandTest extends TestCase
 
         $duplicateDetectionService
             ->expects(self::once())
-            ->method('setSourceDirectory')
-            ->with(self::callback(function (string $path) use ($expectedSource): bool {
-                self::assertSame($expectedSource, $path);
-
-                return true;
-            }))
-            ->willReturnSelf();
-
-        $duplicateDetectionService
-            ->expects(self::once())
-            ->method('setTargetDirectory')
-            ->with(self::callback(function (string $path) use ($expectedTarget): bool {
-                self::assertSame($expectedTarget, $path);
-
-                return true;
-            }))
-            ->willReturnSelf();
-
-        $duplicateDetectionService
-            ->expects(self::once())
-            ->method('setUseFileExtensionFromSource')
-            ->with(false)
-            ->willReturnSelf();
-
-        $duplicateDetectionService
-            ->expects(self::once())
             ->method('groupFilesByDuplicateIdentifier')
             ->with(
                 self::identicalTo($iteratorOne),
                 self::identicalTo($renameStrategy),
                 self::identicalTo($duplicateIdentifierStrategy),
+                $expectedSource,
+                $expectedTarget,
             )
             ->willReturn($fileDuplicateCollection);
 
         $duplicateDetectionService
             ->expects(self::once())
             ->method('createDuplicateFilenames')
-            ->with(self::identicalTo($fileDuplicateCollection))
+            ->with(
+                self::identicalTo($fileDuplicateCollection),
+                $expectedSource,
+                $expectedTarget,
+                false,
+            )
             ->willReturn($fileDuplicateCollection);
 
         $fileSystemService
@@ -519,13 +472,7 @@ final class AbstractRenameCommandTest extends TestCase
         $renameStrategy              = self::createStub(RenameStrategyInterface::class);
         $duplicateIdentifierStrategy = self::createStub(DuplicateIdentifierStrategyInterface::class);
 
-        $duplicateDetectionService
-            ->method('setSourceDirectory')
-            ->willReturnSelf();
-
-        $duplicateDetectionService
-            ->method('setTargetDirectory')
-            ->willReturnSelf();
+        // No setter stubs needed — directories are now method parameters
 
         $command = new class($fileSystemService, $duplicateDetectionService, $renameStrategy, $duplicateIdentifierStrategy) extends AbstractRenameCommand {
             public function __construct(

@@ -90,36 +90,25 @@ final class RenameLowerCaseCommandTest extends TestCase
 
             $duplicateDetectionService
                 ->expects(self::once())
-                ->method('setSourceDirectory')
-                ->with($sourceDir)
-                ->willReturnSelf();
-
-            $duplicateDetectionService
-                ->expects(self::once())
-                ->method('setTargetDirectory')
-                ->with($sourceDir)
-                ->willReturnSelf();
-
-            $duplicateDetectionService
-                ->expects(self::once())
                 ->method('groupFilesByDuplicateIdentifier')
                 ->with(
                     self::identicalTo($iterator),
                     self::callback(static fn ($strategy): bool => $strategy instanceof LowerCaseFilenameStrategy),
                     self::callback(static fn ($strategy): bool => $strategy instanceof TargetPathnameStrategy),
+                    $sourceDir,
+                    $sourceDir,
                 )
                 ->willReturn($duplicateCollection);
 
             $duplicateDetectionService
                 ->expects(self::once())
-                ->method('setUseFileExtensionFromSource')
-                ->with(false)
-                ->willReturnSelf();
-
-            $duplicateDetectionService
-                ->expects(self::once())
                 ->method('createDuplicateFilenames')
-                ->with(self::identicalTo($duplicateCollection))
+                ->with(
+                    self::identicalTo($duplicateCollection),
+                    $sourceDir,
+                    $sourceDir,
+                    false,
+                )
                 ->willReturn($duplicateCollection);
 
             $fileSystemService

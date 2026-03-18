@@ -98,36 +98,25 @@ final class RenameByHashCommandTest extends TestCase
 
             $duplicateDetectionService
                 ->expects(self::once())
-                ->method('setSourceDirectory')
-                ->with($sourceDir)
-                ->willReturnSelf();
-
-            $duplicateDetectionService
-                ->expects(self::once())
-                ->method('setTargetDirectory')
-                ->with($targetDir)
-                ->willReturnSelf();
-
-            $duplicateDetectionService
-                ->expects(self::once())
                 ->method('groupFilesByDuplicateIdentifier')
                 ->with(
                     self::identicalTo($iterator),
                     self::callback(static fn ($strategy): bool => $strategy instanceof InheritFilenameStrategy),
                     self::callback(static fn ($strategy): bool => $strategy instanceof ContentHashStrategy),
+                    $sourceDir,
+                    $targetDir,
                 )
                 ->willReturn($duplicateCollection);
 
             $duplicateDetectionService
                 ->expects(self::once())
-                ->method('setUseFileExtensionFromSource')
-                ->with(false)
-                ->willReturnSelf();
-
-            $duplicateDetectionService
-                ->expects(self::once())
                 ->method('createDuplicateFilenames')
-                ->with(self::identicalTo($duplicateCollection))
+                ->with(
+                    self::identicalTo($duplicateCollection),
+                    $sourceDir,
+                    $targetDir,
+                    false,
+                )
                 ->willReturn($duplicateCollection);
 
             $fileSystemService
