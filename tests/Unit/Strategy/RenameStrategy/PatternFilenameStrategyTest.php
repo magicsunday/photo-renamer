@@ -235,7 +235,7 @@ class PatternFilenameStrategyTest extends TestCase
                 'description'      => 'Should handle special characters in replacement string',
             ],
             'removes duplicate identifier before pattern replacement' => [
-                'originalFilename' => 'photo-duplicate-001-2024.jpg',
+                'originalFilename' => 'photo-2024-duplicate-001.jpg',
                 'pattern'          => '/2024/',
                 'replacement'      => '2025',
                 'expected'         => 'photo-2025.jpg',

@@ -15,8 +15,6 @@ use MagicSunday\Renamer\Constants;
 use Override;
 use SplFileInfo;
 
-use function preg_replace;
-
 /**
  * Base rename strategy that keeps the original filename intact, only stripping
  * any previously applied "-duplicate-NNN" suffix. Serves as the foundation for
@@ -41,7 +39,7 @@ readonly class InheritFilenameStrategy implements RenameStrategyInterface
     public function generateFilename(SplFileInfo $splFileInfo): string
     {
         $basename = $this->removeDuplicateFileIdentifier(
-            $splFileInfo->getBasename('.' . $splFileInfo->getExtension())
+            Constants::basenameWithoutExtension($splFileInfo)
         );
 
         if ($splFileInfo->getExtension() !== '') {
@@ -61,10 +59,6 @@ readonly class InheritFilenameStrategy implements RenameStrategyInterface
      */
     protected function removeDuplicateFileIdentifier(string $filename): string
     {
-        return preg_replace(
-            '/' . Constants::DUPLICATE_IDENTIFIER . '\d+/',
-            '',
-            $filename
-        ) ?? $filename;
+        return Constants::stripDuplicateSuffix($filename);
     }
 }

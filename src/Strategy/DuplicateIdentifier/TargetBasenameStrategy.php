@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Strategy\DuplicateIdentifier;
 
+use MagicSunday\Renamer\Constants;
 use Override;
 use SplFileInfo;
 
@@ -38,6 +39,6 @@ readonly class TargetBasenameStrategy implements DuplicateIdentifierStrategyInte
     #[Override]
     public function generateIdentifier(SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo): string|false
     {
-        return $targetFileInfo->getBasename('.' . $targetFileInfo->getExtension());
+        return Constants::basenameWithoutExtension($targetFileInfo);
     }
 }

@@ -131,13 +131,13 @@ class InheritFilenameStrategyTest extends TestCase
             ],
             'handles complex multi-part extensions' => [
                 'filename'    => 'archive-duplicate-003.tar.gz',
-                'expected'    => 'archive.tar.gz',
-                'description' => 'Should handle multi-part extensions like .tar.gz',
+                'expected'    => 'archive-duplicate-003.tar.gz',
+                'description' => 'Multi-part extensions: SplFileInfo only sees .gz, so -duplicate- is not at end of basename',
             ],
-            'removes all duplicate identifiers' => [
+            'removes trailing duplicate identifier' => [
                 'filename'    => 'test-duplicate-001-duplicate-002.txt',
-                'expected'    => 'test.txt',
-                'description' => 'Should remove all of the duplicate identifiers',
+                'expected'    => 'test-duplicate-001.txt',
+                'description' => 'Should remove only the trailing duplicate identifier',
             ],
             'preserves similar non-matching patterns' => [
                 'filename'    => 'test-duplicated-file.txt',

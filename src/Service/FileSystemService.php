@@ -37,8 +37,6 @@ use function max;
 use function mb_strlen;
 use function mkdir;
 use function preg_match;
-use function preg_quote;
-use function preg_replace;
 use function rename;
 use function rtrim;
 use function sprintf;
@@ -640,11 +638,11 @@ class FileSystemService implements FileSystemServiceInterface
     private function findAvailableDuplicateTarget(SplFileInfo $target, array $occupiedPaths): SplFileInfo
     {
         $ext      = $target->getExtension();
-        $basename = $target->getBasename('.' . $ext);
+        $basename = Constants::basenameWithoutExtension($target);
         $dir      = $target->getPath();
 
         // Strip any existing duplicate suffix to avoid nested suffixes (e.g. -duplicate-003-duplicate-001).
-        $basename = preg_replace('/' . preg_quote(Constants::DUPLICATE_IDENTIFIER, '/') . '\d+$/', '', $basename) ?? $basename;
+        $basename = Constants::stripDuplicateSuffix($basename);
 
         $counter = 1;
 

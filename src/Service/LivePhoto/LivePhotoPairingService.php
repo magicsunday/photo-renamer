@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\LivePhoto;
 
+use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use RecursiveIterator;
 use RecursiveIteratorIterator;
@@ -119,7 +120,7 @@ class LivePhotoPairingService
             }
 
             $targetFile     = $targetPrototype->getTarget();
-            $targetBasename = $targetFile->getBasename('.' . $targetFile->getExtension());
+            $targetBasename = Constants::basenameWithoutExtension($targetFile);
 
             $targetFileInfo = new SplFileInfo(
                 $fileInfo->getPath()

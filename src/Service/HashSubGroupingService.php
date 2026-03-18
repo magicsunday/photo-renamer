@@ -146,9 +146,7 @@ class HashSubGroupingService implements HashSubGroupingServiceInterface
 
         // Multiple hashes: naming conflict. The canonical's sub-group keeps the
         // unsuffixed base name; other sub-groups get sequential numbers starting at 002.
-        $canonicalBasename = $fileDuplicate->getTarget()->getBasename(
-            '.' . $fileDuplicate->getTarget()->getExtension()
-        );
+        $canonicalBasename = Constants::basenameWithoutExtension($fileDuplicate->getTarget());
 
         // Determine which hash group contains the canonical.
         $canonicalHash = null;

@@ -381,8 +381,9 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             if ($contentIdentifierCacheEntry !== null) {
                 $contentIdentifierCacheEntry['duplicateIdentifier'] = $duplicateIdentifier;
                 $contentIdentifierCacheEntry['target']              = $fileDuplicate->getTarget();
-                $contentIdentifierCacheEntry['captureDate']         = $fileDuplicate->getTarget()
-                    ->getBasename('.' . $fileDuplicate->getTarget()->getExtension());
+                $contentIdentifierCacheEntry['captureDate']         = Constants::basenameWithoutExtension(
+                    $fileDuplicate->getTarget()
+                );
 
                 foreach ($contentIdentifierCacheEntry['pendingFiles'] as $pendingFile) {
                     $fileDuplicate->addFile($pendingFile);
@@ -448,7 +449,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
 
                 $targetPathname = $this->getTargetPathname(
                     $renameSourceFileInfo,
-                    $fileDuplicate->getTarget()->getBasename('.' . $fileDuplicate->getTarget()->getExtension())
+                    Constants::basenameWithoutExtension($fileDuplicate->getTarget())
                     . '.' . $renameTargetFileExtension
                 );
 
@@ -705,7 +706,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         return $this->getNewUniqueDuplicateTargetFileInfo(
             $source,
             $target,
-            $target->getBasename('.' . $target->getExtension()),
+            Constants::basenameWithoutExtension($target),
             $duplicateCount,
             false,
             $groupSourcePaths,
@@ -746,7 +747,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             return $target;
         }
 
-        $duplicateBasename = $target->getBasename('.' . $target->getExtension());
+        $duplicateBasename = Constants::basenameWithoutExtension($target);
 
         $forceSuffix = $targetOccupied
             ? $requiresCanonicalDisambiguation
