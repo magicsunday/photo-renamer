@@ -24,6 +24,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use function array_keys;
 use function count;
 use function in_array;
+use function preg_match;
 use function spl_object_id;
 use function sprintf;
 use function strtolower;
@@ -144,9 +145,54 @@ class HashSubGroupingService implements HashSubGroupingServiceInterface, MediaTy
             return false;
         }
 
+        // Heuristic 1: If all companion videos share the same hash, the stills
+        // are semantic duplicates (same capture, different JPG encoding/metadata).
+        if ($companionRename instanceof Rename) {
+            /** @var array<int, true> $nonCompanionLookup */
+            $nonCompanionLookup = [];
+
+            foreach ($nonCompanionRenames as $r) {
+                $nonCompanionLookup[spl_object_id($r)] = true;
+            }
+
+            $companionHashes = [];
+
+            foreach ($fileDuplicate->getRenames() as $rename) {
+                if (isset($nonCompanionLookup[spl_object_id($rename)])) {
+                    continue;
+                }
+
+                try {
+                    $hash = $this->hashCalculator->hashFile($rename->getSource(), 'xxh128');
+                } catch (HashComputationException) {
+                    $hash = null;
+                }
+
+                if ($hash !== null) {
+                    $companionHashes[$hash] = true;
+                }
+            }
+
+            if (count($companionHashes) === 1) {
+                return false;
+            }
+        }
+
         // Multiple hashes: naming conflict. The canonical's sub-group keeps the
         // unsuffixed base name; other sub-groups get sequential numbers starting at 002.
         $canonicalBasename = Constants::basenameWithoutExtension($fileDuplicate->getTarget());
+
+        // Heuristic 2: Non-zero subsecond precision in the target timestamp means
+        // the capture moment is unique to the millisecond. Multiple files sharing
+        // that exact millisecond are overwhelmingly the same capture, not different photos.
+        // Only applies when no Live Photo companions are present; companion groups use
+        // heuristic 1 (companion hash cross-reference) instead.
+        if (!($companionRename instanceof Rename)
+            && preg_match('/-(\d{3})$/', $canonicalBasename, $subsecondMatch) === 1
+            && (int) $subsecondMatch[1] > 0
+        ) {
+            return false;
+        }
 
         // Determine which hash group contains the canonical.
         $canonicalHash = null;

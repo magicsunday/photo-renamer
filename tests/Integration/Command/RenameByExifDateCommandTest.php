@@ -78,6 +78,13 @@ final class RenameByExifDateCommandTest extends TestCase
     private const string DATE_D = '2025-01-01T00:02:23.000+00:00';
 
     /**
+     * A timestamp with zero subseconds, used by idempotency tests for hash
+     * sub-grouping. Zero subseconds ensure sub-grouping is not bypassed by
+     * the semantic-duplicate subsecond heuristic.
+     */
+    private const string DATE_SUBGROUP = '2025-01-01T00:02:24.000+00:00';
+
+    /**
      * Comprehensive rename mapping covering:
      *
      * - True duplicates (same hash, same date)
@@ -350,13 +357,15 @@ final class RenameByExifDateCommandTest extends TestCase
         try {
             // Simulate the output of a previous successful run with hash sub-grouping.
             // Two distinct hashes (A, B) at the same timestamp, one file per sub-group.
+            // Uses zero-subsecond timestamp so the subsecond heuristic does not bypass
+            // sub-grouping (non-zero subseconds are treated as semantic duplicates).
             $fileDefinitions = [
-                '2025-01-01_00-02-20-016.jpg'     => 'hash-content-A',
-                '2025-01-01_00-02-20-016-002.jpg' => 'hash-content-B',
+                '2025-01-01_00-02-24-000.jpg'     => 'hash-content-A',
+                '2025-01-01_00-02-24-000-002.jpg' => 'hash-content-B',
             ];
 
             $metadataExtractor = new StubMetadataExtractor();
-            $dateTime          = new DateTimeImmutable(self::DATE_A);
+            $dateTime          = new DateTimeImmutable(self::DATE_SUBGROUP);
 
             foreach ($fileDefinitions as $name => $content) {
                 $path = $workspace . DIRECTORY_SEPARATOR . $name;
@@ -370,15 +379,15 @@ final class RenameByExifDateCommandTest extends TestCase
 
             // The canonical hashA file keeps the unsuffixed base name.
             self::assertSame(
-                '2025-01-01_00-02-20-016.jpg',
-                $mappings['2025-01-01_00-02-20-016.jpg'],
+                '2025-01-01_00-02-24-000.jpg',
+                $mappings['2025-01-01_00-02-24-000.jpg'],
                 'Canonical hashA file must be idempotent (source == target)',
             );
 
             // The hashB sub-group file keeps its -002 suffix.
             self::assertSame(
-                '2025-01-01_00-02-20-016-002.jpg',
-                $mappings['2025-01-01_00-02-20-016-002.jpg'],
+                '2025-01-01_00-02-24-000-002.jpg',
+                $mappings['2025-01-01_00-02-24-000-002.jpg'],
                 'HashB sub-group file must be idempotent (source == target)',
             );
         } finally {
@@ -396,9 +405,12 @@ final class RenameByExifDateCommandTest extends TestCase
      * files are in the canonical (unsuffixed) sub-group.
      *
      * Source layout (output of a previous run):
-     *   2025-01-01_00-02-20-016.jpg                hashA  -> canonical
-     *   2025-01-01_00-02-20-016-duplicate-001.jpg   hashA  -> true duplicate
-     *   2025-01-01_00-02-20-016-002.jpg             hashB  -> second sub-group
+     *   2025-01-01_00-02-24-000.jpg                hashA  -> canonical
+     *   2025-01-01_00-02-24-000-duplicate-001.jpg   hashA  -> true duplicate
+     *   2025-01-01_00-02-24-000-002.jpg             hashB  -> second sub-group
+     *
+     * Uses zero-subsecond timestamp so the subsecond heuristic does not bypass
+     * sub-grouping (non-zero subseconds are treated as semantic duplicates).
      *
      * Expected: all three files map to themselves.
      */
@@ -411,13 +423,13 @@ final class RenameByExifDateCommandTest extends TestCase
 
         try {
             $fileDefinitions = [
-                '2025-01-01_00-02-20-016.jpg'               => 'hash-content-A',
-                '2025-01-01_00-02-20-016-duplicate-001.jpg' => 'hash-content-A',
-                '2025-01-01_00-02-20-016-002.jpg'           => 'hash-content-B',
+                '2025-01-01_00-02-24-000.jpg'               => 'hash-content-A',
+                '2025-01-01_00-02-24-000-duplicate-001.jpg' => 'hash-content-A',
+                '2025-01-01_00-02-24-000-002.jpg'           => 'hash-content-B',
             ];
 
             $metadataExtractor = new StubMetadataExtractor();
-            $dateTime          = new DateTimeImmutable(self::DATE_A);
+            $dateTime          = new DateTimeImmutable(self::DATE_SUBGROUP);
 
             foreach ($fileDefinitions as $name => $content) {
                 $path = $workspace . DIRECTORY_SEPARATOR . $name;
@@ -430,20 +442,20 @@ final class RenameByExifDateCommandTest extends TestCase
             self::assertCount(3, $mappings, 'All three files must appear in the mapping');
 
             self::assertSame(
-                '2025-01-01_00-02-20-016.jpg',
-                $mappings['2025-01-01_00-02-20-016.jpg'],
+                '2025-01-01_00-02-24-000.jpg',
+                $mappings['2025-01-01_00-02-24-000.jpg'],
                 'Canonical file must be idempotent',
             );
 
             self::assertSame(
-                '2025-01-01_00-02-20-016-duplicate-001.jpg',
-                $mappings['2025-01-01_00-02-20-016-duplicate-001.jpg'],
+                '2025-01-01_00-02-24-000-duplicate-001.jpg',
+                $mappings['2025-01-01_00-02-24-000-duplicate-001.jpg'],
                 'Canonical sub-group duplicate must be idempotent',
             );
 
             self::assertSame(
-                '2025-01-01_00-02-20-016-002.jpg',
-                $mappings['2025-01-01_00-02-20-016-002.jpg'],
+                '2025-01-01_00-02-24-000-002.jpg',
+                $mappings['2025-01-01_00-02-24-000-002.jpg'],
                 'Second sub-group file must be idempotent',
             );
         } finally {

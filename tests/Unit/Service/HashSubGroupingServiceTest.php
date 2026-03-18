@@ -348,6 +348,172 @@ final class HashSubGroupingServiceTest extends TestCase
     }
 
     /**
+     * Verifies that apply() returns false when companion videos (MOVs) all share
+     * the same hash, indicating the stills are semantic duplicates of the same
+     * capture (different JPG encoding/metadata, not different photos).
+     */
+    #[Test]
+    public function applySkipsSubGroupingWhenCompanionVideosShareHash(): void
+    {
+        $service = $this->createHashSubGroupingService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $jpgA = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.jpg';
+        $movA = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.mov';
+        $jpgB = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0002.jpg';
+        $movB = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0002.mov';
+
+        // Stills have different content (different hashes).
+        file_put_contents($jpgA, 'still-content-A');
+        file_put_contents($jpgB, 'still-content-B-different');
+
+        // Companion videos have IDENTICAL content (same hash).
+        file_put_contents($movA, 'identical-video-content');
+        file_put_contents($movB, 'identical-video-content');
+
+        $target = $targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28.jpg';
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate
+            ->addFile(new SplFileInfo($jpgA))
+            ->addFile(new SplFileInfo($movA))
+            ->addFile(new SplFileInfo($jpgB))
+            ->addFile(new SplFileInfo($movB))
+            ->setTarget(new SplFileInfo($target));
+
+        $renameJpgA = new Rename(
+            new SplFileInfo($jpgA),
+            new SplFileInfo($targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28.jpg'),
+        );
+        $renameMovA = new Rename(
+            new SplFileInfo($movA),
+            new SplFileInfo($targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28.mov'),
+        );
+        $renameJpgB = new Rename(
+            new SplFileInfo($jpgB),
+            new SplFileInfo($targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28.jpg'),
+        );
+        $renameMovB = new Rename(
+            new SplFileInfo($movB),
+            new SplFileInfo($targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28.mov'),
+        );
+
+        $fileDuplicate->addRename($renameJpgA);
+        $fileDuplicate->addRename($renameMovA);
+        $fileDuplicate->addRename($renameJpgB);
+        $fileDuplicate->addRename($renameMovB);
+
+        // Content identifier map links stills to their companion videos.
+        $contentIdentifierMap = [
+            $jpgA => 'live-photo-001',
+            $movA => 'live-photo-001',
+            $jpgB => 'live-photo-002',
+            $movB => 'live-photo-002',
+        ];
+
+        $result = $service->apply(
+            $fileDuplicate,
+            $renameJpgA,
+            $renameMovA,
+            $contentIdentifierMap,
+            $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
+        );
+
+        self::assertFalse($result);
+    }
+
+    /**
+     * Verifies that apply() returns false when the canonical target basename
+     * contains a non-zero subsecond timestamp suffix (-NNN where NNN > 0),
+     * because captures sharing the exact same millisecond are overwhelmingly
+     * the same photo (semantic duplicates), not different captures.
+     */
+    #[Test]
+    public function applySkipsSubGroupingWhenSubsecondTimestampPresent(): void
+    {
+        $service = $this->createHashSubGroupingService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $fileA = $sourceDirectory . DIRECTORY_SEPARATOR . 'a.jpg';
+        $fileB = $sourceDirectory . DIRECTORY_SEPARATOR . 'b.jpg';
+
+        file_put_contents($fileA, 'content-A');
+        file_put_contents($fileB, 'content-B-different');
+
+        // Target basename ends with -411 (non-zero subseconds).
+        $target = $targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28-411.jpg';
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate
+            ->addFile(new SplFileInfo($fileA))
+            ->addFile(new SplFileInfo($fileB))
+            ->setTarget(new SplFileInfo($target));
+
+        $renameA = new Rename(new SplFileInfo($fileA), new SplFileInfo($target));
+        $renameB = new Rename(new SplFileInfo($fileB), new SplFileInfo($target));
+        $fileDuplicate->addRename($renameA);
+        $fileDuplicate->addRename($renameB);
+
+        $result = $service->apply(
+            $fileDuplicate,
+            $renameA,
+            null,
+            [],
+            $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
+        );
+
+        self::assertFalse($result);
+    }
+
+    /**
+     * Verifies that apply() still applies sub-grouping when the canonical target
+     * basename ends with -000 (zero subseconds). Zero subseconds do not provide
+     * enough precision to determine capture uniqueness.
+     */
+    #[Test]
+    public function applyStillSubGroupsWhenSubsecondIsZero(): void
+    {
+        $service = $this->createHashSubGroupingService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $fileA = $sourceDirectory . DIRECTORY_SEPARATOR . 'a.jpg';
+        $fileB = $sourceDirectory . DIRECTORY_SEPARATOR . 'b.jpg';
+
+        file_put_contents($fileA, 'content-A');
+        file_put_contents($fileB, 'content-B-different');
+
+        // Target basename ends with -000 (zero subseconds).
+        $target = $targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28-000.jpg';
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate
+            ->addFile(new SplFileInfo($fileA))
+            ->addFile(new SplFileInfo($fileB))
+            ->setTarget(new SplFileInfo($target));
+
+        $renameA = new Rename(new SplFileInfo($fileA), new SplFileInfo($target));
+        $renameB = new Rename(new SplFileInfo($fileB), new SplFileInfo($target));
+        $fileDuplicate->addRename($renameA);
+        $fileDuplicate->addRename($renameB);
+
+        $result = $service->apply(
+            $fileDuplicate,
+            $renameA,
+            null,
+            [],
+            $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
+        );
+
+        self::assertTrue($result);
+    }
+
+    /**
      * @return Closure(SplFileInfo, string): string
      */
     private function createTargetPathnameResolver(string $sourceDirectory, string $targetDirectory): Closure
