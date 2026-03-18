@@ -2286,9 +2286,9 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         // After the fix: 1 group (JPG's), MOV is a member of it.
         self::assertCount(1, $collection);
-        self::assertTrue($collection->has('2025-01-01_12-00-00-000'));
+        self::assertTrue($collection->has($targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_12-00-00-000'));
 
-        $duplicate = $collection->get('2025-01-01_12-00-00-000');
+        $duplicate = $collection->get($targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_12-00-00-000');
         self::assertInstanceOf(FileDuplicate::class, $duplicate);
 
         $files = iterator_to_array($duplicate->getFiles());
@@ -2348,9 +2348,9 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         // The standalone video must still have its own group (not be lost).
         self::assertCount(1, $collection);
-        self::assertTrue($collection->has('2025-01-01_11-00-00-000'));
+        self::assertTrue($collection->has($targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_11-00-00-000'));
 
-        $duplicate = $collection->get('2025-01-01_11-00-00-000');
+        $duplicate = $collection->get($targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_11-00-00-000');
         self::assertInstanceOf(FileDuplicate::class, $duplicate);
 
         $files = iterator_to_array($duplicate->getFiles());
@@ -2430,7 +2430,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         // All four files must land in one group (same target basename).
         self::assertCount(1, $collection);
 
-        $duplicate = $collection->get('2025-01-01_12-00-00-000');
+        $duplicate = $collection->get($targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_12-00-00-000');
         self::assertInstanceOf(FileDuplicate::class, $duplicate);
 
         $files = iterator_to_array($duplicate->getFiles());
@@ -2535,7 +2535,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         // All four files must land in one group (same target basename).
         self::assertCount(1, $collection);
 
-        $duplicate = $collection->get('2025-01-01_12-00-00-000');
+        $duplicate = $collection->get($targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_12-00-00-000');
         self::assertInstanceOf(FileDuplicate::class, $duplicate);
 
         $files = iterator_to_array($duplicate->getFiles());
@@ -2641,7 +2641,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         // All four files must land in one group (same target basename).
         self::assertCount(1, $collection);
 
-        $duplicate = $collection->get('2025-01-01_12-00-00-000');
+        $duplicate = $collection->get($targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_12-00-00-000');
         self::assertInstanceOf(FileDuplicate::class, $duplicate);
 
         $files = iterator_to_array($duplicate->getFiles());
@@ -2742,10 +2742,11 @@ final class DuplicateDetectionServiceTest extends TestCase
             $directory,
         );
 
-        // All four files must land in one group (same target basename).
+        // All four files must land in one group (same target basename, same directory).
         self::assertCount(1, $collection);
 
-        $duplicate = $collection->get('2025-01-01_12-00-00-000');
+        $groupKey  = $directory . DIRECTORY_SEPARATOR . '2025-01-01_12-00-00-000';
+        $duplicate = $collection->get($groupKey);
         self::assertInstanceOf(FileDuplicate::class, $duplicate);
 
         $files = iterator_to_array($duplicate->getFiles());
@@ -2846,7 +2847,8 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         self::assertCount(1, $collection);
 
-        $duplicate = $collection->get('2025-01-01_12-00-00-000');
+        $groupKey  = $targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_12-00-00-000';
+        $duplicate = $collection->get($groupKey);
         self::assertInstanceOf(FileDuplicate::class, $duplicate);
 
         $files = iterator_to_array($duplicate->getFiles());

@@ -16,10 +16,10 @@ use Override;
 use SplFileInfo;
 
 /**
- * Groups files by their target basename (filename without extension). All files
- * sharing the same EXIF date produce the same basename and land in one unified
- * group, regardless of file extension. Live Photo companion detection happens
- * downstream via content identifiers, not during this grouping phase.
+ * Groups files by their target directory and basename (filename without extension).
+ * Files in the same directory sharing the same EXIF date produce the same identifier
+ * and land in one unified group, regardless of file extension. Files in different
+ * directories are always independent, even with identical timestamps.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -28,17 +28,20 @@ use SplFileInfo;
 readonly class TargetBasenameStrategy implements DuplicateIdentifierStrategyInterface
 {
     /**
-     * Extracts the target filename without its extension. For example,
-     * "20230101_120000.jpg" yields "20230101_120000" as the grouping key.
+     * Combines the target directory and basename (without extension) into a single
+     * grouping key. For example, "/photos/2025/2025-01-01_12-00-00-000.jpg" yields
+     * "/photos/2025/2025-01-01_12-00-00-000".
      *
      * @param SplFileInfo $sourceFileInfo Unused by this strategy
-     * @param SplFileInfo $targetFileInfo Target file whose basename (minus extension) is used
+     * @param SplFileInfo $targetFileInfo Target file whose directory + basename is used
      *
-     * @return string|false Basename without extension
+     * @return string|false Directory-scoped identifier
      */
     #[Override]
     public function generateIdentifier(SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo): string|false
     {
-        return Constants::basenameWithoutExtension($targetFileInfo);
+        return $targetFileInfo->getPath()
+            . DIRECTORY_SEPARATOR
+            . Constants::basenameWithoutExtension($targetFileInfo);
     }
 }

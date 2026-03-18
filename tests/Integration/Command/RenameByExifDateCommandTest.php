@@ -239,11 +239,11 @@ final class RenameByExifDateCommandTest extends TestCase
                 'a.jpg is duplicate',
             );
 
-            // ---- Subdirectory duplicate ----
+            // ---- Subdirectory: independent group (directory-scoped grouping) ----
             self::assertSame(
-                'sub' . DIRECTORY_SEPARATOR . '2025-01-01_00-02-21-345-duplicate-001.jpg',
+                'sub' . DIRECTORY_SEPARATOR . '2025-01-01_00-02-21-345.jpg',
                 $mappings['sub' . DIRECTORY_SEPARATOR . '1.jpg'],
-                'Subdirectory duplicate gets suffix',
+                'Subdirectory file is independent from parent directory (no duplicate suffix)',
             );
 
             // ---- Ordering: parent dir before subdirectory ----
