@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Metadata;
 
 use DateTimeInterface;
+use DateTimeZone;
 use MagicSunday\ImageMeta\MetadataReader;
 use MagicSunday\ImageMeta\Value\StructuredMetadata;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
@@ -62,7 +63,7 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         $structured  = $metadata->structured();
         $livePhotoId = $this->extractContentIdentifier($structured);
 
-        [$captureDateTime, $isFallback, $isUtcWithoutTimezone] = $this->extractCaptureDateTimeWithFallbackFlag($structured);
+        [$captureDateTime, $isFallback, $isUtcWithoutTimezone] = $this->extractCaptureDateTimeWithFallbackFlag($structured, $file);
 
         if (!($captureDateTime instanceof DateTimeInterface) && ($livePhotoId === null)) {
             return null;
@@ -84,7 +85,7 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
      *
      * @return array{DateTimeInterface|null, bool, bool} Tuple of [captureDateTime, isFallback, isUtcWithoutTimezone]
      */
-    private function extractCaptureDateTimeWithFallbackFlag(StructuredMetadata $structured): array
+    private function extractCaptureDateTimeWithFallbackFlag(StructuredMetadata $structured, SplFileInfo $file): array
     {
         $temporal = $structured->locationTime->temporal;
         $original = $temporal->original;
@@ -106,21 +107,33 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
             && ($modify instanceof DateTimeInterface)
             && ($dateTime->getTimestamp() === $modify->getTimestamp());
 
-        // UTC-without-timezone detection: QuickTime containers may store timestamps
-        // as Mac epoch (seconds since 1904) which are truly UTC, or as date strings
-        // which are in the camera's local time. Unfortunately, there is no reliable way
-        // to distinguish between the two — old cameras wrote local time, modern ones
-        // write UTC, both end up with timezone "+00:00" after imagemeta processing.
+        // UTC-without-timezone detection for QuickTime containers.
         //
-        // We only flag as "UTC without timezone" when the file has an explicit timezone
-        // from the Keys CreationDate (Apple devices: temporal->tz is set) but the
-        // resolved timestamp still appears to be UTC. This covers iPhone re-encodes
-        // that have Keys metadata but whose mvhd dates are in UTC.
+        // Old cameras (pre-2015) wrote local time into mvhd atoms as Mac epoch,
+        // violating the spec that requires UTC. Modern cameras write true UTC.
+        // Both end up with timezone "+00:00" after imagemeta processing.
         //
-        // For all other QuickTime files (no Keys metadata), we trust the timestamp
-        // as-is and rely on the --timezone CLI option for manual correction and the
-        // date-drift warning (--max-date-drift) to flag suspicious changes.
+        // Heuristic: compare the metadata timestamp (interpreted as UTC by imagemeta)
+        // with the file modification time (stored as UTC by the filesystem). If they
+        // match within 60 seconds, the metadata IS genuine UTC. If they differ by a
+        // whole-hour offset (1-12h), the camera wrote local time as Mac epoch.
+        //
+        // This works because file modification time is set by the camera when writing
+        // the file, and most file transfer tools preserve it.
         $isUtcWithoutTimezone = false;
+
+        if (
+            !($temporal->tz instanceof DateTimeZone)
+            && ($temporal->offsetTimeOriginal === null)
+            && ($temporal->offsetTimeDigitized === null)
+            && ($temporal->offsetTime === null)
+        ) {
+            $metadataTimestamp = $dateTime->getTimestamp();
+            $fileModTimestamp  = $file->getMTime();
+
+            // Within 60 seconds = genuine UTC (metadata matches filesystem)
+            $isUtcWithoutTimezone = abs($metadataTimestamp - $fileModTimestamp) < 60;
+        }
 
         return [$dateTime, $isFallback, $isUtcWithoutTimezone];
     }
