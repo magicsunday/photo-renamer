@@ -14,6 +14,7 @@ namespace MagicSunday\Renamer\Metadata;
 use DateTimeInterface;
 use DateTimeZone;
 use MagicSunday\ImageMeta\MetadataReader;
+use MagicSunday\ImageMeta\Model\QuickTime\QuickTimeMeta;
 use MagicSunday\ImageMeta\Value\StructuredMetadata;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use SplFileInfo;
@@ -63,7 +64,9 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         $structured  = $metadata->structured();
         $livePhotoId = $this->extractContentIdentifier($structured);
 
-        [$captureDateTime, $isFallback, $isUtcWithoutTimezone] = $this->extractCaptureDateTimeWithFallbackFlag($structured, $file);
+        $isQuickTimeContainer = $metadata->quickTime instanceof QuickTimeMeta;
+
+        [$captureDateTime, $isFallback, $isUtcWithoutTimezone] = $this->extractCaptureDateTimeWithFallbackFlag($structured, $file, $isQuickTimeContainer);
 
         if (!($captureDateTime instanceof DateTimeInterface) && ($livePhotoId === null)) {
             return null;
@@ -85,7 +88,7 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
      *
      * @return array{DateTimeInterface|null, bool, bool} Tuple of [captureDateTime, isFallback, isUtcWithoutTimezone]
      */
-    private function extractCaptureDateTimeWithFallbackFlag(StructuredMetadata $structured, SplFileInfo $file): array
+    private function extractCaptureDateTimeWithFallbackFlag(StructuredMetadata $structured, SplFileInfo $file, bool $isQuickTimeContainer): array
     {
         $temporal = $structured->locationTime->temporal;
         $original = $temporal->original;
@@ -123,7 +126,8 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         $isUtcWithoutTimezone = false;
 
         if (
-            !($temporal->tz instanceof DateTimeZone)
+            $isQuickTimeContainer
+            && !($temporal->tz instanceof DateTimeZone)
             && ($temporal->offsetTimeOriginal === null)
             && ($temporal->offsetTimeDigitized === null)
             && ($temporal->offsetTime === null)
