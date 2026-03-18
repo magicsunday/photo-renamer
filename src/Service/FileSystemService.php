@@ -26,7 +26,6 @@ use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
-use function basename;
 use function copy;
 use function file_exists;
 use function in_array;
@@ -395,14 +394,7 @@ class FileSystemService implements FileSystemServiceInterface
         $prefix = $normalizedBase . DIRECTORY_SEPARATOR;
 
         if (str_starts_with($pathname, $prefix)) {
-            $relativePath = substr($pathname, strlen($prefix));
-            $baseName     = basename($normalizedBase);
-
-            if (($baseName === '') || ($baseName === DIRECTORY_SEPARATOR)) {
-                return $relativePath;
-            }
-
-            return $baseName . DIRECTORY_SEPARATOR . $relativePath;
+            return substr($pathname, strlen($prefix));
         }
 
         return $pathname;
