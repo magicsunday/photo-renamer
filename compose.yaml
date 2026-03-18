@@ -11,6 +11,7 @@ services:
             - SSH_AUTH_SOCK=/ssh-agent
             - TIMEZONE=${TIMEZONE:-}
             - MAX_DATE_DRIFT=${MAX_DATE_DRIFT:-}
+            - CACHE_DIR=${CACHE_DIR:-}
 
     builder:
         build:

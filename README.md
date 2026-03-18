@@ -200,6 +200,7 @@ cp .env.dist .env
 | `GROUPID`  | `1000`          | Group ID for the Docker container.                                          |
 | `TIMEZONE` | `Europe/Berlin` | Default timezone for video files without timezone metadata (see above).      |
 | `MAX_DATE_DRIFT` | `30`    | Maximum date drift in days between source filename date and target date. Set to `0` to disable. |
+| `CACHE_DIR` | `.build/cache` | Directory for the persistent metadata cache. Speeds up subsequent runs by skipping unchanged files. |
 
 ## 🛠️ Development
 

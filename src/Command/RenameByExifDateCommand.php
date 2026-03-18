@@ -22,6 +22,7 @@ use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairing;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingService;
+use MagicSunday\Renamer\Service\MetadataCache;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
@@ -100,6 +101,7 @@ class RenameByExifDateCommand extends AbstractRenameCommand
 
     /**
      * Executes the command and resets cached strategies when the filename pattern changes.
+     * Sets up the persistent metadata cache before the pipeline and flushes it afterwards.
      */
     #[Override]
     protected function executeCommand(): int
@@ -116,7 +118,13 @@ class RenameByExifDateCommand extends AbstractRenameCommand
 
         $this->configureDefaultTimezone();
 
-        return parent::executeCommand();
+        $cache = $this->configurePersistentCache();
+
+        $result = parent::executeCommand();
+
+        $cache->flush();
+
+        return $result;
     }
 
     /**
@@ -137,6 +145,26 @@ class RenameByExifDateCommand extends AbstractRenameCommand
         if (is_string($timezone)) {
             $this->exifMetadataProvider->setDefaultTimezone(new DateTimeZone($timezone));
         }
+    }
+
+    /**
+     * Configures the persistent metadata cache on the EXIF metadata provider.
+     * The cache directory is resolved from the CACHE_DIR env var, defaulting to
+     * .build/cache relative to the project root.
+     */
+    private function configurePersistentCache(): MetadataCache
+    {
+        $cacheDir = getenv('CACHE_DIR');
+
+        if (!is_string($cacheDir) || ($cacheDir === '')) {
+            $cacheDir = __DIR__ . '/../../.build/cache';
+        }
+
+        $cache = new MetadataCache($cacheDir . '/metadata-cache.php');
+
+        $this->exifMetadataProvider->setCache($cache);
+
+        return $cache;
     }
 
     /**

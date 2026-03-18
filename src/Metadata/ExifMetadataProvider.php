@@ -11,13 +11,16 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Metadata;
 
+use DateMalformedStringException;
 use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
+use MagicSunday\Renamer\Service\MetadataCache;
 use SplFileInfo;
 
 use function array_key_exists;
+use function is_string;
 use function strtolower;
 use function trim;
 
@@ -46,6 +49,12 @@ final class ExifMetadataProvider
      */
     private ?DateTimeZone $defaultTimezone = null;
 
+    /**
+     * Optional persistent disk cache for metadata extraction results. When set,
+     * extraction results survive across runs so unchanged files are never re-read.
+     */
+    private ?MetadataCache $cache = null;
+
     public function __construct(private readonly MetadataExtractorInterface $metadataExtractor)
     {
     }
@@ -57,6 +66,16 @@ final class ExifMetadataProvider
     public function setDefaultTimezone(?DateTimeZone $defaultTimezone): void
     {
         $this->defaultTimezone = $defaultTimezone;
+    }
+
+    /**
+     * Sets the persistent disk cache for metadata extraction results. When set,
+     * extraction results are cached to disk and survive across process runs.
+     * Pass null to disable persistent caching.
+     */
+    public function setCache(?MetadataCache $cache): void
+    {
+        $this->cache = $cache;
     }
 
     /**
@@ -142,7 +161,9 @@ final class ExifMetadataProvider
 
     /**
      * Extracts and caches temporal metadata for the given file. Returns the cached
-     * result on subsequent calls for the same pathname.
+     * result on subsequent calls for the same pathname. When a persistent disk cache
+     * is configured, it is checked before invoking the metadata extractor, and
+     * extraction results are stored in it for future runs.
      *
      * @param SplFileInfo $splFileInfo File to extract metadata from
      *
@@ -155,6 +176,17 @@ final class ExifMetadataProvider
         $key = $splFileInfo->getPathname();
 
         if (!array_key_exists($key, $this->metadataCache)) {
+            // Check persistent cache first
+            if ($this->cache instanceof MetadataCache) {
+                $cached = $this->cache->get($splFileInfo);
+
+                if ($cached !== null) {
+                    $this->metadataCache[$key] = $this->reconstructFromCache($cached);
+
+                    return $this->metadataCache[$key];
+                }
+            }
+
             try {
                 $this->metadataCache[$key] = $this->metadataExtractor->extractTemporalMetadata($splFileInfo);
             } catch (ExifMetadataReadException $exception) {
@@ -164,9 +196,56 @@ final class ExifMetadataProvider
 
                 throw $exception;
             }
+
+            // Store in persistent cache
+            if ($this->cache instanceof MetadataCache) {
+                $meta = $this->metadataCache[$key];
+
+                $this->cache->set(
+                    $splFileInfo,
+                    $meta?->getCaptureDateTime()?->format('c'),
+                    $meta?->getLivePhotoId(),
+                    $meta?->isFallbackDateTime() ?? false,
+                    $meta?->isUtcWithoutTimezone() ?? false,
+                );
+            }
         }
 
         return $this->metadataCache[$key];
+    }
+
+    /**
+     * Reconstructs a TemporalMetadata instance from a persistent cache entry.
+     * Returns null when the cached entry represents a file with no usable metadata.
+     *
+     * @param array{mtime: int, size: int, captureDateTime: string|null, contentId: string|null, isFallback: bool, isUtcWithoutTimezone: bool} $cached
+     *
+     * @return TemporalMetadata|null Reconstructed metadata, or null when the cache entry has no date or content ID
+     */
+    private function reconstructFromCache(array $cached): ?TemporalMetadata
+    {
+        $dateTime = null;
+
+        if (is_string($cached['captureDateTime'])) {
+            try {
+                $dateTime = new DateTimeImmutable($cached['captureDateTime']);
+            } catch (DateMalformedStringException) {
+                return null;
+            }
+        }
+
+        $contentId = $cached['contentId'];
+
+        if ((!$dateTime instanceof DateTimeImmutable) && ($contentId === null)) {
+            return null;
+        }
+
+        return new TemporalMetadata(
+            $dateTime,
+            $contentId,
+            $cached['isFallback'],
+            $cached['isUtcWithoutTimezone'],
+        );
     }
 
     /**
