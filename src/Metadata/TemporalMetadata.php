@@ -26,18 +26,22 @@ use DateTimeInterface;
 final readonly class TemporalMetadata
 {
     /**
-     * @param DateTimeInterface|null $captureDateTime    Date and time the photo/video was captured, with
-     *                                                   potential microsecond precision from EXIF SubSecTime
-     * @param string|null            $livePhotoId        Apple Live Photo content identifier linking the
-     *                                                   still image to its companion video
-     * @param bool                   $isFallbackDateTime Whether the capture date was derived from the
-     *                                                   fallback DateTime tag (0x0132) instead of
-     *                                                   DateTimeOriginal (0x9003) or CreateDate (0x9004)
+     * @param DateTimeInterface|null $captureDateTime      Date and time the photo/video was captured, with
+     *                                                     potential microsecond precision from EXIF SubSecTime
+     * @param string|null            $livePhotoId          Apple Live Photo content identifier linking the
+     *                                                     still image to its companion video
+     * @param bool                   $isFallbackDateTime   Whether the capture date was derived from the
+     *                                                     fallback DateTime tag (0x0132) instead of
+     *                                                     DateTimeOriginal (0x9003) or CreateDate (0x9004)
+     * @param bool                   $isUtcWithoutTimezone Whether the capture timestamp is UTC and the file
+     *                                                     contains no explicit timezone information (e.g.
+     *                                                     QuickTime/MP4 files that store dates in UTC)
      */
     public function __construct(
         private ?DateTimeInterface $captureDateTime,
         private ?string $livePhotoId,
         private bool $isFallbackDateTime = false,
+        private bool $isUtcWithoutTimezone = false,
     ) {
     }
 
@@ -65,5 +69,15 @@ final readonly class TemporalMetadata
     public function isFallbackDateTime(): bool
     {
         return $this->isFallbackDateTime;
+    }
+
+    /**
+     * Returns whether the capture timestamp is UTC and the file contains no
+     * explicit timezone information. This is typical for QuickTime/MP4 files
+     * that store timestamps in UTC without timezone offset metadata.
+     */
+    public function isUtcWithoutTimezone(): bool
+    {
+        return $this->isUtcWithoutTimezone;
     }
 }

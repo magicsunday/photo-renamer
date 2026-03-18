@@ -180,6 +180,12 @@ abstract class AbstractRenameCommand extends Command
                 null,
                 InputOption::VALUE_REQUIRED,
                 'Filter output to specific entry types (comma-separated: R=renamed, F=fallback, D=duplicate, O=original, S=skipped, E=error).'
+            )
+            ->addOption(
+                'timezone',
+                null,
+                InputOption::VALUE_REQUIRED,
+                'Timezone for video files without timezone metadata (e.g. Europe/Berlin). Overrides TIMEZONE env var.'
             );
     }
 

@@ -86,8 +86,14 @@ Large photo collections accumulated from multiple devices and backup sources ten
 | Option                      | Short | Default           | Description                                                                                                                    |
 |-----------------------------|-------|-------------------|--------------------------------------------------------------------------------------------------------------------------------|
 | `--target-filename-pattern` | `-fp` | `Y-m-d_H-i-s-v`  | PHP [date format](https://www.php.net/manual/en/datetime.format.php) pattern for the target filename (without extension).      |
+| `--timezone`                |       |                   | Timezone for video files without timezone metadata (e.g. `Europe/Berlin`). Overrides `TIMEZONE` env var.                        |
 
 Supported file types: `jpg`, `jpeg`, `heic`, `mov`, `mp4`.
+
+> **Timezone conversion:** QuickTime/MP4 files store timestamps in UTC. When no explicit
+> timezone info is found in the file metadata, the `--timezone` option (or the `TIMEZONE`
+> environment variable / `.env` setting) converts the UTC timestamp to local time. EXIF
+> dates in images are not affected (those are already in local camera time).
 
 ### `rename:pattern` / `rename:date` options
 
@@ -176,6 +182,20 @@ After processing, a summary table shows scanned files, skipped files (no metadat
 - **Subdirectory ordering:** Parent directory files are processed before subdirectories, so the first file encountered in the top-level directory wins the canonical (unsuffixed) name.
 - **Safe renames:** Files are never overwritten. An in-memory disk index tracks all occupied paths during a run, and a fallback to the next available duplicate suffix prevents data loss even when multiple files compete for the same target path.
 - **Non-destructive:** Original files are moved or copied, never deleted.
+
+## ⚙️ Configuration
+
+The project uses a `.env` file (loaded by Docker Compose) for environment-specific settings. Copy `.env.dist` as a starting point:
+
+```bash
+cp .env.dist .env
+```
+
+| Variable   | Default         | Description                                                                 |
+|------------|-----------------|-----------------------------------------------------------------------------|
+| `USERID`   | `1000`          | User ID for the Docker container.                                           |
+| `GROUPID`  | `1000`          | Group ID for the Docker container.                                          |
+| `TIMEZONE` | `Europe/Berlin` | Default timezone for video files without timezone metadata (see above).      |
 
 ## 🛠️ Development
 

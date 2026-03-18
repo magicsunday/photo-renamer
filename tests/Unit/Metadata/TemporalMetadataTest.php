@@ -87,4 +87,41 @@ final class TemporalMetadataTest extends TestCase
 
         self::assertSame('ABC-123', $metadata->getLivePhotoId());
     }
+
+    #[Test]
+    public function itDefaultsIsUtcWithoutTimezoneToFalse(): void
+    {
+        $metadata = new TemporalMetadata(
+            new DateTimeImmutable('2024-01-15 10:30:00'),
+            null,
+        );
+
+        self::assertFalse($metadata->isUtcWithoutTimezone());
+    }
+
+    #[Test]
+    public function itReturnsTrueWhenUtcWithoutTimezoneIsSet(): void
+    {
+        $metadata = new TemporalMetadata(
+            new DateTimeImmutable('2024-01-15 10:30:00'),
+            null,
+            false,
+            true,
+        );
+
+        self::assertTrue($metadata->isUtcWithoutTimezone());
+    }
+
+    #[Test]
+    public function itReturnsFalseWhenUtcWithoutTimezoneIsExplicitlyFalse(): void
+    {
+        $metadata = new TemporalMetadata(
+            new DateTimeImmutable('2024-01-15 10:30:00'),
+            null,
+            false,
+            false,
+        );
+
+        self::assertFalse($metadata->isUtcWithoutTimezone());
+    }
 }

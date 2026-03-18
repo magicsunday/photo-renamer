@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy;
 
 use DateTimeImmutable;
 use DateTimeInterface;
+use DateTimeZone;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
@@ -166,5 +167,121 @@ final class ExifMetadataProviderTest extends TestCase
         $this->expectExceptionMessage('failure');
 
         $provider->getCaptureDateTime(new SplFileInfo($path));
+    }
+
+    /**
+     * Verifies that a UTC timestamp flagged as having no timezone info is
+     * converted to the configured default timezone.
+     */
+    #[Test]
+    public function itConvertsUtcWithoutTimezoneToDefaultTimezone(): void
+    {
+        $path              = '/tmp/video.mov';
+        $metadataExtractor = new StubMetadataExtractor();
+        $metadataExtractor->withResponse(
+            $path,
+            new TemporalMetadata(
+                new DateTimeImmutable('2024-07-15T10:30:00.000+00:00'),
+                null,
+                false,
+                true,
+            ),
+        );
+
+        $provider = new ExifMetadataProvider($metadataExtractor);
+        $provider->setDefaultTimezone(new DateTimeZone('Europe/Berlin'));
+
+        $captureDateTime = $provider->getCaptureDateTime(new SplFileInfo($path));
+
+        self::assertInstanceOf(DateTimeInterface::class, $captureDateTime);
+        self::assertSame('2024:07:15 12:30:00', $captureDateTime->format('Y:m:d H:i:s'));
+        self::assertSame('Europe/Berlin', $captureDateTime->getTimezone()->getName());
+    }
+
+    /**
+     * Verifies that a UTC timestamp WITHOUT the isUtcWithoutTimezone flag is NOT
+     * converted, even when a default timezone is configured. This protects EXIF
+     * dates in images that happen to have a UTC timezone.
+     */
+    #[Test]
+    public function itDoesNotConvertWhenUtcWithoutTimezoneFlagIsFalse(): void
+    {
+        $path              = '/tmp/photo.jpg';
+        $metadataExtractor = new StubMetadataExtractor();
+        $metadataExtractor->withResponse(
+            $path,
+            new TemporalMetadata(
+                new DateTimeImmutable('2024-07-15T10:30:00.000+00:00'),
+                null,
+                false,
+                false,
+            ),
+        );
+
+        $provider = new ExifMetadataProvider($metadataExtractor);
+        $provider->setDefaultTimezone(new DateTimeZone('Europe/Berlin'));
+
+        $captureDateTime = $provider->getCaptureDateTime(new SplFileInfo($path));
+
+        self::assertInstanceOf(DateTimeInterface::class, $captureDateTime);
+        self::assertSame('2024:07:15 10:30:00', $captureDateTime->format('Y:m:d H:i:s'));
+        self::assertSame('+00:00', $captureDateTime->getTimezone()->getName());
+    }
+
+    /**
+     * Verifies that no conversion is applied when the isUtcWithoutTimezone flag
+     * is set but no default timezone has been configured on the provider.
+     */
+    #[Test]
+    public function itDoesNotConvertWhenNoDefaultTimezoneIsConfigured(): void
+    {
+        $path              = '/tmp/video.mov';
+        $metadataExtractor = new StubMetadataExtractor();
+        $metadataExtractor->withResponse(
+            $path,
+            new TemporalMetadata(
+                new DateTimeImmutable('2024-07-15T10:30:00.000+00:00'),
+                null,
+                false,
+                true,
+            ),
+        );
+
+        $provider = new ExifMetadataProvider($metadataExtractor);
+
+        $captureDateTime = $provider->getCaptureDateTime(new SplFileInfo($path));
+
+        self::assertInstanceOf(DateTimeInterface::class, $captureDateTime);
+        self::assertSame('2024:07:15 10:30:00', $captureDateTime->format('Y:m:d H:i:s'));
+        self::assertSame('+00:00', $captureDateTime->getTimezone()->getName());
+    }
+
+    /**
+     * Verifies that microsecond precision is preserved during timezone conversion.
+     */
+    #[Test]
+    public function itPreservesMicrosecondsDuringTimezoneConversion(): void
+    {
+        $path              = '/tmp/video_micro.mp4';
+        $metadataExtractor = new StubMetadataExtractor();
+        $metadataExtractor->withResponse(
+            $path,
+            new TemporalMetadata(
+                new DateTimeImmutable('2024-07-15T10:30:00.456789+00:00'),
+                null,
+                false,
+                true,
+            ),
+        );
+
+        $provider = new ExifMetadataProvider($metadataExtractor);
+        $provider->setDefaultTimezone(new DateTimeZone('Europe/Berlin'));
+
+        $captureDateTime = $provider->getCaptureDateTime(new SplFileInfo($path));
+
+        self::assertInstanceOf(DateTimeInterface::class, $captureDateTime);
+        self::assertSame('2024:07:15 12:30:00', $captureDateTime->format('Y:m:d H:i:s'));
+        self::assertSame('456789', $captureDateTime->format('u'));
+        self::assertSame('Europe/Berlin', $captureDateTime->getTimezone()->getName());
     }
 }

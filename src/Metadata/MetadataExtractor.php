@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Metadata;
 
 use DateTimeInterface;
+use DateTimeZone;
 use MagicSunday\ImageMeta\MetadataReader;
 use MagicSunday\ImageMeta\Value\StructuredMetadata;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
@@ -62,18 +63,18 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         $structured  = $metadata->structured();
         $livePhotoId = $this->extractContentIdentifier($structured);
 
-        [$captureDateTime, $isFallback] = $this->extractCaptureDateTimeWithFallbackFlag($structured);
+        [$captureDateTime, $isFallback, $isUtcWithoutTimezone] = $this->extractCaptureDateTimeWithFallbackFlag($structured);
 
         if (!($captureDateTime instanceof DateTimeInterface) && ($livePhotoId === null)) {
             return null;
         }
 
-        return new TemporalMetadata($captureDateTime, $livePhotoId, $isFallback);
+        return new TemporalMetadata($captureDateTime, $livePhotoId, $isFallback, $isUtcWithoutTimezone);
     }
 
     /**
-     * Returns the capture timestamp and whether it came from the fallback
-     * DateTime tag (0x0132) instead of DateTimeOriginal (0x9003) or CreateDate (0x9004).
+     * Returns the capture timestamp, whether it came from the fallback DateTime
+     * tag (0x0132), and whether it is a UTC timestamp without explicit timezone info.
      *
      * The imagemeta library's `temporal->original` uses `dateTimeOriginalBestEffort()`
      * which itself falls back through 0x9003 → 0x9004 → 0x0132, so we cannot
@@ -82,20 +83,21 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
      * is null and both resolve to the same timestamp, the date came from the
      * generic capture fallback (0x0132), not from a dedicated date tag.
      *
-     * @return array{DateTimeInterface|null, bool} Tuple of [captureDateTime, isFallback]
+     * @return array{DateTimeInterface|null, bool, bool} Tuple of [captureDateTime, isFallback, isUtcWithoutTimezone]
      */
     private function extractCaptureDateTimeWithFallbackFlag(StructuredMetadata $structured): array
     {
-        $original = $structured->locationTime->temporal->original;
-        $create   = $structured->locationTime->temporal->create;
-        $modify   = $structured->locationTime->temporal->modify;
+        $temporal = $structured->locationTime->temporal;
+        $original = $temporal->original;
+        $create   = $temporal->create;
+        $modify   = $temporal->modify;
         $capture  = $structured->locationTime->capture->dateTime;
 
         // Prefer original, then create, then capture (which includes 0x0132 fallback).
         $dateTime = $original ?? $create ?? $capture;
 
         if (!$dateTime instanceof DateTimeInterface) {
-            return [null, false];
+            return [null, false, false];
         }
 
         // Fallback detection: if there's no dedicated create date (0x9004) and the
@@ -105,7 +107,17 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
             && ($modify instanceof DateTimeInterface)
             && ($dateTime->getTimestamp() === $modify->getTimestamp());
 
-        return [$dateTime, $isFallback];
+        // UTC-without-timezone detection: QuickTime/MP4 files store timestamps in UTC
+        // without embedding timezone info. When all timezone offset fields are null and
+        // the resolved datetime is UTC, the timestamp needs conversion to local time.
+        $timezoneName         = $dateTime->getTimezone()->getName();
+        $isUtcWithoutTimezone = (!$temporal->tz instanceof DateTimeZone)
+            && ($temporal->offsetTimeOriginal === null)
+            && ($temporal->offsetTimeDigitized === null)
+            && ($temporal->offsetTime === null)
+            && (($timezoneName === '+00:00') || ($timezoneName === 'UTC'));
+
+        return [$dateTime, $isFallback, $isUtcWithoutTimezone];
     }
 
     /**

@@ -11,7 +11,9 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Metadata;
 
+use DateTimeImmutable;
 use DateTimeInterface;
+use DateTimeZone;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use SplFileInfo;
 
@@ -38,8 +40,23 @@ final class ExifMetadataProvider
      */
     private array $metadataCache = [];
 
+    /**
+     * Timezone used to convert UTC timestamps from video files that lack explicit
+     * timezone metadata (e.g. QuickTime/MP4). Null means no conversion is applied.
+     */
+    private ?DateTimeZone $defaultTimezone = null;
+
     public function __construct(private readonly MetadataExtractorInterface $metadataExtractor)
     {
+    }
+
+    /**
+     * Sets the default timezone for converting UTC timestamps from video files
+     * without explicit timezone metadata. Pass null to disable conversion.
+     */
+    public function setDefaultTimezone(?DateTimeZone $defaultTimezone): void
+    {
+        $this->defaultTimezone = $defaultTimezone;
     }
 
     /**
@@ -57,6 +74,10 @@ final class ExifMetadataProvider
      * metadata on first access. Returns null when the file contains no usable
      * capture date information.
      *
+     * When the metadata indicates a UTC timestamp without explicit timezone info
+     * (typical for QuickTime/MP4 files) and a default timezone is configured,
+     * the timestamp is converted to the configured local timezone.
+     *
      * @param SplFileInfo $splFileInfo File to extract metadata from
      *
      * @return DateTimeInterface|null Capture timestamp with potential microsecond precision,
@@ -66,7 +87,17 @@ final class ExifMetadataProvider
      */
     public function getCaptureDateTime(SplFileInfo $splFileInfo): ?DateTimeInterface
     {
-        return $this->resolveMetadata($splFileInfo)?->getCaptureDateTime();
+        $metadata = $this->resolveMetadata($splFileInfo);
+        $dateTime = $metadata?->getCaptureDateTime();
+
+        if (($dateTime instanceof DateTimeInterface)
+            && $metadata->isUtcWithoutTimezone()
+            && ($this->defaultTimezone instanceof DateTimeZone)) {
+            return DateTimeImmutable::createFromInterface($dateTime)
+                ->setTimezone($this->defaultTimezone);
+        }
+
+        return $dateTime;
     }
 
     /**

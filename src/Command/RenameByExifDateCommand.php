@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Command;
 
+use DateTimeZone;
 use FilesystemIterator;
 use MagicSunday\Renamer\Command\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Constants;
@@ -33,6 +34,7 @@ use SplFileInfo;
 use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Input\InputOption;
 
+use function getenv;
 use function is_dir;
 use function is_string;
 
@@ -112,7 +114,29 @@ class RenameByExifDateCommand extends AbstractRenameCommand
             $this->duplicateIdentifierStrategy = null;
         }
 
+        $this->configureDefaultTimezone();
+
         return parent::executeCommand();
+    }
+
+    /**
+     * Configures the default timezone on the EXIF metadata provider for converting
+     * UTC timestamps from video files without explicit timezone metadata.
+     *
+     * Resolution order: --timezone CLI option > TIMEZONE env var > no conversion.
+     */
+    private function configureDefaultTimezone(): void
+    {
+        $timezone = $this->input->getOption('timezone');
+
+        if (!is_string($timezone)) {
+            $envTimezone = getenv('TIMEZONE');
+            $timezone    = is_string($envTimezone) && ($envTimezone !== '') ? $envTimezone : null;
+        }
+
+        if (is_string($timezone)) {
+            $this->exifMetadataProvider->setDefaultTimezone(new DateTimeZone($timezone));
+        }
     }
 
     /**
