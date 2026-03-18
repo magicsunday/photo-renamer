@@ -97,6 +97,11 @@ abstract class AbstractRenameCommand extends Command
     protected bool $skipDuplicates = false;
 
     /**
+     * When true, files with fallback DateTime (0x0132) are excluded from the rename operation.
+     */
+    protected bool $skipFallback = false;
+
+    /**
      * When true, the output lists all files including unchanged originals.
      */
     protected bool $listAll = false;
@@ -159,6 +164,12 @@ abstract class AbstractRenameCommand extends Command
                 'Skip duplicate files from copy/rename action. The files remain unchanged in the source directory.'
             )
             ->addOption(
+                'skip-fallback',
+                null,
+                InputOption::VALUE_NONE,
+                'Skip files whose date comes from the fallback DateTime tag (0x0132) instead of DateTimeOriginal.'
+            )
+            ->addOption(
                 'list-all',
                 null,
                 InputOption::VALUE_NONE,
@@ -212,6 +223,7 @@ abstract class AbstractRenameCommand extends Command
         $this->copyFiles      = (bool) $input->getOption('copy');
         $this->dryRun         = (bool) $input->getOption('dry-run');
         $this->skipDuplicates = (bool) $input->getOption('skip-duplicates');
+        $this->skipFallback   = (bool) $input->getOption('skip-fallback');
         $this->listAll        = (bool) $input->getOption('list-all');
 
         $showOption = $input->getOption('show');
@@ -463,6 +475,7 @@ abstract class AbstractRenameCommand extends Command
                 new RenameOptions(
                     dryRun: $this->dryRun,
                     skipDuplicates: $this->skipDuplicates,
+                    skipFallback: $this->skipFallback,
                     copyFiles: $this->copyFiles,
                     listAll: $this->listAll,
                     sourceBaseDirectory: $this->sourceDirectory,

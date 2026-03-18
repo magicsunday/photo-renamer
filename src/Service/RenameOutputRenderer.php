@@ -115,7 +115,9 @@ class RenameOutputRenderer
                     $tag = OutputEntryTag::Rename;
                 }
 
-                $shouldSkip             = $options->skipDuplicates && $isDuplicateTarget;
+                $isFallbackEntry = $tag === OutputEntryTag::Fallback;
+                $shouldSkip      = ($options->skipDuplicates && $isDuplicateTarget)
+                    || ($options->skipFallback && $isFallbackEntry);
                 $shouldPerformOperation = ($shouldSkip === false) && ($isCanonicalEntry === false);
 
                 $outputEntries[] = [

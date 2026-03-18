@@ -77,8 +77,9 @@ Large photo collections accumulated from multiple devices and backup sources ten
 | `--dry-run`         | `-d`  | Preview actions without changing any files.                                               |
 | `--copy`            | `-c`  | Copy files instead of moving them.                                                        |
 | `--skip-duplicates` | `-s`  | Leave duplicates untouched.                                                               |
+| `--skip-fallback`   |       | Skip files whose date comes from the fallback DateTime tag (0x0132) instead of DateTimeOriginal. |
 | `--list-all`        |       | Show all files including originals and duplicates.                                        |
-| `--show=TAGS`       |       | Filter output by entry type (comma-separated: `R`=renamed, `D`=duplicate, `O`=original, `S`=skipped, `E`=error). |
+| `--show=TAGS`       |       | Filter output by entry type (comma-separated: `R`=renamed, `F`=fallback, `D`=duplicate, `O`=original, `S`=skipped, `E`=error). |
 
 ### `rename:exif` options
 
