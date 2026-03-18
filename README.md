@@ -72,12 +72,13 @@ Large photo collections accumulated from multiple devices and backup sources ten
 
 ### Shared options
 
-| Option              | Short | Description                                       |
-|---------------------|-------|---------------------------------------------------|
-| `--dry-run`         | `-d`  | Preview actions without changing any files.        |
-| `--copy`            | `-c`  | Copy files instead of moving them.                 |
-| `--skip-duplicates` | `-s`  | Leave duplicates untouched.                        |
-| `--list-all`        |       | Show all files including originals and duplicates. |
+| Option              | Short | Description                                                                              |
+|---------------------|-------|------------------------------------------------------------------------------------------|
+| `--dry-run`         | `-d`  | Preview actions without changing any files.                                               |
+| `--copy`            | `-c`  | Copy files instead of moving them.                                                        |
+| `--skip-duplicates` | `-s`  | Leave duplicates untouched.                                                               |
+| `--list-all`        |       | Show all files including originals and duplicates.                                        |
+| `--show=TAGS`       |       | Filter output by entry type (comma-separated: `R`=renamed, `D`=duplicate, `O`=original, `S`=skipped, `E`=error). |
 
 ### `rename:exif` options
 

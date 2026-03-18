@@ -29,7 +29,9 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
+use function array_map;
 use function assert;
+use function explode;
 use function getcwd;
 use function is_string;
 use function ltrim;
@@ -40,6 +42,8 @@ use function sprintf;
 use function str_contains;
 use function str_ends_with;
 use function str_starts_with;
+use function strtoupper;
+use function trim;
 
 /**
  * Base class for all rename commands. Provides shared CLI option parsing,
@@ -96,6 +100,14 @@ abstract class AbstractRenameCommand extends Command
     protected bool $listAll = false;
 
     /**
+     * When set, only output entries matching these tags are shown (e.g. ['R', 'D']).
+     * Null means show all entries (default).
+     *
+     * @var list<string>|null
+     */
+    protected ?array $showFilter = null;
+
+    /**
      * @param FileSystemServiceInterface         $fileSystemService         Handles file iteration, counting and rename execution
      * @param DuplicateDetectionServiceInterface $duplicateDetectionService Orchestrates grouping and suffix assignment
      */
@@ -149,6 +161,12 @@ abstract class AbstractRenameCommand extends Command
                 null,
                 InputOption::VALUE_NONE,
                 'Display all files, including originals and duplicates, in the final output.'
+            )
+            ->addOption(
+                'show',
+                null,
+                InputOption::VALUE_REQUIRED,
+                'Filter output to specific entry types (comma-separated: R=renamed, D=duplicate, O=original, S=skipped, E=error).'
             );
     }
 
@@ -194,6 +212,12 @@ abstract class AbstractRenameCommand extends Command
         $this->dryRun         = (bool) $input->getOption('dry-run');
         $this->skipDuplicates = (bool) $input->getOption('skip-duplicates');
         $this->listAll        = (bool) $input->getOption('list-all');
+
+        $showOption = $input->getOption('show');
+
+        $this->showFilter = is_string($showOption)
+            ? array_map(strtoupper(...), array_map(trim(...), explode(',', $showOption)))
+            : null;
 
         $sourceDirectory = $input->getArgument('source-directory');
         $targetDirectory = $input->getArgument('target-directory');
@@ -450,6 +474,7 @@ abstract class AbstractRenameCommand extends Command
                     scannedFiles: $this->duplicateDetectionService->getLastScannedFileCount(),
                     namingCollisions: $this->duplicateDetectionService->getNamingCollisions(),
                     skippedFiles: $this->duplicateDetectionService->getSkippedFiles(),
+                    showFilter: $this->showFilter,
                 ),
             );
     }

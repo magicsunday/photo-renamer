@@ -28,6 +28,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use function basename;
 use function copy;
 use function file_exists;
+use function in_array;
 use function is_dir;
 use function is_string;
 use function max;
@@ -248,6 +249,8 @@ class FileSystemService implements FileSystemServiceInterface
         ));
         $this->io->newLine();
 
+        $showFilter = $options->showFilter;
+
         foreach ($outputEntries as $entry) {
             // Compensate for multi-byte characters: sprintf pads by byte length,
             // but the terminal aligns by display width (mb_strlen).
@@ -256,32 +259,52 @@ class FileSystemService implements FileSystemServiceInterface
             $formatString = ' %s <fg=yellow>%-' . $padWidth . 's</> <fg=cyan>→</> %s';
 
             if ($entry['type'] === 'skip') {
-                $tag   = $entry['isError'] ? '<fg=red>[E]</>' : '<fg=gray>[S]</>';
-                $color = $entry['isError'] ? 'red' : 'gray';
+                $tagLetter = $entry['isError'] ? 'E' : 'S';
 
-                $this->io->text(sprintf(
-                    $formatString,
-                    $tag,
-                    $entry['sourcePath'],
-                    sprintf('<fg=%s>%s</>', $color, $entry['reason']),
-                ));
+                if ($showFilter === null || in_array($tagLetter, $showFilter, true)) {
+                    $tag   = $entry['isError'] ? '<fg=red>[E]</>' : '<fg=gray>[S]</>';
+                    $color = $entry['isError'] ? 'red' : 'gray';
+
+                    $this->io->text(sprintf(
+                        $formatString,
+                        $tag,
+                        $entry['sourcePath'],
+                        sprintf('<fg=%s>%s</>', $color, $entry['reason']),
+                    ));
+                }
 
                 continue;
             }
 
-            $this->io->text(sprintf(
-                $formatString,
-                $entry['statusTag'],
-                $entry['sourcePath'],
-                sprintf('<fg=green>%s</>', $entry['targetPath']),
-            ));
+            // Determine the tag letter for filtering (R, D, or O).
+            $tagLetter = 'R';
+
+            if ($entry['isDuplicateTarget']) {
+                $tagLetter = 'D';
+            } elseif (
+                $entry['rename']->getSource()->getPathname() === $entry['rename']->getTarget()->getPathname()
+            ) {
+                $tagLetter = 'O';
+            }
+
+            if ($showFilter === null || in_array($tagLetter, $showFilter, true)) {
+                $this->io->text(sprintf(
+                    $formatString,
+                    $entry['statusTag'],
+                    $entry['sourcePath'],
+                    sprintf('<fg=green>%s</>', $entry['targetPath']),
+                ));
+
+                if ($entry['shouldSkip']) {
+                    $this->io->text('       <fg=red>⏭ Skipped (duplicate)</>');
+                }
+            }
 
             if ($entry['isDuplicateTarget']) {
                 ++$duplicateCount;
             }
 
             if ($entry['shouldSkip']) {
-                $this->io->text('       <fg=red>⏭ Skipped (duplicate)</>');
                 ++$plannedSkips;
             }
 
