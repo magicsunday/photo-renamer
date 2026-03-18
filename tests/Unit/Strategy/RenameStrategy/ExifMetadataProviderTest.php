@@ -14,7 +14,6 @@ namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy;
 use DateTimeImmutable;
 use DateTimeInterface;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
-use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
@@ -31,7 +30,7 @@ use SplFileInfo;
  * - Capture timestamps are returned as-is from TemporalMetadata (with microsecond precision)
  * - Content identifiers are normalised (lowercased, trimmed) for case-insensitive pairing
  * - Missing metadata returns null instead of throwing
- * - Extraction errors are wrapped in TargetFilenameException with the original cause
+ * - Extraction errors preserve the original ExifMetadataReadException type
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -149,27 +148,23 @@ final class ExifMetadataProviderTest extends TestCase
     }
 
     /**
-     * Verifies that an ExifMetadataReadException from the extractor is caught and
-     * re-thrown as a TargetFilenameException, preserving the original exception as
-     * the previous cause.
+     * Verifies that an ExifMetadataReadException from the extractor is re-thrown
+     * as-is, preserving its specific type for callers that distinguish metadata
+     * read failures from other TargetFilenameException subtypes.
      */
     #[Test]
-    public function itConvertsMetadataReadErrorsToTargetFilenameException(): void
+    public function itPreservesExifMetadataReadExceptionType(): void
     {
         $path              = '/tmp/error.jpg';
+        $original          = new ExifMetadataReadException('failure');
         $metadataExtractor = new StubMetadataExtractor();
-        $metadataExtractor->withResponse($path, new ExifMetadataReadException('failure'));
+        $metadataExtractor->withResponse($path, $original);
 
         $provider = new ExifMetadataProvider($metadataExtractor);
 
-        $this->expectException(TargetFilenameException::class);
+        $this->expectException(ExifMetadataReadException::class);
+        $this->expectExceptionMessage('failure');
 
-        try {
-            $provider->getCaptureDateTime(new SplFileInfo($path));
-        } catch (TargetFilenameException $throwable) {
-            self::assertInstanceOf(ExifMetadataReadException::class, $throwable->getPrevious());
-
-            throw $throwable;
-        }
+        $provider->getCaptureDateTime(new SplFileInfo($path));
     }
 }

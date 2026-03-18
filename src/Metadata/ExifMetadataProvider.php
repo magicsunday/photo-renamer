@@ -13,7 +13,6 @@ namespace MagicSunday\Renamer\Metadata;
 
 use DateTimeInterface;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
-use MagicSunday\Renamer\Exception\TargetFilenameException;
 use SplFileInfo;
 
 use function array_key_exists;
@@ -63,7 +62,7 @@ final class ExifMetadataProvider
      * @return DateTimeInterface|null Capture timestamp with potential microsecond precision,
      *                                or null when unavailable
      *
-     * @throws TargetFilenameException When the underlying metadata reader fails
+     * @throws ExifMetadataReadException When the underlying metadata reader fails
      */
     public function getCaptureDateTime(SplFileInfo $splFileInfo): ?DateTimeInterface
     {
@@ -82,7 +81,7 @@ final class ExifMetadataProvider
      * @return string|null Lowercased, trimmed content identifier, or null when
      *                     the file is not part of an Apple Live Photo pair
      *
-     * @throws TargetFilenameException When the underlying metadata reader fails
+     * @throws ExifMetadataReadException When the underlying metadata reader fails
      */
     public function getContentIdentifier(SplFileInfo $splFileInfo): ?string
     {
@@ -103,7 +102,7 @@ final class ExifMetadataProvider
      *
      * @return TemporalMetadata|null Extracted metadata, or null when no relevant fields exist
      *
-     * @throws TargetFilenameException When the underlying metadata reader fails
+     * @throws ExifMetadataReadException When the underlying metadata reader fails
      */
     private function resolveMetadata(SplFileInfo $splFileInfo): ?TemporalMetadata
     {
@@ -117,11 +116,7 @@ final class ExifMetadataProvider
                 // gracefully instead of re-throwing.
                 $this->metadataCache[$key] = null;
 
-                throw new TargetFilenameException(
-                    $exception->getMessage(),
-                    $exception->getCode(),
-                    previous: $exception,
-                );
+                throw $exception;
             }
         }
 
