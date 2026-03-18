@@ -43,11 +43,13 @@ interface FileSystemServiceInterface
      *
      * @param FileDuplicateCollection $fileDuplicateCollection Collection of file duplicates
      * @param RenameOptions           $options                 Options controlling the rename operation
+     * @param list<string>|null       $showFilter              When set, only output entries matching these tags are shown
      *
      * @throws RuntimeException If a file could not be renamed
      */
     public function renameFiles(
         FileDuplicateCollection $fileDuplicateCollection,
         RenameOptions $options = new RenameOptions(),
+        ?array $showFilter = null,
     ): void;
 }

@@ -100,10 +100,12 @@ class FileSystemService implements FileSystemServiceInterface
      *
      * @param FileDuplicateCollection $fileDuplicateCollection Collection describing source/target file pairs grouped by duplicate identifier
      * @param RenameOptions           $options                 Options controlling the rename operation
+     * @param list<string>|null       $showFilter              When set, only output entries matching these tags are shown
      */
     public function renameFiles(
         FileDuplicateCollection $fileDuplicateCollection,
         RenameOptions $options = new RenameOptions(),
+        ?array $showFilter = null,
     ): void {
         $sourceBaseDirectory = $this->normalizeBaseDirectory($options->sourceBaseDirectory);
         $targetBaseDirectory = $this->normalizeBaseDirectory($options->targetBaseDirectory);
@@ -128,7 +130,7 @@ class FileSystemService implements FileSystemServiceInterface
         $this->io->text(sprintf('<fg=cyan>%s files</>', $options->copyFiles ? 'Copying' : 'Renaming'));
         $this->io->newLine();
 
-        $counters = $this->renderOutputEntries($outputEntries, $maxFilenameLength, $options, $occupiedPaths);
+        $counters = $this->renderOutputEntries($outputEntries, $maxFilenameLength, $options, $occupiedPaths, $showFilter);
 
         $this->renderSummary([
             'scannedFiles'     => $options->scannedFiles ?? $totalOperations,
@@ -289,6 +291,7 @@ class FileSystemService implements FileSystemServiceInterface
      *
      * @param list<array<string, mixed>> $outputEntries
      * @param array<string, true>        $occupiedPaths
+     * @param list<string>|null          $showFilter
      *
      * @return array{fileCount: int, duplicateCount: int, plannedMoves: int, plannedCopies: int, plannedSkips: int}
      */
@@ -297,13 +300,13 @@ class FileSystemService implements FileSystemServiceInterface
         int $maxFilenameLength,
         RenameOptions $options,
         array &$occupiedPaths,
+        ?array $showFilter = null,
     ): array {
         $fileCount      = 0;
         $duplicateCount = 0;
         $plannedMoves   = 0;
         $plannedCopies  = 0;
         $plannedSkips   = 0;
-        $showFilter     = $options->showFilter;
 
         foreach ($outputEntries as $entry) {
             /** @var string $sourcePath */

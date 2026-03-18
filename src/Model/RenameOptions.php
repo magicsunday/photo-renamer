@@ -32,7 +32,6 @@ final readonly class RenameOptions
      * @param int|null          $scannedFiles        Total number of files discovered during the scan phase
      * @param int               $namingCollisions    Count of target filename collisions resolved by the safe-rename fallback
      * @param list<SkippedFile> $skippedFiles        Files skipped because the rename strategy produced no target filename
-     * @param list<string>|null $showFilter          When set, only output entries matching these tags are shown (e.g. ['R', 'S'])
      */
     public function __construct(
         public bool $dryRun = false,
@@ -44,7 +43,6 @@ final readonly class RenameOptions
         public ?int $scannedFiles = null,
         public int $namingCollisions = 0,
         public array $skippedFiles = [],
-        public ?array $showFilter = null,
     ) {
     }
 }

@@ -474,8 +474,8 @@ abstract class AbstractRenameCommand extends Command
                     scannedFiles: $this->duplicateDetectionService->getLastScannedFileCount(),
                     namingCollisions: $this->duplicateDetectionService->getNamingCollisions(),
                     skippedFiles: $this->duplicateDetectionService->getSkippedFiles(),
-                    showFilter: $this->showFilter,
                 ),
+                $this->showFilter,
             );
     }
 
