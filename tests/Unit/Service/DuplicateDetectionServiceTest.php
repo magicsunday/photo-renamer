@@ -23,6 +23,7 @@ use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Service\DuplicateDetectionService;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
+use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\LivePhotoAwareRenameStrategyInterface;
@@ -2236,7 +2237,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         $output = new BufferedOutput();
         $io     = new SymfonyStyle(new ArrayInput([]), $output);
 
-        $fileSystemService      = new FileSystemService($io);
+        $fileSystemService      = new FileSystemService($io, new RenameOutputRenderer($io));
         $hashCalculator         = new SafeHashCalculator();
         $hashSubGroupingService = new HashSubGroupingService($hashCalculator, $io);
         $service                = new DuplicateDetectionService($io, $hashSubGroupingService, $hashSubGroupingService);

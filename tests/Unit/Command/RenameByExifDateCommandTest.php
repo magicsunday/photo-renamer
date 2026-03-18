@@ -29,6 +29,7 @@ use MagicSunday\Renamer\Service\HashSubGroupingService;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairing;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingCollection;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingService;
+use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
@@ -380,15 +381,16 @@ final class RenameByExifDateCommandTest extends TestCase
         $bufferedOutput = new BufferedOutput();
         $style          = new SymfonyStyle(new ArrayInput([]), $bufferedOutput);
 
-        $fileSystemService = new class($style, $iterator) extends FileSystemService {
+        $fileSystemService = new class($style, new RenameOutputRenderer($style), $iterator) extends FileSystemService {
             /**
              * @param RecursiveIteratorIterator<RecursiveArrayIterator<int, SplFileInfo>> $iterator
              */
             public function __construct(
                 SymfonyStyle $io,
+                RenameOutputRenderer $renderer,
                 private readonly RecursiveIteratorIterator $iterator,
             ) {
-                parent::__construct($io);
+                parent::__construct($io, $renderer);
             }
 
             #[Override]
@@ -515,7 +517,7 @@ final class RenameByExifDateCommandTest extends TestCase
             $output = new BufferedOutput();
             $style  = new SymfonyStyle(new ArrayInput([]), $output);
 
-            $fileSystemService = new FileSystemService($style);
+            $fileSystemService = new FileSystemService($style, new RenameOutputRenderer($style));
 
             $metadataExtractor = new StubMetadataExtractor();
             $metadataExtractor->withResponse(

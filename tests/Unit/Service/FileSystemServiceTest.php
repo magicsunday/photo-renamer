@@ -18,6 +18,7 @@ use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
 use MagicSunday\Renamer\Service\FileSystemService;
+use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -45,6 +46,7 @@ use function unlink;
 use const DIRECTORY_SEPARATOR;
 
 #[CoversClass(FileSystemService::class)]
+#[CoversClass(RenameOutputRenderer::class)]
 #[CoversClass(FileDuplicateCollection::class)]
 #[CoversClass(FileDuplicate::class)]
 #[CoversClass(Rename::class)]
@@ -1004,7 +1006,9 @@ final class FileSystemServiceTest extends TestCase
             }
         };
 
-        return [new FileSystemService($io), $output, $io];
+        $renderer = new RenameOutputRenderer($io);
+
+        return [new FileSystemService($io, $renderer), $output, $io];
     }
 
     private function createFileDuplicateCollection(
