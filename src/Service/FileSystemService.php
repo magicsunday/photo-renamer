@@ -249,6 +249,29 @@ class FileSystemService implements FileSystemServiceInterface
     }
 
     /**
+     * Scans a directory recursively and returns all file paths as an occupied-paths index.
+     *
+     * @param string $directory Absolute path to the directory to scan
+     *
+     * @return array<string, true>
+     */
+    public static function scanDirectoryPaths(string $directory): array
+    {
+        $paths    = [];
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::LEAVES_ONLY,
+        );
+
+        /** @var SplFileInfo $file */
+        foreach ($iterator as $file) {
+            $paths[$file->getPathname()] = true;
+        }
+
+        return $paths;
+    }
+
+    /**
      * Builds an in-memory index of all occupied file paths for collision detection.
      *
      * @return array<string, true>
@@ -274,15 +297,7 @@ class FileSystemService implements FileSystemServiceInterface
             && $targetBaseDirectory !== $sourceBaseDirectory
             && is_dir($targetBaseDirectory)
         ) {
-            $targetIterator = new RecursiveIteratorIterator(
-                new RecursiveDirectoryIterator($targetBaseDirectory, FilesystemIterator::SKIP_DOTS),
-                RecursiveIteratorIterator::LEAVES_ONLY,
-            );
-
-            /** @var SplFileInfo $targetFile */
-            foreach ($targetIterator as $targetFile) {
-                $occupiedPaths[$targetFile->getPathname()] = true;
-            }
+            $occupiedPaths += self::scanDirectoryPaths($targetBaseDirectory);
         }
 
         return $occupiedPaths;

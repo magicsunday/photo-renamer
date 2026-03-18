@@ -11,7 +11,6 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service;
 
-use FilesystemIterator;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
@@ -23,7 +22,6 @@ use MagicSunday\Renamer\Model\TargetFileResult;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\LivePhotoAwareRenameStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
-use RecursiveDirectoryIterator;
 use RecursiveIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
@@ -240,15 +238,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         }
 
         if (($this->targetDirectory !== $this->sourceDirectory) && is_dir($this->targetDirectory)) {
-            $targetIterator = new RecursiveIteratorIterator(
-                new RecursiveDirectoryIterator($this->targetDirectory, FilesystemIterator::SKIP_DOTS),
-                RecursiveIteratorIterator::LEAVES_ONLY,
-            );
-
-            /** @var SplFileInfo $targetFile */
-            foreach ($targetIterator as $targetFile) {
-                $this->diskIndex[$targetFile->getPathname()] = true;
-            }
+            $this->diskIndex += FileSystemService::scanDirectoryPaths($this->targetDirectory);
         }
 
         $progressBar = $this->startProgressBar(count($files));
