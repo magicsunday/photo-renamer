@@ -428,10 +428,10 @@ class FileSystemService implements FileSystemServiceInterface
         }
 
         if ($copy) {
-            $result = copy($sourcePath, $targetPath);
+            $result = @copy($sourcePath, $targetPath);
             $action = 'copy';
         } else {
-            $result = rename($sourcePath, $targetPath);
+            $result = @rename($sourcePath, $targetPath);
             $action = 'move';
         }
 
