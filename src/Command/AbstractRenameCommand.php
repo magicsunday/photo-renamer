@@ -33,6 +33,7 @@ use function array_map;
 use function assert;
 use function explode;
 use function getcwd;
+use function is_dir;
 use function is_string;
 use function ltrim;
 use function preg_match;
@@ -566,6 +567,12 @@ abstract class AbstractRenameCommand extends Command
      */
     protected function createFileIterator(): RecursiveIteratorIterator
     {
+        if (!is_dir($this->sourceDirectory)) {
+            throw new RuntimeException(
+                sprintf('Source directory "%s" does not exist', $this->sourceDirectory)
+            );
+        }
+
         return $this->fileSystemService
             ->createFileIterator($this->sourceDirectory);
     }

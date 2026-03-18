@@ -28,6 +28,11 @@ use RecursiveIteratorIterator;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
 
+use function mkdir;
+use function rmdir;
+use function sys_get_temp_dir;
+use function uniqid;
+
 /**
  * Verifies the RenameByHashCommand, which groups files by content hash and
  * identifies true duplicates. Unlike the EXIF command, this command uses
@@ -68,108 +73,93 @@ final class RenameByHashCommandTest extends TestCase
     #[Test]
     public function executeConfiguresServicesWithHashStrategies(): void
     {
-        /** @var FileSystemServiceInterface&MockObject $fileSystemService */
-        $fileSystemService = $this->createMock(FileSystemServiceInterface::class);
+        $sourceDir = sys_get_temp_dir() . '/renamer-test-hash-source-' . uniqid();
+        $targetDir = sys_get_temp_dir() . '/renamer-test-hash-target-' . uniqid();
 
-        /** @var DuplicateDetectionServiceInterface&MockObject $duplicateDetectionService */
-        $duplicateDetectionService = $this->createMock(DuplicateDetectionServiceInterface::class);
+        mkdir($sourceDir);
+        mkdir($targetDir);
 
-        $iterator = new RecursiveIteratorIterator(new RecursiveArrayIterator([]));
+        try {
+            /** @var FileSystemServiceInterface&MockObject $fileSystemService */
+            $fileSystemService = $this->createMock(FileSystemServiceInterface::class);
 
-        $expectedSourceDirectory = $this->buildExpectedAbsolutePath('source-dir');
-        $expectedTargetDirectory = $this->buildExpectedAbsolutePath('target-dir');
+            /** @var DuplicateDetectionServiceInterface&MockObject $duplicateDetectionService */
+            $duplicateDetectionService = $this->createMock(DuplicateDetectionServiceInterface::class);
 
-        $fileSystemService
-            ->expects(self::once())
-            ->method('createFileIterator')
-            ->with($expectedSourceDirectory)
-            ->willReturn($iterator);
+            $iterator = new RecursiveIteratorIterator(new RecursiveArrayIterator([]));
 
-        $duplicateCollection = new FileDuplicateCollection();
+            $fileSystemService
+                ->expects(self::once())
+                ->method('createFileIterator')
+                ->with($sourceDir)
+                ->willReturn($iterator);
 
-        $duplicateDetectionService
-            ->expects(self::once())
-            ->method('setSourceDirectory')
-            ->with($expectedSourceDirectory)
-            ->willReturnSelf();
+            $duplicateCollection = new FileDuplicateCollection();
 
-        $duplicateDetectionService
-            ->expects(self::once())
-            ->method('setTargetDirectory')
-            ->with($expectedTargetDirectory)
-            ->willReturnSelf();
+            $duplicateDetectionService
+                ->expects(self::once())
+                ->method('setSourceDirectory')
+                ->with($sourceDir)
+                ->willReturnSelf();
 
-        $duplicateDetectionService
-            ->expects(self::once())
-            ->method('groupFilesByDuplicateIdentifier')
-            ->with(
-                self::identicalTo($iterator),
-                self::callback(static fn ($strategy): bool => $strategy instanceof InheritFilenameStrategy),
-                self::callback(static fn ($strategy): bool => $strategy instanceof ContentHashStrategy),
-            )
-            ->willReturn($duplicateCollection);
+            $duplicateDetectionService
+                ->expects(self::once())
+                ->method('setTargetDirectory')
+                ->with($targetDir)
+                ->willReturnSelf();
 
-        $duplicateDetectionService
-            ->expects(self::once())
-            ->method('setUseFileExtensionFromSource')
-            ->with(false)
-            ->willReturnSelf();
+            $duplicateDetectionService
+                ->expects(self::once())
+                ->method('groupFilesByDuplicateIdentifier')
+                ->with(
+                    self::identicalTo($iterator),
+                    self::callback(static fn ($strategy): bool => $strategy instanceof InheritFilenameStrategy),
+                    self::callback(static fn ($strategy): bool => $strategy instanceof ContentHashStrategy),
+                )
+                ->willReturn($duplicateCollection);
 
-        $duplicateDetectionService
-            ->expects(self::once())
-            ->method('createDuplicateFilenames')
-            ->with(self::identicalTo($duplicateCollection))
-            ->willReturn($duplicateCollection);
+            $duplicateDetectionService
+                ->expects(self::once())
+                ->method('setUseFileExtensionFromSource')
+                ->with(false)
+                ->willReturnSelf();
 
-        $fileSystemService
-            ->expects(self::once())
-            ->method('renameFiles')
-            ->with(
-                self::identicalTo($duplicateCollection),
-                self::callback(static function (RenameOptions $options): bool {
-                    self::assertTrue($options->dryRun);
-                    self::assertTrue($options->skipDuplicates);
-                    self::assertTrue($options->copyFiles);
-                    self::assertFalse($options->listAll);
+            $duplicateDetectionService
+                ->expects(self::once())
+                ->method('createDuplicateFilenames')
+                ->with(self::identicalTo($duplicateCollection))
+                ->willReturn($duplicateCollection);
 
-                    return true;
-                }),
-            );
+            $fileSystemService
+                ->expects(self::once())
+                ->method('renameFiles')
+                ->with(
+                    self::identicalTo($duplicateCollection),
+                    self::callback(static function (RenameOptions $options): bool {
+                        self::assertTrue($options->dryRun);
+                        self::assertTrue($options->skipDuplicates);
+                        self::assertTrue($options->copyFiles);
+                        self::assertFalse($options->listAll);
 
-        $command = new RenameByHashCommand($fileSystemService, $duplicateDetectionService, new SafeHashCalculator());
+                        return true;
+                    }),
+                );
 
-        $tester   = new CommandTester($command);
-        $exitCode = $tester->execute([
-            'source-directory'  => 'source-dir',
-            'target-directory'  => 'target-dir',
-            '--dry-run'         => true,
-            '--skip-duplicates' => true,
-            '--copy'            => true,
-        ]);
+            $command = new RenameByHashCommand($fileSystemService, $duplicateDetectionService, new SafeHashCalculator());
 
-        self::assertSame(Command::SUCCESS, $exitCode);
-    }
+            $tester   = new CommandTester($command);
+            $exitCode = $tester->execute([
+                'source-directory'  => $sourceDir,
+                'target-directory'  => $targetDir,
+                '--dry-run'         => true,
+                '--skip-duplicates' => true,
+                '--copy'            => true,
+            ]);
 
-    private function buildExpectedAbsolutePath(string $relativePath): string
-    {
-        $workingDirectory = getcwd();
-
-        if ($workingDirectory === false) {
-            return $relativePath;
+            self::assertSame(Command::SUCCESS, $exitCode);
+        } finally {
+            rmdir($sourceDir);
+            rmdir($targetDir);
         }
-
-        $trimmedWorkingDirectory = rtrim($workingDirectory, '\\/');
-
-        if ($trimmedWorkingDirectory === '') {
-            return $relativePath;
-        }
-
-        $normalizedRelativePath = ltrim($relativePath, '\\/');
-
-        if ($normalizedRelativePath === '') {
-            return $trimmedWorkingDirectory;
-        }
-
-        return $trimmedWorkingDirectory . DIRECTORY_SEPARATOR . $normalizedRelativePath;
     }
 }

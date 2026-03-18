@@ -28,6 +28,10 @@ use Override;
  */
 class RenameLowerCaseCommand extends AbstractRenameCommand
 {
+    private ?RenameStrategyInterface $renameStrategy = null;
+
+    private ?DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy = null;
+
     /**
      * Configures the current command.
      */
@@ -46,12 +50,12 @@ class RenameLowerCaseCommand extends AbstractRenameCommand
     #[Override]
     protected function getTargetFilenameStrategy(): RenameStrategyInterface
     {
-        return new LowerCaseFilenameStrategy();
+        return $this->renameStrategy ??= new LowerCaseFilenameStrategy();
     }
 
     #[Override]
     protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
     {
-        return new TargetPathnameStrategy();
+        return $this->duplicateIdentifierStrategy ??= new TargetPathnameStrategy();
     }
 }

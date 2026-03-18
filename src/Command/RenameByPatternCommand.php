@@ -41,6 +41,10 @@ use function is_string;
  */
 class RenameByPatternCommand extends AbstractRenameCommand
 {
+    private ?RenameStrategyInterface $renameStrategy = null;
+
+    private ?DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy = null;
+
     public function __construct(
         FileSystemServiceInterface $fileSystemService,
         DuplicateDetectionServiceInterface $duplicateDetectionService,
@@ -125,7 +129,7 @@ class RenameByPatternCommand extends AbstractRenameCommand
     #[Override]
     protected function getTargetFilenameStrategy(): RenameStrategyInterface
     {
-        return new PatternFilenameStrategy(
+        return $this->renameStrategy ??= new PatternFilenameStrategy(
             $this->pattern,
             $this->replacement,
             $this->safeRegex,
@@ -135,6 +139,6 @@ class RenameByPatternCommand extends AbstractRenameCommand
     #[Override]
     protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
     {
-        return new TargetPathnameStrategy();
+        return $this->duplicateIdentifierStrategy ??= new TargetPathnameStrategy();
     }
 }

@@ -32,6 +32,10 @@ use Override;
  */
 class RenameByHashCommand extends AbstractRenameCommand
 {
+    private ?RenameStrategyInterface $renameStrategy = null;
+
+    private ?DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy = null;
+
     public function __construct(
         FileSystemServiceInterface $fileSystemService,
         DuplicateDetectionServiceInterface $duplicateDetectionService,
@@ -58,13 +62,13 @@ class RenameByHashCommand extends AbstractRenameCommand
     #[Override]
     protected function getTargetFilenameStrategy(): RenameStrategyInterface
     {
-        return new InheritFilenameStrategy();
+        return $this->renameStrategy ??= new InheritFilenameStrategy();
     }
 
     #[Override]
     protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
     {
-        return new ContentHashStrategy($this->hashCalculator);
+        return $this->duplicateIdentifierStrategy ??= new ContentHashStrategy($this->hashCalculator);
     }
 
     #[Override]

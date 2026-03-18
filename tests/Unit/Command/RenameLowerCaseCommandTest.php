@@ -27,6 +27,11 @@ use RecursiveIteratorIterator;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
 
+use function mkdir;
+use function rmdir;
+use function sys_get_temp_dir;
+use function uniqid;
+
 /**
  * Verifies the RenameLowerCaseCommand, which converts all filenames to lowercase
  * using LowerCaseFilenameStrategy and groups by full target pathname to detect
@@ -62,104 +67,87 @@ final class RenameLowerCaseCommandTest extends TestCase
     #[Test]
     public function executeNormalizesTargetDirectoryAndUsesLowerCaseStrategy(): void
     {
-        /** @var FileSystemServiceInterface&MockObject $fileSystemService */
-        $fileSystemService = $this->createMock(FileSystemServiceInterface::class);
+        $sourceDir = sys_get_temp_dir() . '/renamer-test-lower-source-' . uniqid();
 
-        /** @var DuplicateDetectionServiceInterface&MockObject $duplicateDetectionService */
-        $duplicateDetectionService = $this->createMock(DuplicateDetectionServiceInterface::class);
+        mkdir($sourceDir);
 
-        $iterator = new RecursiveIteratorIterator(new RecursiveArrayIterator([]));
+        try {
+            /** @var FileSystemServiceInterface&MockObject $fileSystemService */
+            $fileSystemService = $this->createMock(FileSystemServiceInterface::class);
 
-        $expectedSourceDirectory = $this->buildExpectedAbsolutePath('source-dir');
+            /** @var DuplicateDetectionServiceInterface&MockObject $duplicateDetectionService */
+            $duplicateDetectionService = $this->createMock(DuplicateDetectionServiceInterface::class);
 
-        $fileSystemService
-            ->expects(self::once())
-            ->method('createFileIterator')
-            ->with($expectedSourceDirectory)
-            ->willReturn($iterator);
+            $iterator = new RecursiveIteratorIterator(new RecursiveArrayIterator([]));
 
-        $duplicateCollection = new FileDuplicateCollection();
+            $fileSystemService
+                ->expects(self::once())
+                ->method('createFileIterator')
+                ->with($sourceDir)
+                ->willReturn($iterator);
 
-        $duplicateDetectionService
-            ->expects(self::once())
-            ->method('setSourceDirectory')
-            ->with($expectedSourceDirectory)
-            ->willReturnSelf();
+            $duplicateCollection = new FileDuplicateCollection();
 
-        $duplicateDetectionService
-            ->expects(self::once())
-            ->method('setTargetDirectory')
-            ->with($expectedSourceDirectory)
-            ->willReturnSelf();
+            $duplicateDetectionService
+                ->expects(self::once())
+                ->method('setSourceDirectory')
+                ->with($sourceDir)
+                ->willReturnSelf();
 
-        $duplicateDetectionService
-            ->expects(self::once())
-            ->method('groupFilesByDuplicateIdentifier')
-            ->with(
-                self::identicalTo($iterator),
-                self::callback(static fn ($strategy): bool => $strategy instanceof LowerCaseFilenameStrategy),
-                self::callback(static fn ($strategy): bool => $strategy instanceof TargetPathnameStrategy),
-            )
-            ->willReturn($duplicateCollection);
+            $duplicateDetectionService
+                ->expects(self::once())
+                ->method('setTargetDirectory')
+                ->with($sourceDir)
+                ->willReturnSelf();
 
-        $duplicateDetectionService
-            ->expects(self::once())
-            ->method('setUseFileExtensionFromSource')
-            ->with(false)
-            ->willReturnSelf();
+            $duplicateDetectionService
+                ->expects(self::once())
+                ->method('groupFilesByDuplicateIdentifier')
+                ->with(
+                    self::identicalTo($iterator),
+                    self::callback(static fn ($strategy): bool => $strategy instanceof LowerCaseFilenameStrategy),
+                    self::callback(static fn ($strategy): bool => $strategy instanceof TargetPathnameStrategy),
+                )
+                ->willReturn($duplicateCollection);
 
-        $duplicateDetectionService
-            ->expects(self::once())
-            ->method('createDuplicateFilenames')
-            ->with(self::identicalTo($duplicateCollection))
-            ->willReturn($duplicateCollection);
+            $duplicateDetectionService
+                ->expects(self::once())
+                ->method('setUseFileExtensionFromSource')
+                ->with(false)
+                ->willReturnSelf();
 
-        $fileSystemService
-            ->expects(self::once())
-            ->method('renameFiles')
-            ->with(
-                self::identicalTo($duplicateCollection),
-                self::callback(static function (RenameOptions $options): bool {
-                    self::assertTrue($options->dryRun);
-                    self::assertFalse($options->skipDuplicates);
-                    self::assertFalse($options->copyFiles);
-                    self::assertFalse($options->listAll);
+            $duplicateDetectionService
+                ->expects(self::once())
+                ->method('createDuplicateFilenames')
+                ->with(self::identicalTo($duplicateCollection))
+                ->willReturn($duplicateCollection);
 
-                    return true;
-                }),
-            );
+            $fileSystemService
+                ->expects(self::once())
+                ->method('renameFiles')
+                ->with(
+                    self::identicalTo($duplicateCollection),
+                    self::callback(static function (RenameOptions $options): bool {
+                        self::assertTrue($options->dryRun);
+                        self::assertFalse($options->skipDuplicates);
+                        self::assertFalse($options->copyFiles);
+                        self::assertFalse($options->listAll);
 
-        $command = new RenameLowerCaseCommand($fileSystemService, $duplicateDetectionService);
+                        return true;
+                    }),
+                );
 
-        $tester   = new CommandTester($command);
-        $exitCode = $tester->execute([
-            'source-directory' => 'source-dir',
-            '--dry-run'        => true,
-        ]);
+            $command = new RenameLowerCaseCommand($fileSystemService, $duplicateDetectionService);
 
-        self::assertSame(Command::SUCCESS, $exitCode);
-    }
+            $tester   = new CommandTester($command);
+            $exitCode = $tester->execute([
+                'source-directory' => $sourceDir,
+                '--dry-run'        => true,
+            ]);
 
-    private function buildExpectedAbsolutePath(string $relativePath): string
-    {
-        $workingDirectory = getcwd();
-
-        if ($workingDirectory === false) {
-            return $relativePath;
+            self::assertSame(Command::SUCCESS, $exitCode);
+        } finally {
+            rmdir($sourceDir);
         }
-
-        $trimmedWorkingDirectory = rtrim($workingDirectory, '\\/');
-
-        if ($trimmedWorkingDirectory === '') {
-            return $relativePath;
-        }
-
-        $normalizedRelativePath = ltrim($relativePath, '\\/');
-
-        if ($normalizedRelativePath === '') {
-            return $trimmedWorkingDirectory;
-        }
-
-        return $trimmedWorkingDirectory . DIRECTORY_SEPARATOR . $normalizedRelativePath;
     }
 }

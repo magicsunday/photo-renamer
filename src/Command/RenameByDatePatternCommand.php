@@ -44,6 +44,10 @@ use function is_string;
  */
 class RenameByDatePatternCommand extends AbstractRenameCommand
 {
+    private ?RenameStrategyInterface $renameStrategy = null;
+
+    private ?DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy = null;
+
     public function __construct(
         FileSystemServiceInterface $fileSystemService,
         DuplicateDetectionServiceInterface $duplicateDetectionService,
@@ -99,7 +103,9 @@ class RenameByDatePatternCommand extends AbstractRenameCommand
         $patternOption = $this->input->getOption('pattern');
 
         if (!is_string($patternOption)) {
-            throw new RuntimeException('Failed to extract the date pattern from given pattern');
+            $this->io->error('A valid pattern value is required');
+
+            return self::FAILURE;
         }
 
         $this->patternRegex = DatePlaceholderExpressionMap::default()
@@ -141,7 +147,7 @@ class RenameByDatePatternCommand extends AbstractRenameCommand
             throw new RuntimeException('Pattern configuration has not been initialised.');
         }
 
-        return new DatePatternFilenameStrategy(
+        return $this->renameStrategy ??= new DatePatternFilenameStrategy(
             $this->patternRegex,
             $this->replacement,
             $this->patternMatchSet,
@@ -152,6 +158,6 @@ class RenameByDatePatternCommand extends AbstractRenameCommand
     #[Override]
     protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
     {
-        return new TargetPathnameStrategy();
+        return $this->duplicateIdentifierStrategy ??= new TargetPathnameStrategy();
     }
 }

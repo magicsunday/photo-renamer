@@ -134,6 +134,11 @@ final class AbstractRenameCommandTest extends TestCase
                 $this->setName('test:rename');
             }
 
+            protected function createFileIterator(): RecursiveIteratorIterator
+            {
+                return $this->fileSystemService->createFileIterator($this->sourceDirectory);
+            }
+
             protected function getTargetFilenameStrategy(): RenameStrategyInterface
             {
                 return $this->renameStrategy;
@@ -242,6 +247,11 @@ final class AbstractRenameCommandTest extends TestCase
                 $this->setName('test:rename');
             }
 
+            protected function createFileIterator(): RecursiveIteratorIterator
+            {
+                return $this->fileSystemService->createFileIterator($this->sourceDirectory);
+            }
+
             protected function getTargetFilenameStrategy(): RenameStrategyInterface
             {
                 return $this->renameStrategy;
@@ -343,6 +353,11 @@ final class AbstractRenameCommandTest extends TestCase
                 parent::__construct($fileSystemService, $duplicateDetectionService);
 
                 $this->setName('test:rename');
+            }
+
+            protected function createFileIterator(): RecursiveIteratorIterator
+            {
+                return $this->fileSystemService->createFileIterator($this->sourceDirectory);
             }
 
             protected function getTargetFilenameStrategy(): RenameStrategyInterface
@@ -465,6 +480,11 @@ final class AbstractRenameCommandTest extends TestCase
                 $this->setName('test:rename');
             }
 
+            protected function createFileIterator(): RecursiveIteratorIterator
+            {
+                return $this->fileSystemService->createFileIterator($this->sourceDirectory);
+            }
+
             protected function getTargetFilenameStrategy(): RenameStrategyInterface
             {
                 return $this->renameStrategy;
@@ -484,6 +504,60 @@ final class AbstractRenameCommandTest extends TestCase
         ]);
 
         self::assertSame(Command::SUCCESS, $tester->getStatusCode());
+    }
+
+    /**
+     * Verifies that the base createFileIterator() throws a RuntimeException when the
+     * source directory does not exist, and that the pipeline catches it and returns FAILURE.
+     */
+    #[Test]
+    public function executeReturnsFailureWhenSourceDirectoryDoesNotExist(): void
+    {
+        $fileSystemService         = self::createStub(FileSystemServiceInterface::class);
+        $duplicateDetectionService = self::createStub(DuplicateDetectionServiceInterface::class);
+
+        $renameStrategy              = self::createStub(RenameStrategyInterface::class);
+        $duplicateIdentifierStrategy = self::createStub(DuplicateIdentifierStrategyInterface::class);
+
+        $duplicateDetectionService
+            ->method('setSourceDirectory')
+            ->willReturnSelf();
+
+        $duplicateDetectionService
+            ->method('setTargetDirectory')
+            ->willReturnSelf();
+
+        $command = new class($fileSystemService, $duplicateDetectionService, $renameStrategy, $duplicateIdentifierStrategy) extends AbstractRenameCommand {
+            public function __construct(
+                FileSystemServiceInterface $fileSystemService,
+                DuplicateDetectionServiceInterface $duplicateDetectionService,
+                private readonly RenameStrategyInterface $renameStrategy,
+                private readonly DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy,
+            ) {
+                parent::__construct($fileSystemService, $duplicateDetectionService);
+
+                $this->setName('test:rename');
+            }
+
+            protected function getTargetFilenameStrategy(): RenameStrategyInterface
+            {
+                return $this->renameStrategy;
+            }
+
+            protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
+            {
+                return $this->duplicateIdentifierStrategy;
+            }
+        };
+
+        $tester = new CommandTester($command);
+        $tester->execute([
+            'source-directory' => '/nonexistent-directory-for-test',
+            '--dry-run'        => true,
+        ]);
+
+        self::assertSame(Command::FAILURE, $tester->getStatusCode());
+        self::assertStringContainsString('does not exist', $tester->getDisplay());
     }
 
     private function buildExpectedAbsolutePath(string $relativePath): string
