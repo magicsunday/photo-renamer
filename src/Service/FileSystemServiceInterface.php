@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Service;
 
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\RenameOptions;
+use MagicSunday\Renamer\Model\RenameResult;
 use RecursiveIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
@@ -43,6 +44,7 @@ interface FileSystemServiceInterface
      *
      * @param FileDuplicateCollection $fileDuplicateCollection Collection of file duplicates
      * @param RenameOptions           $options                 Options controlling the rename operation
+     * @param RenameResult            $result                  Pipeline-computed results (scanned files, collisions, skips)
      * @param list<string>|null       $showFilter              When set, only output entries matching these tags are shown
      *
      * @throws RuntimeException If a file could not be renamed
@@ -50,6 +52,7 @@ interface FileSystemServiceInterface
     public function renameFiles(
         FileDuplicateCollection $fileDuplicateCollection,
         RenameOptions $options = new RenameOptions(),
+        RenameResult $result = new RenameResult(),
         ?array $showFilter = null,
     ): void;
 }

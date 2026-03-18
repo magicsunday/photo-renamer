@@ -19,6 +19,7 @@ use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Model\RenameOptions;
+use MagicSunday\Renamer\Model\RenameResult;
 use RecursiveDirectoryIterator;
 use RecursiveIterator;
 use RecursiveIteratorIterator;
@@ -98,11 +99,13 @@ class FileSystemService implements FileSystemServiceInterface
      *
      * @param FileDuplicateCollection $fileDuplicateCollection Collection describing source/target file pairs grouped by duplicate identifier
      * @param RenameOptions           $options                 Options controlling the rename operation
+     * @param RenameResult            $result                  Pipeline-computed results (scanned files, collisions, skips)
      * @param list<string>|null       $showFilter              When set, only output entries matching these tags are shown
      */
     public function renameFiles(
         FileDuplicateCollection $fileDuplicateCollection,
         RenameOptions $options = new RenameOptions(),
+        RenameResult $result = new RenameResult(),
         ?array $showFilter = null,
     ): void {
         $sourceBaseDirectory = $this->normalizeBaseDirectory($options->sourceBaseDirectory);
@@ -120,7 +123,7 @@ class FileSystemService implements FileSystemServiceInterface
         }
 
         [$outputEntries, $maxFilenameLength, $skippedCount, $errorCount]
-            = $this->buildOutputEntries($fileDuplicateCollection, $options, $sourceBaseDirectory, $targetBaseDirectory);
+            = $this->buildOutputEntries($fileDuplicateCollection, $options, $result, $sourceBaseDirectory, $targetBaseDirectory);
 
         $occupiedPaths = $this->buildOccupiedPaths($fileDuplicateCollection, $targetBaseDirectory, $sourceBaseDirectory);
 
@@ -131,11 +134,11 @@ class FileSystemService implements FileSystemServiceInterface
         $counters = $this->renderOutputEntries($outputEntries, $maxFilenameLength, $options, $occupiedPaths, $showFilter);
 
         $this->renderSummary([
-            'scannedFiles'     => $options->scannedFiles ?? $totalOperations,
+            'scannedFiles'     => $result->scannedFiles > 0 ? $result->scannedFiles : $totalOperations,
             'skippedCount'     => $skippedCount,
             'errorCount'       => $errorCount,
             'livePhotoGroups'  => $livePhotoGroups,
-            'namingCollisions' => $options->namingCollisions,
+            'namingCollisions' => $result->namingCollisions,
             ...$counters,
         ], $options->dryRun);
     }
@@ -149,6 +152,7 @@ class FileSystemService implements FileSystemServiceInterface
     private function buildOutputEntries(
         FileDuplicateCollection $fileDuplicateCollection,
         RenameOptions $options,
+        RenameResult $result,
         ?string $sourceBaseDirectory,
         ?string $targetBaseDirectory,
     ): array {
@@ -164,7 +168,7 @@ class FileSystemService implements FileSystemServiceInterface
             }
         }
 
-        foreach ($options->skippedFiles as $skippedFile) {
+        foreach ($result->skippedFiles as $skippedFile) {
             $relativeSource = self::relativizePath($skippedFile->getFile()->getPathname(), $sourceBaseDirectory);
 
             if (mb_strlen($relativeSource) > $maxFilenameLength) {
@@ -223,7 +227,7 @@ class FileSystemService implements FileSystemServiceInterface
         $skippedCount = 0;
         $errorCount   = 0;
 
-        foreach ($options->skippedFiles as $skippedFile) {
+        foreach ($result->skippedFiles as $skippedFile) {
             if ($skippedFile->isError()) {
                 ++$errorCount;
             } else {

@@ -12,20 +12,17 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Model;
 
 use MagicSunday\Renamer\Model\RenameOptions;
-use MagicSunday\Renamer\Model\SkippedFile;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use SplFileInfo;
 
 /**
  * Verifies the value-object contract of RenameOptions, the immutable configuration
  * carrier passed from AbstractRenameCommand to FileSystemService::renameFiles().
  *
  * RenameOptions controls dry-run mode, duplicate skipping, copy-vs-move semantics,
- * list-all output, base directory paths, scanned-file counts, and naming collision
- * metrics. Correct defaults and explicit overrides are critical because the
- * FileSystemService branches on every one of these flags.
+ * list-all output, and base directory paths. Correct defaults and explicit overrides
+ * are critical because the FileSystemService branches on every one of these flags.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -53,9 +50,6 @@ final class RenameOptionsTest extends TestCase
         self::assertFalse($options->listAll);
         self::assertNull($options->sourceBaseDirectory);
         self::assertNull($options->targetBaseDirectory);
-        self::assertNull($options->scannedFiles);
-        self::assertSame(0, $options->namingCollisions);
-        self::assertSame([], $options->skippedFiles);
     }
 
     /**
@@ -69,10 +63,6 @@ final class RenameOptionsTest extends TestCase
     #[Test]
     public function itAcceptsCustomValues(): void
     {
-        $skippedFiles = [
-            new SkippedFile(new SplFileInfo('/tmp/video.mov'), 'no capture date'),
-        ];
-
         $options = new RenameOptions(
             dryRun: true,
             skipDuplicates: true,
@@ -80,9 +70,6 @@ final class RenameOptionsTest extends TestCase
             listAll: true,
             sourceBaseDirectory: '/source',
             targetBaseDirectory: '/target',
-            scannedFiles: 42,
-            namingCollisions: 3,
-            skippedFiles: $skippedFiles,
         );
 
         self::assertTrue($options->dryRun);
@@ -91,8 +78,5 @@ final class RenameOptionsTest extends TestCase
         self::assertTrue($options->listAll);
         self::assertSame('/source', $options->sourceBaseDirectory);
         self::assertSame('/target', $options->targetBaseDirectory);
-        self::assertSame(42, $options->scannedFiles);
-        self::assertSame(3, $options->namingCollisions);
-        self::assertSame($skippedFiles, $options->skippedFiles);
     }
 }

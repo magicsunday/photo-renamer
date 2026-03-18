@@ -16,6 +16,7 @@ use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Model\RenameOptions;
+use MagicSunday\Renamer\Model\RenameResult;
 use MagicSunday\Renamer\Service\FileSystemService;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -48,6 +49,7 @@ use const DIRECTORY_SEPARATOR;
 #[CoversClass(FileDuplicate::class)]
 #[CoversClass(Rename::class)]
 #[CoversClass(RenameOptions::class)]
+#[CoversClass(RenameResult::class)]
 /**
  * Verifies the FileSystemService, which executes the final stage of the rename
  * pipeline: creating target directories, moving or copying files, logging
@@ -502,6 +504,8 @@ final class FileSystemServiceTest extends TestCase
             new RenameOptions(
                 skipDuplicates: true,
                 copyFiles: true,
+            ),
+            new RenameResult(
                 scannedFiles: 5,
             ),
         );
@@ -549,6 +553,8 @@ final class FileSystemServiceTest extends TestCase
             $fileDuplicateCollection,
             new RenameOptions(
                 dryRun: true,
+            ),
+            new RenameResult(
                 namingCollisions: 3,
             ),
         );
@@ -588,6 +594,8 @@ final class FileSystemServiceTest extends TestCase
             $fileDuplicateCollection,
             new RenameOptions(
                 dryRun: true,
+            ),
+            new RenameResult(
                 namingCollisions: 0,
             ),
         );

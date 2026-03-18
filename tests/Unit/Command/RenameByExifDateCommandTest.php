@@ -20,6 +20,7 @@ use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Model\RenameOptions;
+use MagicSunday\Renamer\Model\RenameResult;
 use MagicSunday\Renamer\Service\DuplicateDetectionService;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemService;
@@ -198,7 +199,11 @@ final class RenameByExifDateCommandTest extends TestCase
                     self::assertFalse($options->listAll);
                     self::assertSame($expectedSourceDirectory, $options->sourceBaseDirectory);
                     self::assertSame($expectedTargetDirectory, $options->targetBaseDirectory);
-                    self::assertSame(0, $options->scannedFiles);
+
+                    return true;
+                }),
+                self::callback(static function (RenameResult $result): bool {
+                    self::assertSame(0, $result->scannedFiles);
 
                     return true;
                 }),

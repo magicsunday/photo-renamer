@@ -12,7 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Model;
 
 /**
- * Immutable value object carrying all user-supplied and pipeline-derived options
+ * Immutable value object carrying all user-supplied configuration options
  * for a single rename execution. Passed through the entire pipeline from command
  * input parsing down to the file system service.
  *
@@ -23,15 +23,12 @@ namespace MagicSunday\Renamer\Model;
 final readonly class RenameOptions
 {
     /**
-     * @param bool              $dryRun              When true, renames are simulated without touching the file system
-     * @param bool              $skipDuplicates      When true, files identified as duplicates are excluded from output
-     * @param bool              $copyFiles           When true, files are copied instead of moved during execution
-     * @param bool              $listAll             When true, all files are listed in output including unchanged ones
-     * @param string|null       $sourceBaseDirectory Absolute path to the directory scanned for source files
-     * @param string|null       $targetBaseDirectory Absolute path to the directory where renamed files are placed
-     * @param int|null          $scannedFiles        Total number of files discovered during the scan phase
-     * @param int               $namingCollisions    Count of target filename collisions resolved by the safe-rename fallback
-     * @param list<SkippedFile> $skippedFiles        Files skipped because the rename strategy produced no target filename
+     * @param bool        $dryRun              When true, renames are simulated without touching the file system
+     * @param bool        $skipDuplicates      When true, files identified as duplicates are excluded from output
+     * @param bool        $copyFiles           When true, files are copied instead of moved during execution
+     * @param bool        $listAll             When true, all files are listed in output including unchanged ones
+     * @param string|null $sourceBaseDirectory Absolute path to the directory scanned for source files
+     * @param string|null $targetBaseDirectory Absolute path to the directory where renamed files are placed
      */
     public function __construct(
         public bool $dryRun = false,
@@ -40,9 +37,6 @@ final readonly class RenameOptions
         public bool $listAll = false,
         public ?string $sourceBaseDirectory = null,
         public ?string $targetBaseDirectory = null,
-        public ?int $scannedFiles = null,
-        public int $namingCollisions = 0,
-        public array $skippedFiles = [],
     ) {
     }
 }
