@@ -203,7 +203,7 @@ final class ExifMetadataProvider
 
                 $this->cache->set(
                     $splFileInfo,
-                    $meta?->getCaptureDateTime()?->format('c'),
+                    $meta?->getCaptureDateTime()?->format('Y-m-d\TH:i:s.uP'),
                     $meta?->getLivePhotoId(),
                     $meta?->isFallbackDateTime() ?? false,
                     $meta?->isUtcWithoutTimezone() ?? false,

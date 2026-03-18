@@ -397,7 +397,7 @@ final class ExifMetadataProviderTest extends TestCase
             $entry      = $freshCache->get($file);
 
             self::assertNotNull($entry);
-            self::assertSame('2024-08-20T15:00:00+00:00', $entry['captureDateTime']);
+            self::assertSame('2024-08-20T15:00:00.000000+00:00', $entry['captureDateTime']);
             self::assertSame('live-uuid', $entry['contentId']);
         } finally {
             @unlink($filePath);
