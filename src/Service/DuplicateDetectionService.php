@@ -19,6 +19,7 @@ use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Model\SkippedFile;
+use MagicSunday\Renamer\Model\TargetFileResult;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\LivePhotoAwareRenameStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
@@ -110,12 +111,6 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
      * @var list<SkippedFile>
      */
     private array $skippedFiles = [];
-
-    /**
-     * Reason why the last {@see getTargetFileInfo()} call returned null.
-     * Set as a side effect so the calling loop can record it when appropriate.
-     */
-    private ?string $lastSkipReason = null;
 
     /**
      * @param SymfonyStyle                    $io                     Console IO for progress bars and error output
@@ -269,7 +264,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
 
         foreach ($files as $sourceFileInfo) {
             // The resulting file object
-            $targetFileInfo = $this->getTargetFileInfo(
+            $result = $this->getTargetFileInfo(
                 $sourceFileInfo,
                 $renameStrategy
             );
@@ -303,7 +298,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 $contentIdentifierCacheEntry = &$contentIdentifierCache[$normalizedContentIdentifier];
             }
 
-            if (!$targetFileInfo instanceof SplFileInfo) {
+            if ($result->isSkipped()) {
                 if ($contentIdentifierCacheEntry !== null) {
                     $cachedDuplicateIdentifier = $contentIdentifierCacheEntry['duplicateIdentifier'];
 
@@ -320,13 +315,10 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                         $contentIdentifierCacheEntry['pendingFiles'][] = $sourceFileInfo;
                     }
                 } else {
-                    $reason  = $this->lastSkipReason ?? 'no capture date';
-                    $isError = $reason !== 'no capture date';
-
                     $this->skippedFiles[] = new SkippedFile(
                         $sourceFileInfo,
-                        $reason,
-                        $isError,
+                        $result->getSkipReason() ?? 'no capture date',
+                        $result->isError(),
                     );
                 }
 
@@ -336,6 +328,10 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
 
                 continue;
             }
+
+            // Guaranteed non-null after isSkipped() guard above
+            $targetFileInfo = $result->getTargetFile();
+            assert($targetFileInfo instanceof SplFileInfo);
 
             try {
                 $duplicateIdentifier = $duplicateIdentifierStrategy->generateIdentifier(
@@ -900,27 +896,24 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
      *
      * @param SplFileInfo             $sourceFileInfo source file that should be renamed
      * @param RenameStrategyInterface $renameStrategy strategy responsible for generating the target filename
-     *
-     * @return SplFileInfo|null target file info when the strategy yields a filename, otherwise null
      */
-    private function getTargetFileInfo(SplFileInfo $sourceFileInfo, RenameStrategyInterface $renameStrategy): ?SplFileInfo
+    private function getTargetFileInfo(SplFileInfo $sourceFileInfo, RenameStrategyInterface $renameStrategy): TargetFileResult
     {
-        $this->lastSkipReason = null;
-
         try {
             $targetFilename = $renameStrategy->generateFilename($sourceFileInfo);
 
             if ($targetFilename !== null) {
-                // Create a new target file object
-                return new SplFileInfo(
-                    $this->getTargetPathname(
-                        $sourceFileInfo,
-                        $targetFilename
+                return TargetFileResult::success(
+                    new SplFileInfo(
+                        $this->getTargetPathname(
+                            $sourceFileInfo,
+                            $targetFilename
+                        )
                     )
                 );
             }
 
-            $this->lastSkipReason = 'no capture date';
+            return TargetFileResult::skipped('no capture date');
         } catch (TargetFilenameException $exception) {
             // Extract the root cause message from the exception chain to avoid
             // double-wrapped "Unable to read..." prefixes in the output.
@@ -930,10 +923,8 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 $rootCause = $rootCause->getPrevious();
             }
 
-            $this->lastSkipReason = $rootCause->getMessage();
+            return TargetFileResult::error($rootCause->getMessage());
         }
-
-        return null;
     }
 
     /**
