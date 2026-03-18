@@ -26,14 +26,18 @@ use DateTimeInterface;
 final readonly class TemporalMetadata
 {
     /**
-     * @param DateTimeInterface|null $captureDateTime Date and time the photo/video was captured, with
-     *                                                potential microsecond precision from EXIF SubSecTime
-     * @param string|null            $livePhotoId     Apple Live Photo content identifier linking the
-     *                                                still image to its companion video
+     * @param DateTimeInterface|null $captureDateTime    Date and time the photo/video was captured, with
+     *                                                   potential microsecond precision from EXIF SubSecTime
+     * @param string|null            $livePhotoId        Apple Live Photo content identifier linking the
+     *                                                   still image to its companion video
+     * @param bool                   $isFallbackDateTime Whether the capture date was derived from the
+     *                                                   fallback DateTime tag (0x0132) instead of
+     *                                                   DateTimeOriginal (0x9003) or CreateDate (0x9004)
      */
     public function __construct(
         private ?DateTimeInterface $captureDateTime,
         private ?string $livePhotoId,
+        private bool $isFallbackDateTime = false,
     ) {
     }
 
@@ -52,5 +56,14 @@ final readonly class TemporalMetadata
     public function getLivePhotoId(): ?string
     {
         return $this->livePhotoId;
+    }
+
+    /**
+     * Returns whether the capture date was derived from the fallback DateTime
+     * tag (0x0132) instead of DateTimeOriginal (0x9003) or CreateDate (0x9004).
+     */
+    public function isFallbackDateTime(): bool
+    {
+        return $this->isFallbackDateTime;
     }
 }

@@ -82,4 +82,12 @@ interface DuplicateDetectionServiceInterface
      * @return list<SkippedFile>
      */
     public function getSkippedFiles(): array;
+
+    /**
+     * Returns pathnames of files whose capture date was derived from the
+     * fallback DateTime tag (0x0132) instead of DateTimeOriginal or CreateDate.
+     *
+     * @return array<string, true>
+     */
+    public function getFallbackDateFiles(): array;
 }

@@ -70,6 +70,21 @@ final class ExifMetadataProvider
     }
 
     /**
+     * Returns whether the capture date for the given file was derived from
+     * the fallback DateTime tag (0x0132) instead of DateTimeOriginal/CreateDate.
+     *
+     * @param SplFileInfo $splFileInfo File to query
+     *
+     * @return bool True when the date came from the fallback tag, false otherwise
+     *
+     * @throws ExifMetadataReadException When the underlying metadata reader fails
+     */
+    public function isFallbackDateTime(SplFileInfo $splFileInfo): bool
+    {
+        return $this->resolveMetadata($splFileInfo)?->isFallbackDateTime() ?? false;
+    }
+
+    /**
      * Returns the normalized Live Photo content identifier for the given file.
      * Triggers metadata extraction if not yet cached.
      *

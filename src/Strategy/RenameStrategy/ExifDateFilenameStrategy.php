@@ -67,6 +67,19 @@ readonly class ExifDateFilenameStrategy implements LivePhotoAwareRenameStrategyI
     }
 
     /**
+     * Returns whether the given file's capture date came from the fallback
+     * DateTime tag (0x0132) instead of DateTimeOriginal or CreateDate.
+     *
+     * @param SplFileInfo $splFileInfo File to query
+     *
+     * @return bool True when the date came from the fallback tag
+     */
+    public function isFallbackDateTime(SplFileInfo $splFileInfo): bool
+    {
+        return $this->exifMetadataProvider->isFallbackDateTime($splFileInfo);
+    }
+
+    /**
      * {@inheritDoc}
      */
     #[Override]

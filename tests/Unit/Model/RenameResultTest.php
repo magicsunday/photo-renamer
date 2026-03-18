@@ -36,7 +36,7 @@ final class RenameResultTest extends TestCase
 {
     /**
      * Verifies that a default-constructed RenameResult has all numeric counters
-     * at zero and the skipped files list empty.
+     * at zero and the skipped/fallback files lists empty.
      *
      * This ensures that omitting results does not accidentally inject non-zero
      * counts into the summary output.
@@ -49,6 +49,7 @@ final class RenameResultTest extends TestCase
         self::assertSame(0, $result->scannedFiles);
         self::assertSame(0, $result->namingCollisions);
         self::assertSame([], $result->skippedFiles);
+        self::assertSame([], $result->fallbackDateFiles);
     }
 
     /**
@@ -66,14 +67,18 @@ final class RenameResultTest extends TestCase
             new SkippedFile(new SplFileInfo('/tmp/video.mov'), 'no capture date'),
         ];
 
+        $fallbackDateFiles = ['/tmp/scan.jpg' => true];
+
         $result = new RenameResult(
             scannedFiles: 42,
             namingCollisions: 3,
             skippedFiles: $skippedFiles,
+            fallbackDateFiles: $fallbackDateFiles,
         );
 
         self::assertSame(42, $result->scannedFiles);
         self::assertSame(3, $result->namingCollisions);
         self::assertSame($skippedFiles, $result->skippedFiles);
+        self::assertSame($fallbackDateFiles, $result->fallbackDateFiles);
     }
 }

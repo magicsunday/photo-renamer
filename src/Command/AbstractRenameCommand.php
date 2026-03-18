@@ -168,7 +168,7 @@ abstract class AbstractRenameCommand extends Command
                 'show',
                 null,
                 InputOption::VALUE_REQUIRED,
-                'Filter output to specific entry types (comma-separated: R=renamed, D=duplicate, O=original, S=skipped, E=error).'
+                'Filter output to specific entry types (comma-separated: R=renamed, F=fallback, D=duplicate, O=original, S=skipped, E=error).'
             );
     }
 
@@ -454,6 +454,7 @@ abstract class AbstractRenameCommand extends Command
             scannedFiles: $this->duplicateDetectionService->getLastScannedFileCount(),
             namingCollisions: $this->duplicateDetectionService->getNamingCollisions(),
             skippedFiles: $this->duplicateDetectionService->getSkippedFiles(),
+            fallbackDateFiles: $this->duplicateDetectionService->getFallbackDateFiles(),
         );
 
         $this->fileSystemService

@@ -59,27 +59,53 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
             );
         }
 
-        $structured      = $metadata->structured();
-        $captureDateTime = $this->extractCaptureDateTime($structured);
-        $livePhotoId     = $this->extractContentIdentifier($structured);
+        $structured  = $metadata->structured();
+        $livePhotoId = $this->extractContentIdentifier($structured);
+
+        [$captureDateTime, $isFallback] = $this->extractCaptureDateTimeWithFallbackFlag($structured);
 
         if (!($captureDateTime instanceof DateTimeInterface) && ($livePhotoId === null)) {
             return null;
         }
 
-        return new TemporalMetadata($captureDateTime, $livePhotoId);
+        return new TemporalMetadata($captureDateTime, $livePhotoId, $isFallback);
     }
 
     /**
-     * Returns the original capture timestamp, falling back to the creation
-     * timestamp and then the generic capture dateTime. All three are nullable
-     * {@see \DateTimeImmutable} properties on the imagemeta value objects.
+     * Returns the capture timestamp and whether it came from the fallback
+     * DateTime tag (0x0132) instead of DateTimeOriginal (0x9003) or CreateDate (0x9004).
+     *
+     * The imagemeta library's `temporal->original` uses `dateTimeOriginalBestEffort()`
+     * which itself falls back through 0x9003 → 0x9004 → 0x0132, so we cannot
+     * use it to distinguish the source. Instead, we check `temporal->create`
+     * (pure 0x9004) and compare: if `temporal->original` is set but `temporal->create`
+     * is null and both resolve to the same timestamp, the date came from the
+     * generic capture fallback (0x0132), not from a dedicated date tag.
+     *
+     * @return array{DateTimeInterface|null, bool} Tuple of [captureDateTime, isFallback]
      */
-    private function extractCaptureDateTime(StructuredMetadata $structured): ?DateTimeInterface
+    private function extractCaptureDateTimeWithFallbackFlag(StructuredMetadata $structured): array
     {
-        return $structured->locationTime->temporal->original
-            ?? $structured->locationTime->temporal->create
-            ?? $structured->locationTime->capture->dateTime;
+        $original = $structured->locationTime->temporal->original;
+        $create   = $structured->locationTime->temporal->create;
+        $modify   = $structured->locationTime->temporal->modify;
+        $capture  = $structured->locationTime->capture->dateTime;
+
+        // Prefer original, then create, then capture (which includes 0x0132 fallback).
+        $dateTime = $original ?? $create ?? $capture;
+
+        if (!$dateTime instanceof DateTimeInterface) {
+            return [null, false];
+        }
+
+        // Fallback detection: if there's no dedicated create date (0x9004) and the
+        // resolved timestamp equals the modify date (0x0132), the date is from the
+        // generic DateTime tag — not from DateTimeOriginal or CreateDate.
+        $isFallback = !($create instanceof DateTimeInterface)
+            && ($modify instanceof DateTimeInterface)
+            && ($dateTime->getTimestamp() === $modify->getTimestamp());
+
+        return [$dateTime, $isFallback];
     }
 
     /**

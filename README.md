@@ -155,7 +155,8 @@ Each file in the output is prefixed with a status indicator:
 
 | Tag   | Meaning                                                                              |
 |-------|--------------------------------------------------------------------------------------|
-| `[R]` | **Rename** -- file will be moved (or copied) to a new name.                         |
+| `[R]` | **Rename** -- file will be moved (or copied) to a new name.                          |
+| `[F]` | **Fallback** -- date derived from DateTime (0x0132) instead of DateTimeOriginal.     |
 | `[D]` | **Duplicate** -- file is a duplicate and receives a suffix.                          |
 | `[O]` | **Original** -- file already has the correct name; no action taken.                  |
 | `[S]` | **Skipped** -- file has no usable metadata (no capture date found).                   |

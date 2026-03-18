@@ -20,6 +20,7 @@ use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Model\SkippedFile;
 use MagicSunday\Renamer\Model\TargetFileResult;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
+use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\LivePhotoAwareRenameStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use RecursiveIterator;
@@ -113,6 +114,14 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     private array $skippedFiles = [];
 
     /**
+     * Pathnames of files whose capture date was derived from the fallback
+     * DateTime tag (0x0132) instead of DateTimeOriginal or CreateDate.
+     *
+     * @var array<string, true>
+     */
+    private array $fallbackDateFiles = [];
+
+    /**
      * @param SymfonyStyle                    $io                     Console IO for progress bars and error output
      * @param HashSubGroupingServiceInterface $hashSubGroupingService Service for content-hash-based sub-grouping
      * @param MediaTypeClassifierInterface    $mediaTypeClassifier    Classifies files by media type (still vs. video)
@@ -150,6 +159,17 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
     public function getSkippedFiles(): array
     {
         return $this->skippedFiles;
+    }
+
+    /**
+     * Returns pathnames of files whose capture date was derived from the
+     * fallback DateTime tag (0x0132) instead of DateTimeOriginal or CreateDate.
+     *
+     * @return array<string, true>
+     */
+    public function getFallbackDateFiles(): array
+    {
+        return $this->fallbackDateFiles;
     }
 
     /**
@@ -242,6 +262,14 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 $progressBar->advance();
 
                 continue;
+            }
+
+            // Track files whose date came from the fallback DateTime tag.
+            if (
+                ($renameStrategy instanceof ExifDateFilenameStrategy)
+                && $renameStrategy->isFallbackDateTime($sourceFileInfo)
+            ) {
+                $this->fallbackDateFiles[$sourceFileInfo->getPathname()] = true;
             }
 
             // Video companions with content identifiers defer to Live Photo pairing
@@ -715,6 +743,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         $this->diskIndex            = [];
         $this->contentIdentifierMap = [];
         $this->skippedFiles         = [];
+        $this->fallbackDateFiles    = [];
 
         foreach ($files as $file) {
             $this->diskIndex[$file->getPathname()] = true;

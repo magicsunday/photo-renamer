@@ -18,7 +18,7 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * Verifies the OutputEntryTag enum provides correct letters, formatted tags,
- * and colors for all five output entry types.
+ * and colors for all six output entry types.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -31,6 +31,7 @@ final class OutputEntryTagTest extends TestCase
     public function itReturnsCorrectLetters(): void
     {
         self::assertSame('R', OutputEntryTag::Rename->letter());
+        self::assertSame('F', OutputEntryTag::Fallback->letter());
         self::assertSame('D', OutputEntryTag::Duplicate->letter());
         self::assertSame('O', OutputEntryTag::Original->letter());
         self::assertSame('S', OutputEntryTag::Skipped->letter());
@@ -41,6 +42,7 @@ final class OutputEntryTagTest extends TestCase
     public function itReturnsFormattedTags(): void
     {
         self::assertSame('<fg=green>[R]</>', OutputEntryTag::Rename->formattedTag());
+        self::assertSame('<fg=yellow>[F]</>', OutputEntryTag::Fallback->formattedTag());
         self::assertSame('<fg=red>[D]</>', OutputEntryTag::Duplicate->formattedTag());
         self::assertSame('<fg=blue>[O]</>', OutputEntryTag::Original->formattedTag());
         self::assertSame('<fg=gray>[S]</>', OutputEntryTag::Skipped->formattedTag());
@@ -51,6 +53,7 @@ final class OutputEntryTagTest extends TestCase
     public function itReturnsCorrectColors(): void
     {
         self::assertSame('green', OutputEntryTag::Rename->color());
+        self::assertSame('yellow', OutputEntryTag::Fallback->color());
         self::assertSame('red', OutputEntryTag::Duplicate->color());
         self::assertSame('blue', OutputEntryTag::Original->color());
         self::assertSame('gray', OutputEntryTag::Skipped->color());

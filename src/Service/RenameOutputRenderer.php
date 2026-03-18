@@ -109,6 +109,8 @@ class RenameOutputRenderer
                     $tag = OutputEntryTag::Duplicate;
                 } elseif ($isCanonicalEntry) {
                     $tag = OutputEntryTag::Original;
+                } elseif (isset($result->fallbackDateFiles[$rename->getSource()->getPathname()])) {
+                    $tag = OutputEntryTag::Fallback;
                 } else {
                     $tag = OutputEntryTag::Rename;
                 }
