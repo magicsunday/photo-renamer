@@ -165,7 +165,7 @@ Files with `[W]` were skipped because their metadata is ambiguous. Go back to St
 
 ```bash
 # Group identical files by content hash
-renamer rename:hash --dry-run --skip-duplicates ~/Photos ~/Organised
+renamer rename:hash --dry-run --skip-duplicates ~/Photos
 
 # Extract and rewrite date fragments in filenames
 renamer rename:date --dry-run -p "/^{y}-{m}-{d}.{H}-{i}-{s}(.+)$/" -r "{Y}-{m}-{d}_{H}-{i}-{s}" ~/Photos
@@ -183,7 +183,7 @@ Each file in the output is prefixed with a status indicator:
 
 | Tag   | Meaning                                                                              |
 |-------|--------------------------------------------------------------------------------------|
-| `[R]` | **Rename** -- file will be moved (or copied) to a new name.                          |
+| `[R]` | **Rename** -- file will be moved to a new name.                                      |
 | `[F]` | **Fallback** -- date derived from DateTime (0x0132) instead of DateTimeOriginal.     |
 | `[D]` | **Duplicate** -- file is a duplicate and receives a suffix.                          |
 | `[O]` | **Original** -- file already has the correct name; no action taken.                  |
@@ -191,7 +191,7 @@ Each file in the output is prefixed with a status indicator:
 | `[S]` | **Skipped** -- file has no usable metadata (no capture date found).                   |
 | `[E]` | **Error** -- metadata could not be read (parser error).                               |
 
-After processing, a summary table shows scanned files, skipped files (no metadata), read errors, planned moves/copies/skips, Live Photo groups, duplicates found, naming collisions, and total files to process.
+After processing, a summary table shows scanned files, skipped files (no metadata), read errors, planned moves/skips, Live Photo groups, duplicates found, naming collisions, and total files to process.
 
 ## 🔒 Behaviour & guarantees
 
@@ -204,7 +204,7 @@ After processing, a summary table shows scanned files, skipped files (no metadat
 - **Semantic duplicate detection:** Files that are the same capture but have different hashes (e.g., re-saved JPEGs) are detected as duplicates via two heuristics: (1) if all companion videos in a group share the same hash, the stills are treated as duplicates; (2) if the EXIF timestamp includes non-zero subsecond precision, files sharing that exact millisecond are treated as duplicates.
 - **Subdirectory ordering:** Parent directory files are processed before subdirectories, so the first file encountered in the top-level directory wins the canonical (unsuffixed) name.
 - **Safe renames:** Files are never overwritten. An in-memory disk index tracks all occupied paths during a run, and a fallback to the next available duplicate suffix prevents data loss even when multiple files compete for the same target path.
-- **Non-destructive:** Original files are moved or copied, never deleted.
+- **Non-destructive:** Original files are moved (renamed in place), never deleted.
 
 ## ⚙️ Configuration
 
