@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Command;
 
 use DateTimeImmutable;
+use DateTimeZone;
 use MagicSunday\Renamer\Command\WriteDateCommand;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
@@ -25,6 +26,7 @@ use Override;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use ReflectionProperty;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
@@ -338,6 +340,58 @@ final class WriteDateCommandTest extends TestCase
             self::assertStringContainsString('metadata date differs by', $output);
         } finally {
             @unlink($jpgPath);
+            $this->cleanupWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Verifies that a file whose raw metadata matches the filename date is treated
+     * as "already correct" even when timezone conversion is active and would shift
+     * the display time. This prevents re-writing files that were already fixed.
+     */
+    #[Test]
+    public function executeDryRunSkipsAlreadyCorrectAmbiguousFile(): void
+    {
+        $workspace = $this->createWorkspace();
+        $movPath   = $workspace . DIRECTORY_SEPARATOR . '2013-10-17_10-36-18-000.mov';
+        file_put_contents($movPath, 'video-data');
+
+        try {
+            $metadataExtractor = new StubMetadataExtractor();
+            // Raw metadata matches the filename exactly (both 10:36:18),
+            // but isAmbiguousTimezone is true — timezone conversion would shift it.
+            $metadataExtractor->withResponse(
+                $movPath,
+                new TemporalMetadata(
+                    new DateTimeImmutable('2013-10-17T10:36:18+00:00'),
+                    null,
+                    false,
+                    true, // isAmbiguousTimezone
+                ),
+            );
+
+            $command = $this->createCommand($metadataExtractor);
+
+            // Simulate TIMEZONE=Europe/Berlin being active
+            $providerRef = new ReflectionProperty($command, 'exifMetadataProvider');
+            $provider    = $providerRef->getValue($command);
+            assert($provider instanceof ExifMetadataProvider);
+            $provider->setDefaultTimezone(new DateTimeZone('Europe/Berlin'));
+
+            $tester   = new CommandTester($command);
+            $exitCode = $tester->execute([
+                'source-directory' => $workspace,
+                '--dry-run'        => true,
+            ]);
+
+            self::assertSame(Command::SUCCESS, $exitCode);
+
+            $output = $tester->getDisplay();
+            self::assertStringContainsString('Already correct', $output);
+            // No per-file write entries — the [W] tag indicates a pending write
+            self::assertStringNotContainsString('[W]', $output);
+        } finally {
+            @unlink($movPath);
             $this->cleanupWorkspace($workspace);
         }
     }

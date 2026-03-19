@@ -300,9 +300,16 @@ class WriteDateCommand extends Command
             return 'no date in metadata';
         }
 
-        // If the metadata date already matches the filename date, no write needed
-        // — regardless of fallback/ambiguous status.
-        if ($captureDateTime->format('Y-m-d H:i') === $filenameDateTime->format('Y-m-d H:i')) {
+        // Compare against the RAW metadata date (without timezone conversion).
+        // After a write-date run, the written value matches the filename, but
+        // getCaptureDateTime() may shift it via timezone conversion. The raw
+        // value is what's actually stored in the file.
+        $rawDateTime = $this->exifMetadataProvider->getRawCaptureDateTime($file);
+
+        if (
+            ($rawDateTime instanceof DateTimeInterface)
+            && ($rawDateTime->format('Y-m-d H:i') === $filenameDateTime->format('Y-m-d H:i'))
+        ) {
             return null;
         }
 
