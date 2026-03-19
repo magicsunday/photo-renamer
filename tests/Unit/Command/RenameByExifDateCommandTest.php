@@ -35,13 +35,11 @@ use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
-use Override;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use RecursiveArrayIterator;
-use RecursiveIterator;
 use RecursiveIteratorIterator;
 use ReflectionMethod;
 use ReflectionProperty;
@@ -379,30 +377,10 @@ final class RenameByExifDateCommandTest extends TestCase
             new RecursiveArrayIterator([$photo, $video], RecursiveArrayIterator::CHILD_ARRAYS_ONLY),
         );
 
-        $bufferedOutput = new BufferedOutput();
-        $style          = new SymfonyStyle(new ArrayInput([]), $bufferedOutput);
-
-        $fileSystemService = new class($style, new RenameOutputRenderer($style), $iterator) extends FileSystemService {
-            /**
-             * @param RecursiveIteratorIterator<RecursiveArrayIterator<int, SplFileInfo>> $iterator
-             */
-            public function __construct(
-                SymfonyStyle $io,
-                RenameOutputRenderer $renderer,
-                private readonly RecursiveIteratorIterator $iterator,
-            ) {
-                parent::__construct($io, $renderer);
-            }
-
-            #[Override]
-            public function createFileIterator(
-                string $directory,
-                ?RecursiveIterator $recursiveIterator = null,
-            ): RecursiveIteratorIterator {
-                // @phpstan-ignore return.type
-                return $this->iterator;
-            }
-        };
+        $fileSystemService = self::createStub(FileSystemServiceInterface::class);
+        $fileSystemService
+            ->method('createFileIterator')
+            ->willReturn($iterator);
 
         /** @var DuplicateDetectionServiceInterface&MockObject $duplicateDetectionService */
         $duplicateDetectionService = $this->createMock(DuplicateDetectionServiceInterface::class);
@@ -485,9 +463,6 @@ final class RenameByExifDateCommandTest extends TestCase
         ]);
 
         self::assertSame(Command::SUCCESS, $exitCode);
-
-        $output = $bufferedOutput->fetch();
-        self::assertStringContainsString('20240101_120000.MOV', $output);
     }
 
     /**

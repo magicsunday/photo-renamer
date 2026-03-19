@@ -11,7 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Strategy\RenameStrategy;
 
-use DateTime;
+use DateTimeImmutable;
 use MagicSunday\Renamer\Exception\RegexExecutionException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Regex\RegexMatchCollection;
@@ -25,7 +25,7 @@ use function strlen;
 
 /**
  * Extracts date components from the existing filename via a regex pattern, then
- * reconstructs a DateTime and formats it using the replacement template. Supports
+ * reconstructs a DateTimeImmutable and formats it using the replacement template. Supports
  * both 2-digit and 4-digit year tokens and preserves any trailing suffix that
  * follows the date portion in the original filename.
  *
@@ -79,7 +79,7 @@ readonly class DatePatternFilenameStrategy extends InheritFilenameStrategy
     }
 
     /**
-     * Parses date components from the inherited filename, reconstructs a DateTime,
+     * Parses date components from the inherited filename, reconstructs a DateTimeImmutable,
      * and formats it using the replacement template. Preserves any trailing suffix
      * (e.g. sequence numbers) from the original filename.
      *
@@ -137,7 +137,7 @@ readonly class DatePatternFilenameStrategy extends InheritFilenameStrategy
             $matchValue = $matches[$key + 1] ?? '';
 
             if (($dateFormatCharacter === 'Y') && (strlen($matchValue) === 2)) {
-                $fourDigitYearDate = DateTime::createFromFormat('y', $matchValue);
+                $fourDigitYearDate = DateTimeImmutable::createFromFormat('y', $matchValue);
 
                 if ($fourDigitYearDate !== false) {
                     $matchValue        = $fourDigitYearDate->format('Y');
@@ -148,8 +148,7 @@ readonly class DatePatternFilenameStrategy extends InheritFilenameStrategy
             $dateParts[$dateFormatCharacter] = (int) $matchValue;
         }
 
-        $dateTimeCreated = new DateTime();
-        $dateTimeCreated
+        $dateTimeCreated = new DateTimeImmutable()
             ->setDate($dateParts['Y'] ?? 0, $dateParts['m'] ?? 1, $dateParts['d'] ?? 1)
             ->setTime($dateParts['H'] ?? 0, $dateParts['i'] ?? 0, $dateParts['s'] ?? 0);
 

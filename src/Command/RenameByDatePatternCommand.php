@@ -42,7 +42,7 @@ use function is_string;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-class RenameByDatePatternCommand extends AbstractRenameCommand
+final class RenameByDatePatternCommand extends AbstractRenameCommand
 {
     private ?RenameStrategyInterface $renameStrategy = null;
 

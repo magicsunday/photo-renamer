@@ -27,7 +27,7 @@ use SplFileInfo;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-class RecursiveRegexFileFilterIterator extends RecursiveFilterIterator
+final class RecursiveRegexFileFilterIterator extends RecursiveFilterIterator
 {
     /**
      * @param RecursiveIterator<string, SplFileInfo> $iterator  Inner directory iterator to filter

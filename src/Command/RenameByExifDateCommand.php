@@ -54,7 +54,7 @@ use function preg_quote;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-class RenameByExifDateCommand extends AbstractRenameCommand
+final class RenameByExifDateCommand extends AbstractRenameCommand
 {
     use ConfiguresMetadataProvider;
 

@@ -31,7 +31,7 @@ use function basename;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-readonly class ExifDateFilenameStrategy implements LivePhotoAwareRenameStrategyInterface
+readonly class ExifDateFilenameStrategy implements LivePhotoAwareRenameStrategyInterface, MetadataAwareRenameStrategyInterface
 {
     /**
      * @param string               $targetFilenamePattern PHP date() format string defining the target basename

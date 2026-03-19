@@ -25,7 +25,7 @@ use Override;
  *
  * @extends AbstractCollection<string, FileDuplicate>
  */
-class FileDuplicateCollection extends AbstractCollection
+final class FileDuplicateCollection extends AbstractCollection
 {
     #[Override]
     public function append(object $value): void

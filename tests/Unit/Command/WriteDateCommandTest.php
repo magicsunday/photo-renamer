@@ -21,6 +21,7 @@ use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
+use Override;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -364,6 +365,7 @@ final class WriteDateCommandTest extends TestCase
         $exiftoolWriter      = new ExiftoolWriter();
 
         return new class($metadataProvider, $mediaTypeClassifier, $fileSystemService, $exiftoolWriter, $renderer) extends WriteDateCommand {
+            #[Override]
             protected function isExiftoolAvailable(): bool
             {
                 return false;

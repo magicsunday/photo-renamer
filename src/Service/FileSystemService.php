@@ -52,15 +52,15 @@ use function substr;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-class FileSystemService implements FileSystemServiceInterface
+final readonly class FileSystemService implements FileSystemServiceInterface
 {
     /**
      * @param SymfonyStyle         $io       Console IO for progress bars, status output and error messages
      * @param RenameOutputRenderer $renderer Handles output entry building and summary rendering
      */
     public function __construct(
-        private readonly SymfonyStyle $io,
-        private readonly RenameOutputRenderer $renderer,
+        private SymfonyStyle $io,
+        private RenameOutputRenderer $renderer,
     ) {
     }
 

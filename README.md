@@ -71,7 +71,6 @@ Large photo collections accumulated from multiple devices and backup sources ten
 | `rename:date`    | Renames files by extracting date components from filenames.    |
 | `rename:verify`  | Analyzes photo/video collections for metadata problems.        |
 | `rename:write-date` | Writes dates from filenames into EXIF/QuickTime metadata (requires exiftool). |
-| `rename:write-date` | Writes date metadata from filenames into EXIF/QuickTime tags. |
 
 ### Shared options
 

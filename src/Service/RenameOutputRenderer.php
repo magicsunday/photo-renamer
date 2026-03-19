@@ -46,12 +46,12 @@ use function usort;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-class RenameOutputRenderer
+final readonly class RenameOutputRenderer
 {
     /**
      * @param SymfonyStyle $io Console IO for status output
      */
-    public function __construct(private readonly SymfonyStyle $io)
+    public function __construct(private SymfonyStyle $io)
     {
     }
 

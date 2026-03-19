@@ -241,9 +241,12 @@ class WriteDateCommand extends Command
                 $success  = $this->exiftoolWriter->writeDateTime($fileInfo, $entry['dateTime'], $entry['isVideo']);
 
                 if ($success) {
+                    $targetField = $entry['isVideo'] ? 'QuickTime:CreateDate' : 'DateTimeOriginal';
+
                     $io->text(sprintf(
-                        '<fg=green>[W]</> %s <fg=cyan>-></> DateTimeOriginal: %s',
+                        '<fg=green>[W]</> %s <fg=cyan>-></> %s: %s',
                         $relativePath,
+                        $targetField,
                         $entry['date'],
                     ));
                     $io->text(sprintf(

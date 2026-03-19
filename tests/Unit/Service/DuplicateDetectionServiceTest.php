@@ -963,7 +963,8 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         $this->setServiceDirectories($service, $sourceDirectory, $targetDirectory);
 
-        $targetPathname = $service->getTargetPathname(new SplFileInfo($sourceFile), 'renamed.jpg');
+        $method         = new ReflectionMethod($service, 'getTargetPathname');
+        $targetPathname = $method->invoke($service, new SplFileInfo($sourceFile), 'renamed.jpg');
 
         self::assertSame(
             $targetDirectory . DIRECTORY_SEPARATOR . 'Photos' . DIRECTORY_SEPARATOR . 'renamed.jpg',
@@ -998,7 +999,8 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         $this->setServiceDirectories($service, $sourceDirectory, $targetDirectory);
 
-        $targetPathname = $service->getTargetPathname(new SplFileInfo($sourceFile), 'renamed.jpg');
+        $method         = new ReflectionMethod($service, 'getTargetPathname');
+        $targetPathname = $method->invoke($service, new SplFileInfo($sourceFile), 'renamed.jpg');
 
         self::assertSame(
             $targetDirectory . DIRECTORY_SEPARATOR . 'nested' . DIRECTORY_SEPARATOR . 'renamed.jpg',
@@ -2186,7 +2188,8 @@ final class DuplicateDetectionServiceTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('must not contain directory separators');
 
-        $service->getTargetPathname($sourceFile, '../evil.jpg');
+        $method = new ReflectionMethod($service, 'getTargetPathname');
+        $method->invoke($service, $sourceFile, '../evil.jpg');
     }
 
     /**
@@ -2209,7 +2212,8 @@ final class DuplicateDetectionServiceTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('must not contain directory separators');
 
-        $service->getTargetPathname($sourceFile, 'sub/file.jpg');
+        $method = new ReflectionMethod($service, 'getTargetPathname');
+        $method->invoke($service, $sourceFile, 'sub/file.jpg');
     }
 
     /**
@@ -2232,7 +2236,8 @@ final class DuplicateDetectionServiceTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('must not contain directory separators');
 
-        $service->getTargetPathname($sourceFile, 'sub' . DIRECTORY_SEPARATOR . 'file.jpg');
+        $method = new ReflectionMethod($service, 'getTargetPathname');
+        $method->invoke($service, $sourceFile, 'sub' . DIRECTORY_SEPARATOR . 'file.jpg');
     }
 
     /**

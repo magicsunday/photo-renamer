@@ -21,8 +21,8 @@ use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Model\SkippedFile;
 use MagicSunday\Renamer\Model\TargetFileResult;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
-use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\LivePhotoAwareRenameStrategyInterface;
+use MagicSunday\Renamer\Strategy\RenameStrategy\MetadataAwareRenameStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use RecursiveIterator;
 use RecursiveIteratorIterator;
@@ -59,7 +59,7 @@ use function usort;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-class DuplicateDetectionService implements DuplicateDetectionServiceInterface
+final class DuplicateDetectionService implements DuplicateDetectionServiceInterface
 {
     /**
      * Absolute path to the directory being scanned for source files.
@@ -282,7 +282,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
 
             // Track files whose date came from the fallback DateTime tag.
             if (
-                ($renameStrategy instanceof ExifDateFilenameStrategy)
+                ($renameStrategy instanceof MetadataAwareRenameStrategyInterface)
                 && $renameStrategy->isFallbackDateTime($sourceFileInfo)
             ) {
                 $this->fallbackDateFiles[$sourceFileInfo->getPathname()] = true;
@@ -290,7 +290,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
 
             // Track files with ambiguous timezone (UTC vs local undetermined).
             if (
-                ($renameStrategy instanceof ExifDateFilenameStrategy)
+                ($renameStrategy instanceof MetadataAwareRenameStrategyInterface)
                 && $renameStrategy->isAmbiguousTimezone($sourceFileInfo)
             ) {
                 $this->ambiguousTimezoneFiles[$sourceFileInfo->getPathname()] = true;
@@ -1021,7 +1021,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
      *
      * @return string absolute pathname pointing to the intended target location
      */
-    public function getTargetPathname(SplFileInfo $sourceFileInfo, string $targetFilename): string
+    private function getTargetPathname(SplFileInfo $sourceFileInfo, string $targetFilename): string
     {
         if (str_contains($targetFilename, DIRECTORY_SEPARATOR) || str_contains($targetFilename, '/')) {
             throw new RuntimeException(

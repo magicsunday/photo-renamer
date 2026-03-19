@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Helper;
 
 use DateMalformedStringException;
 use DateTimeImmutable;
+use DateTimeInterface;
 use MagicSunday\Renamer\Constants;
 use SplFileInfo;
 
@@ -106,6 +107,39 @@ final class FileHelper
         }
 
         $days = $sourceDate->diff($targetDate)->days;
+
+        if ($days === false) {
+            return null;
+        }
+
+        return abs($days);
+    }
+
+    /**
+     * Computes the date drift in days between a filename-extracted date and a given
+     * metadata date. Returns null when the filename does not contain a recognizable
+     * date pattern.
+     *
+     * @param string            $path         File path whose basename is checked for a date pattern
+     * @param DateTimeInterface $metadataDate Metadata date to compare against
+     *
+     * @return int|null Absolute drift in days, or null when a date cannot be extracted from the path
+     */
+    public static function computeDateDriftFromDateTime(string $path, DateTimeInterface $metadataDate): ?int
+    {
+        $fileDate = self::extractDateFromPath($path);
+
+        if (!$fileDate instanceof DateTimeImmutable) {
+            return null;
+        }
+
+        $metadataDateOnly = self::extractDateFromPath($metadataDate->format('Y-m-d') . '.tmp');
+
+        if (!$metadataDateOnly instanceof DateTimeImmutable) {
+            return null;
+        }
+
+        $days = $fileDate->diff($metadataDateOnly)->days;
 
         if ($days === false) {
             return null;

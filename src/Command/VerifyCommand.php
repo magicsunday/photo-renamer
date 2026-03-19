@@ -11,7 +11,6 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Command;
 
-use DateTimeImmutable;
 use DateTimeInterface;
 use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
 use MagicSunday\Renamer\Constants;
@@ -56,7 +55,7 @@ use function trim;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-class VerifyCommand extends Command
+final class VerifyCommand extends Command
 {
     use ConfiguresMetadataProvider;
 
@@ -259,20 +258,11 @@ class VerifyCommand extends Command
 
             // Check date drift
             if ($maxDateDrift > 0) {
-                $metadataDateStr = $captureDateTime->format('Y-m-d');
-                $fileDate        = FileHelper::extractDateFromPath($file->getPathname());
+                $drift = FileHelper::computeDateDriftFromDateTime($file->getPathname(), $captureDateTime);
 
-                if ($fileDate instanceof DateTimeImmutable) {
-                    $metadataDate = FileHelper::extractDateFromPath($metadataDateStr . '.tmp');
-
-                    if ($metadataDate instanceof DateTimeImmutable) {
-                        $drift = $fileDate->diff($metadataDate)->days;
-
-                        if (($drift !== false) && ($drift > $maxDateDrift)) {
-                            $categories['drift'][] = $relativePath;
-                            $hasIssue              = true;
-                        }
-                    }
+                if (($drift !== null) && ($drift > $maxDateDrift)) {
+                    $categories['drift'][] = $relativePath;
+                    $hasIssue              = true;
                 }
             }
 

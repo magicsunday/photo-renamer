@@ -268,9 +268,7 @@ abstract class AbstractRenameCommand extends Command
             $this->sourceDirectory = $sourceDirectory;
         }
 
-        if (is_string($targetDirectory) || ($targetDirectory === null)) {
-            $this->targetDirectory = $targetDirectory;
-        }
+        $this->targetDirectory = is_string($targetDirectory) ? $targetDirectory : null;
     }
 
     /**

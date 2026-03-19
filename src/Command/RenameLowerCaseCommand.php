@@ -26,7 +26,7 @@ use Override;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-class RenameLowerCaseCommand extends AbstractRenameCommand
+final class RenameLowerCaseCommand extends AbstractRenameCommand
 {
     private ?RenameStrategyInterface $renameStrategy = null;
 

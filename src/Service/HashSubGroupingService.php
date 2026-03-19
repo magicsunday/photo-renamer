@@ -39,7 +39,7 @@ use function strtolower;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-class HashSubGroupingService implements HashSubGroupingServiceInterface
+final readonly class HashSubGroupingService implements HashSubGroupingServiceInterface
 {
     /**
      * @param SafeHashCalculator           $hashCalculator      Computes file content hashes for sub-group keying
@@ -47,9 +47,9 @@ class HashSubGroupingService implements HashSubGroupingServiceInterface
      * @param MediaTypeClassifierInterface $mediaTypeClassifier Classifies files as still or video
      */
     public function __construct(
-        private readonly SafeHashCalculator $hashCalculator,
-        private readonly SymfonyStyle $io,
-        private readonly MediaTypeClassifierInterface $mediaTypeClassifier,
+        private SafeHashCalculator $hashCalculator,
+        private SymfonyStyle $io,
+        private MediaTypeClassifierInterface $mediaTypeClassifier,
     ) {
     }
 
