@@ -45,6 +45,9 @@ final class MetadataCache
      */
     private bool $dirty = false;
 
+    /**
+     * @param string $cacheFile Absolute path to the PHP cache file on disk
+     */
     public function __construct(
         private readonly string $cacheFile,
     ) {

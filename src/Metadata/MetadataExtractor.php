@@ -34,6 +34,9 @@ use function trim;
  */
 final readonly class MetadataExtractor implements MetadataExtractorInterface
 {
+    /**
+     * @param MetadataReader $metadataReader imagemeta reader for parsing EXIF/QuickTime/XMP metadata
+     */
     public function __construct(private MetadataReader $metadataReader)
     {
     }

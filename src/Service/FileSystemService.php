@@ -267,7 +267,7 @@ class FileSystemService implements FileSystemServiceInterface
                         OutputEntryTag::Warning  => 'suspicious date',
                         default                  => 'duplicate',
                     };
-                    $this->io->text(sprintf('       <fg=red>⏭ Skipped (%s)</>', $skipReason));
+                    $this->io->text(sprintf('       <fg=red>⏭  Skipped (%s)</>', $skipReason));
                 }
             }
 

@@ -55,6 +55,9 @@ final class ExifMetadataProvider
      */
     private ?MetadataCache $cache = null;
 
+    /**
+     * @param MetadataExtractorInterface $metadataExtractor Underlying extractor for reading file metadata
+     */
     public function __construct(private readonly MetadataExtractorInterface $metadataExtractor)
     {
     }

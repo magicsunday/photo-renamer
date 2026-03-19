@@ -330,6 +330,14 @@ class RenameOutputRenderer
         return abs($days);
     }
 
+    /**
+     * Extracts a date from a filename matching common patterns (YYYY-MM-DD with
+     * separators or YYYYMMDD compact). Returns null when no recognizable date is found.
+     *
+     * @param string $path File path whose basename is checked for a date pattern
+     *
+     * @return DateTimeImmutable|null Extracted date, or null when no pattern matches
+     */
     private function extractDateFromPath(string $path): ?DateTimeImmutable
     {
         $basename = basename($path);
@@ -347,6 +355,16 @@ class RenameOutputRenderer
         return null;
     }
 
+    /**
+     * Creates a validated DateTimeImmutable from year/month/day components.
+     * Returns null when the components form an invalid date (e.g. Feb 30).
+     *
+     * @param int $year  Four-digit year
+     * @param int $month Month (1-12)
+     * @param int $day   Day (1-31)
+     *
+     * @return DateTimeImmutable|null Validated date, or null on invalid input
+     */
     private function tryCreateDate(int $year, int $month, int $day): ?DateTimeImmutable
     {
         if ($month < 1 || $month > 12 || $day < 1 || $day > 31) {
