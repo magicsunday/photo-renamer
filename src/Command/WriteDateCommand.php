@@ -232,7 +232,7 @@ class WriteDateCommand extends Command
                     $entry['date'],
                 ));
                 $io->text(sprintf(
-                    '      <fg=gray>Would write: %s</>',
+                    '      <fg=gray>Reason: %s</>',
                     $entry['reason'],
                 ));
 
@@ -295,17 +295,17 @@ class WriteDateCommand extends Command
     ): ?string {
         // No capture date at all
         if (!$captureDateTime instanceof DateTimeInterface) {
-            return 'no metadata date';
+            return 'no date in metadata';
         }
 
         // Fallback DateTime only (0x0132)
         if ($this->exifMetadataProvider->isFallbackDateTime($file)) {
-            return 'fallback DateTime only';
+            return 'only ModifyDate (0x0132), no DateTimeOriginal';
         }
 
         // Ambiguous timezone (QuickTime UTC ambiguity)
         if ($this->exifMetadataProvider->isAmbiguousTimezone($file)) {
-            return 'ambiguous timezone';
+            return 'QuickTime timestamp without timezone info';
         }
 
         // Date drift check
@@ -313,7 +313,7 @@ class WriteDateCommand extends Command
             $drift = $filenameDateTime->diff($captureDateTime)->days;
 
             if (($drift !== false) && ($drift > $maxDateDrift)) {
-                return sprintf('date drift: %d days (max %d)', $drift, $maxDateDrift);
+                return sprintf('metadata date differs by %d days', $drift);
             }
         }
 

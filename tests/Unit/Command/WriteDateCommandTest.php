@@ -192,7 +192,7 @@ final class WriteDateCommandTest extends TestCase
 
             $output = $tester->getDisplay();
             self::assertStringContainsString('Would write', $output);
-            self::assertStringContainsString('no metadata date', $output);
+            self::assertStringContainsString('no date in metadata', $output);
             self::assertStringContainsString('2024:01:15 00:00:00', $output);
         } finally {
             @unlink($jpgPath);
@@ -232,7 +232,7 @@ final class WriteDateCommandTest extends TestCase
 
             $output = $tester->getDisplay();
             self::assertStringContainsString('Would write', $output);
-            self::assertStringContainsString('fallback DateTime only', $output);
+            self::assertStringContainsString('only ModifyDate (0x0132), no DateTimeOriginal', $output);
         } finally {
             @unlink($jpgPath);
             $this->cleanupWorkspace($workspace);
@@ -240,7 +240,7 @@ final class WriteDateCommandTest extends TestCase
     }
 
     /**
-     * Verifies that a file with ambiguous timezone is detected as needing a write.
+     * Verifies that a file with QuickTime timestamp without timezone info is detected as needing a write.
      */
     #[Test]
     public function executeDryRunDetectsAmbiguousTimezone(): void
@@ -273,7 +273,7 @@ final class WriteDateCommandTest extends TestCase
 
             $output = $tester->getDisplay();
             self::assertStringContainsString('Would write', $output);
-            self::assertStringContainsString('ambiguous timezone', $output);
+            self::assertStringContainsString('QuickTime timestamp without timezone info', $output);
         } finally {
             @unlink($movPath);
             $this->cleanupWorkspace($workspace);
@@ -313,7 +313,7 @@ final class WriteDateCommandTest extends TestCase
 
             $output = $tester->getDisplay();
             self::assertStringContainsString('Would write', $output);
-            self::assertStringContainsString('date drift', $output);
+            self::assertStringContainsString('metadata date differs by', $output);
         } finally {
             @unlink($jpgPath);
             $this->cleanupWorkspace($workspace);
