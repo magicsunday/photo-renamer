@@ -14,6 +14,7 @@ namespace MagicSunday\Renamer\Service;
 use FilesystemIterator;
 use MagicSunday\Renamer\Command\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\Rename;
@@ -638,11 +639,11 @@ class FileSystemService implements FileSystemServiceInterface
     private function findAvailableDuplicateTarget(SplFileInfo $target, array $occupiedPaths): SplFileInfo
     {
         $ext      = $target->getExtension();
-        $basename = Constants::basenameWithoutExtension($target);
+        $basename = FileHelper::basenameWithoutExtension($target);
         $dir      = $target->getPath();
 
         // Strip any existing duplicate suffix to avoid nested suffixes (e.g. -duplicate-003-duplicate-001).
-        $basename = Constants::stripDuplicateSuffix($basename);
+        $basename = FileHelper::stripDuplicateSuffix($basename);
 
         $counter = 1;
 

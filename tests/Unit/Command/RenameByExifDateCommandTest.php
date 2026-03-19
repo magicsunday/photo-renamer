@@ -556,7 +556,7 @@ final class RenameByExifDateCommandTest extends TestCase
             self::assertSame(Command::SUCCESS, $exitCode);
 
             $consoleOutput = $output->fetch();
-            self::assertStringContainsString('2024-01-01_12-00-00-123.MOV', $consoleOutput);
+            self::assertStringContainsString('2024-01-01_12-00-00-123.mov', $consoleOutput);
         } finally {
             @unlink($photoPath);
             @unlink($videoPath);

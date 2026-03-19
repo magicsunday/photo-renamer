@@ -203,7 +203,7 @@ class PatternFilenameStrategyTest extends TestCase
                 'originalFilename' => 'TEST-File.TXT',
                 'pattern'          => '/test/i',
                 'replacement'      => 'new',
-                'expected'         => 'new-File.TXT',
+                'expected'         => 'new-File.txt',
                 'description'      => 'Should handle case-insensitive pattern matching',
             ],
             'preserves file extension' => [

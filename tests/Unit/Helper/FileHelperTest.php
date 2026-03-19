@@ -9,9 +9,9 @@
 
 declare(strict_types=1);
 
-namespace MagicSunday\Renamer\Test\Unit;
+namespace MagicSunday\Renamer\Test\Unit\Helper;
 
-use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Helper\FileHelper;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
@@ -21,14 +21,14 @@ use SplFileInfo;
 use function sprintf;
 
 /**
- * Unit tests for the static helper methods on the Constants class.
+ * Unit tests for the static helper methods on the FileHelper class.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-#[CoversClass(Constants::class)]
-class ConstantsTest extends TestCase
+#[CoversClass(FileHelper::class)]
+class FileHelperTest extends TestCase
 {
     /**
      * Tests basename extraction without extension for various file types.
@@ -48,7 +48,7 @@ class ConstantsTest extends TestCase
 
         self::assertSame(
             $expected,
-            Constants::basenameWithoutExtension($file),
+            FileHelper::basenameWithoutExtension($file),
             sprintf('Failed for case: %s', $description),
         );
     }
@@ -95,7 +95,7 @@ class ConstantsTest extends TestCase
     ): void {
         self::assertSame(
             $expected,
-            Constants::stripDuplicateSuffix($basename),
+            FileHelper::stripDuplicateSuffix($basename),
             sprintf('Failed for case: %s', $description),
         );
     }

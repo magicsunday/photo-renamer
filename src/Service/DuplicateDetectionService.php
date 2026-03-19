@@ -14,6 +14,7 @@ namespace MagicSunday\Renamer\Service;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
+use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
@@ -381,7 +382,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             if ($contentIdentifierCacheEntry !== null) {
                 $contentIdentifierCacheEntry['duplicateIdentifier'] = $duplicateIdentifier;
                 $contentIdentifierCacheEntry['target']              = $fileDuplicate->getTarget();
-                $contentIdentifierCacheEntry['captureDate']         = Constants::basenameWithoutExtension(
+                $contentIdentifierCacheEntry['captureDate']         = FileHelper::basenameWithoutExtension(
                     $fileDuplicate->getTarget()
                 );
 
@@ -494,12 +495,14 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
                 // Modify the target file extension if the file extension from the source should be used.
                 // This allows us to rename different file types but with the same name.
                 if ($this->useFileExtensionFromSource) {
-                    $renameTargetFileExtension = $renameSourceFileInfo->getExtension();
+                    $renameTargetFileExtension = FileHelper::normalizeExtension(
+                        $renameSourceFileInfo->getExtension()
+                    );
                 }
 
                 $targetPathname = $this->getTargetPathname(
                     $renameSourceFileInfo,
-                    Constants::basenameWithoutExtension($fileDuplicate->getTarget())
+                    FileHelper::basenameWithoutExtension($fileDuplicate->getTarget())
                     . '.' . $renameTargetFileExtension
                 );
 
@@ -858,7 +861,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
         return $this->getNewUniqueDuplicateTargetFileInfo(
             $source,
             $target,
-            Constants::basenameWithoutExtension($target),
+            FileHelper::basenameWithoutExtension($target),
             $duplicateCount,
             false,
             $groupSourcePaths,
@@ -899,7 +902,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             return $target;
         }
 
-        $duplicateBasename = Constants::basenameWithoutExtension($target);
+        $duplicateBasename = FileHelper::basenameWithoutExtension($target);
 
         $forceSuffix = $targetOccupied
             ? $requiresCanonicalDisambiguation
@@ -1139,7 +1142,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
 
         $canonicalIsStill = $this->mediaTypeClassifier->isLivePhotoStill($canonicalRename->getSource());
 
-        $canonicalTargetBasename = Constants::basenameWithoutExtension($canonicalRename->getTarget());
+        $canonicalTargetBasename = FileHelper::basenameWithoutExtension($canonicalRename->getTarget());
 
         /** @var Rename|null $contentIdCompanion */
         $contentIdCompanion = null;
@@ -1163,7 +1166,7 @@ class DuplicateDetectionService implements DuplicateDetectionServiceInterface
             $renameContentId = $this->contentIdentifierMap[$renamePath] ?? null;
 
             if ($renameContentId === $canonicalContentId) {
-                $renameBasename = Constants::basenameWithoutExtension($rename->getSource());
+                $renameBasename = FileHelper::basenameWithoutExtension($rename->getSource());
 
                 // Idempotency: prefer the companion whose source name already matches
                 // the canonical target (file is already correctly named).

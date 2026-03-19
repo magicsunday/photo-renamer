@@ -14,6 +14,7 @@ namespace MagicSunday\Renamer\Service;
 use Closure;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\HashComputationException;
+use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
@@ -180,7 +181,7 @@ class HashSubGroupingService implements HashSubGroupingServiceInterface, MediaTy
 
         // Multiple hashes: naming conflict. The canonical's sub-group keeps the
         // unsuffixed base name; other sub-groups get sequential numbers starting at 002.
-        $canonicalBasename = Constants::basenameWithoutExtension($fileDuplicate->getTarget());
+        $canonicalBasename = FileHelper::basenameWithoutExtension($fileDuplicate->getTarget());
 
         // Heuristic 2: Non-zero subsecond precision in the target timestamp means
         // the capture moment is unique to the millisecond. Multiple files sharing
@@ -307,7 +308,7 @@ class HashSubGroupingService implements HashSubGroupingServiceInterface, MediaTy
                 $contentIdToSubGroup[$stillContentId] = $stillSubGroup;
             }
 
-            $stillBasename                            = Constants::basenameWithoutExtension($stillRename->getSource());
+            $stillBasename                            = FileHelper::basenameWithoutExtension($stillRename->getSource());
             $sourceBasenameToSubGroup[$stillBasename] = $stillSubGroup;
         }
 
@@ -327,7 +328,7 @@ class HashSubGroupingService implements HashSubGroupingServiceInterface, MediaTy
                 // Fallback: match by source filename stem (e.g. IMG_0001.mov -> IMG_0001).
                 // This handles MOV companions that lack a content identifier in their metadata
                 // but share the same source filename stem as their paired still image.
-                $renameBasename = Constants::basenameWithoutExtension($rename->getSource());
+                $renameBasename = FileHelper::basenameWithoutExtension($rename->getSource());
                 $subGroupNum    = $sourceBasenameToSubGroup[$renameBasename] ?? 0;
             }
 

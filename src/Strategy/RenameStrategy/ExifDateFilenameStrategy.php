@@ -14,6 +14,7 @@ namespace MagicSunday\Renamer\Strategy\RenameStrategy;
 use DateTimeImmutable;
 use DateTimeInterface;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
+use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use Override;
 use SplFileInfo;
@@ -89,7 +90,7 @@ readonly class ExifDateFilenameStrategy implements LivePhotoAwareRenameStrategyI
             }
         }
 
-        return $targetBasename . '.' . $splFileInfo->getExtension();
+        return $targetBasename . '.' . FileHelper::normalizeExtension($splFileInfo->getExtension());
     }
 
     /**

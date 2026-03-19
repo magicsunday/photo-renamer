@@ -590,7 +590,7 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         $photoSource     = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.HEIC';
         $videoSource     = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.MOV';
-        $canonicalTarget = $targetDirectory . DIRECTORY_SEPARATOR . '20240101_120000.HEIC';
+        $canonicalTarget = $targetDirectory . DIRECTORY_SEPARATOR . '20240101_120000.heic';
 
         file_put_contents($photoSource, 'photo');
         file_put_contents($videoSource, 'video');
@@ -1246,7 +1246,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         file_put_contents($movA, 'video-content-A');
         file_put_contents($imageB, 'image-content-B-different');
 
-        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28.HEIC';
+        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28.heic';
 
         $fileDuplicate = new FileDuplicate();
         $fileDuplicate

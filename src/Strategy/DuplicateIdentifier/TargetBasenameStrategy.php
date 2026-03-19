@@ -11,7 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Strategy\DuplicateIdentifier;
 
-use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Helper\FileHelper;
 use Override;
 use SplFileInfo;
 
@@ -42,6 +42,6 @@ readonly class TargetBasenameStrategy implements DuplicateIdentifierStrategyInte
     {
         return $targetFileInfo->getPath()
             . DIRECTORY_SEPARATOR
-            . Constants::basenameWithoutExtension($targetFileInfo);
+            . FileHelper::basenameWithoutExtension($targetFileInfo);
     }
 }

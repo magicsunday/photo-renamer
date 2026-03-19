@@ -11,7 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\LivePhoto;
 
-use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Helper\FileHelper;
 use SplFileInfo;
 
 use function array_key_exists;
@@ -117,7 +117,7 @@ final class LivePhotoBasenameTargetMap
      */
     private function normalizeBasename(SplFileInfo $file): ?string
     {
-        $basename   = Constants::basenameWithoutExtension($file);
+        $basename   = FileHelper::basenameWithoutExtension($file);
         $normalized = strtolower(trim($basename));
 
         if ($normalized === '') {

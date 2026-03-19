@@ -228,7 +228,7 @@ final class ExifDateFilenameStrategyTest extends TestCase
                 'captureDateTime' => '2024-05-05T12:34:56.123+00:00',
                 'pattern'         => 'Y-m-d_H-i-s-v',
                 'extension'       => 'jpeg',
-                'expected'        => '2024-05-05_12-34-56-123.jpeg',
+                'expected'        => '2024-05-05_12-34-56-123.jpg',
                 'description'     => 'Appends millisecond precision from capture time',
             ],
             'microsecond precision' => [

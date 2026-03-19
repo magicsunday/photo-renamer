@@ -11,7 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Strategy\RenameStrategy;
 
-use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Helper\FileHelper;
 use Override;
 use SplFileInfo;
 
@@ -39,11 +39,11 @@ readonly class InheritFilenameStrategy implements RenameStrategyInterface
     public function generateFilename(SplFileInfo $splFileInfo): string
     {
         $basename = $this->removeDuplicateFileIdentifier(
-            Constants::basenameWithoutExtension($splFileInfo)
+            FileHelper::basenameWithoutExtension($splFileInfo)
         );
 
         if ($splFileInfo->getExtension() !== '') {
-            return $basename . '.' . $splFileInfo->getExtension();
+            return $basename . '.' . FileHelper::normalizeExtension($splFileInfo->getExtension());
         }
 
         return $basename;
@@ -59,6 +59,6 @@ readonly class InheritFilenameStrategy implements RenameStrategyInterface
      */
     protected function removeDuplicateFileIdentifier(string $filename): string
     {
-        return Constants::stripDuplicateSuffix($filename);
+        return FileHelper::stripDuplicateSuffix($filename);
     }
 }
