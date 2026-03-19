@@ -113,7 +113,7 @@ final class MetadataCacheTest extends TestCase
         $file  = new SplFileInfo($filePath);
         $cache = new MetadataCache($this->cacheFile);
 
-        $cache->set($file, '2024-05-05T12:34:56+02:00', 'uuid-1234', false, false);
+        $cache->set($file, '2024-05-05T12:34:56+02:00', 'uuid-1234', false);
 
         $entry = $cache->get($file);
 
@@ -121,7 +121,7 @@ final class MetadataCacheTest extends TestCase
         self::assertSame('2024-05-05T12:34:56+02:00', $entry['captureDateTime']);
         self::assertSame('uuid-1234', $entry['contentId']);
         self::assertFalse($entry['isFallback']);
-        self::assertFalse($entry['isUtcWithoutTimezone']);
+        self::assertFalse($entry['isAmbiguousTimezone']);
     }
 
     /**
@@ -136,7 +136,7 @@ final class MetadataCacheTest extends TestCase
         $file  = new SplFileInfo($filePath);
         $cache = new MetadataCache($this->cacheFile);
 
-        $cache->set($file, '2024-05-05T12:34:56+02:00', null, false, false);
+        $cache->set($file, '2024-05-05T12:34:56+02:00', null, false);
 
         // Change file content (different size)
         file_put_contents($filePath, 'modified content with different length!!');
@@ -159,7 +159,7 @@ final class MetadataCacheTest extends TestCase
         $file  = new SplFileInfo($filePath);
         $cache = new MetadataCache($this->cacheFile);
 
-        $cache->set($file, '2024-05-05T12:34:56+02:00', null, false, false);
+        $cache->set($file, '2024-05-05T12:34:56+02:00', null, false);
 
         // Change mtime to the future (keep same size by writing same length)
         touch($filePath, time() + 100);
@@ -196,7 +196,7 @@ final class MetadataCacheTest extends TestCase
         self::assertSame('2024-01-01T00:00:00+00:00', $entry['captureDateTime']);
         self::assertSame('content-id', $entry['contentId']);
         self::assertTrue($entry['isFallback']);
-        self::assertTrue($entry['isUtcWithoutTimezone']);
+        self::assertTrue($entry['isAmbiguousTimezone']);
     }
 
     /**
@@ -237,7 +237,7 @@ final class MetadataCacheTest extends TestCase
         $file  = new SplFileInfo($filePath);
         $cache = new MetadataCache($this->cacheFile);
 
-        $cache->set($file, null, null, false, false);
+        $cache->set($file, null, null, false);
 
         $entry = $cache->get($file);
 
@@ -245,7 +245,7 @@ final class MetadataCacheTest extends TestCase
         self::assertNull($entry['captureDateTime']);
         self::assertNull($entry['contentId']);
         self::assertFalse($entry['isFallback']);
-        self::assertFalse($entry['isUtcWithoutTimezone']);
+        self::assertFalse($entry['isAmbiguousTimezone']);
     }
 
     /**
@@ -260,7 +260,7 @@ final class MetadataCacheTest extends TestCase
         $file  = new SplFileInfo($filePath);
         $cache = new MetadataCache($this->cacheFile);
 
-        $cache->set($file, '2024-06-15T08:00:00+00:00', null, false, false);
+        $cache->set($file, '2024-06-15T08:00:00+00:00', null, false);
         $cache->flush();
 
         $cacheDir = $this->workspace . DIRECTORY_SEPARATOR . 'cache';

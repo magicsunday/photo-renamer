@@ -20,6 +20,7 @@ use MagicSunday\Renamer\Service\DuplicateDetectionService;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingService;
+use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
@@ -473,11 +474,12 @@ final class RenameByExifDateCommandTest extends TestCase
         $output = new BufferedOutput();
         $style  = new SymfonyStyle(new ArrayInput([]), $output);
 
-        $hashSubGroupingService = new HashSubGroupingService(new SafeHashCalculator(), $style);
+        $mediaTypeClassifier    = new MediaTypeClassifier();
+        $hashSubGroupingService = new HashSubGroupingService(new SafeHashCalculator(), $style, $mediaTypeClassifier);
 
         $command = new RenameByExifDateCommand(
             new FileSystemService($style, new RenameOutputRenderer($style)),
-            new DuplicateDetectionService($style, $hashSubGroupingService, $hashSubGroupingService),
+            new DuplicateDetectionService($style, $hashSubGroupingService, $mediaTypeClassifier),
             new ExifMetadataProvider($metadataExtractor),
             new LivePhotoPairingService(),
         );

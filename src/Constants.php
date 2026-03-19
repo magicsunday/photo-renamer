@@ -40,4 +40,11 @@ final class Constants
      * Prefix used to identify Live Photo groups by their duplicate identifier string.
      */
     public const string LIVE_PHOTO_IDENTIFIER_PREFIX = 'live-photo:';
+
+    /**
+     * File extensions recognized as processable media files across all commands.
+     *
+     * @var list<string>
+     */
+    public const array SUPPORTED_MEDIA_EXTENSIONS = ['jpg', 'jpeg', 'heic', 'mov', 'mp4'];
 }

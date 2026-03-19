@@ -19,7 +19,7 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * Verifies the immutable value object contract of TemporalMetadata,
- * including the fallback DateTime flag.
+ * including the fallback DateTime flag and ambiguous timezone flag.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -89,18 +89,18 @@ final class TemporalMetadataTest extends TestCase
     }
 
     #[Test]
-    public function itDefaultsIsUtcWithoutTimezoneToFalse(): void
+    public function itDefaultsIsAmbiguousTimezoneToFalse(): void
     {
         $metadata = new TemporalMetadata(
             new DateTimeImmutable('2024-01-15 10:30:00'),
             null,
         );
 
-        self::assertFalse($metadata->isUtcWithoutTimezone());
+        self::assertFalse($metadata->isAmbiguousTimezone());
     }
 
     #[Test]
-    public function itReturnsTrueWhenUtcWithoutTimezoneIsSet(): void
+    public function itReturnsTrueWhenAmbiguousTimezoneIsSet(): void
     {
         $metadata = new TemporalMetadata(
             new DateTimeImmutable('2024-01-15 10:30:00'),
@@ -109,19 +109,6 @@ final class TemporalMetadataTest extends TestCase
             true,
         );
 
-        self::assertTrue($metadata->isUtcWithoutTimezone());
-    }
-
-    #[Test]
-    public function itReturnsFalseWhenUtcWithoutTimezoneIsExplicitlyFalse(): void
-    {
-        $metadata = new TemporalMetadata(
-            new DateTimeImmutable('2024-01-15 10:30:00'),
-            null,
-            false,
-            false,
-        );
-
-        self::assertFalse($metadata->isUtcWithoutTimezone());
+        self::assertTrue($metadata->isAmbiguousTimezone());
     }
 }

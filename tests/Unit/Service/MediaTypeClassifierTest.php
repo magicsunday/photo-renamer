@@ -11,20 +11,16 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
-use MagicSunday\Renamer\Service\HashSubGroupingService;
+use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
-use MagicSunday\Renamer\Service\SafeHashCalculator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
-use Symfony\Component\Console\Input\ArrayInput;
-use Symfony\Component\Console\Output\BufferedOutput;
-use Symfony\Component\Console\Style\SymfonyStyle;
 
 /**
- * Verifies the MediaTypeClassifierInterface contract implemented by HashSubGroupingService.
+ * Verifies the MediaTypeClassifierInterface contract implemented by MediaTypeClassifier.
  *
  * The classifier distinguishes still image extensions (HEIC, HEIF, JPG, JPEG) from
  * video companion extensions (MOV, MP4) and other file types.
@@ -33,7 +29,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-#[CoversClass(HashSubGroupingService::class)]
+#[CoversClass(MediaTypeClassifier::class)]
 final class MediaTypeClassifierTest extends TestCase
 {
     /**
@@ -96,12 +92,6 @@ final class MediaTypeClassifierTest extends TestCase
 
     private function createClassifier(): MediaTypeClassifierInterface
     {
-        $output = new BufferedOutput();
-        $io     = new SymfonyStyle(new ArrayInput([]), $output);
-
-        return new HashSubGroupingService(
-            new SafeHashCalculator(),
-            $io,
-        );
+        return new MediaTypeClassifier();
     }
 }

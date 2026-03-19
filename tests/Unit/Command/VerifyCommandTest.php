@@ -17,9 +17,9 @@ use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Service\FileSystemService;
-use MagicSunday\Renamer\Service\HashSubGroupingService;
+use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
-use MagicSunday\Renamer\Service\SafeHashCalculator;
+use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -31,11 +31,6 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Tester\CommandTester;
 
 use function file_put_contents;
-use function is_dir;
-use function mkdir;
-use function rmdir;
-use function sys_get_temp_dir;
-use function uniqid;
 use function unlink;
 
 /**
@@ -49,6 +44,8 @@ use function unlink;
 #[CoversClass(VerifyCommand::class)]
 final class VerifyCommandTest extends TestCase
 {
+    use WorkspaceTrait;
+
     /**
      * Verifies that the command registers under the name "rename:verify".
      */
@@ -211,7 +208,6 @@ final class VerifyCommandTest extends TestCase
                     new DateTimeImmutable('2024-01-15T12:00:00+00:00'),
                     null,
                     false,
-                    false,
                     true, // isAmbiguousTimezone
                 ),
             );
@@ -253,7 +249,6 @@ final class VerifyCommandTest extends TestCase
                 new TemporalMetadata(
                     new DateTimeImmutable('2024-01-15T12:00:00+00:00'),
                     null,
-                    false,
                     false,
                     true, // isAmbiguousTimezone
                 ),
@@ -408,18 +403,12 @@ final class VerifyCommandTest extends TestCase
 
     private function createWorkspace(): string
     {
-        $workspace = sys_get_temp_dir() . DIRECTORY_SEPARATOR . uniqid('verify_', true);
-
-        if (!mkdir($workspace, 0o755) && !is_dir($workspace)) {
-            self::fail('Unable to create temporary workspace.');
-        }
-
-        return $workspace;
+        return $this->createTempWorkspace('verify_');
     }
 
     private function cleanupWorkspace(string $workspace): void
     {
-        @rmdir($workspace);
+        $this->removeWorkspace($workspace);
     }
 
     private function createCommand(?StubMetadataExtractor $metadataExtractor = null): VerifyCommand
@@ -429,14 +418,15 @@ final class VerifyCommandTest extends TestCase
 
         $metadataExtractor ??= new StubMetadataExtractor();
         $metadataProvider    = new ExifMetadataProvider($metadataExtractor);
-        $hashCalculator      = new SafeHashCalculator();
-        $mediaTypeClassifier = new HashSubGroupingService($hashCalculator, $style);
-        $fileSystemService   = new FileSystemService($style, new RenameOutputRenderer($style));
+        $mediaTypeClassifier = new MediaTypeClassifier();
+        $renderer            = new RenameOutputRenderer($style);
+        $fileSystemService   = new FileSystemService($style, $renderer);
 
         return new VerifyCommand(
             $metadataProvider,
             $mediaTypeClassifier,
             $fileSystemService,
+            $renderer,
         );
     }
 }

@@ -24,7 +24,7 @@ use SplFileInfo;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-class FileDuplicate
+final class FileDuplicate
 {
     /**
      * Canonical target file info representing the base name assigned to this group.

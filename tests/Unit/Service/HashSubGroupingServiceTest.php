@@ -17,6 +17,7 @@ use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
+use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -546,6 +547,7 @@ final class HashSubGroupingServiceTest extends TestCase
         return new HashSubGroupingService(
             new SafeHashCalculator(),
             $io,
+            new MediaTypeClassifier(),
         );
     }
 

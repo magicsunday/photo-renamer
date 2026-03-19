@@ -69,18 +69,18 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
 
         $isQuickTimeContainer = $metadata->quickTime instanceof QuickTimeMeta;
 
-        [$captureDateTime, $isFallback, $isUtcWithoutTimezone, $isAmbiguousTimezone] = $this->extractCaptureDateTimeWithFallbackFlag($structured, $isQuickTimeContainer);
+        [$captureDateTime, $isFallback, $isAmbiguousTimezone] = $this->extractCaptureDateTimeWithFallbackFlag($structured, $isQuickTimeContainer);
 
         if (!($captureDateTime instanceof DateTimeInterface) && ($livePhotoId === null)) {
             return null;
         }
 
-        return new TemporalMetadata($captureDateTime, $livePhotoId, $isFallback, $isUtcWithoutTimezone, $isAmbiguousTimezone);
+        return new TemporalMetadata($captureDateTime, $livePhotoId, $isFallback, $isAmbiguousTimezone);
     }
 
     /**
      * Returns the capture timestamp, whether it came from the fallback DateTime
-     * tag (0x0132), and whether it is a UTC timestamp without explicit timezone info.
+     * tag (0x0132), and whether the timezone is ambiguous.
      *
      * The imagemeta library's `temporal->original` uses `dateTimeOriginalBestEffort()`
      * which itself falls back through 0x9003 → 0x9004 → 0x0132, so we cannot
@@ -89,7 +89,7 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
      * is null and both resolve to the same timestamp, the date came from the
      * generic capture fallback (0x0132), not from a dedicated date tag.
      *
-     * @return array{DateTimeInterface|null, bool, bool, bool} Tuple of [captureDateTime, isFallback, isUtcWithoutTimezone, isAmbiguousTimezone]
+     * @return array{DateTimeInterface|null, bool, bool} Tuple of [captureDateTime, isFallback, isAmbiguousTimezone]
      */
     private function extractCaptureDateTimeWithFallbackFlag(StructuredMetadata $structured, bool $isQuickTimeContainer): array
     {
@@ -103,13 +103,15 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         $dateTime = $original ?? $create ?? $capture;
 
         if (!$dateTime instanceof DateTimeInterface) {
-            return [null, false, false, false];
+            return [null, false, false];
         }
 
-        // Fallback detection: if there's no dedicated create date (0x9004) and the
-        // resolved timestamp equals the modify date (0x0132), the date is from the
-        // generic DateTime tag — not from DateTimeOriginal or CreateDate.
-        $isFallback = !($create instanceof DateTimeInterface)
+        // Fallback detection: if there's no dedicated original date (0x9003), no
+        // dedicated create date (0x9004), and the resolved timestamp equals the
+        // modify date (0x0132), the date is from the generic DateTime tag — not
+        // from DateTimeOriginal or CreateDate.
+        $isFallback = !($original instanceof DateTimeInterface)
+            && !($create instanceof DateTimeInterface)
             && ($modify instanceof DateTimeInterface)
             && ($dateTime->getTimestamp() === $modify->getTimestamp());
 
@@ -117,14 +119,13 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         // with offset, no OffsetTime* tags) are flagged as ambiguous. We cannot
         // determine if the timestamp is UTC (modern cameras) or local time (old cameras).
         // The user sees [W] and can use --timezone for manual correction.
-        $isUtcWithoutTimezone = false;
-        $isAmbiguousTimezone  = $isQuickTimeContainer
+        $isAmbiguousTimezone = $isQuickTimeContainer
             && !($temporal->tz instanceof DateTimeZone)
             && ($temporal->offsetTimeOriginal === null)
             && ($temporal->offsetTimeDigitized === null)
             && ($temporal->offsetTime === null);
 
-        return [$dateTime, $isFallback, $isUtcWithoutTimezone, $isAmbiguousTimezone];
+        return [$dateTime, $isFallback, $isAmbiguousTimezone];
     }
 
     /**

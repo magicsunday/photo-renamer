@@ -17,9 +17,9 @@ use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Service\ExiftoolWriter;
 use MagicSunday\Renamer\Service\FileSystemService;
-use MagicSunday\Renamer\Service\HashSubGroupingService;
+use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
-use MagicSunday\Renamer\Service\SafeHashCalculator;
+use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -31,11 +31,6 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Tester\CommandTester;
 
 use function file_put_contents;
-use function is_dir;
-use function mkdir;
-use function rmdir;
-use function sys_get_temp_dir;
-use function uniqid;
 use function unlink;
 
 /**
@@ -48,6 +43,8 @@ use function unlink;
 #[CoversClass(WriteDateCommand::class)]
 final class WriteDateCommandTest extends TestCase
 {
+    use WorkspaceTrait;
+
     /**
      * Verifies that the command registers under the name "rename:write-date".
      */
@@ -57,6 +54,30 @@ final class WriteDateCommandTest extends TestCase
         $command = $this->createCommand();
 
         self::assertSame('rename:write-date', $command->getName());
+    }
+
+    /**
+     * Verifies that the command fails when exiftool is not available.
+     */
+    #[Test]
+    public function executeFailsWhenExiftoolUnavailable(): void
+    {
+        $workspace = $this->createWorkspace();
+
+        try {
+            $command  = $this->createCommandWithoutExiftool();
+            $tester   = new CommandTester($command);
+            $exitCode = $tester->execute([
+                'source-directory' => $workspace,
+            ]);
+
+            self::assertSame(Command::FAILURE, $exitCode);
+
+            $output = $tester->getDisplay();
+            self::assertStringContainsString('exiftool is not installed', $output);
+        } finally {
+            $this->cleanupWorkspace($workspace);
+        }
     }
 
     /**
@@ -258,7 +279,6 @@ final class WriteDateCommandTest extends TestCase
                     new DateTimeImmutable('2024-01-15T08:30:00+00:00'),
                     null,
                     false,
-                    false,
                     true, // isAmbiguousTimezone
                 ),
             );
@@ -323,18 +343,32 @@ final class WriteDateCommandTest extends TestCase
 
     private function createWorkspace(): string
     {
-        $workspace = sys_get_temp_dir() . DIRECTORY_SEPARATOR . uniqid('writedate_', true);
-
-        if (!mkdir($workspace, 0o755) && !is_dir($workspace)) {
-            self::fail('Unable to create temporary workspace.');
-        }
-
-        return $workspace;
+        return $this->createTempWorkspace('writedate_');
     }
 
     private function cleanupWorkspace(string $workspace): void
     {
-        @rmdir($workspace);
+        $this->removeWorkspace($workspace);
+    }
+
+    private function createCommandWithoutExiftool(): WriteDateCommand
+    {
+        $output = new BufferedOutput();
+        $style  = new SymfonyStyle(new ArrayInput([]), $output);
+
+        $metadataExtractor   = new StubMetadataExtractor();
+        $metadataProvider    = new ExifMetadataProvider($metadataExtractor);
+        $mediaTypeClassifier = new MediaTypeClassifier();
+        $renderer            = new RenameOutputRenderer($style);
+        $fileSystemService   = new FileSystemService($style, $renderer);
+        $exiftoolWriter      = new ExiftoolWriter();
+
+        return new class($metadataProvider, $mediaTypeClassifier, $fileSystemService, $exiftoolWriter, $renderer) extends WriteDateCommand {
+            protected function isExiftoolAvailable(): bool
+            {
+                return false;
+            }
+        };
     }
 
     private function createCommand(?StubMetadataExtractor $metadataExtractor = null): WriteDateCommand
@@ -344,9 +378,9 @@ final class WriteDateCommandTest extends TestCase
 
         $metadataExtractor ??= new StubMetadataExtractor();
         $metadataProvider    = new ExifMetadataProvider($metadataExtractor);
-        $hashCalculator      = new SafeHashCalculator();
-        $mediaTypeClassifier = new HashSubGroupingService($hashCalculator, $style);
-        $fileSystemService   = new FileSystemService($style, new RenameOutputRenderer($style));
+        $mediaTypeClassifier = new MediaTypeClassifier();
+        $renderer            = new RenameOutputRenderer($style);
+        $fileSystemService   = new FileSystemService($style, $renderer);
         $exiftoolWriter      = new ExiftoolWriter();
 
         return new WriteDateCommand(
@@ -354,6 +388,7 @@ final class WriteDateCommandTest extends TestCase
             $mediaTypeClassifier,
             $fileSystemService,
             $exiftoolWriter,
+            $renderer,
         );
     }
 }

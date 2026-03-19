@@ -21,6 +21,7 @@ use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
+use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use Override;
 use RecursiveIterator;
 use RecursiveIteratorIterator;
@@ -37,17 +38,12 @@ use function array_map;
 use function count;
 use function dirname;
 use function explode;
-use function getenv;
 use function in_array;
-use function is_dir;
 use function is_string;
-use function max;
-use function realpath;
-use function rtrim;
 use function sort;
 use function sprintf;
-use function strlen;
 use function strtolower;
+use function strtoupper;
 use function trim;
 
 /**
@@ -69,7 +65,7 @@ class VerifyCommand extends Command
      *
      * @var list<string>
      */
-    private const array SUPPORTED_EXTENSIONS = ['jpg', 'jpeg', 'heic', 'mov', 'mp4'];
+    private const array SUPPORTED_EXTENSIONS = Constants::SUPPORTED_MEDIA_EXTENSIONS;
 
     /**
      * Category definitions mapping internal IDs to display labels.
@@ -90,11 +86,13 @@ class VerifyCommand extends Command
      * @param ExifMetadataProvider         $exifMetadataProvider Metadata provider with caching
      * @param MediaTypeClassifierInterface $mediaTypeClassifier  Classifies files as still or video
      * @param FileSystemServiceInterface   $fileSystemService    Provides file iteration
+     * @param RenameOutputRenderer         $renderer             Shared output rendering utilities
      */
     public function __construct(
         private readonly ExifMetadataProvider $exifMetadataProvider,
         private readonly MediaTypeClassifierInterface $mediaTypeClassifier,
         private readonly FileSystemServiceInterface $fileSystemService,
+        private readonly RenameOutputRenderer $renderer,
     ) {
         parent::__construct();
     }
@@ -335,44 +333,6 @@ class VerifyCommand extends Command
     }
 
     /**
-     * Resolves and validates the source directory path from the input argument.
-     *
-     * @return string|null Absolute source directory path, or null if invalid
-     */
-    private function resolveSourceDirectory(InputInterface $input): ?string
-    {
-        $sourceDirectory = $input->getArgument('source-directory');
-
-        if (!is_string($sourceDirectory)) {
-            return null;
-        }
-
-        $resolved = realpath($sourceDirectory);
-
-        if (($resolved === false) || !is_dir($resolved)) {
-            return null;
-        }
-
-        return rtrim($resolved, DIRECTORY_SEPARATOR);
-    }
-
-    /**
-     * Resolves the max date drift threshold from input option or env var.
-     */
-    private function resolveMaxDateDrift(InputInterface $input): int
-    {
-        $driftOption = $input->getOption('max-date-drift');
-
-        if (is_string($driftOption)) {
-            return (int) $driftOption;
-        }
-
-        $envDrift = getenv('MAX_DATE_DRIFT');
-
-        return is_string($envDrift) && $envDrift !== '' ? (int) $envDrift : 30;
-    }
-
-    /**
      * Tag letter aliases mapping single-character shortcuts to category IDs.
      * Allows using the same letters as rename:exif's --show option.
      *
@@ -492,21 +452,7 @@ class VerifyCommand extends Command
             }
         }
 
-        $maxLabelLength = 0;
-        $maxValueLength = 0;
-
-        foreach ($rows as $row) {
-            $maxLabelLength = max($maxLabelLength, strlen($row[0]));
-            $maxValueLength = max($maxValueLength, strlen($row[1]));
-        }
-
-        foreach ($rows as $row) {
-            $io->text(sprintf(
-                ' %-' . $maxLabelLength . 's  %' . $maxValueLength . 's',
-                $row[0],
-                $row[1],
-            ));
-        }
+        $this->renderer->renderAlignedTable($rows, $io);
 
         $io->newLine();
     }

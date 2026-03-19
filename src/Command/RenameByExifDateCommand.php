@@ -34,8 +34,13 @@ use SplFileInfo;
 use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Input\InputOption;
 
+use function array_filter;
+use function array_map;
+use function array_unique;
+use function implode;
 use function is_dir;
 use function is_string;
+use function preg_quote;
 
 /**
  * Renames photos and videos using their EXIF DateTimeOriginal value as the target
@@ -133,7 +138,13 @@ class RenameByExifDateCommand extends AbstractRenameCommand
     #[Override]
     protected function createFileIterator(): RecursiveIteratorIterator
     {
-        $fileExtensionRegex = '/\.(jpe?g|heic|mov|mp4)$/i';
+        $fileExtensionRegex = '/\.(' . implode('|', array_map(
+            static fn (string $ext): string => $ext === 'jpg' ? 'jpe?g' : preg_quote($ext, '/'),
+            array_unique(array_filter(
+                Constants::SUPPORTED_MEDIA_EXTENSIONS,
+                static fn (string $ext): bool => $ext !== 'jpeg',
+            )),
+        )) . ')$/i';
 
         $recursiveIterator = null;
 

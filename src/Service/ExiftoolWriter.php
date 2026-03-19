@@ -38,6 +38,24 @@ final class ExiftoolWriter
      */
     public function writeDateTime(SplFileInfo $file, DateTimeInterface $dateTime, bool $isVideo): bool
     {
+        $args    = $this->buildArguments($file, $dateTime, $isVideo);
+        $process = new Process(['exiftool', ...$args]);
+        $process->run();
+
+        return $process->isSuccessful();
+    }
+
+    /**
+     * Builds the exiftool command-line arguments for writing a date.
+     *
+     * @param SplFileInfo       $file     File to write metadata to
+     * @param DateTimeInterface $dateTime Date/time to write
+     * @param bool              $isVideo  Whether the file is a video (MOV/MP4) or still image
+     *
+     * @return list<string>
+     */
+    public function buildArguments(SplFileInfo $file, DateTimeInterface $dateTime, bool $isVideo): array
+    {
         $formattedDate = $dateTime->format('Y:m:d H:i:s');
 
         if ($isVideo) {
@@ -56,9 +74,6 @@ final class ExiftoolWriter
 
         $args[] = $file->getPathname();
 
-        $process = new Process(['exiftool', ...$args]);
-        $process->run();
-
-        return $process->isSuccessful();
+        return $args;
     }
 }

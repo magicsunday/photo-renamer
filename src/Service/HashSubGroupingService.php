@@ -24,7 +24,6 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function array_keys;
 use function count;
-use function in_array;
 use function preg_match;
 use function spl_object_id;
 use function sprintf;
@@ -40,22 +39,17 @@ use function strtolower;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-class HashSubGroupingService implements HashSubGroupingServiceInterface, MediaTypeClassifierInterface
+class HashSubGroupingService implements HashSubGroupingServiceInterface
 {
     /**
-     * Extensions that identify still image assets within Live Photo groups.
-     *
-     * @var array<int, string>
-     */
-    public const array LIVE_PHOTO_STILL_EXTENSIONS = ['heic', 'heif', 'jpg', 'jpeg'];
-
-    /**
-     * @param SafeHashCalculator $hashCalculator Computes file content hashes for sub-group keying
-     * @param SymfonyStyle       $io             Console IO for error output on hash computation failures
+     * @param SafeHashCalculator           $hashCalculator      Computes file content hashes for sub-group keying
+     * @param SymfonyStyle                 $io                  Console IO for error output on hash computation failures
+     * @param MediaTypeClassifierInterface $mediaTypeClassifier Classifies files as still or video
      */
     public function __construct(
         private readonly SafeHashCalculator $hashCalculator,
         private readonly SymfonyStyle $io,
+        private readonly MediaTypeClassifierInterface $mediaTypeClassifier,
     ) {
     }
 
@@ -89,11 +83,11 @@ class HashSubGroupingService implements HashSubGroupingServiceInterface, MediaTy
         // detected companion. This prevents video hashes from triggering
         // false naming conflicts with still image hashes.
         $excludeStills = $companionRename instanceof Rename
-            && $this->isLivePhotoStill($companionRename->getSource());
+            && $this->mediaTypeClassifier->isLivePhotoStill($companionRename->getSource());
 
         foreach ($fileDuplicate->getRenames() as $rename) {
             if ($companionRename instanceof Rename) {
-                $renameIsStill = $this->isLivePhotoStill($rename->getSource());
+                $renameIsStill = $this->mediaTypeClassifier->isLivePhotoStill($rename->getSource());
 
                 // Exclude files that share the companion's media type.
                 if ($excludeStills === $renameIsStill) {
@@ -375,26 +369,5 @@ class HashSubGroupingService implements HashSubGroupingServiceInterface, MediaTy
         }
 
         return true;
-    }
-
-    /**
-     * Checks whether the given file is a still image (HEIC, HEIF, JPG, JPEG) as opposed
-     * to a video companion (MOV, MP4). Used to determine media type boundaries during
-     * Live Photo companion detection and hash sub-group exclusion.
-     *
-     * @param SplFileInfo $fileInfo File to classify
-     *
-     * @return bool True when the file extension matches a known still image format
-     */
-    #[Override]
-    public function isLivePhotoStill(SplFileInfo $fileInfo): bool
-    {
-        $extension = strtolower($fileInfo->getExtension());
-
-        if ($extension === '') {
-            return false;
-        }
-
-        return in_array($extension, self::LIVE_PHOTO_STILL_EXTENSIONS, true);
     }
 }

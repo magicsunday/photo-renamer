@@ -11,15 +11,16 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
+use DateTimeImmutable;
 use MagicSunday\Renamer\Service\ExiftoolWriter;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use ReflectionMethod;
+use SplFileInfo;
 
 /**
- * Tests for the ExiftoolWriter service. Uses a mock approach since
- * exiftool may not be available in the test environment.
+ * Tests for the ExiftoolWriter service. Verifies argument building for
+ * both image and video branches.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -29,13 +30,42 @@ use ReflectionMethod;
 final class ExiftoolWriterTest extends TestCase
 {
     /**
-     * Verifies that the writeDateTime method accepts three parameters.
+     * Verifies that buildArguments for a still image produces DateTimeOriginal
+     * and CreateDate tags.
      */
     #[Test]
-    public function writeDateTimeMethodAcceptsThreeParameters(): void
+    public function buildArgumentsForImageProducesCorrectTags(): void
     {
-        $method = new ReflectionMethod(ExiftoolWriter::class, 'writeDateTime');
+        $writer   = new ExiftoolWriter();
+        $file     = new SplFileInfo('/tmp/photo.jpg');
+        $dateTime = new DateTimeImmutable('2024-05-15 14:30:00');
 
-        self::assertSame(3, $method->getNumberOfParameters());
+        $args = $writer->buildArguments($file, $dateTime, false);
+
+        self::assertContains('-overwrite_original', $args);
+        self::assertContains('-DateTimeOriginal=2024:05:15 14:30:00', $args);
+        self::assertContains('-CreateDate=2024:05:15 14:30:00', $args);
+        self::assertContains('/tmp/photo.jpg', $args);
+        self::assertNotContains('-QuickTime:CreateDate=2024:05:15 14:30:00', $args);
+    }
+
+    /**
+     * Verifies that buildArguments for a video produces QuickTime:CreateDate
+     * and QuickTime:ModifyDate tags.
+     */
+    #[Test]
+    public function buildArgumentsForVideoProducesCorrectTags(): void
+    {
+        $writer   = new ExiftoolWriter();
+        $file     = new SplFileInfo('/tmp/video.mov');
+        $dateTime = new DateTimeImmutable('2024-05-15 14:30:00');
+
+        $args = $writer->buildArguments($file, $dateTime, true);
+
+        self::assertContains('-overwrite_original', $args);
+        self::assertContains('-QuickTime:CreateDate=2024:05:15 14:30:00', $args);
+        self::assertContains('-QuickTime:ModifyDate=2024:05:15 14:30:00', $args);
+        self::assertContains('/tmp/video.mov', $args);
+        self::assertNotContains('-DateTimeOriginal=2024:05:15 14:30:00', $args);
     }
 }

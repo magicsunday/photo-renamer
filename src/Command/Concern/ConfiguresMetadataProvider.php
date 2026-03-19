@@ -17,7 +17,10 @@ use MagicSunday\Renamer\Service\MetadataCache;
 use Symfony\Component\Console\Input\InputInterface;
 
 use function getenv;
+use function is_dir;
 use function is_string;
+use function realpath;
+use function rtrim;
 
 /**
  * Shared configuration logic for commands that use the ExifMetadataProvider:
@@ -68,5 +71,45 @@ trait ConfiguresMetadataProvider
         $provider->setCache($cache);
 
         return $cache;
+    }
+
+    /**
+     * Resolves and validates the source directory path from the input argument.
+     *
+     * @return string|null Absolute source directory path, or null if invalid
+     */
+    private function resolveSourceDirectory(InputInterface $input): ?string
+    {
+        $sourceDirectory = $input->getArgument('source-directory');
+
+        if (!is_string($sourceDirectory)) {
+            return null;
+        }
+
+        $resolved = realpath($sourceDirectory);
+
+        if (($resolved === false) || !is_dir($resolved)) {
+            return null;
+        }
+
+        return rtrim($resolved, DIRECTORY_SEPARATOR);
+    }
+
+    /**
+     * Resolves the max date drift threshold from input option or env var.
+     *
+     * @param int $default Default drift in days when neither option nor env var is set
+     */
+    private function resolveMaxDateDrift(InputInterface $input, int $default = 30): int
+    {
+        $driftOption = $input->getOption('max-date-drift');
+
+        if (is_string($driftOption)) {
+            return (int) $driftOption;
+        }
+
+        $envDrift = getenv('MAX_DATE_DRIFT');
+
+        return is_string($envDrift) && $envDrift !== '' ? (int) $envDrift : $default;
     }
 }

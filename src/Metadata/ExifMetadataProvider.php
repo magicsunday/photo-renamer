@@ -96,8 +96,8 @@ final class ExifMetadataProvider
      * metadata on first access. Returns null when the file contains no usable
      * capture date information.
      *
-     * When the metadata indicates a UTC timestamp without explicit timezone info
-     * (typical for QuickTime/MP4 files) and a default timezone is configured,
+     * When the metadata indicates an ambiguous timezone (typical for QuickTime/MP4
+     * files without explicit timezone info) and a default timezone is configured,
      * the timestamp is converted to the configured local timezone.
      *
      * @param SplFileInfo $splFileInfo File to extract metadata from
@@ -114,7 +114,7 @@ final class ExifMetadataProvider
 
         if (
             ($dateTime instanceof DateTimeInterface)
-            && $metadata->isUtcWithoutTimezone()
+            && $metadata->isAmbiguousTimezone()
             && ($this->defaultTimezone instanceof DateTimeZone)
         ) {
             return DateTimeImmutable::createFromInterface($dateTime)
@@ -222,7 +222,6 @@ final class ExifMetadataProvider
                     $meta?->getCaptureDateTime()?->format('Y-m-d\TH:i:s.uP'),
                     $meta?->getLivePhotoId(),
                     $meta?->isFallbackDateTime() ?? false,
-                    $meta?->isUtcWithoutTimezone() ?? false,
                     $meta?->isAmbiguousTimezone() ?? false,
                 );
             }
@@ -235,7 +234,7 @@ final class ExifMetadataProvider
      * Reconstructs a TemporalMetadata instance from a persistent cache entry.
      * Returns null when the cached entry represents a file with no usable metadata.
      *
-     * @param array{mtime: int, size: int, captureDateTime: string|null, contentId: string|null, isFallback: bool, isUtcWithoutTimezone: bool, isAmbiguousTimezone?: bool} $cached
+     * @param array{mtime: int, size: int, captureDateTime: string|null, contentId: string|null, isFallback: bool, isAmbiguousTimezone: bool} $cached
      *
      * @return TemporalMetadata|null Reconstructed metadata, or null when the cache entry has no date or content ID
      */
@@ -261,8 +260,7 @@ final class ExifMetadataProvider
             $dateTime,
             $contentId,
             $cached['isFallback'],
-            $cached['isUtcWithoutTimezone'],
-            $cached['isAmbiguousTimezone'] ?? false,
+            $cached['isAmbiguousTimezone'],
         );
     }
 

@@ -22,6 +22,7 @@ use MagicSunday\Renamer\Service\ExiftoolWriter;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
+use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use Override;
 use SplFileInfo;
 use Symfony\Component\Console\Command\Command;
@@ -32,15 +33,8 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function count;
-use function getenv;
 use function in_array;
-use function is_dir;
-use function is_string;
-use function max;
-use function realpath;
-use function rtrim;
 use function sprintf;
-use function strlen;
 use function strtolower;
 
 /**
@@ -61,19 +55,21 @@ class WriteDateCommand extends Command
      *
      * @var list<string>
      */
-    private const array SUPPORTED_EXTENSIONS = ['jpg', 'jpeg', 'heic', 'mov', 'mp4'];
+    private const array SUPPORTED_EXTENSIONS = Constants::SUPPORTED_MEDIA_EXTENSIONS;
 
     /**
      * @param ExifMetadataProvider         $exifMetadataProvider Metadata provider with caching
      * @param MediaTypeClassifierInterface $mediaTypeClassifier  Classifies files as still or video
      * @param FileSystemServiceInterface   $fileSystemService    Provides file iteration
      * @param ExiftoolWriter               $exiftoolWriter       Writes metadata via exiftool
+     * @param RenameOutputRenderer         $renderer             Shared output rendering utilities
      */
     public function __construct(
         private readonly ExifMetadataProvider $exifMetadataProvider,
         private readonly MediaTypeClassifierInterface $mediaTypeClassifier,
         private readonly FileSystemServiceInterface $fileSystemService,
         private readonly ExiftoolWriter $exiftoolWriter,
+        private readonly RenameOutputRenderer $renderer,
     ) {
         parent::__construct();
     }
@@ -137,7 +133,7 @@ class WriteDateCommand extends Command
         }
 
         $dryRun       = (bool) $input->getOption('dry-run');
-        $maxDateDrift = $this->resolveMaxDateDrift($input);
+        $maxDateDrift = $this->resolveMaxDateDrift($input, 7);
 
         $this->configureProviderTimezone($this->exifMetadataProvider, $input);
 
@@ -332,51 +328,12 @@ class WriteDateCommand extends Command
     /**
      * Checks whether exiftool is available in the system PATH.
      */
-    private function isExiftoolAvailable(): bool
+    protected function isExiftoolAvailable(): bool
     {
         $command = 'which exiftool';
         $result  = @exec($command, $output, $exitCode);
 
         return $result !== false && $exitCode === 0;
-    }
-
-    /**
-     * Resolves and validates the source directory path from the input argument.
-     *
-     * @return string|null Absolute source directory path, or null if invalid
-     */
-    private function resolveSourceDirectory(InputInterface $input): ?string
-    {
-        $sourceDirectory = $input->getArgument('source-directory');
-
-        if (!is_string($sourceDirectory)) {
-            return null;
-        }
-
-        $resolved = realpath($sourceDirectory);
-
-        if (($resolved === false) || !is_dir($resolved)) {
-            return null;
-        }
-
-        return rtrim($resolved, DIRECTORY_SEPARATOR);
-    }
-
-    /**
-     * Resolves the max date drift threshold from input option or env var.
-     * Default is 7 days (more aggressive than verify's 30).
-     */
-    private function resolveMaxDateDrift(InputInterface $input): int
-    {
-        $driftOption = $input->getOption('max-date-drift');
-
-        if (is_string($driftOption)) {
-            return (int) $driftOption;
-        }
-
-        $envDrift = getenv('MAX_DATE_DRIFT');
-
-        return is_string($envDrift) && $envDrift !== '' ? (int) $envDrift : 7;
     }
 
     /**
@@ -444,21 +401,7 @@ class WriteDateCommand extends Command
             $rows[] = ['Read errors', (string) $readErrors];
         }
 
-        $maxLabelLength = 0;
-        $maxValueLength = 0;
-
-        foreach ($rows as $row) {
-            $maxLabelLength = max($maxLabelLength, strlen($row[0]));
-            $maxValueLength = max($maxValueLength, strlen($row[1]));
-        }
-
-        foreach ($rows as $row) {
-            $io->text(sprintf(
-                ' %-' . $maxLabelLength . 's  %' . $maxValueLength . 's',
-                $row[0],
-                $row[1],
-            ));
-        }
+        $this->renderer->renderAlignedTable($rows, $io);
 
         $io->newLine();
     }

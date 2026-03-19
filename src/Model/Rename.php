@@ -22,7 +22,7 @@ use SplFileInfo;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-class Rename
+final class Rename
 {
     /**
      * @param SplFileInfo $source Original file on disk (immutable throughout the pipeline)

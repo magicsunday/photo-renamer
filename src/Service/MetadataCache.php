@@ -36,7 +36,7 @@ use function var_export;
 final class MetadataCache
 {
     /**
-     * @var array<string, array{mtime: int, size: int, captureDateTime: string|null, contentId: string|null, isFallback: bool, isUtcWithoutTimezone: bool}>
+     * @var array<string, array{mtime: int, size: int, captureDateTime: string|null, contentId: string|null, isFallback: bool, isAmbiguousTimezone: bool}>
      */
     private array $entries = [];
 
@@ -60,7 +60,7 @@ final class MetadataCache
      * - The file is not in the cache
      * - The file's mtime or size has changed.
      *
-     * @return array{mtime: int, size: int, captureDateTime: string|null, contentId: string|null, isFallback: bool, isUtcWithoutTimezone: bool, isAmbiguousTimezone?: bool}|null
+     * @return array{mtime: int, size: int, captureDateTime: string|null, contentId: string|null, isFallback: bool, isAmbiguousTimezone: bool}|null
      */
     public function get(SplFileInfo $file): ?array
     {
@@ -90,17 +90,15 @@ final class MetadataCache
         ?string $captureDateTime,
         ?string $contentId,
         bool $isFallback,
-        bool $isUtcWithoutTimezone,
         bool $isAmbiguousTimezone = false,
     ): void {
         $this->entries[$file->getPathname()] = [
-            'mtime'                => $file->getMTime(),
-            'size'                 => $file->getSize(),
-            'captureDateTime'      => $captureDateTime,
-            'contentId'            => $contentId,
-            'isFallback'           => $isFallback,
-            'isUtcWithoutTimezone' => $isUtcWithoutTimezone,
-            'isAmbiguousTimezone'  => $isAmbiguousTimezone,
+            'mtime'               => $file->getMTime(),
+            'size'                => $file->getSize(),
+            'captureDateTime'     => $captureDateTime,
+            'contentId'           => $contentId,
+            'isFallback'          => $isFallback,
+            'isAmbiguousTimezone' => $isAmbiguousTimezone,
         ];
 
         $this->dirty = true;
@@ -141,7 +139,7 @@ final class MetadataCache
         $data = @include $this->cacheFile;
 
         if (is_array($data)) {
-            /** @var array<string, array{mtime: int, size: int, captureDateTime: string|null, contentId: string|null, isFallback: bool, isUtcWithoutTimezone: bool}> $data */
+            /** @var array<string, array{mtime: int, size: int, captureDateTime: string|null, contentId: string|null, isFallback: bool, isAmbiguousTimezone: bool}> $data */
             $this->entries = $data;
         }
     }
