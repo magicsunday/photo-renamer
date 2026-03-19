@@ -226,9 +226,12 @@ class WriteDateCommand extends Command
             $relativePath = FileSystemService::relativizePath($entry['path'], $sourceDirectory);
 
             if ($dryRun) {
+                $targetField = $entry['isVideo'] ? 'QuickTime:CreateDate' : 'DateTimeOriginal';
+
                 $io->text(sprintf(
-                    '<fg=yellow>[W]</> %s <fg=cyan>-></> DateTimeOriginal: %s',
+                    '<fg=yellow>[W]</> %s <fg=cyan>-></> %s: %s',
                     $relativePath,
+                    $targetField,
                     $entry['date'],
                 ));
                 $io->text(sprintf(
