@@ -117,7 +117,7 @@ class VerifyCommand extends Command
                 'show',
                 null,
                 InputOption::VALUE_REQUIRED,
-                'Filter output to specific categories (comma-separated: timezone, fallback, drift, livephoto, error, nodata, filetype).'
+                'Filter output to specific categories (comma-separated: timezone, fallback, drift, livephoto, error, nodata, filetype). Also accepts tag letters: W=timezone, F=fallback, S=nodata, E=error.'
             )
             ->addOption(
                 'max-date-drift',
@@ -373,7 +373,21 @@ class VerifyCommand extends Command
     }
 
     /**
-     * Resolves the show filter from the --show option.
+     * Tag letter aliases mapping single-character shortcuts to category IDs.
+     * Allows using the same letters as rename:exif's --show option.
+     *
+     * @var array<string, string>
+     */
+    private const array TAG_ALIASES = [
+        'W' => 'timezone',
+        'F' => 'fallback',
+        'S' => 'nodata',
+        'E' => 'error',
+    ];
+
+    /**
+     * Resolves the show filter from the --show option. Accepts both category IDs
+     * (timezone, fallback, drift, ...) and tag letter aliases (W, F, S, E).
      *
      * @return list<string>|null Category IDs to display, or null for all
      */
@@ -385,7 +399,12 @@ class VerifyCommand extends Command
             return null;
         }
 
-        return array_map(trim(...), explode(',', $showOption));
+        $tokens = array_map(trim(...), explode(',', $showOption));
+
+        return array_map(
+            static fn (string $token): string => self::TAG_ALIASES[strtoupper($token)] ?? strtolower($token),
+            $tokens,
+        );
     }
 
     /**
