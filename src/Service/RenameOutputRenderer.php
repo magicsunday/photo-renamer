@@ -117,10 +117,10 @@ final readonly class RenameOutputRenderer
 
                 $sourcePathname = $rename->getSource()->getPathname();
 
-                if ($isDuplicateTarget) {
-                    $tag = OutputEntryTag::Duplicate;
-                } elseif ($isCanonicalEntry) {
+                if ($isCanonicalEntry) {
                     $tag = OutputEntryTag::Original;
+                } elseif ($isDuplicateTarget) {
+                    $tag = OutputEntryTag::Duplicate;
                 } elseif (isset($result->ambiguousTimezoneFiles[$sourcePathname])) {
                     $tag = OutputEntryTag::Warning;
                 } elseif (isset($result->fallbackDateFiles[$sourcePathname])) {
