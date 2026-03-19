@@ -401,6 +401,47 @@ final class VerifyCommandTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that a file with ambiguous timezone is NOT flagged when the raw
+     * metadata date matches the filename date (i.e. write-date already fixed it).
+     */
+    #[Test]
+    public function executeSkipsAmbiguousTimezoneWhenRawMetadataMatchesFilename(): void
+    {
+        $workspace = $this->createWorkspace();
+        $movPath   = $workspace . DIRECTORY_SEPARATOR . '2013-10-17_10-36-18-000.mov';
+        file_put_contents($movPath, 'video-data');
+
+        try {
+            $metadataExtractor = new StubMetadataExtractor();
+            // Raw metadata matches filename exactly — file was fixed by write-date
+            $metadataExtractor->withResponse(
+                $movPath,
+                new TemporalMetadata(
+                    new DateTimeImmutable('2013-10-17T10:36:18+00:00'),
+                    null,
+                    false,
+                    true, // isAmbiguousTimezone — still true (QuickTime structure unchanged)
+                ),
+            );
+
+            $command  = $this->createCommand($metadataExtractor);
+            $tester   = new CommandTester($command);
+            $exitCode = $tester->execute([
+                'source-directory' => $workspace,
+            ]);
+
+            self::assertSame(Command::SUCCESS, $exitCode);
+
+            $output = $tester->getDisplay();
+            self::assertStringNotContainsString('Ambiguous timezone', $output);
+            self::assertStringContainsString('OK', $output);
+        } finally {
+            @unlink($movPath);
+            $this->cleanupWorkspace($workspace);
+        }
+    }
+
     private function createWorkspace(): string
     {
         return $this->createTempWorkspace('verify_');
