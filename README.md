@@ -70,6 +70,7 @@ Large photo collections accumulated from multiple devices and backup sources ten
 | `rename:pattern` | Renames files using a regular expression pattern.              |
 | `rename:date`    | Renames files by extracting date components from filenames.    |
 | `rename:verify`  | Analyzes photo/video collections for metadata problems.        |
+| `rename:write-date` | Writes dates from filenames into EXIF/QuickTime metadata (requires exiftool). |
 | `rename:write-date` | Writes date metadata from filenames into EXIF/QuickTime tags. |
 
 ### Shared options
@@ -107,7 +108,7 @@ Supported file types: `jpg`, `jpeg`, `heic`, `mov`, `mp4`.
 
 `rename:date` uses date placeholders (`{y}`, `{m}`, `{d}`, `{H}`, `{i}`, `{s}`, ...) that are expanded to regex capture groups automatically.
 
-## 🚀 Usage
+## 🚀 Installation
 
 Install from the [releases page](https://github.com/magicsunday/photo-renamer/releases/latest):
 
@@ -117,46 +118,65 @@ sudo mv renamer /usr/local/bin/
 renamer --version
 ```
 
-Rename photos by EXIF date (incl. Live Photo pairing):
+## 📋 Recommended Workflow
+
+The recommended workflow for tidying a large photo/video collection:
+
+### Step 1: Analyse the collection
 
 ```bash
+renamer rename:verify ~/Photos
+```
+
+Review the report to understand what problems exist: missing metadata, ambiguous timezones, broken Live Photo pairs, unrecognized file types.
+
+### Step 2: Fix broken metadata
+
+```bash
+# Preview what would be written
+renamer rename:write-date --dry-run ~/Photos
+
+# Write dates from filenames into metadata (requires exiftool)
+renamer rename:write-date ~/Photos
+```
+
+Fixes files flagged as `[W]` (ambiguous timezone), `[F]` (fallback date), or with date drift. Only touches files where the metadata is missing or unreliable.
+
+### Step 3: Rename by EXIF date
+
+```bash
+# Preview
 renamer rename:exif --dry-run ~/Photos
+
+# Execute
+renamer rename:exif ~/Photos
 ```
 
-Rename to a different target directory:
+Renames all photos and videos to `YYYY-MM-DD_HH-MM-SS-mmm.ext`. Extensions are normalised automatically (e.g. `JPEG` → `jpg`). Live Photo pairs (JPG + MOV) receive the same base name. Duplicates get `-duplicate-NNN` suffixes.
+
+### Step 4: Review warnings
 
 ```bash
-renamer rename:exif --dry-run ~/Photos ~/Organised
+# Show only warnings and errors
+renamer rename:exif --dry-run --show=W,E ~/Photos
 ```
 
-Use a custom date pattern (date only, no time):
+Files with `[W]` were skipped because their metadata is ambiguous. Go back to Step 2 for these, or fix them manually with exiftool.
+
+## 💡 Additional Commands
 
 ```bash
-renamer rename:exif --dry-run -fp "Y-m-d" ~/Photos
-```
-
-Separate unique files from duplicates:
-
-```bash
+# Group identical files by content hash
 renamer rename:hash --dry-run --skip-duplicates ~/Photos ~/Organised
-```
 
-Normalise extensions (`.jpeg` to `.jpg`):
-
-```bash
-renamer rename:pattern --dry-run -p "/^(.+)(jpeg)$/" -r "${1}jpg" ~/Photos
-```
-
-Lowercase all filenames:
-
-```bash
-renamer rename:lower --dry-run ~/Photos
-```
-
-Extract and rewrite date fragments in filenames:
-
-```bash
+# Extract and rewrite date fragments in filenames
 renamer rename:date --dry-run -p "/^{y}-{m}-{d}.{H}-{i}-{s}(.+)$/" -r "{Y}-{m}-{d}_{H}-{i}-{s}" ~/Photos
+
+# Lowercase all filenames
+renamer rename:lower --dry-run ~/Photos
+
+# Rename files using a regular expression pattern
+renamer rename:pattern --dry-run -p "/^(.+)(jpeg)$/" -r "${1}jpg" ~/Photos
 ```
 
 ## 📊 Output indicators
