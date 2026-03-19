@@ -12,9 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Metadata;
 
 use DateTimeInterface;
-use DateTimeZone;
 use MagicSunday\ImageMeta\MetadataReader;
-use MagicSunday\ImageMeta\Model\QuickTime\QuickTimeMeta;
 use MagicSunday\ImageMeta\Value\StructuredMetadata;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use SplFileInfo;
@@ -64,9 +62,7 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         $structured  = $metadata->structured();
         $livePhotoId = $this->extractContentIdentifier($structured);
 
-        $isQuickTimeContainer = $metadata->quickTime instanceof QuickTimeMeta;
-
-        [$captureDateTime, $isFallback, $isUtcWithoutTimezone, $isAmbiguousTimezone] = $this->extractCaptureDateTimeWithFallbackFlag($structured, $file, $isQuickTimeContainer);
+        [$captureDateTime, $isFallback, $isUtcWithoutTimezone, $isAmbiguousTimezone] = $this->extractCaptureDateTimeWithFallbackFlag($structured);
 
         if (!($captureDateTime instanceof DateTimeInterface) && ($livePhotoId === null)) {
             return null;
@@ -88,7 +84,7 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
      *
      * @return array{DateTimeInterface|null, bool, bool, bool} Tuple of [captureDateTime, isFallback, isUtcWithoutTimezone, isAmbiguousTimezone]
      */
-    private function extractCaptureDateTimeWithFallbackFlag(StructuredMetadata $structured, SplFileInfo $file, bool $isQuickTimeContainer): array
+    private function extractCaptureDateTimeWithFallbackFlag(StructuredMetadata $structured): array
     {
         $temporal = $structured->locationTime->temporal;
         $original = $temporal->original;
@@ -110,47 +106,12 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
             && ($modify instanceof DateTimeInterface)
             && ($dateTime->getTimestamp() === $modify->getTimestamp());
 
-        // UTC-without-timezone detection for QuickTime containers.
-        //
-        // Old cameras (pre-2015) wrote local time into mvhd atoms as Mac epoch,
-        // violating the spec that requires UTC. Modern cameras write true UTC.
-        // Both end up with timezone "+00:00" after imagemeta processing.
-        //
-        // Heuristic: compare the metadata timestamp (interpreted as UTC by imagemeta)
-        // with the file modification time (stored as UTC by the filesystem). If they
-        // match within 60 seconds, the metadata IS genuine UTC. If they differ by a
-        // whole-hour offset (1-12h), the camera wrote local time as Mac epoch.
-        //
-        // This works because file modification time is set by the camera when writing
-        // the file, and most file transfer tools preserve it.
+        // UTC-without-timezone detection is disabled. QuickTime containers may
+        // store timestamps as UTC (modern cameras) or local time (old cameras),
+        // but there is no reliable way to distinguish the two cases automatically.
+        // Use --timezone for manual correction and --max-date-drift to catch suspicious changes.
         $isUtcWithoutTimezone = false;
         $isAmbiguousTimezone  = false;
-
-        if (
-            $isQuickTimeContainer
-            && !($temporal->tz instanceof DateTimeZone)
-            && ($temporal->offsetTimeOriginal === null)
-            && ($temporal->offsetTimeDigitized === null)
-            && ($temporal->offsetTime === null)
-        ) {
-            $metadataTimestamp = $dateTime->getTimestamp();
-            $fileModTimestamp  = $file->getMTime();
-            $diff              = abs($metadataTimestamp - $fileModTimestamp);
-
-            if ($diff < 60) {
-                // Timestamps match: metadata is genuine UTC (filesystem confirms).
-                $isUtcWithoutTimezone = true;
-            } elseif ($diff >= 3600 && $diff <= 43200 && ($diff % 3600) < 60) {
-                // Difference is an exact whole-hour offset (1-12h): the camera wrote
-                // local time as Mac epoch. The offset IS the timezone difference.
-                $isUtcWithoutTimezone = false;
-            } else {
-                // File modification time was altered (copy/sync). Cannot determine
-                // if the timestamp is UTC or local time. Flag as ambiguous so the
-                // pipeline can warn the user instead of silently guessing wrong.
-                $isAmbiguousTimezone = true;
-            }
-        }
 
         return [$dateTime, $isFallback, $isUtcWithoutTimezone, $isAmbiguousTimezone];
     }
