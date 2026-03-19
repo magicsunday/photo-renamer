@@ -31,7 +31,6 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function array_map;
-use function assert;
 use function explode;
 use function getcwd;
 use function getenv;
@@ -51,8 +50,8 @@ use function trim;
 /**
  * Base class for all rename commands. Provides shared CLI option parsing,
  * directory path normalization, dry-run confirmation, and the template-method
- * pipeline: scan -> group -> assign filenames -> execute renames. Concrete
- * subclasses supply the rename strategy and duplicate identifier strategy.
+ * pipeline: scan -> group -> assign filenames -> execute in-place renames.
+ * Concrete subclasses supply the rename strategy and duplicate identifier strategy.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -77,23 +76,12 @@ abstract class AbstractRenameCommand extends Command
     protected string $sourceDirectory = '';
 
     /**
-     * Absolute path to the target directory. Defaults to the source directory
-     * when omitted by the user.
-     */
-    protected ?string $targetDirectory = null;
-
-    /**
      * When true, the pipeline simulates all operations without touching the file system.
      */
     protected bool $dryRun = false;
 
     /**
-     * When true, files are copied to the target directory instead of moved.
-     */
-    protected bool $copyFiles = false;
-
-    /**
-     * When true, files identified as duplicates are excluded from the copy/move operation.
+     * When true, files identified as duplicates are excluded from the rename operation.
      */
     protected bool $skipDuplicates = false;
 
@@ -134,9 +122,8 @@ abstract class AbstractRenameCommand extends Command
     }
 
     /**
-     * Registers the shared CLI arguments (source-directory, target-directory) and
-     * options (--dry-run, --copy, --skip-duplicates, --list-all) common to all
-     * rename commands.
+     * Registers the shared CLI arguments (source-directory) and options
+     * (--dry-run, --skip-duplicates, --list-all) common to all rename commands.
      */
     #[Override]
     protected function configure(): void
@@ -147,12 +134,6 @@ abstract class AbstractRenameCommand extends Command
                 InputArgument::REQUIRED,
                 'Source directory with photos.'
             )
-            ->addArgument(
-                'target-directory',
-                InputArgument::OPTIONAL,
-                'Target directory with photos. If this argument is omitted, the operation '
-                . 'takes place directly in the source directory.'
-            )
             ->addOption(
                 'dry-run',
                 'd',
@@ -160,16 +141,10 @@ abstract class AbstractRenameCommand extends Command
                 'Perform a dry run, without actually changing anything.'
             )
             ->addOption(
-                'copy',
-                'c',
-                InputOption::VALUE_NONE,
-                'Copies the files to the target directory instead of renaming/moving them directly.'
-            )
-            ->addOption(
                 'skip-duplicates',
                 's',
                 InputOption::VALUE_NONE,
-                'Skip duplicate files from copy/rename action. The files remain unchanged in the source directory.'
+                'Skip duplicate files from the rename action. The files remain unchanged in the source directory.'
             )
             ->addOption(
                 'skip-fallback',
@@ -240,7 +215,6 @@ abstract class AbstractRenameCommand extends Command
      */
     private function initializeCommandParameters(InputInterface $input): void
     {
-        $this->copyFiles      = (bool) $input->getOption('copy');
         $this->dryRun         = (bool) $input->getOption('dry-run');
         $this->skipDuplicates = (bool) $input->getOption('skip-duplicates');
         $this->skipFallback   = (bool) $input->getOption('skip-fallback');
@@ -262,13 +236,10 @@ abstract class AbstractRenameCommand extends Command
             : null;
 
         $sourceDirectory = $input->getArgument('source-directory');
-        $targetDirectory = $input->getArgument('target-directory');
 
         if (is_string($sourceDirectory)) {
             $this->sourceDirectory = $sourceDirectory;
         }
-
-        $this->targetDirectory = is_string($targetDirectory) ? $targetDirectory : null;
     }
 
     /**
@@ -278,23 +249,10 @@ abstract class AbstractRenameCommand extends Command
      */
     private function validateCommandOptions(): int
     {
-        if (
-            $this->copyFiles
-            && ($this->targetDirectory === null)
-        ) {
-            $this->io->error('Copying files requires a target directory');
+        if ($this->skipDuplicates && ($this->sourceDirectory === '')) {
+            $this->io->error('Skipping duplicate files requires a source directory');
 
             return self::FAILURE;
-        }
-
-        if ($this->skipDuplicates) {
-            $effectiveTargetDirectory = $this->targetDirectory ?? $this->sourceDirectory;
-
-            if ($effectiveTargetDirectory === '') {
-                $this->io->error('Skipping duplicate file requires a target directory');
-
-                return self::FAILURE;
-            }
         }
 
         return self::SUCCESS;
@@ -322,22 +280,11 @@ abstract class AbstractRenameCommand extends Command
     }
 
     /**
-     * Normalizes source and target directory paths.
+     * Normalizes the source directory path.
      */
     private function normalizeDirectoryPaths(): void
     {
         $this->sourceDirectory = $this->canonicalizeDirectoryPath($this->sourceDirectory);
-
-        if (($this->targetDirectory === null) || ($this->targetDirectory === '')) {
-            $this->targetDirectory = $this->sourceDirectory;
-
-            return;
-        }
-
-        $this->targetDirectory = $this->canonicalizeDirectoryPath(
-            $this->targetDirectory,
-            $this->sourceDirectory,
-        );
     }
 
     /**
@@ -504,10 +451,8 @@ abstract class AbstractRenameCommand extends Command
                     dryRun: $this->dryRun,
                     skipDuplicates: $this->skipDuplicates,
                     skipFallback: $this->skipFallback,
-                    copyFiles: $this->copyFiles,
                     listAll: $this->listAll,
                     sourceBaseDirectory: $this->sourceDirectory,
-                    targetBaseDirectory: $this->targetDirectory,
                     maxDateDrift: $this->maxDateDrift,
                 ),
                 $result,
@@ -544,8 +489,6 @@ abstract class AbstractRenameCommand extends Command
     {
         $this->io->text(sprintf('<fg=cyan>Scanning:</> %s', $this->sourceDirectory));
 
-        assert(is_string($this->targetDirectory));
-
         // Process list of all files
         return $this->duplicateDetectionService
             ->groupFilesByDuplicateIdentifier(
@@ -553,7 +496,6 @@ abstract class AbstractRenameCommand extends Command
                 renameStrategy: $this->getTargetFilenameStrategy(),
                 duplicateIdentifierStrategy: $this->getDuplicateIdentifierStrategy(),
                 sourceDirectory: $this->sourceDirectory,
-                targetDirectory: $this->targetDirectory,
             );
     }
 
@@ -568,8 +510,6 @@ abstract class AbstractRenameCommand extends Command
      */
     private function createDuplicateFilenames(FileDuplicateCollection $fileDuplicateCollection): FileDuplicateCollection
     {
-        assert(is_string($this->targetDirectory));
-
         $this->io->newLine();
         $this->io->text('<fg=cyan>Resolving duplicates</>');
 
@@ -577,7 +517,6 @@ abstract class AbstractRenameCommand extends Command
             ->createDuplicateFilenames(
                 $fileDuplicateCollection,
                 $this->sourceDirectory,
-                $this->targetDirectory,
                 $this->useFileExtensionFromSource,
                 $this->skipHashSubGrouping(),
             );

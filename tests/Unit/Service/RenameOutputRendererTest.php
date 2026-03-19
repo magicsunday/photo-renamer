@@ -55,12 +55,11 @@ final class RenameOutputRendererTest extends TestCase
         [$renderer] = $this->createRenderer();
 
         $sourceDir = '/tmp/source';
-        $targetDir = '/tmp/target';
 
         $sourceA = $sourceDir . '/b-image.jpg';
-        $targetA = $targetDir . '/b-image.jpg';
+        $targetA = $sourceDir . '/b-image.jpg';
         $sourceB = $sourceDir . '/a-image.jpg';
-        $targetB = $targetDir . '/a-image.jpg';
+        $targetB = $sourceDir . '/a-image.jpg';
 
         $fileDuplicate = new FileDuplicate();
         $fileDuplicate->setTarget(new SplFileInfo($targetA));
@@ -75,7 +74,6 @@ final class RenameOutputRendererTest extends TestCase
             new RenameOptions(),
             new RenameResult(),
             $sourceDir,
-            $targetDir,
         );
 
         self::assertCount(2, $entries);
@@ -96,11 +94,10 @@ final class RenameOutputRendererTest extends TestCase
         [$renderer] = $this->createRenderer();
 
         $sourceDir = '/tmp/source';
-        $targetDir = '/tmp/target';
 
-        $canonicalTarget = $targetDir . '/photo.jpg';
+        $canonicalTarget = $sourceDir . '/photo.jpg';
         $duplicateSource = $sourceDir . '/photo.jpg';
-        $duplicateTarget = $targetDir . '/photo' . Constants::DUPLICATE_IDENTIFIER . '001.jpg';
+        $duplicateTarget = $sourceDir . '/photo' . Constants::DUPLICATE_IDENTIFIER . '001.jpg';
 
         $fileDuplicate = new FileDuplicate();
         $fileDuplicate->setTarget(new SplFileInfo($canonicalTarget));
@@ -114,7 +111,6 @@ final class RenameOutputRendererTest extends TestCase
             new RenameOptions(),
             new RenameResult(),
             $sourceDir,
-            $targetDir,
         );
 
         self::assertCount(1, $entries);
@@ -131,7 +127,6 @@ final class RenameOutputRendererTest extends TestCase
         [$renderer] = $this->createRenderer();
 
         $sourceDir = '/tmp/source';
-        $targetDir = '/tmp/target';
 
         $collection = new FileDuplicateCollection();
 
@@ -147,7 +142,6 @@ final class RenameOutputRendererTest extends TestCase
             new RenameOptions(),
             $result,
             $sourceDir,
-            $targetDir,
         );
 
         self::assertCount(2, $entries);
@@ -175,7 +169,6 @@ final class RenameOutputRendererTest extends TestCase
             'fileCount'        => 5,
             'duplicateCount'   => 6,
             'plannedMoves'     => 7,
-            'plannedCopies'    => 0,
             'plannedSkips'     => 8,
         ], false);
 
@@ -189,7 +182,6 @@ final class RenameOutputRendererTest extends TestCase
         self::assertStringContainsString('Naming collisions', $buffer);
         self::assertStringContainsString('Duplicates found', $buffer);
         self::assertStringContainsString('Planned moves', $buffer);
-        self::assertStringNotContainsString('Planned copies', $buffer);
         self::assertStringContainsString('Planned skips', $buffer);
         self::assertStringContainsString('Files processed', $buffer);
     }
@@ -212,7 +204,6 @@ final class RenameOutputRendererTest extends TestCase
             'fileCount'        => 3,
             'duplicateCount'   => 0,
             'plannedMoves'     => 3,
-            'plannedCopies'    => 0,
             'plannedSkips'     => 0,
         ], true);
 
@@ -239,7 +230,6 @@ final class RenameOutputRendererTest extends TestCase
             'fileCount'        => 3,
             'duplicateCount'   => 0,
             'plannedMoves'     => 3,
-            'plannedCopies'    => 0,
             'plannedSkips'     => 0,
         ], false);
 
@@ -250,7 +240,6 @@ final class RenameOutputRendererTest extends TestCase
         self::assertStringNotContainsString('Live Photo groups', $buffer);
         self::assertStringNotContainsString('Naming collisions', $buffer);
         self::assertStringNotContainsString('Duplicates found', $buffer);
-        self::assertStringNotContainsString('Planned copies', $buffer);
         self::assertStringNotContainsString('Planned skips', $buffer);
     }
 
@@ -337,10 +326,9 @@ final class RenameOutputRendererTest extends TestCase
         [$renderer] = $this->createRenderer();
 
         $sourceDir = '/tmp/source';
-        $targetDir = '/tmp/target';
 
         $source = $sourceDir . '/2024-03-30_12-16-24.mov';
-        $target = $targetDir . '/2024-09-19_02-21-38-000.mov';
+        $target = $sourceDir . '/2024-09-19_02-21-38-000.mov';
 
         $fileDuplicate = new FileDuplicate();
         $fileDuplicate->setTarget(new SplFileInfo($target));
@@ -354,7 +342,6 @@ final class RenameOutputRendererTest extends TestCase
             new RenameOptions(maxDateDrift: 30),
             new RenameResult(),
             $sourceDir,
-            $targetDir,
         );
 
         self::assertCount(1, $entries);
@@ -372,10 +359,9 @@ final class RenameOutputRendererTest extends TestCase
         [$renderer] = $this->createRenderer();
 
         $sourceDir = '/tmp/source';
-        $targetDir = '/tmp/target';
 
         $source = $sourceDir . '/2024-03-30_12-16-24.jpg';
-        $target = $targetDir . '/2024-03-30_12-16-24-000.jpg';
+        $target = $sourceDir . '/2024-03-30_12-16-24-000.jpg';
 
         $fileDuplicate = new FileDuplicate();
         $fileDuplicate->setTarget(new SplFileInfo($target));
@@ -389,7 +375,6 @@ final class RenameOutputRendererTest extends TestCase
             new RenameOptions(maxDateDrift: 30),
             new RenameResult(),
             $sourceDir,
-            $targetDir,
         );
 
         self::assertCount(1, $entries);
@@ -407,10 +392,9 @@ final class RenameOutputRendererTest extends TestCase
         [$renderer] = $this->createRenderer();
 
         $sourceDir = '/tmp/source';
-        $targetDir = '/tmp/target';
 
         $source = $sourceDir . '/IMG_1234.jpg';
-        $target = $targetDir . '/2024-03-30_12-16-24.jpg';
+        $target = $sourceDir . '/2024-03-30_12-16-24.jpg';
 
         $fileDuplicate = new FileDuplicate();
         $fileDuplicate->setTarget(new SplFileInfo($target));
@@ -424,7 +408,6 @@ final class RenameOutputRendererTest extends TestCase
             new RenameOptions(maxDateDrift: 30),
             new RenameResult(),
             $sourceDir,
-            $targetDir,
         );
 
         self::assertCount(1, $entries);
@@ -441,10 +424,9 @@ final class RenameOutputRendererTest extends TestCase
         [$renderer] = $this->createRenderer();
 
         $sourceDir = '/tmp/source';
-        $targetDir = '/tmp/target';
 
         $source = $sourceDir . '/2024-03-30_12-16-24.mov';
-        $target = $targetDir . '/2024-09-19_02-21-38-000.mov';
+        $target = $sourceDir . '/2024-09-19_02-21-38-000.mov';
 
         $fileDuplicate = new FileDuplicate();
         $fileDuplicate->setTarget(new SplFileInfo($target));
@@ -458,7 +440,6 @@ final class RenameOutputRendererTest extends TestCase
             new RenameOptions(maxDateDrift: 0),
             new RenameResult(),
             $sourceDir,
-            $targetDir,
         );
 
         self::assertCount(1, $entries);
@@ -476,10 +457,9 @@ final class RenameOutputRendererTest extends TestCase
         [$renderer] = $this->createRenderer();
 
         $sourceDir = '/tmp/source';
-        $targetDir = '/tmp/target';
 
         $source = $sourceDir . '/IMG_20240330_121624.jpg';
-        $target = $targetDir . '/2024-09-19_02-21-38-000.jpg';
+        $target = $sourceDir . '/2024-09-19_02-21-38-000.jpg';
 
         $fileDuplicate = new FileDuplicate();
         $fileDuplicate->setTarget(new SplFileInfo($target));
@@ -493,7 +473,6 @@ final class RenameOutputRendererTest extends TestCase
             new RenameOptions(maxDateDrift: 30),
             new RenameResult(),
             $sourceDir,
-            $targetDir,
         );
 
         self::assertCount(1, $entries);

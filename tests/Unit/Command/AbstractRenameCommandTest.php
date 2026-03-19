@@ -81,7 +81,6 @@ final class AbstractRenameCommandTest extends TestCase
                 self::identicalTo($renameStrategy),
                 self::identicalTo($duplicateIdentifierStrategy),
                 '/source-directory',
-                '/source-directory',
             )
             ->willReturn($fileDuplicateCollection);
 
@@ -90,7 +89,6 @@ final class AbstractRenameCommandTest extends TestCase
             ->method('createDuplicateFilenames')
             ->with(
                 self::identicalTo($fileDuplicateCollection),
-                '/source-directory',
                 '/source-directory',
                 false,
             )
@@ -104,7 +102,6 @@ final class AbstractRenameCommandTest extends TestCase
                 self::callback(static function (RenameOptions $options): bool {
                     self::assertTrue($options->dryRun);
                     self::assertFalse($options->skipDuplicates);
-                    self::assertFalse($options->copyFiles);
                     self::assertFalse($options->listAll);
 
                     return true;
@@ -150,15 +147,11 @@ final class AbstractRenameCommandTest extends TestCase
     }
 
     /**
-     * Verifies that --skip-duplicates can be used without specifying a separate
-     * target directory. The target directory defaults to the source directory,
-     * and skipDuplicates is set to true in RenameOptions.
-     *
-     * This is the common in-place rename scenario where users want to rename
-     * photos in the same directory while skipping known duplicates.
+     * Verifies that --skip-duplicates can be used for in-place renames.
+     * skipDuplicates is set to true in RenameOptions.
      */
     #[Test]
-    public function executeAllowsSkipDuplicatesWithoutExplicitTarget(): void
+    public function executeAllowsSkipDuplicatesForInPlaceRename(): void
     {
         $fileSystemService         = $this->createMock(FileSystemServiceInterface::class);
         $duplicateDetectionService = $this->createMock(DuplicateDetectionServiceInterface::class);
@@ -183,7 +176,6 @@ final class AbstractRenameCommandTest extends TestCase
                 self::identicalTo($renameStrategy),
                 self::identicalTo($duplicateIdentifierStrategy),
                 '/source-directory',
-                '/source-directory',
             )
             ->willReturn($fileDuplicateCollection);
 
@@ -192,7 +184,6 @@ final class AbstractRenameCommandTest extends TestCase
             ->method('createDuplicateFilenames')
             ->with(
                 self::identicalTo($fileDuplicateCollection),
-                '/source-directory',
                 '/source-directory',
                 false,
             )
@@ -206,7 +197,6 @@ final class AbstractRenameCommandTest extends TestCase
                 self::callback(static function (RenameOptions $options): bool {
                     self::assertTrue($options->dryRun);
                     self::assertTrue($options->skipDuplicates);
-                    self::assertFalse($options->copyFiles);
                     self::assertFalse($options->listAll);
 
                     return true;
@@ -253,8 +243,7 @@ final class AbstractRenameCommandTest extends TestCase
 
     /**
      * Verifies that the --list-all flag is propagated through RenameOptions to
-     * the FileSystemService, and that specifying a separate target directory
-     * correctly separates source and target paths.
+     * the FileSystemService.
      *
      * With --list-all the output includes canonical entries ([O] prefix) alongside
      * renames and duplicates, so the flag must arrive at renameFiles().
@@ -285,7 +274,6 @@ final class AbstractRenameCommandTest extends TestCase
                 self::anything(),
                 self::anything(),
                 '/source-directory',
-                '/target-directory',
             )
             ->willReturn($fileDuplicateCollection);
 
@@ -295,7 +283,6 @@ final class AbstractRenameCommandTest extends TestCase
             ->with(
                 self::identicalTo($fileDuplicateCollection),
                 '/source-directory',
-                '/target-directory',
                 false,
             )
             ->willReturn($fileDuplicateCollection);
@@ -308,7 +295,6 @@ final class AbstractRenameCommandTest extends TestCase
                 self::callback(static function (RenameOptions $options): bool {
                     self::assertFalse($options->dryRun);
                     self::assertFalse($options->skipDuplicates);
-                    self::assertFalse($options->copyFiles);
                     self::assertTrue($options->listAll);
 
                     return true;
@@ -347,7 +333,6 @@ final class AbstractRenameCommandTest extends TestCase
         $tester->setInputs(['yes']);
         $tester->execute([
             'source-directory' => '/source-directory',
-            'target-directory' => '/target-directory',
             '--list-all'       => true,
         ]);
 
@@ -355,12 +340,8 @@ final class AbstractRenameCommandTest extends TestCase
     }
 
     /**
-     * Verifies that relative directory arguments are resolved to absolute paths
-     * by prepending the current working directory before being passed to the
-     * services.
-     *
-     * Without normalisation, relative paths would cause incorrect target path
-     * resolution when source and target directories are nested differently.
+     * Verifies that a relative source directory argument is resolved to an absolute path
+     * by prepending the current working directory before being passed to the services.
      */
     #[Test]
     public function executeNormalizesRelativeDirectoryArguments(): void
@@ -375,7 +356,6 @@ final class AbstractRenameCommandTest extends TestCase
         $fileDuplicateCollection = new FileDuplicateCollection();
 
         $expectedSource = $this->buildExpectedAbsolutePath('relative-source');
-        $expectedTarget = $this->buildExpectedAbsolutePath('relative-target');
 
         $fileSystemService
             ->expects(self::once())
@@ -391,7 +371,6 @@ final class AbstractRenameCommandTest extends TestCase
                 self::identicalTo($renameStrategy),
                 self::identicalTo($duplicateIdentifierStrategy),
                 $expectedSource,
-                $expectedTarget,
             )
             ->willReturn($fileDuplicateCollection);
 
@@ -401,7 +380,6 @@ final class AbstractRenameCommandTest extends TestCase
             ->with(
                 self::identicalTo($fileDuplicateCollection),
                 $expectedSource,
-                $expectedTarget,
                 false,
             )
             ->willReturn($fileDuplicateCollection);
@@ -414,7 +392,6 @@ final class AbstractRenameCommandTest extends TestCase
                 self::callback(static function (RenameOptions $options): bool {
                     self::assertTrue($options->dryRun);
                     self::assertFalse($options->skipDuplicates);
-                    self::assertFalse($options->copyFiles);
                     self::assertFalse($options->listAll);
 
                     return true;
@@ -452,7 +429,6 @@ final class AbstractRenameCommandTest extends TestCase
         $tester = new CommandTester($command);
         $tester->execute([
             'source-directory' => 'relative-source',
-            'target-directory' => 'relative-target',
             '--dry-run'        => true,
         ]);
 

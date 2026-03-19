@@ -34,7 +34,6 @@ use Throwable;
 
 use function array_key_exists;
 use function count;
-use function is_dir;
 use function is_string;
 use function sprintf;
 use function str_contains;
@@ -66,12 +65,6 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      * Set at the start of each public pipeline method.
      */
     private string $sourceDirectory = '';
-
-    /**
-     * Absolute path to the directory where renamed files are placed.
-     * Set at the start of each public pipeline method.
-     */
-    private string $targetDirectory = '';
 
     /**
      * When true, duplicate targets preserve the source file's original extension
@@ -197,7 +190,6 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      * @param RenameStrategyInterface              $renameStrategy              strategy used to generate target filenames
      * @param DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy strategy that identifies duplicate groups
      * @param string                               $sourceDirectory             absolute path to the source directory
-     * @param string                               $targetDirectory             absolute path to the target directory
      *
      * @return FileDuplicateCollection collection describing discovered duplicate groups
      */
@@ -206,10 +198,8 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
         RenameStrategyInterface $renameStrategy,
         DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy,
         string $sourceDirectory,
-        string $targetDirectory,
     ): FileDuplicateCollection {
         $this->sourceDirectory = $sourceDirectory;
-        $this->targetDirectory = $targetDirectory;
 
         $files                      = $this->collectAndSortFiles($iterator);
         $this->lastScannedFileCount = count($files);
@@ -458,7 +448,6 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      *
      * @param FileDuplicateCollection $fileDuplicateCollection    collection whose entries should receive duplicate filenames
      * @param string                  $sourceDirectory            absolute path to the source directory
-     * @param string                  $targetDirectory            absolute path to the target directory
      * @param bool                    $useFileExtensionFromSource when true, source extension is retained
      * @param bool                    $skipHashSubGrouping        when true, content-hash sub-grouping is skipped entirely
      *
@@ -467,12 +456,10 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
     public function createDuplicateFilenames(
         FileDuplicateCollection $fileDuplicateCollection,
         string $sourceDirectory,
-        string $targetDirectory,
         bool $useFileExtensionFromSource = false,
         bool $skipHashSubGrouping = false,
     ): FileDuplicateCollection {
         $this->sourceDirectory            = $sourceDirectory;
-        $this->targetDirectory            = $targetDirectory;
         $this->useFileExtensionFromSource = $useFileExtensionFromSource;
         $this->namingCollisions           = 0;
 
@@ -759,8 +746,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
     }
 
     /**
-     * Resets per-run state and populates the in-memory disk index from the given
-     * files and (when different from the source) the target directory.
+     * Resets per-run state and populates the in-memory disk index from the given files.
      *
      * @param list<SplFileInfo> $files files discovered by the iterator
      */
@@ -774,10 +760,6 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
 
         foreach ($files as $file) {
             $this->diskIndex[$file->getPathname()] = true;
-        }
-
-        if (($this->targetDirectory !== $this->sourceDirectory) && is_dir($this->targetDirectory)) {
-            $this->diskIndex += FileSystemService::scanDirectoryPaths($this->targetDirectory);
         }
     }
 
@@ -1038,7 +1020,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
 
         $relativePath = trim($relativePath, DIRECTORY_SEPARATOR);
 
-        $targetPath = rtrim($this->targetDirectory, DIRECTORY_SEPARATOR);
+        $targetPath = rtrim($this->sourceDirectory, DIRECTORY_SEPARATOR);
 
         if ($relativePath !== '') {
             $targetPath .= DIRECTORY_SEPARATOR . $relativePath;

@@ -13,8 +13,8 @@ namespace MagicSunday\Renamer\Model;
 
 /**
  * Immutable value object carrying all user-supplied configuration options
- * for a single rename execution. Passed through the entire pipeline from command
- * input parsing down to the file system service.
+ * for a single in-place rename execution. Passed through the entire pipeline
+ * from command input parsing down to the file system service.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -26,20 +26,16 @@ final readonly class RenameOptions
      * @param bool        $dryRun              When true, renames are simulated without touching the file system
      * @param bool        $skipDuplicates      When true, files identified as duplicates are excluded from output
      * @param bool        $skipFallback        When true, files with fallback DateTime (0x0132) are excluded from rename
-     * @param bool        $copyFiles           When true, files are copied instead of moved during execution
      * @param bool        $listAll             When true, all files are listed in output including unchanged ones
      * @param string|null $sourceBaseDirectory Absolute path to the directory scanned for source files
-     * @param string|null $targetBaseDirectory Absolute path to the directory where renamed files are placed
      * @param int|null    $maxDateDrift        Maximum allowed date drift in days (0 = disabled, null = disabled)
      */
     public function __construct(
         public bool $dryRun = false,
         public bool $skipDuplicates = false,
         public bool $skipFallback = false,
-        public bool $copyFiles = false,
         public bool $listAll = false,
         public ?string $sourceBaseDirectory = null,
-        public ?string $targetBaseDirectory = null,
         public ?int $maxDateDrift = null,
     ) {
     }

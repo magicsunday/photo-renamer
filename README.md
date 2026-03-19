@@ -52,7 +52,7 @@ Large photo collections accumulated from multiple devices and backup sources ten
 - Apple Live Photo detection and pairing via Content Identifier metadata.
 - Duplicate detection via content hash with per-file-type numbering and idempotent re-runs.
 - Hash sub-grouping: different files sharing the same EXIF date receive sequential group numbers (`-002`, `-003`, ...).
-- Dry-run preview, copy mode, and skip-duplicates mode.
+- Dry-run preview and skip-duplicates mode.
 
 **Out of scope:**
 
@@ -77,7 +77,6 @@ Large photo collections accumulated from multiple devices and backup sources ten
 | Option              | Short | Description                                                                              |
 |---------------------|-------|------------------------------------------------------------------------------------------|
 | `--dry-run`         | `-d`  | Preview actions without changing any files.                                               |
-| `--copy`            | `-c`  | Copy files instead of moving them.                                                        |
 | `--skip-duplicates` | `-s`  | Leave duplicates untouched.                                                               |
 | `--skip-fallback`   |       | Skip files whose date comes from the fallback DateTime tag (0x0132) instead of DateTimeOriginal. |
 | `--list-all`        |       | Show all files including originals and duplicates.                                        |

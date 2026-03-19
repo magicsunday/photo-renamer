@@ -27,7 +27,6 @@ use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
-use function copy;
 use function file_exists;
 use function in_array;
 use function is_dir;
@@ -43,7 +42,7 @@ use function substr;
 
 /**
  * Handles all direct file system interactions: creating file iterators, counting files,
- * executing the actual rename/copy operations, and resolving runtime target collisions
+ * executing the actual rename operations, and resolving runtime target collisions
  * via the {@see findAvailableDuplicateTarget()} fallback. Delegates output entry building
  * and summary rendering to {@see RenameOutputRenderer}. Tracks occupied paths in-memory
  * to prevent data loss during batch moves.
@@ -107,18 +106,17 @@ final readonly class FileSystemService implements FileSystemServiceInterface
         ?array $showFilter = null,
     ): void {
         $sourceBaseDirectory = $this->normalizeBaseDirectory($options->sourceBaseDirectory);
-        $targetBaseDirectory = $this->normalizeBaseDirectory($options->targetBaseDirectory);
 
         $livePhotoGroups = $this->renderer->countLivePhotoGroups($fileDuplicateCollection);
         $totalOperations = $this->renderer->countTotalOperations($fileDuplicateCollection);
 
         [$outputEntries, $maxFilenameLength, $skippedCount, $errorCount]
-            = $this->renderer->buildOutputEntries($fileDuplicateCollection, $options, $result, $sourceBaseDirectory, $targetBaseDirectory);
+            = $this->renderer->buildOutputEntries($fileDuplicateCollection, $options, $result, $sourceBaseDirectory);
 
-        $occupiedPaths = $this->buildOccupiedPaths($fileDuplicateCollection, $targetBaseDirectory, $sourceBaseDirectory);
+        $occupiedPaths = $this->buildOccupiedPaths($fileDuplicateCollection);
 
         $this->io->newLine();
-        $this->io->text(sprintf('<fg=cyan>%s files</>', $options->copyFiles ? 'Copying' : 'Renaming'));
+        $this->io->text('<fg=cyan>Renaming files</>');
         $this->io->newLine();
 
         $counters = $this->renderOutputEntries($outputEntries, $maxFilenameLength, $options, $occupiedPaths, $showFilter);
@@ -163,8 +161,6 @@ final readonly class FileSystemService implements FileSystemServiceInterface
      */
     private function buildOccupiedPaths(
         FileDuplicateCollection $fileDuplicateCollection,
-        ?string $targetBaseDirectory,
-        ?string $sourceBaseDirectory,
     ): array {
         /** @var array<string, true> $occupiedPaths */
         $occupiedPaths = [];
@@ -173,16 +169,6 @@ final readonly class FileSystemService implements FileSystemServiceInterface
             foreach ($fileDuplicate->getRenames() as $rename) {
                 $occupiedPaths[$rename->getSource()->getPathname()] = true;
             }
-        }
-
-        // Seed with existing files in the target directory so pre-existing files
-        // are not overwritten by the runtime collision fallback.
-        if (
-            $targetBaseDirectory !== null
-            && $targetBaseDirectory !== $sourceBaseDirectory
-            && is_dir($targetBaseDirectory)
-        ) {
-            $occupiedPaths += self::scanDirectoryPaths($targetBaseDirectory);
         }
 
         return $occupiedPaths;
@@ -195,7 +181,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
      * @param array<string, true>        $occupiedPaths
      * @param list<string>|null          $showFilter
      *
-     * @return array{fileCount: int, duplicateCount: int, plannedMoves: int, plannedCopies: int, plannedSkips: int}
+     * @return array{fileCount: int, duplicateCount: int, plannedMoves: int, plannedSkips: int}
      */
     private function renderOutputEntries(
         array $outputEntries,
@@ -207,7 +193,6 @@ final readonly class FileSystemService implements FileSystemServiceInterface
         $fileCount      = 0;
         $duplicateCount = 0;
         $plannedMoves   = 0;
-        $plannedCopies  = 0;
         $plannedSkips   = 0;
 
         foreach ($outputEntries as $entry) {
@@ -281,19 +266,13 @@ final readonly class FileSystemService implements FileSystemServiceInterface
             }
 
             if ($shouldPerformOperation) {
-                if ($options->copyFiles) {
-                    ++$plannedCopies;
-                } else {
-                    ++$plannedMoves;
-                }
-
+                ++$plannedMoves;
                 ++$fileCount;
 
                 if ($options->dryRun === false) {
-                    $this->copyOrMoveFile(
+                    $this->moveFile(
                         $rename->getSource(),
                         $rename->getTarget(),
-                        $options->copyFiles,
                         $occupiedPaths,
                     );
                 }
@@ -304,7 +283,6 @@ final readonly class FileSystemService implements FileSystemServiceInterface
             'fileCount'      => $fileCount,
             'duplicateCount' => $duplicateCount,
             'plannedMoves'   => $plannedMoves,
-            'plannedCopies'  => $plannedCopies,
             'plannedSkips'   => $plannedSkips,
         ];
     }
@@ -373,22 +351,20 @@ final readonly class FileSystemService implements FileSystemServiceInterface
     }
 
     /**
-     * Copies or moves a single file from source to target, creating directories as needed.
+     * Moves a single file from source to target, creating directories as needed.
      * When the target path is already occupied (by a file moved earlier in the same batch),
      * falls back to {@see findAvailableDuplicateTarget()} to prevent data loss. Updates the
      * occupied-paths index to reflect the new file system state.
      *
-     * @param SplFileInfo         $sourceFileInfo Source file to move or copy
+     * @param SplFileInfo         $sourceFileInfo Source file to move
      * @param SplFileInfo         $targetFileInfo Intended target path
-     * @param bool                $copy           When true, copy instead of move
      * @param array<string, true> $occupiedPaths  Mutable index of paths currently occupied on disk
      *
      * @throws RuntimeException When the directory cannot be created or the file operation fails
      */
-    private function copyOrMoveFile(
+    private function moveFile(
         SplFileInfo $sourceFileInfo,
         SplFileInfo $targetFileInfo,
-        bool $copy = false,
         array &$occupiedPaths = [],
     ): void {
         $targetDirectory = $targetFileInfo->getPath();
@@ -425,24 +401,16 @@ final readonly class FileSystemService implements FileSystemServiceInterface
             $targetPath     = $targetFileInfo->getPathname();
         }
 
-        if ($copy) {
-            $result = @copy($sourcePath, $targetPath);
-            $action = 'copy';
-        } else {
-            $result = @rename($sourcePath, $targetPath);
-            $action = 'move';
-        }
+        $result = @rename($sourcePath, $targetPath);
 
         if ($result === false) {
             throw new RuntimeException(
-                sprintf('Failed to %s file to "%s"', $action, $targetPath),
+                sprintf('Failed to move file to "%s"', $targetPath),
             );
         }
 
-        if (!$copy) {
-            // Move: source freed.
-            unset($occupiedPaths[$sourcePath]);
-        }
+        // Move: source freed.
+        unset($occupiedPaths[$sourcePath]);
 
         $occupiedPaths[$targetPath] = true;
     }

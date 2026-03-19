@@ -96,7 +96,6 @@ final class RenameLowerCaseCommandTest extends TestCase
                     self::callback(static fn ($strategy): bool => $strategy instanceof LowerCaseFilenameStrategy),
                     self::callback(static fn ($strategy): bool => $strategy instanceof TargetPathnameStrategy),
                     $sourceDir,
-                    $sourceDir,
                 )
                 ->willReturn($duplicateCollection);
 
@@ -105,7 +104,6 @@ final class RenameLowerCaseCommandTest extends TestCase
                 ->method('createDuplicateFilenames')
                 ->with(
                     self::identicalTo($duplicateCollection),
-                    $sourceDir,
                     $sourceDir,
                     false,
                 )
@@ -119,7 +117,6 @@ final class RenameLowerCaseCommandTest extends TestCase
                     self::callback(static function (RenameOptions $options): bool {
                         self::assertTrue($options->dryRun);
                         self::assertFalse($options->skipDuplicates);
-                        self::assertFalse($options->copyFiles);
                         self::assertFalse($options->listAll);
 
                         return true;

@@ -20,9 +20,9 @@ use PHPUnit\Framework\TestCase;
  * Verifies the value-object contract of RenameOptions, the immutable configuration
  * carrier passed from AbstractRenameCommand to FileSystemService::renameFiles().
  *
- * RenameOptions controls dry-run mode, duplicate skipping, copy-vs-move semantics,
- * list-all output, and base directory paths. Correct defaults and explicit overrides
- * are critical because the FileSystemService branches on every one of these flags.
+ * RenameOptions controls dry-run mode, duplicate skipping, list-all output, and
+ * base directory paths. Correct defaults and explicit overrides are critical
+ * because the FileSystemService branches on every one of these flags.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -46,10 +46,8 @@ final class RenameOptionsTest extends TestCase
 
         self::assertFalse($options->dryRun);
         self::assertFalse($options->skipDuplicates);
-        self::assertFalse($options->copyFiles);
         self::assertFalse($options->listAll);
         self::assertNull($options->sourceBaseDirectory);
-        self::assertNull($options->targetBaseDirectory);
     }
 
     /**
@@ -66,17 +64,13 @@ final class RenameOptionsTest extends TestCase
         $options = new RenameOptions(
             dryRun: true,
             skipDuplicates: true,
-            copyFiles: true,
             listAll: true,
             sourceBaseDirectory: '/source',
-            targetBaseDirectory: '/target',
         );
 
         self::assertTrue($options->dryRun);
         self::assertTrue($options->skipDuplicates);
-        self::assertTrue($options->copyFiles);
         self::assertTrue($options->listAll);
         self::assertSame('/source', $options->sourceBaseDirectory);
-        self::assertSame('/target', $options->targetBaseDirectory);
     }
 }

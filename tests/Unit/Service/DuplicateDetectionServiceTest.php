@@ -114,12 +114,11 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service, $output] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
         $sourceFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'source.jpg';
         file_put_contents($sourceFile, 'source');
 
-        // DIR_CONTEXT: src=$sourceDirectory tgt=$targetDirectory ext=None
+        // DIR_CONTEXT: src=$sourceDirectory tgt=$sourceDirectory ext=None
         $iterator = $this->createIterator($sourceDirectory);
 
         $renameStrategy = $this->createMock(RenameStrategyInterface::class);
@@ -139,7 +138,6 @@ final class DuplicateDetectionServiceTest extends TestCase
             $renameStrategy,
             $duplicateIdentifierStrategy,
             $sourceDirectory,
-            $targetDirectory,
         );
 
         $progressOutput = $output->fetch();
@@ -161,15 +159,14 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service, $output] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
         $sourceFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'source.jpg';
-        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . 'target.jpg';
+        $targetFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'target.jpg';
 
         file_put_contents($sourceFile, 'source');
         file_put_contents($targetFile, 'target');
 
-        // DIR_CONTEXT: src=$sourceDirectory tgt=$targetDirectory ext=None
+        // DIR_CONTEXT: src=$sourceDirectory tgt=$sourceDirectory ext=None
         $fileDuplicate = new FileDuplicate();
         $fileDuplicate
             ->addFile(new SplFileInfo($sourceFile))
@@ -181,7 +178,6 @@ final class DuplicateDetectionServiceTest extends TestCase
         $service->createDuplicateFilenames(
             $fileDuplicateCollection,
             $sourceDirectory,
-            $targetDirectory,
         );
 
         $progressOutput = $output->fetch();
@@ -205,12 +201,11 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service, $output] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
         $sourceFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'source.jpg';
         file_put_contents($sourceFile, 'source');
 
-        // DIR_CONTEXT: src=$sourceDirectory tgt=$targetDirectory ext=None
+        // DIR_CONTEXT: src=$sourceDirectory tgt=$sourceDirectory ext=None
         $iterator = $this->createIterator($sourceDirectory);
 
         $renameStrategy = $this->createMock(RenameStrategyInterface::class);
@@ -229,7 +224,6 @@ final class DuplicateDetectionServiceTest extends TestCase
             $renameStrategy,
             $duplicateIdentifierStrategy,
             $sourceDirectory,
-            $targetDirectory,
         );
 
         self::assertCount(0, $collection);
@@ -255,7 +249,6 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
         $videoPath = $sourceDirectory . DIRECTORY_SEPARATOR . '0001.MOV';
         $photoPath = $sourceDirectory . DIRECTORY_SEPARATOR . '999.HEIC';
@@ -263,7 +256,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         file_put_contents($videoPath, 'video');
         file_put_contents($photoPath, 'photo');
 
-        // DIR_CONTEXT: src=$sourceDirectory tgt=$targetDirectory ext=None
+        // DIR_CONTEXT: src=$sourceDirectory tgt=$sourceDirectory ext=None
         $iterator = new RecursiveIteratorIterator(
             new RecursiveArrayIterator([
                 new SplFileInfo($videoPath),
@@ -292,13 +285,12 @@ final class DuplicateDetectionServiceTest extends TestCase
             $renameStrategy,
             $duplicateIdentifierStrategy,
             $sourceDirectory,
-            $targetDirectory,
         );
 
         $duplicate = $collection->get('live-photo:content-id');
         self::assertInstanceOf(FileDuplicate::class, $duplicate);
         self::assertSame(
-            $targetDirectory . DIRECTORY_SEPARATOR . 'photo-target.heic',
+            $sourceDirectory . DIRECTORY_SEPARATOR . 'photo-target.heic',
             $duplicate->getTarget()->getPathname(),
         );
 
@@ -324,7 +316,6 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
         $photoPath = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.HEIC';
         $videoPath = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.MOV';
@@ -332,7 +323,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         file_put_contents($photoPath, 'photo');
         file_put_contents($videoPath, 'video');
 
-        // DIR_CONTEXT: src=$sourceDirectory tgt=$targetDirectory ext=None
+        // DIR_CONTEXT: src=$sourceDirectory tgt=$sourceDirectory ext=None
         $iterator = new RecursiveIteratorIterator(
             new RecursiveArrayIterator([
                 new SplFileInfo($photoPath),
@@ -357,7 +348,6 @@ final class DuplicateDetectionServiceTest extends TestCase
             $renameStrategy,
             $duplicateIdentifierStrategy,
             $sourceDirectory,
-            $targetDirectory,
         );
 
         self::assertTrue($collection->has('live-photo:content-id'));
@@ -392,7 +382,6 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
         $photoPath = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0002.HEIC';
         $videoPath = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0002.MOV';
@@ -400,7 +389,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         file_put_contents($photoPath, 'photo');
         file_put_contents($videoPath, 'video');
 
-        // DIR_CONTEXT: src=$sourceDirectory tgt=$targetDirectory ext=None
+        // DIR_CONTEXT: src=$sourceDirectory tgt=$sourceDirectory ext=None
         $iterator = new RecursiveIteratorIterator(
             new RecursiveArrayIterator([
                 new SplFileInfo($videoPath),
@@ -425,7 +414,6 @@ final class DuplicateDetectionServiceTest extends TestCase
             $renameStrategy,
             $duplicateIdentifierStrategy,
             $sourceDirectory,
-            $targetDirectory,
         );
 
         self::assertTrue($collection->has('live-photo:content-id-2'));
@@ -464,15 +452,13 @@ final class DuplicateDetectionServiceTest extends TestCase
         $subDirectory    = $parentDirectory . DIRECTORY_SEPARATOR . 'sub';
         mkdir($subDirectory);
 
-        $targetDirectory = $this->createTempDirectory();
-
         $subFile    = $subDirectory . DIRECTORY_SEPARATOR . 'sub-photo.jpg';
         $parentFile = $parentDirectory . DIRECTORY_SEPARATOR . 'parent-photo.jpg';
 
         file_put_contents($subFile, 'sub-content');
         file_put_contents($parentFile, 'parent-content');
 
-        // DIR_CONTEXT: src=$parentDirectory tgt=$targetDirectory ext=None
+        // DIR_CONTEXT: src=$parentDirectory tgt=$sourceDirectory ext=None
         // Simulate depth-first traversal: subdirectory file comes first.
         $iterator = new RecursiveIteratorIterator(
             new RecursiveArrayIterator([
@@ -498,7 +484,6 @@ final class DuplicateDetectionServiceTest extends TestCase
             $renameStrategy,
             $duplicateIdentifierStrategy,
             $parentDirectory,
-            $targetDirectory,
         );
 
         $keys = array_keys(iterator_to_array($collection));
@@ -527,11 +512,10 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
         $jpgFile    = $sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg';
         $pngFile    = $sourceDirectory . DIRECTORY_SEPARATOR . 'photo.png';
-        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . 'renamed.jpg';
+        $targetFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'renamed.jpg';
 
         // Same content so sub-grouping treats them as genuine duplicates.
         file_put_contents($jpgFile, 'same-content');
@@ -546,11 +530,10 @@ final class DuplicateDetectionServiceTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('identifier', $fileDuplicate);
 
-        // DIR_CONTEXT: src=$sourceDirectory tgt=$targetDirectory ext=true
+        // DIR_CONTEXT: src=$sourceDirectory tgt=$sourceDirectory ext=true
         $service->createDuplicateFilenames(
             $collection,
             $sourceDirectory,
-            $targetDirectory,
             useFileExtensionFromSource: true,
         );
 
@@ -561,7 +544,7 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         self::assertCount(2, $renames);
         self::assertSame(
-            $targetDirectory . DIRECTORY_SEPARATOR . 'renamed.jpg',
+            $sourceDirectory . DIRECTORY_SEPARATOR . 'renamed.jpg',
             $renames[0]->getTarget()->getPathname(),
         );
         self::assertStringContainsString(
@@ -587,11 +570,10 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service, $output, $fileSystemService] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
         $photoSource     = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.HEIC';
         $videoSource     = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.MOV';
-        $canonicalTarget = $targetDirectory . DIRECTORY_SEPARATOR . '20240101_120000.heic';
+        $canonicalTarget = $sourceDirectory . DIRECTORY_SEPARATOR . '20240101_120000.heic';
 
         file_put_contents($photoSource, 'photo');
         file_put_contents($videoSource, 'video');
@@ -605,7 +587,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('live-photo:content-id', $fileDuplicate);
 
-        // DIR_CONTEXT: src=$sourceDirectory tgt=$targetDirectory ext=true
+        // DIR_CONTEXT: src=$sourceDirectory tgt=$sourceDirectory ext=true
         // Without groupFilesByDuplicateIdentifier the content-ID map is empty,
         // so companion detection cannot pair the video. Hash sub-grouping treats
         // the two distinct-content files as separate sub-groups: the canonical
@@ -613,7 +595,6 @@ final class DuplicateDetectionServiceTest extends TestCase
         $service->createDuplicateFilenames(
             $collection,
             $sourceDirectory,
-            $targetDirectory,
             useFileExtensionFromSource: true,
         );
 
@@ -624,8 +605,8 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         self::assertCount(2, $renames);
 
-        $expectedCanonicalTarget = $targetDirectory . DIRECTORY_SEPARATOR . '20240101_120000.heic';
-        $expectedVideoTarget     = $targetDirectory . DIRECTORY_SEPARATOR . '20240101_120000-002.mov';
+        $expectedCanonicalTarget = $sourceDirectory . DIRECTORY_SEPARATOR . '20240101_120000.heic';
+        $expectedVideoTarget     = $sourceDirectory . DIRECTORY_SEPARATOR . '20240101_120000-002.mov';
 
         $canonicalRename = null;
         $videoRename     = null;
@@ -671,11 +652,10 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
         $sourceOne  = $sourceDirectory . DIRECTORY_SEPARATOR . 'one.jpg';
         $sourceTwo  = $sourceDirectory . DIRECTORY_SEPARATOR . 'two.jpg';
-        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . 'renamed.jpg';
+        $targetFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'renamed.jpg';
 
         // Same content so sub-grouping treats them as genuine duplicates.
         file_put_contents($sourceOne, 'same-content');
@@ -691,11 +671,10 @@ final class DuplicateDetectionServiceTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('identifier', $fileDuplicate);
 
-        // DIR_CONTEXT: src=$sourceDirectory tgt=$targetDirectory ext=None
+        // DIR_CONTEXT: src=$sourceDirectory tgt=$sourceDirectory ext=None
         $service->createDuplicateFilenames(
             $collection,
             $sourceDirectory,
-            $targetDirectory,
         );
 
         $duplicate = $collection->get('identifier');
@@ -705,11 +684,11 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         self::assertCount(2, $renames);
         self::assertSame(
-            $targetDirectory . DIRECTORY_SEPARATOR . 'renamed-duplicate-001.jpg',
+            $sourceDirectory . DIRECTORY_SEPARATOR . 'renamed-duplicate-001.jpg',
             $renames[0]->getTarget()->getPathname(),
         );
         self::assertSame(
-            $targetDirectory . DIRECTORY_SEPARATOR . 'renamed-duplicate-002.jpg',
+            $sourceDirectory . DIRECTORY_SEPARATOR . 'renamed-duplicate-002.jpg',
             $renames[1]->getTarget()->getPathname(),
         );
     }
@@ -757,7 +736,6 @@ final class DuplicateDetectionServiceTest extends TestCase
         // DIR_CONTEXT: src=$sourceDirectory tgt=$sourceDirectory ext=None
         $service->createDuplicateFilenames(
             $collection,
-            $sourceDirectory,
             $sourceDirectory,
         );
 
@@ -815,11 +793,10 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
         $canonicalSource = $sourceDirectory . DIRECTORY_SEPARATOR . 'original.jpg';
         $duplicateSource = $sourceDirectory . DIRECTORY_SEPARATOR . 'duplicate.jpg';
-        $targetPath      = $targetDirectory . DIRECTORY_SEPARATOR . 'renamed.jpg';
+        $targetPath      = $sourceDirectory . DIRECTORY_SEPARATOR . 'renamed.jpg';
 
         // Same content so sub-grouping treats them as genuine duplicates.
         file_put_contents($canonicalSource, 'same-content');
@@ -834,11 +811,10 @@ final class DuplicateDetectionServiceTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('identifier', $fileDuplicate);
 
-        // DIR_CONTEXT: src=$sourceDirectory tgt=$targetDirectory ext=None
+        // DIR_CONTEXT: src=$sourceDirectory tgt=$sourceDirectory ext=None
         $service->createDuplicateFilenames(
             $collection,
             $sourceDirectory,
-            $targetDirectory,
         );
 
         $duplicate = $collection->get('identifier');
@@ -850,7 +826,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertSame($canonicalSource, $renames[0]->getSource()->getPathname());
         self::assertSame($targetPath, $renames[0]->getTarget()->getPathname());
         self::assertSame(
-            $targetDirectory . DIRECTORY_SEPARATOR . 'renamed-duplicate-001.jpg',
+            $sourceDirectory . DIRECTORY_SEPARATOR . 'renamed-duplicate-001.jpg',
             $renames[1]->getTarget()->getPathname(),
         );
     }
@@ -869,15 +845,14 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
         $sourceFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'source.jpg';
-        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . 'target.jpg';
+        $targetFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'target.jpg';
 
         file_put_contents($sourceFile, 'source');
         file_put_contents($targetFile, 'target');
 
-        // DIR_CONTEXT: src=$sourceDirectory tgt=$targetDirectory ext=None
+        // DIR_CONTEXT: src=$sourceDirectory tgt=$sourceDirectory ext=None
         $initialDuplicate = new FileDuplicate();
         $initialDuplicate
             ->addFile(new SplFileInfo($sourceFile))
@@ -889,7 +864,6 @@ final class DuplicateDetectionServiceTest extends TestCase
         $service->createDuplicateFilenames(
             $initialCollection,
             $sourceDirectory,
-            $targetDirectory,
         );
 
         $firstDuplicate = $initialCollection->get('identifier');
@@ -919,8 +893,7 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         $service->createDuplicateFilenames(
             $subsequentCollection,
-            $targetDirectory,
-            $targetDirectory,
+            $sourceDirectory,
         );
 
         $secondDuplicate = $subsequentCollection->get('identifier');
@@ -948,7 +921,6 @@ final class DuplicateDetectionServiceTest extends TestCase
         $sourceRoot      = $this->createTempDirectory();
         $sourceDirectory = $sourceRoot . DIRECTORY_SEPARATOR . 'Photos';
         $nestedDirectory = $sourceDirectory . DIRECTORY_SEPARATOR . 'Photos';
-        $targetDirectory = $this->createTempDirectory();
 
         if (!mkdir($sourceDirectory, 0777, true) && !is_dir($sourceDirectory)) {
             self::fail('Failed to create source directory: ' . $sourceDirectory);
@@ -961,13 +933,13 @@ final class DuplicateDetectionServiceTest extends TestCase
         $sourceFile = $nestedDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
         file_put_contents($sourceFile, 'image');
 
-        $this->setServiceDirectories($service, $sourceDirectory, $targetDirectory);
+        $this->setServiceDirectories($service, $sourceDirectory);
 
         $method         = new ReflectionMethod($service, 'getTargetPathname');
         $targetPathname = $method->invoke($service, new SplFileInfo($sourceFile), 'renamed.jpg');
 
         self::assertSame(
-            $targetDirectory . DIRECTORY_SEPARATOR . 'Photos' . DIRECTORY_SEPARATOR . 'renamed.jpg',
+            $sourceDirectory . DIRECTORY_SEPARATOR . 'Photos' . DIRECTORY_SEPARATOR . 'renamed.jpg',
             $targetPathname,
         );
     }
@@ -986,7 +958,6 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
         $nestedSource = $sourceDirectory . DIRECTORY_SEPARATOR . 'nested';
 
@@ -997,13 +968,13 @@ final class DuplicateDetectionServiceTest extends TestCase
         $sourceFile = $nestedSource . DIRECTORY_SEPARATOR . 'example.jpg';
         file_put_contents($sourceFile, 'example');
 
-        $this->setServiceDirectories($service, $sourceDirectory, $targetDirectory);
+        $this->setServiceDirectories($service, $sourceDirectory);
 
         $method         = new ReflectionMethod($service, 'getTargetPathname');
         $targetPathname = $method->invoke($service, new SplFileInfo($sourceFile), 'renamed.jpg');
 
         self::assertSame(
-            $targetDirectory . DIRECTORY_SEPARATOR . 'nested' . DIRECTORY_SEPARATOR . 'renamed.jpg',
+            $sourceDirectory . DIRECTORY_SEPARATOR . 'nested' . DIRECTORY_SEPARATOR . 'renamed.jpg',
             $targetPathname,
         );
     }
@@ -1023,7 +994,6 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
         $fileA = $sourceDirectory . DIRECTORY_SEPARATOR . 'photo_a.jpg';
         $fileB = $sourceDirectory . DIRECTORY_SEPARATOR . 'photo_b.jpg';
@@ -1031,7 +1001,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         file_put_contents($fileA, 'content-of-file-A');
         file_put_contents($fileB, 'content-of-file-B-different');
 
-        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28.jpg';
+        $targetFile = $sourceDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28.jpg';
 
         $fileDuplicate = new FileDuplicate();
         $fileDuplicate
@@ -1042,11 +1012,10 @@ final class DuplicateDetectionServiceTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('identifier', $fileDuplicate);
 
-        // DIR_CONTEXT: src=$sourceDirectory tgt=$targetDirectory ext=None
+        // DIR_CONTEXT: src=$sourceDirectory tgt=$sourceDirectory ext=None
         $service->createDuplicateFilenames(
             $collection,
             $sourceDirectory,
-            $targetDirectory,
         );
 
         $duplicate = $collection->get('identifier');
@@ -1058,13 +1027,13 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         // Canonical sub-group: unsuffixed base name
         self::assertSame(
-            $targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28.jpg',
+            $sourceDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28.jpg',
             $renames[0]->getTarget()->getPathname(),
         );
 
         // Second sub-group: starts at -002
         self::assertSame(
-            $targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28-002.jpg',
+            $sourceDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28-002.jpg',
             $renames[1]->getTarget()->getPathname(),
         );
 
@@ -1113,7 +1082,6 @@ final class DuplicateDetectionServiceTest extends TestCase
         $service->createDuplicateFilenames(
             $collection,
             $directory,
-            $directory,
         );
 
         $duplicate = $collection->get('identifier');
@@ -1161,7 +1129,6 @@ final class DuplicateDetectionServiceTest extends TestCase
         $service->createDuplicateFilenames(
             $collection,
             $directory,
-            $directory,
         );
 
         $duplicate = $collection->get('identifier');
@@ -1208,7 +1175,6 @@ final class DuplicateDetectionServiceTest extends TestCase
         $service->createDuplicateFilenames(
             $collection,
             $directory,
-            $directory,
         );
 
         $duplicate = $collection->get('identifier');
@@ -1238,7 +1204,6 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
         // Image A (hash X) + companion MOV A + image B (hash Y)
         $imageA = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.HEIC';
@@ -1249,7 +1214,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         file_put_contents($movA, 'video-content-A');
         file_put_contents($imageB, 'image-content-B-different');
 
-        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28.heic';
+        $targetFile = $sourceDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28.heic';
 
         $fileDuplicate = new FileDuplicate();
         $fileDuplicate
@@ -1261,11 +1226,10 @@ final class DuplicateDetectionServiceTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('live-photo:content-id', $fileDuplicate);
 
-        // DIR_CONTEXT: src=$sourceDirectory tgt=$targetDirectory ext=true
+        // DIR_CONTEXT: src=$sourceDirectory tgt=$sourceDirectory ext=true
         $service->createDuplicateFilenames(
             $collection,
             $sourceDirectory,
-            $targetDirectory,
             useFileExtensionFromSource: true,
         );
 
@@ -1309,7 +1273,6 @@ final class DuplicateDetectionServiceTest extends TestCase
         $hashCalculator = $this->createMock(SafeHashCalculator::class);
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
         $fileA = $sourceDirectory . DIRECTORY_SEPARATOR . 'a.jpg';
         $fileB = $sourceDirectory . DIRECTORY_SEPARATOR . 'b.jpg';
@@ -1338,7 +1301,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         $hashSubGroupingService = new HashSubGroupingService($hashCalculator, $io, $mediaTypeClassifier);
         $service                = new DuplicateDetectionService($io, $hashSubGroupingService, $mediaTypeClassifier);
 
-        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . 'target.jpg';
+        $targetFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'target.jpg';
 
         $fileDuplicate = new FileDuplicate();
         $fileDuplicate
@@ -1349,11 +1312,10 @@ final class DuplicateDetectionServiceTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('identifier', $fileDuplicate);
 
-        // DIR_CONTEXT: src=$sourceDirectory tgt=$targetDirectory ext=None
+        // DIR_CONTEXT: src=$sourceDirectory tgt=$sourceDirectory ext=None
         $service->createDuplicateFilenames(
             $collection,
             $sourceDirectory,
-            $targetDirectory,
         );
 
         $duplicate = $collection->get('identifier');
@@ -1395,7 +1357,6 @@ final class DuplicateDetectionServiceTest extends TestCase
         $service                = new DuplicateDetectionService($io, $hashSubGroupingService, $mediaTypeClassifier);
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
         $fileA = $sourceDirectory . DIRECTORY_SEPARATOR . 'a.jpg';
         $fileB = $sourceDirectory . DIRECTORY_SEPARATOR . 'b.jpg';
@@ -1403,7 +1364,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         file_put_contents($fileA, 'content-A');
         file_put_contents($fileB, 'content-B-different');
 
-        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . 'target.jpg';
+        $targetFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'target.jpg';
 
         $fileDuplicate = new FileDuplicate();
         $fileDuplicate
@@ -1414,11 +1375,10 @@ final class DuplicateDetectionServiceTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('identifier', $fileDuplicate);
 
-        // DIR_CONTEXT: src=$sourceDirectory tgt=$targetDirectory ext=None
+        // DIR_CONTEXT: src=$sourceDirectory ext=None
         $service->createDuplicateFilenames(
             $collection,
             $sourceDirectory,
-            $targetDirectory,
             skipHashSubGrouping: true,
         );
 
@@ -1431,11 +1391,11 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         // Old behavior: first file = canonical, second = -duplicate-001
         self::assertSame(
-            $targetDirectory . DIRECTORY_SEPARATOR . 'target.jpg',
+            $sourceDirectory . DIRECTORY_SEPARATOR . 'target.jpg',
             $renames[0]->getTarget()->getPathname(),
         );
         self::assertSame(
-            $targetDirectory . DIRECTORY_SEPARATOR . 'target-duplicate-001.jpg',
+            $sourceDirectory . DIRECTORY_SEPARATOR . 'target-duplicate-001.jpg',
             $renames[1]->getTarget()->getPathname(),
         );
     }
@@ -1464,10 +1424,9 @@ final class DuplicateDetectionServiceTest extends TestCase
         $service                = new DuplicateDetectionService($io, $hashSubGroupingService, $mediaTypeClassifier);
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
         $sourceFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'only.jpg';
-        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . 'target.jpg';
+        $targetFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'target.jpg';
 
         file_put_contents($sourceFile, 'single');
 
@@ -1479,11 +1438,10 @@ final class DuplicateDetectionServiceTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('identifier', $fileDuplicate);
 
-        // DIR_CONTEXT: src=$sourceDirectory tgt=$targetDirectory ext=None
+        // DIR_CONTEXT: src=$sourceDirectory tgt=$sourceDirectory ext=None
         $service->createDuplicateFilenames(
             $collection,
             $sourceDirectory,
-            $targetDirectory,
         );
 
         $duplicate = $collection->get('identifier');
@@ -1493,7 +1451,7 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         self::assertCount(1, $renames);
         self::assertSame(
-            $targetDirectory . DIRECTORY_SEPARATOR . 'target.jpg',
+            $sourceDirectory . DIRECTORY_SEPARATOR . 'target.jpg',
             $renames[0]->getTarget()->getPathname(),
         );
     }
@@ -1519,7 +1477,6 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
         // 5 files: A (hash X), A' (hash X), B (hash Y), B' (hash Y), C (hash Z)
         $fileA  = $sourceDirectory . DIRECTORY_SEPARATOR . 'a.jpg';
@@ -1534,7 +1491,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         file_put_contents($fileB2, 'content-hash-Y');
         file_put_contents($fileC, 'content-hash-Z');
 
-        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . 'basename.jpg';
+        $targetFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'basename.jpg';
 
         $fileDuplicate = new FileDuplicate();
         $fileDuplicate
@@ -1548,11 +1505,10 @@ final class DuplicateDetectionServiceTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('identifier', $fileDuplicate);
 
-        // DIR_CONTEXT: src=$sourceDirectory tgt=$targetDirectory ext=None
+        // DIR_CONTEXT: src=$sourceDirectory tgt=$sourceDirectory ext=None
         $service->createDuplicateFilenames(
             $collection,
             $sourceDirectory,
-            $targetDirectory,
         );
 
         $duplicate = $collection->get('identifier');
@@ -1626,7 +1582,6 @@ final class DuplicateDetectionServiceTest extends TestCase
         $service->createDuplicateFilenames(
             $collection,
             $directory,
-            $directory,
         );
 
         $duplicate = $collection->get('identifier');
@@ -1661,7 +1616,6 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
         $fileA = $sourceDirectory . DIRECTORY_SEPARATOR . 'copy_a.jpg';
         $fileB = $sourceDirectory . DIRECTORY_SEPARATOR . 'copy_b.jpg';
@@ -1669,7 +1623,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         file_put_contents($fileA, 'identical-content');
         file_put_contents($fileB, 'identical-content');
 
-        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28.jpg';
+        $targetFile = $sourceDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28.jpg';
 
         $fileDuplicate = new FileDuplicate();
         $fileDuplicate
@@ -1680,11 +1634,10 @@ final class DuplicateDetectionServiceTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('identifier', $fileDuplicate);
 
-        // DIR_CONTEXT: src=$sourceDirectory tgt=$targetDirectory ext=None
+        // DIR_CONTEXT: src=$sourceDirectory tgt=$sourceDirectory ext=None
         $service->createDuplicateFilenames(
             $collection,
             $sourceDirectory,
-            $targetDirectory,
         );
 
         $duplicate = $collection->get('identifier');
@@ -1696,13 +1649,13 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         // First: canonical — no duplicate suffix
         self::assertSame(
-            $targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28.jpg',
+            $sourceDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28.jpg',
             $renames[0]->getTarget()->getPathname(),
         );
 
         // Second: genuine duplicate
         self::assertSame(
-            $targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28-duplicate-001.jpg',
+            $sourceDirectory . DIRECTORY_SEPARATOR . '2025-01-01_00-02-28-duplicate-001.jpg',
             $renames[1]->getTarget()->getPathname(),
         );
     }
@@ -1721,9 +1674,8 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
-        $this->setServiceDirectories($service, $sourceDirectory, $targetDirectory);
+        $this->setServiceDirectories($service, $sourceDirectory);
 
         $path   = $sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg';
         $source = new SplFileInfo($path);
@@ -1764,9 +1716,8 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
-        $this->setServiceDirectories($service, $sourceDirectory, $targetDirectory);
+        $this->setServiceDirectories($service, $sourceDirectory);
 
         $path   = $sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg';
         $source = new SplFileInfo($path);
@@ -1805,12 +1756,11 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
-        $this->setServiceDirectories($service, $sourceDirectory, $targetDirectory);
+        $this->setServiceDirectories($service, $sourceDirectory);
 
         $source = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_1234.jpg');
-        $target = new SplFileInfo($targetDirectory . DIRECTORY_SEPARATOR . '2024-01-01.jpg');
+        $target = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . '2024-01-01.jpg');
 
         $duplicateCount = 1;
         $method         = new ReflectionMethod($service, 'resolveCanonicalTarget');
@@ -1839,12 +1789,11 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
-        $this->setServiceDirectories($service, $sourceDirectory, $targetDirectory);
+        $this->setServiceDirectories($service, $sourceDirectory);
 
         $source = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_1234.jpg');
-        $target = new SplFileInfo($targetDirectory . DIRECTORY_SEPARATOR . '2024-01-01.jpg');
+        $target = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . '2024-01-01.jpg');
 
         // Occupy the target path in the disk index
         $diskIndexProp = new ReflectionProperty($service, 'diskIndex');
@@ -1880,12 +1829,11 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
-        $this->setServiceDirectories($service, $sourceDirectory, $targetDirectory);
+        $this->setServiceDirectories($service, $sourceDirectory);
 
         $source = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'copy.jpg');
-        $target = new SplFileInfo($targetDirectory . DIRECTORY_SEPARATOR . '2024-01-01.jpg');
+        $target = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . '2024-01-01.jpg');
 
         // Occupy the target path in the disk index
         $diskIndexProp = new ReflectionProperty($service, 'diskIndex');
@@ -1924,12 +1872,11 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
-        $this->setServiceDirectories($service, $sourceDirectory, $targetDirectory);
+        $this->setServiceDirectories($service, $sourceDirectory);
 
         $source = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'copy.jpg');
-        $target = new SplFileInfo($targetDirectory . DIRECTORY_SEPARATOR . '2024-01-01.jpg');
+        $target = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . '2024-01-01.jpg');
 
         $duplicateCount = 1;
         $method         = new ReflectionMethod($service, 'createDuplicateTargetFileInfo');
@@ -1962,12 +1909,11 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
-        $this->setServiceDirectories($service, $sourceDirectory, $targetDirectory);
+        $this->setServiceDirectories($service, $sourceDirectory);
 
         $source = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg');
-        $target = new SplFileInfo($targetDirectory . DIRECTORY_SEPARATOR . '2024-01-01.jpg');
+        $target = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . '2024-01-01.jpg');
 
         // Occupy the target so the unique resolver must find a new name
         $diskIndexProp = new ReflectionProperty($service, 'diskIndex');
@@ -2010,12 +1956,11 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
-        $this->setServiceDirectories($service, $sourceDirectory, $targetDirectory);
+        $this->setServiceDirectories($service, $sourceDirectory);
 
         $source = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg');
-        $target = new SplFileInfo($targetDirectory . DIRECTORY_SEPARATOR . '2024-01-01.jpg');
+        $target = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . '2024-01-01.jpg');
 
         $duplicateCount = 1;
         $method         = new ReflectionMethod($service, 'createDuplicateTargetFileInfo');
@@ -2050,12 +1995,11 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
-        $this->setServiceDirectories($service, $sourceDirectory, $targetDirectory);
+        $this->setServiceDirectories($service, $sourceDirectory);
 
         $source = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg');
-        $target = new SplFileInfo($targetDirectory . DIRECTORY_SEPARATOR . '2024-01-01.jpg');
+        $target = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . '2024-01-01.jpg');
 
         $duplicateCount = 1;
         $method         = new ReflectionMethod($service, 'createDuplicateTargetFileInfo');
@@ -2088,12 +2032,11 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
-        $this->setServiceDirectories($service, $sourceDirectory, $targetDirectory);
+        $this->setServiceDirectories($service, $sourceDirectory);
 
         $source = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg');
-        $target = new SplFileInfo($targetDirectory . DIRECTORY_SEPARATOR . '2024-01-01.jpg');
+        $target = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . '2024-01-01.jpg');
 
         $duplicateCount = 1;
         $method         = new ReflectionMethod($service, 'createDuplicateTargetFileInfo');
@@ -2132,12 +2075,11 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
-        $this->setServiceDirectories($service, $sourceDirectory, $targetDirectory);
+        $this->setServiceDirectories($service, $sourceDirectory);
 
         $source   = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg');
-        $target   = new SplFileInfo($targetDirectory . DIRECTORY_SEPARATOR . 'photo.jpg');
+        $target   = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg');
         $basename = 'photo';
 
         // Populate the diskIndex with entries that block every suffix 001..999
@@ -2149,7 +2091,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         for ($i = 1; $i <= 999; ++$i) {
             $diskIndex[sprintf(
                 '%s%sphoto%s%03d.jpg',
-                $targetDirectory,
+                $sourceDirectory,
                 DIRECTORY_SEPARATOR,
                 Constants::DUPLICATE_IDENTIFIER,
                 $i,
@@ -2179,9 +2121,8 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
-        $this->setServiceDirectories($service, $sourceDirectory, $targetDirectory);
+        $this->setServiceDirectories($service, $sourceDirectory);
 
         $sourceFile = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg');
 
@@ -2203,9 +2144,8 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
-        $this->setServiceDirectories($service, $sourceDirectory, $targetDirectory);
+        $this->setServiceDirectories($service, $sourceDirectory);
 
         $sourceFile = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg');
 
@@ -2227,9 +2167,8 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
-        $this->setServiceDirectories($service, $sourceDirectory, $targetDirectory);
+        $this->setServiceDirectories($service, $sourceDirectory);
 
         $sourceFile = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg');
 
@@ -2255,7 +2194,6 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
         $jpgPath = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.jpg';
         $movPath = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.mov';
@@ -2263,7 +2201,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         file_put_contents($jpgPath, 'photo-content');
         file_put_contents($movPath, 'video-content');
 
-        // DIR_CONTEXT: src=$sourceDirectory tgt=$targetDirectory ext=None
+        // DIR_CONTEXT: src=$sourceDirectory tgt=$sourceDirectory ext=None
         // JPG first, then MOV — both have EXIF dates and the same content ID.
         $iterator = new RecursiveIteratorIterator(
             new RecursiveArrayIterator([
@@ -2290,14 +2228,13 @@ final class DuplicateDetectionServiceTest extends TestCase
             $renameStrategy,
             $duplicateIdentifierStrategy,
             $sourceDirectory,
-            $targetDirectory,
         );
 
         // After the fix: 1 group (JPG's), MOV is a member of it.
         self::assertCount(1, $collection);
-        self::assertTrue($collection->has($targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_12-00-00-000'));
+        self::assertTrue($collection->has($sourceDirectory . DIRECTORY_SEPARATOR . '2025-01-01_12-00-00-000'));
 
-        $duplicate = $collection->get($targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_12-00-00-000');
+        $duplicate = $collection->get($sourceDirectory . DIRECTORY_SEPARATOR . '2025-01-01_12-00-00-000');
         self::assertInstanceOf(FileDuplicate::class, $duplicate);
 
         $files = iterator_to_array($duplicate->getFiles());
@@ -2326,13 +2263,12 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
         $movPath = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0099.mov';
 
         file_put_contents($movPath, 'orphan-video-content');
 
-        // DIR_CONTEXT: src=$sourceDirectory tgt=$targetDirectory ext=None
+        // DIR_CONTEXT: src=$sourceDirectory tgt=$sourceDirectory ext=None
         $iterator = new RecursiveIteratorIterator(
             new RecursiveArrayIterator([
                 new SplFileInfo($movPath),
@@ -2352,14 +2288,13 @@ final class DuplicateDetectionServiceTest extends TestCase
             $renameStrategy,
             $duplicateIdentifierStrategy,
             $sourceDirectory,
-            $targetDirectory,
         );
 
         // The standalone video must still have its own group (not be lost).
         self::assertCount(1, $collection);
-        self::assertTrue($collection->has($targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_11-00-00-000'));
+        self::assertTrue($collection->has($sourceDirectory . DIRECTORY_SEPARATOR . '2025-01-01_11-00-00-000'));
 
-        $duplicate = $collection->get($targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_11-00-00-000');
+        $duplicate = $collection->get($sourceDirectory . DIRECTORY_SEPARATOR . '2025-01-01_11-00-00-000');
         self::assertInstanceOf(FileDuplicate::class, $duplicate);
 
         $files = iterator_to_array($duplicate->getFiles());
@@ -2388,7 +2323,6 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
         // Two Live Photo pairs with different content but same EXIF timestamp.
         $pair1Jpg = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.jpg';
@@ -2433,13 +2367,12 @@ final class DuplicateDetectionServiceTest extends TestCase
             $renameStrategy,
             $duplicateIdentifierStrategy,
             $sourceDirectory,
-            $targetDirectory,
         );
 
         // All four files must land in one group (same target basename).
         self::assertCount(1, $collection);
 
-        $duplicate = $collection->get($targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_12-00-00-000');
+        $duplicate = $collection->get($sourceDirectory . DIRECTORY_SEPARATOR . '2025-01-01_12-00-00-000');
         self::assertInstanceOf(FileDuplicate::class, $duplicate);
 
         $files = iterator_to_array($duplicate->getFiles());
@@ -2449,7 +2382,6 @@ final class DuplicateDetectionServiceTest extends TestCase
         $service->createDuplicateFilenames(
             $collection,
             $sourceDirectory,
-            $targetDirectory,
             useFileExtensionFromSource: true,
         );
 
@@ -2493,7 +2425,6 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
         // Two Live Photo pairs with different content but same EXIF timestamp.
         $pair1Jpg = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.jpg';
@@ -2538,13 +2469,12 @@ final class DuplicateDetectionServiceTest extends TestCase
             $renameStrategy,
             $duplicateIdentifierStrategy,
             $sourceDirectory,
-            $targetDirectory,
         );
 
         // All four files must land in one group (same target basename).
         self::assertCount(1, $collection);
 
-        $duplicate = $collection->get($targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_12-00-00-000');
+        $duplicate = $collection->get($sourceDirectory . DIRECTORY_SEPARATOR . '2025-01-01_12-00-00-000');
         self::assertInstanceOf(FileDuplicate::class, $duplicate);
 
         $files = iterator_to_array($duplicate->getFiles());
@@ -2554,7 +2484,6 @@ final class DuplicateDetectionServiceTest extends TestCase
         $service->createDuplicateFilenames(
             $collection,
             $sourceDirectory,
-            $targetDirectory,
             useFileExtensionFromSource: true,
         );
 
@@ -2597,7 +2526,6 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
         // Two Live Photo pairs with different content but same EXIF timestamp.
         $pair1Jpg = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.jpg';
@@ -2644,13 +2572,12 @@ final class DuplicateDetectionServiceTest extends TestCase
             $renameStrategy,
             $duplicateIdentifierStrategy,
             $sourceDirectory,
-            $targetDirectory,
         );
 
         // All four files must land in one group (same target basename).
         self::assertCount(1, $collection);
 
-        $duplicate = $collection->get($targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_12-00-00-000');
+        $duplicate = $collection->get($sourceDirectory . DIRECTORY_SEPARATOR . '2025-01-01_12-00-00-000');
         self::assertInstanceOf(FileDuplicate::class, $duplicate);
 
         $files = iterator_to_array($duplicate->getFiles());
@@ -2660,7 +2587,6 @@ final class DuplicateDetectionServiceTest extends TestCase
         $service->createDuplicateFilenames(
             $collection,
             $sourceDirectory,
-            $targetDirectory,
             useFileExtensionFromSource: true,
         );
 
@@ -2748,7 +2674,6 @@ final class DuplicateDetectionServiceTest extends TestCase
             $renameStrategy,
             $duplicateIdentifierStrategy,
             $directory,
-            $directory,
         );
 
         // All four files must land in one group (same target basename, same directory).
@@ -2764,7 +2689,6 @@ final class DuplicateDetectionServiceTest extends TestCase
         // Phase 2: assign duplicate filenames with hash sub-grouping.
         $service->createDuplicateFilenames(
             $collection,
-            $directory,
             $directory,
             useFileExtensionFromSource: true,
         );
@@ -2809,7 +2733,6 @@ final class DuplicateDetectionServiceTest extends TestCase
         [$service] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
-        $targetDirectory = $this->createTempDirectory();
 
         $pair1Jpg = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.jpg';
         $pair1Mov = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.mov';
@@ -2851,12 +2774,11 @@ final class DuplicateDetectionServiceTest extends TestCase
             $renameStrategy,
             $duplicateIdentifierStrategy,
             $sourceDirectory,
-            $targetDirectory,
         );
 
         self::assertCount(1, $collection);
 
-        $groupKey  = $targetDirectory . DIRECTORY_SEPARATOR . '2025-01-01_12-00-00-000';
+        $groupKey  = $sourceDirectory . DIRECTORY_SEPARATOR . '2025-01-01_12-00-00-000';
         $duplicate = $collection->get($groupKey);
         self::assertInstanceOf(FileDuplicate::class, $duplicate);
 
@@ -2866,7 +2788,6 @@ final class DuplicateDetectionServiceTest extends TestCase
         $service->createDuplicateFilenames(
             $collection,
             $sourceDirectory,
-            $targetDirectory,
             useFileExtensionFromSource: true,
         );
 
@@ -2910,13 +2831,9 @@ final class DuplicateDetectionServiceTest extends TestCase
     private function setServiceDirectories(
         DuplicateDetectionService $service,
         string $sourceDirectory,
-        string $targetDirectory,
     ): void {
         $sourceProperty = new ReflectionProperty($service, 'sourceDirectory');
         $sourceProperty->setValue($service, $sourceDirectory);
-
-        $targetProperty = new ReflectionProperty($service, 'targetDirectory');
-        $targetProperty->setValue($service, $targetDirectory);
     }
 
     private function createTempDirectory(): string

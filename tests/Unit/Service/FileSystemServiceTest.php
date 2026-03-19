@@ -152,7 +152,6 @@ final class FileSystemServiceTest extends TestCase
             new RenameOptions(
                 dryRun: true,
                 sourceBaseDirectory: $sourceDirectory,
-                targetBaseDirectory: $targetDirectory,
             ),
         );
 
@@ -174,14 +173,12 @@ final class FileSystemServiceTest extends TestCase
     {
         [$service, $output] = $this->createService();
 
-        $sourceDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'source-duplicate';
-        $targetDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'target-duplicate';
-        mkdir($sourceDirectory);
-        mkdir($targetDirectory);
+        $directory = $this->workspace . DIRECTORY_SEPARATOR . 'source-duplicate';
+        mkdir($directory);
 
-        $sourceFile      = $sourceDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
-        $canonicalTarget = $targetDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
-        $targetFile      = $targetDirectory . DIRECTORY_SEPARATOR
+        $sourceFile      = $directory . DIRECTORY_SEPARATOR . 'image.jpg';
+        $canonicalTarget = $directory . DIRECTORY_SEPARATOR . 'image.jpg';
+        $targetFile      = $directory . DIRECTORY_SEPARATOR
             . sprintf('image%s001.jpg', Constants::DUPLICATE_IDENTIFIER);
 
         file_put_contents($sourceFile, 'duplicate');
@@ -196,8 +193,7 @@ final class FileSystemServiceTest extends TestCase
             $fileDuplicateCollection,
             new RenameOptions(
                 skipDuplicates: true,
-                sourceBaseDirectory: $sourceDirectory,
-                targetBaseDirectory: $targetDirectory,
+                sourceBaseDirectory: $directory,
             ),
         );
 
@@ -224,17 +220,14 @@ final class FileSystemServiceTest extends TestCase
     {
         [$service, $output] = $this->createService();
 
-        $sourceDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'source-canonical-duplicate';
-        $targetDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'target-canonical-duplicate';
+        $directory = $this->workspace . DIRECTORY_SEPARATOR . 'source-canonical-duplicate';
+        mkdir($directory);
 
-        mkdir($sourceDirectory);
-        mkdir($targetDirectory);
-
-        $existingCanonical = $targetDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
+        $existingCanonical = $directory . DIRECTORY_SEPARATOR . 'image.jpg';
         file_put_contents($existingCanonical, 'existing');
 
-        $sourceFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'incoming.jpg';
-        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR
+        $sourceFile = $directory . DIRECTORY_SEPARATOR . 'incoming.jpg';
+        $targetFile = $directory . DIRECTORY_SEPARATOR
             . 'image' . Constants::DUPLICATE_IDENTIFIER . '001.jpg';
 
         file_put_contents($sourceFile, 'incoming');
@@ -248,8 +241,7 @@ final class FileSystemServiceTest extends TestCase
             $fileDuplicateCollection,
             new RenameOptions(
                 skipDuplicates: true,
-                sourceBaseDirectory: $sourceDirectory,
-                targetBaseDirectory: $targetDirectory,
+                sourceBaseDirectory: $directory,
             ),
         );
 
@@ -264,53 +256,12 @@ final class FileSystemServiceTest extends TestCase
         self::assertStringNotContainsString('Skipped (duplicate)', $buffer);
         self::assertStringContainsString('[R]', $buffer);
 
-        $relativeSource = FileSystemService::relativizePath($sourceFile, $sourceDirectory);
-        $relativeTarget = FileSystemService::relativizePath($targetFile, $targetDirectory);
+        $relativeSource = FileSystemService::relativizePath($sourceFile, $directory);
+        $relativeTarget = FileSystemService::relativizePath($targetFile, $directory);
 
         self::assertStringContainsString($relativeSource, $buffer);
         self::assertStringContainsString($relativeTarget, $buffer);
         self::assertStringContainsString('Files processed', $buffer);
-        self::assertStringNotContainsString('Duplicates found', $buffer);
-    }
-
-    /**
-     * Verifies that --copy preserves the source file and creates the target as a
-     * copy with identical content. The summary shows "Planned copies" instead of
-     * "Planned moves".
-     */
-    #[Test]
-    public function renameFilesCopiesFilesWhenRequested(): void
-    {
-        [$service, $output] = $this->createService();
-
-        $sourceDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'source-copy';
-        $targetDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'target-copy';
-        mkdir($sourceDirectory);
-
-        $sourceFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
-        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
-
-        file_put_contents($sourceFile, 'copy');
-
-        $fileDuplicateCollection = $this->createFileDuplicateCollection(
-            $sourceFile,
-            $targetFile,
-        );
-
-        $service->renameFiles($fileDuplicateCollection, new RenameOptions(copyFiles: true));
-
-        self::assertFileExists($sourceFile);
-        self::assertFileExists($targetFile);
-        self::assertSame('copy', file_get_contents($sourceFile));
-        self::assertSame('copy', file_get_contents($targetFile));
-
-        $buffer = $output->fetch();
-        self::assertStringContainsString('Scanned files', $buffer);
-        self::assertStringContainsString('Planned copies', $buffer);
-        self::assertStringContainsString('Files processed', $buffer);
-        self::assertStringNotContainsString('Planned moves', $buffer);
-        self::assertStringNotContainsString('Planned skips', $buffer);
-        self::assertStringNotContainsString('Live Photo groups', $buffer);
         self::assertStringNotContainsString('Duplicates found', $buffer);
     }
 
@@ -346,7 +297,6 @@ final class FileSystemServiceTest extends TestCase
             new RenameOptions(
                 dryRun: true,
                 sourceBaseDirectory: $sourceDirectory,
-                targetBaseDirectory: $targetDirectory,
             ),
         );
 
@@ -357,7 +307,7 @@ final class FileSystemServiceTest extends TestCase
         self::assertNotFalse($logPosition);
 
         $relativeSource = FileSystemService::relativizePath($sourceFile, $sourceDirectory);
-        $relativeTarget = FileSystemService::relativizePath($targetFile, $targetDirectory);
+        $relativeTarget = FileSystemService::relativizePath($targetFile, $sourceDirectory);
 
         self::assertStringContainsString($relativeSource, $normalized);
         self::assertStringContainsString($relativeTarget, $normalized);
@@ -393,7 +343,6 @@ final class FileSystemServiceTest extends TestCase
             new RenameOptions(
                 dryRun: true,
                 sourceBaseDirectory: $directory,
-                targetBaseDirectory: $directory,
             ),
         );
 
@@ -418,17 +367,14 @@ final class FileSystemServiceTest extends TestCase
     {
         [$service, $output] = $this->createService();
 
-        $sourceDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'source-status';
-        $targetDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'target-status';
+        $directory = $this->workspace . DIRECTORY_SEPARATOR . 'source-status';
+        mkdir($directory);
 
-        mkdir($sourceDirectory);
-        mkdir($targetDirectory);
-
-        $canonicalPath   = $targetDirectory . DIRECTORY_SEPARATOR . 'photo.jpg';
-        $renameSource    = $sourceDirectory . DIRECTORY_SEPARATOR . 'rename.jpg';
+        $canonicalPath   = $directory . DIRECTORY_SEPARATOR . 'photo.jpg';
+        $renameSource    = $directory . DIRECTORY_SEPARATOR . 'rename.jpg';
         $renameTarget    = $canonicalPath;
-        $duplicateSource = $sourceDirectory . DIRECTORY_SEPARATOR . 'duplicate.jpg';
-        $duplicateTarget = $targetDirectory . DIRECTORY_SEPARATOR . 'photo'
+        $duplicateSource = $directory . DIRECTORY_SEPARATOR . 'duplicate.jpg';
+        $duplicateTarget = $directory . DIRECTORY_SEPARATOR . 'photo'
             . Constants::DUPLICATE_IDENTIFIER . '001.jpg';
 
         $fileDuplicate = new FileDuplicate();
@@ -445,19 +391,18 @@ final class FileSystemServiceTest extends TestCase
             new RenameOptions(
                 dryRun: true,
                 listAll: true,
-                sourceBaseDirectory: $sourceDirectory,
-                targetBaseDirectory: $targetDirectory,
+                sourceBaseDirectory: $directory,
             ),
         );
 
         $buffer = $output->fetch();
 
-        $relativeCanonicalSource = FileSystemService::relativizePath($canonicalPath, $sourceDirectory);
-        $relativeCanonicalTarget = FileSystemService::relativizePath($canonicalPath, $targetDirectory);
-        $relativeRenameSource    = FileSystemService::relativizePath($renameSource, $sourceDirectory);
-        $relativeDuplicateSource = FileSystemService::relativizePath($duplicateSource, $sourceDirectory);
-        $relativeRenameTarget    = FileSystemService::relativizePath($renameTarget, $targetDirectory);
-        $relativeDuplicateTarget = FileSystemService::relativizePath($duplicateTarget, $targetDirectory);
+        $relativeCanonicalSource = FileSystemService::relativizePath($canonicalPath, $directory);
+        $relativeCanonicalTarget = FileSystemService::relativizePath($canonicalPath, $directory);
+        $relativeRenameSource    = FileSystemService::relativizePath($renameSource, $directory);
+        $relativeDuplicateSource = FileSystemService::relativizePath($duplicateSource, $directory);
+        $relativeRenameTarget    = FileSystemService::relativizePath($renameTarget, $directory);
+        $relativeDuplicateTarget = FileSystemService::relativizePath($duplicateTarget, $directory);
 
         self::assertStringContainsString('[O] ' . $relativeCanonicalSource, $buffer);
         self::assertStringContainsString('[R] ' . $relativeRenameSource, $buffer);
@@ -470,7 +415,7 @@ final class FileSystemServiceTest extends TestCase
     /**
      * Verifies that the summary includes "Live Photo groups" and "Duplicates found"
      * counters when the collection contains Live Photo groups and duplicate entries,
-     * along with "Planned copies" and "Planned skips" for the appropriate options.
+     * along with "Planned moves" and "Planned skips" for the appropriate options.
      */
     #[Test]
     public function renameFilesSummarisesLivePhotoGroupsAndCollisions(): void
@@ -504,7 +449,6 @@ final class FileSystemServiceTest extends TestCase
             $collection,
             new RenameOptions(
                 skipDuplicates: true,
-                copyFiles: true,
             ),
             new RenameResult(
                 scannedFiles: 5,
@@ -514,7 +458,7 @@ final class FileSystemServiceTest extends TestCase
         $buffer = $output->fetch();
 
         self::assertStringContainsString('Scanned files', $buffer);
-        self::assertStringContainsString('Planned copies', $buffer);
+        self::assertStringContainsString('Planned moves', $buffer);
         self::assertStringContainsString('Planned skips', $buffer);
         self::assertStringContainsString('Live Photo groups', $buffer);
         self::assertStringContainsString('Duplicates found', $buffer);
@@ -677,39 +621,6 @@ final class FileSystemServiceTest extends TestCase
         $this->expectExceptionMessage('Source file');
 
         $service->renameFiles($fileDuplicateCollection);
-    }
-
-    /**
-     * Verifies that a RuntimeException is thrown when the source file has been
-     * deleted between planning and execution, causing the copy to fail.
-     */
-    #[Test]
-    public function renameFilesThrowsWhenCopyFails(): void
-    {
-        [$service] = $this->createService();
-
-        $sourceDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'source-copy-fails';
-        $targetDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'target-copy-fails';
-
-        mkdir($sourceDirectory);
-        mkdir($targetDirectory);
-
-        $sourceFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
-        $targetFile = $targetDirectory . DIRECTORY_SEPARATOR . 'image.jpg';
-
-        file_put_contents($sourceFile, 'content');
-
-        $fileDuplicateCollection = $this->createFileDuplicateCollection(
-            $sourceFile,
-            $targetFile,
-        );
-
-        unlink($sourceFile);
-
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Source file');
-
-        $service->renameFiles($fileDuplicateCollection, new RenameOptions(copyFiles: true));
     }
 
     /**
@@ -937,29 +848,31 @@ final class FileSystemServiceTest extends TestCase
      * occupied target and redirect to a -duplicate-NNN fallback.
      */
     #[Test]
-    public function renameFilesDoesNotOverwritePreExistingTargetDirectoryFile(): void
+    public function renameFilesDoesNotOverwritePreExistingFileInSameDirectory(): void
     {
         [$service, $output] = $this->createService();
 
-        $sourceDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'source-preexist';
-        $targetDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'target-preexist';
+        $directory = $this->workspace . DIRECTORY_SEPARATOR . 'source-preexist';
+        mkdir($directory);
 
-        mkdir($sourceDirectory);
-        mkdir($targetDirectory);
+        // Pre-existing file that is also a rename source (hence in occupiedPaths)
+        $existingFile = $directory . DIRECTORY_SEPARATOR . 'photo.jpg';
+        file_put_contents($existingFile, 'existing-content');
 
-        // Pre-existing file in target directory
-        $existingTarget = $targetDirectory . DIRECTORY_SEPARATOR . 'photo.jpg';
-        file_put_contents($existingTarget, 'existing-content');
-
-        // Source file that wants to land at the same target path
-        $sourceFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'incoming.jpg';
+        // Source file that wants to land at the same target path as the existing file
+        $sourceFile = $directory . DIRECTORY_SEPARATOR . 'incoming.jpg';
         file_put_contents($sourceFile, 'incoming-content');
 
         $fileDuplicate = new FileDuplicate();
-        $fileDuplicate->setTarget(new SplFileInfo($existingTarget));
+        $fileDuplicate->setTarget(new SplFileInfo($existingFile));
+        // The existing file is also part of the rename batch (source == target)
+        $fileDuplicate->addRename(new Rename(
+            new SplFileInfo($existingFile),
+            new SplFileInfo($existingFile),
+        ));
         $fileDuplicate->addRename(new Rename(
             new SplFileInfo($sourceFile),
-            new SplFileInfo($existingTarget),
+            new SplFileInfo($existingFile),
         ));
 
         $collection = new FileDuplicateCollection();
@@ -968,19 +881,18 @@ final class FileSystemServiceTest extends TestCase
         $service->renameFiles(
             $collection,
             new RenameOptions(
-                sourceBaseDirectory: $sourceDirectory,
-                targetBaseDirectory: $targetDirectory,
+                sourceBaseDirectory: $directory,
             ),
         );
 
-        // The pre-existing file must keep its original content
-        self::assertFileExists($existingTarget);
-        self::assertSame('existing-content', file_get_contents($existingTarget));
+        // The pre-existing file must keep its original content (source == target, no-op)
+        self::assertFileExists($existingFile);
+        self::assertSame('existing-content', file_get_contents($existingFile));
 
         // The incoming file must have been redirected to a fallback path
         self::assertFileDoesNotExist($sourceFile);
 
-        $fallbackTarget = $targetDirectory . DIRECTORY_SEPARATOR
+        $fallbackTarget = $directory . DIRECTORY_SEPARATOR
             . 'photo' . Constants::DUPLICATE_IDENTIFIER . '001.jpg';
 
         self::assertFileExists($fallbackTarget);

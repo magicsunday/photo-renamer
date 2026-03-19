@@ -37,14 +37,12 @@ interface DuplicateDetectionServiceInterface
      * @param RenameStrategyInterface              $renameStrategy              strategy used to generate target filenames
      * @param DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy strategy that identifies duplicate groups
      * @param string                               $sourceDirectory             absolute path to the source directory
-     * @param string                               $targetDirectory             absolute path to the target directory
      */
     public function groupFilesByDuplicateIdentifier(
         RecursiveIteratorIterator $iterator,
         RenameStrategyInterface $renameStrategy,
         DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy,
         string $sourceDirectory,
-        string $targetDirectory,
     ): FileDuplicateCollection;
 
     /**
@@ -52,14 +50,12 @@ interface DuplicateDetectionServiceInterface
      *
      * @param FileDuplicateCollection $fileDuplicateCollection    collection whose entries should receive duplicate filenames
      * @param string                  $sourceDirectory            absolute path to the source directory
-     * @param string                  $targetDirectory            absolute path to the target directory
      * @param bool                    $useFileExtensionFromSource when true, source extension is retained
      * @param bool                    $skipHashSubGrouping        when true, content-hash sub-grouping is skipped entirely
      */
     public function createDuplicateFilenames(
         FileDuplicateCollection $fileDuplicateCollection,
         string $sourceDirectory,
-        string $targetDirectory,
         bool $useFileExtensionFromSource = false,
         bool $skipHashSubGrouping = false,
     ): FileDuplicateCollection;

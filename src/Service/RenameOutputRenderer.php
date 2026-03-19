@@ -59,6 +59,11 @@ final readonly class RenameOutputRenderer
      * Builds a merged, path-sorted list of all output entries from rename operations
      * and skipped files for display during the rename phase.
      *
+     * @param FileDuplicateCollection $fileDuplicateCollection Collection of file duplicates
+     * @param RenameOptions           $options                 Options controlling the rename operation
+     * @param RenameResult            $result                  Pipeline-computed results (scanned files, collisions, skips)
+     * @param string|null             $sourceBaseDirectory     Normalized base directory for path relativization
+     *
      * @return array{list<array<string, mixed>>, int, int, int} Tuple of [entries, maxFilenameLength, skippedCount, errorCount]
      */
     public function buildOutputEntries(
@@ -66,7 +71,6 @@ final readonly class RenameOutputRenderer
         RenameOptions $options,
         RenameResult $result,
         ?string $sourceBaseDirectory,
-        ?string $targetBaseDirectory,
     ): array {
         $maxFilenameLength = 0;
 
@@ -109,7 +113,7 @@ final readonly class RenameOutputRenderer
                     || ($options->listAll && $rename->getSource()->getPathname() === $canonicalTargetPath);
 
                 $sourcePath = FileSystemService::relativizePath($rename->getSource()->getPathname(), $sourceBaseDirectory);
-                $targetPath = FileSystemService::relativizePath($rename->getTarget()->getPathname(), $targetBaseDirectory);
+                $targetPath = FileSystemService::relativizePath($rename->getTarget()->getPathname(), $sourceBaseDirectory);
 
                 $sourcePathname = $rename->getSource()->getPathname();
 
@@ -234,10 +238,6 @@ final readonly class RenameOutputRenderer
 
         if ($counters['plannedMoves'] > 0) {
             $rows[] = ['Planned moves', (string) $counters['plannedMoves']];
-        }
-
-        if ($counters['plannedCopies'] > 0) {
-            $rows[] = ['Planned copies', (string) $counters['plannedCopies']];
         }
 
         if ($counters['plannedSkips'] > 0) {
