@@ -6,7 +6,9 @@ RUN apk add --no-cache \
     git \
     nodejs \
     npm \
-    openssh-client && \
+    openssh-client \
+    perl \
+    exiftool && \
     git config --global --add safe.directory /app
 
 ENV COMPOSER_ALLOW_SUPERUSER=1 \
