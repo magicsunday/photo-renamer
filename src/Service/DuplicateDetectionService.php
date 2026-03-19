@@ -33,13 +33,18 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use Throwable;
 
 use function array_key_exists;
+use function assert;
 use function count;
 use function is_string;
+use function rtrim;
 use function sprintf;
 use function str_contains;
+use function str_starts_with;
 use function strlen;
 use function strtolower;
+use function substr;
 use function substr_count;
+use function trim;
 use function usort;
 
 /**

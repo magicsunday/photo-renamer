@@ -26,7 +26,7 @@ use SplFileInfo;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-readonly class PatternFilenameStrategy extends InheritFilenameStrategy
+final readonly class PatternFilenameStrategy extends InheritFilenameStrategy
 {
     /**
      * @param string    $pattern     PCRE regex pattern to match against the filename

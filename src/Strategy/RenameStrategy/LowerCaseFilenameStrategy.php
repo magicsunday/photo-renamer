@@ -25,7 +25,7 @@ use function mb_strtolower;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-readonly class LowerCaseFilenameStrategy extends InheritFilenameStrategy
+final readonly class LowerCaseFilenameStrategy extends InheritFilenameStrategy
 {
     /**
      * Returns the inherited filename converted to lowercase, including the extension.

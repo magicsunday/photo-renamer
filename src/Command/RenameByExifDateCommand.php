@@ -12,7 +12,6 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Command;
 
 use FilesystemIterator;
-use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
 use MagicSunday\Renamer\Command\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
@@ -56,8 +55,6 @@ use function preg_quote;
  */
 final class RenameByExifDateCommand extends AbstractRenameCommand
 {
-    use ConfiguresMetadataProvider;
-
     public function __construct(
         FileSystemServiceInterface $fileSystemService,
         DuplicateDetectionServiceInterface $duplicateDetectionService,

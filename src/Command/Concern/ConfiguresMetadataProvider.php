@@ -39,7 +39,7 @@ trait ConfiguresMetadataProvider
      *
      * Resolution order: --timezone CLI option > TIMEZONE env var > no conversion.
      */
-    private function configureProviderTimezone(ExifMetadataProvider $provider, InputInterface $input): void
+    protected function configureProviderTimezone(ExifMetadataProvider $provider, InputInterface $input): void
     {
         $timezone = $input->getOption('timezone');
 
@@ -58,7 +58,7 @@ trait ConfiguresMetadataProvider
      * The cache directory is resolved from the CACHE_DIR env var, defaulting to
      * .build/cache relative to the project root.
      */
-    private function configureProviderCache(ExifMetadataProvider $provider): MetadataCache
+    protected function configureProviderCache(ExifMetadataProvider $provider): MetadataCache
     {
         $cacheDir = getenv('CACHE_DIR');
 
@@ -78,7 +78,7 @@ trait ConfiguresMetadataProvider
      *
      * @return string|null Absolute source directory path, or null if invalid
      */
-    private function resolveSourceDirectory(InputInterface $input): ?string
+    protected function resolveSourceDirectory(InputInterface $input): ?string
     {
         $sourceDirectory = $input->getArgument('source-directory');
 
