@@ -251,10 +251,11 @@ final class WriteDateCommandTest extends TestCase
 
         try {
             $metadataExtractor = new StubMetadataExtractor();
+            // Metadata has a DIFFERENT time (UTC) than the filename (local) — ambiguous timezone
             $metadataExtractor->withResponse(
                 $movPath,
                 new TemporalMetadata(
-                    new DateTimeImmutable('2024-01-15T10:30:00+00:00'),
+                    new DateTimeImmutable('2024-01-15T08:30:00+00:00'),
                     null,
                     false,
                     false,

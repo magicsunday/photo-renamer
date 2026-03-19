@@ -301,6 +301,12 @@ class WriteDateCommand extends Command
             return 'no date in metadata';
         }
 
+        // If the metadata date already matches the filename date, no write needed
+        // — regardless of fallback/ambiguous status.
+        if ($captureDateTime->format('Y-m-d H:i') === $filenameDateTime->format('Y-m-d H:i')) {
+            return null;
+        }
+
         // Fallback DateTime only (0x0132)
         if ($this->exifMetadataProvider->isFallbackDateTime($file)) {
             return 'only ModifyDate (0x0132), no DateTimeOriginal';
