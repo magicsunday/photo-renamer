@@ -12,7 +12,9 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Metadata;
 
 use DateTimeInterface;
+use DateTimeZone;
 use MagicSunday\ImageMeta\MetadataReader;
+use MagicSunday\ImageMeta\Model\QuickTime\QuickTimeMeta;
 use MagicSunday\ImageMeta\Value\StructuredMetadata;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use SplFileInfo;
@@ -62,7 +64,9 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         $structured  = $metadata->structured();
         $livePhotoId = $this->extractContentIdentifier($structured);
 
-        [$captureDateTime, $isFallback, $isUtcWithoutTimezone, $isAmbiguousTimezone] = $this->extractCaptureDateTimeWithFallbackFlag($structured);
+        $isQuickTimeContainer = $metadata->quickTime instanceof QuickTimeMeta;
+
+        [$captureDateTime, $isFallback, $isUtcWithoutTimezone, $isAmbiguousTimezone] = $this->extractCaptureDateTimeWithFallbackFlag($structured, $isQuickTimeContainer);
 
         if (!($captureDateTime instanceof DateTimeInterface) && ($livePhotoId === null)) {
             return null;
@@ -84,7 +88,7 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
      *
      * @return array{DateTimeInterface|null, bool, bool, bool} Tuple of [captureDateTime, isFallback, isUtcWithoutTimezone, isAmbiguousTimezone]
      */
-    private function extractCaptureDateTimeWithFallbackFlag(StructuredMetadata $structured): array
+    private function extractCaptureDateTimeWithFallbackFlag(StructuredMetadata $structured, bool $isQuickTimeContainer): array
     {
         $temporal = $structured->locationTime->temporal;
         $original = $temporal->original;
@@ -106,12 +110,16 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
             && ($modify instanceof DateTimeInterface)
             && ($dateTime->getTimestamp() === $modify->getTimestamp());
 
-        // UTC-without-timezone detection is disabled. QuickTime containers may
-        // store timestamps as UTC (modern cameras) or local time (old cameras),
-        // but there is no reliable way to distinguish the two cases automatically.
-        // Use --timezone for manual correction and --max-date-drift to catch suspicious changes.
+        // QuickTime containers without explicit timezone info (no Keys CreationDate
+        // with offset, no OffsetTime* tags) are flagged as ambiguous. We cannot
+        // determine if the timestamp is UTC (modern cameras) or local time (old cameras).
+        // The user sees [W] and can use --timezone for manual correction.
         $isUtcWithoutTimezone = false;
-        $isAmbiguousTimezone  = false;
+        $isAmbiguousTimezone  = $isQuickTimeContainer
+            && !($temporal->tz instanceof DateTimeZone)
+            && ($temporal->offsetTimeOriginal === null)
+            && ($temporal->offsetTimeDigitized === null)
+            && ($temporal->offsetTime === null);
 
         return [$dateTime, $isFallback, $isUtcWithoutTimezone, $isAmbiguousTimezone];
     }
