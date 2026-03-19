@@ -71,6 +71,7 @@ Large photo collections accumulated from multiple devices and backup sources ten
 | `rename:date`    | Renames files by extracting date components from filenames.    |
 | `rename:verify`  | Analyzes photo/video collections for metadata problems.        |
 | `rename:write-date` | Writes dates from filenames into EXIF/QuickTime metadata (requires exiftool). |
+| `rename:dedup` | Finds and removes files with `-duplicate-` suffixes (move or delete). |
 
 ### Shared options
 
@@ -160,6 +161,24 @@ renamer rename:exif --dry-run --show=W,E ~/Photos
 ```
 
 Files with `[W]` were skipped because their metadata is ambiguous. Go back to Step 2 for these, or fix them manually with exiftool.
+
+### Step 5: Clean up duplicates
+
+```bash
+# Preview which duplicates would be moved
+renamer rename:dedup --dry-run ~/Photos
+
+# Move duplicates to _duplicates/ folder
+renamer rename:dedup ~/Photos
+
+# Or delete them directly
+renamer rename:dedup --delete ~/Photos
+
+# Or move to a custom folder
+renamer rename:dedup --target=_trash ~/Photos
+```
+
+After renaming, files with identical content receive `-duplicate-NNN` suffixes. This step moves (or deletes) those duplicates, keeping only the originals. Orphaned duplicates (whose original no longer exists) are skipped with a warning.
 
 ## 💡 Additional Commands
 
