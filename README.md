@@ -69,6 +69,7 @@ Large photo collections accumulated from multiple devices and backup sources ten
 | `rename:lower`   | Converts filenames to lowercase.                               |
 | `rename:pattern` | Renames files using a regular expression pattern.              |
 | `rename:date`    | Renames files by extracting date components from filenames.    |
+| `rename:verify`  | Analyzes photo/video collections for metadata problems.        |
 
 ### Shared options
 

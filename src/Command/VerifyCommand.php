@@ -1,0 +1,494 @@
+<?php
+
+/**
+ * This file is part of the package magicsunday/photo-renamer.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE file that was distributed with this source code.
+ */
+
+declare(strict_types=1);
+
+namespace MagicSunday\Renamer\Command;
+
+use DateTimeImmutable;
+use DateTimeInterface;
+use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
+use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Exception\ExifMetadataReadException;
+use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
+use MagicSunday\Renamer\Service\FileSystemService;
+use MagicSunday\Renamer\Service\FileSystemServiceInterface;
+use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
+use Override;
+use RecursiveIterator;
+use RecursiveIteratorIterator;
+use SplFileInfo;
+use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Helper\ProgressBar;
+use Symfony\Component\Console\Input\InputArgument;
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Style\SymfonyStyle;
+
+use function array_map;
+use function count;
+use function dirname;
+use function explode;
+use function getenv;
+use function in_array;
+use function is_dir;
+use function is_string;
+use function max;
+use function realpath;
+use function rtrim;
+use function sort;
+use function sprintf;
+use function strlen;
+use function strtolower;
+use function trim;
+
+/**
+ * Read-only analysis command that scans photo/video directories and reports
+ * metadata problems. Does not modify any files. Categorizes issues into:
+ * ambiguous timezone, fallback dates, date drift, missing Live Photo companions,
+ * metadata read errors, no metadata, and unrecognized file types.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
+ */
+class VerifyCommand extends Command
+{
+    use ConfiguresMetadataProvider;
+
+    /**
+     * File extensions recognized as processable media files.
+     *
+     * @var list<string>
+     */
+    private const array SUPPORTED_EXTENSIONS = ['jpg', 'jpeg', 'heic', 'mov', 'mp4'];
+
+    /**
+     * Category definitions mapping internal IDs to display labels.
+     *
+     * @var array<string, string>
+     */
+    private const array CATEGORY_LABELS = [
+        'timezone'  => 'Ambiguous timezone',
+        'fallback'  => 'No DateTimeOriginal',
+        'drift'     => 'Date drift',
+        'livephoto' => 'Missing Live Photo companion',
+        'error'     => 'Metadata read errors',
+        'nodata'    => 'No metadata',
+        'filetype'  => 'Unrecognized file types',
+    ];
+
+    /**
+     * @param ExifMetadataProvider         $exifMetadataProvider Metadata provider with caching
+     * @param MediaTypeClassifierInterface $mediaTypeClassifier  Classifies files as still or video
+     * @param FileSystemServiceInterface   $fileSystemService    Provides file iteration
+     */
+    public function __construct(
+        private readonly ExifMetadataProvider $exifMetadataProvider,
+        private readonly MediaTypeClassifierInterface $mediaTypeClassifier,
+        private readonly FileSystemServiceInterface $fileSystemService,
+    ) {
+        parent::__construct();
+    }
+
+    /**
+     * Configures the verify command with its name, description, arguments and options.
+     */
+    #[Override]
+    protected function configure(): void
+    {
+        $this
+            ->setName('rename:verify')
+            ->setDescription('Analyzes photo/video collections for metadata problems.')
+            ->addArgument(
+                'source-directory',
+                InputArgument::REQUIRED,
+                'Source directory with photos/videos to analyze.'
+            )
+            ->addOption(
+                'show',
+                null,
+                InputOption::VALUE_REQUIRED,
+                'Filter output to specific categories (comma-separated: timezone, fallback, drift, livephoto, error, nodata, filetype).'
+            )
+            ->addOption(
+                'max-date-drift',
+                null,
+                InputOption::VALUE_REQUIRED,
+                'Maximum allowed date drift in days between filename date and metadata date. Default: 30.',
+            )
+            ->addOption(
+                'timezone',
+                null,
+                InputOption::VALUE_REQUIRED,
+                'Timezone for video files without timezone metadata (e.g. Europe/Berlin). Overrides TIMEZONE env var.'
+            );
+    }
+
+    /**
+     * Executes the verify analysis: scans all files, checks metadata, and reports issues.
+     */
+    #[Override]
+    protected function execute(InputInterface $input, OutputInterface $output): int
+    {
+        $io = new SymfonyStyle($input, $output);
+        $io->title($this->getName() ?? '');
+
+        $sourceDirectory = $this->resolveSourceDirectory($input);
+
+        if ($sourceDirectory === null) {
+            $io->error('Source directory does not exist.');
+
+            return self::FAILURE;
+        }
+
+        $maxDateDrift = $this->resolveMaxDateDrift($input);
+        $showFilter   = $this->resolveShowFilter($input);
+
+        $this->configureProviderTimezone($this->exifMetadataProvider, $input);
+
+        $cache = $this->configureProviderCache($this->exifMetadataProvider);
+
+        /** @var array<string, list<string>> $categories */
+        $categories = [
+            'timezone'  => [],
+            'fallback'  => [],
+            'drift'     => [],
+            'livephoto' => [],
+            'error'     => [],
+            'nodata'    => [],
+            'filetype'  => [],
+        ];
+
+        /**
+         * Content identifier map: directory => { contentId => { pathname, isStill } }.
+         *
+         * @var array<string, array<string, list<array{pathname: string, isStill: bool}>>> $contentIdMap
+         */
+        $contentIdMap = [];
+
+        $scannedFiles = 0;
+        $okCount      = 0;
+
+        $iterator = $this->createFileIterator($sourceDirectory);
+
+        // Count files for progress bar
+        $fileCount = 0;
+
+        /** @var SplFileInfo $file */
+        foreach ($iterator as $file) {
+            if ($file->isFile()) {
+                ++$fileCount;
+            }
+        }
+
+        $iterator->rewind();
+
+        $io->text(sprintf('<fg=cyan>Scanning:</> %s', $sourceDirectory));
+
+        /** @var ProgressBar|null $progressBar */
+        $progressBar = null;
+
+        if ($fileCount > 0) {
+            $progressBar = $io->createProgressBar($fileCount);
+            $progressBar->setFormat(Constants::PROGRESS_BAR_FORMAT);
+            $progressBar->start();
+        }
+
+        /** @var SplFileInfo $file */
+        foreach ($iterator as $file) {
+            if (!$file->isFile()) {
+                continue;
+            }
+
+            ++$scannedFiles;
+            $progressBar?->advance();
+
+            $relativePath = FileSystemService::relativizePath($file->getPathname(), $sourceDirectory);
+            $extension    = strtolower($file->getExtension());
+
+            // Check for unrecognized file type
+            if (!in_array($extension, self::SUPPORTED_EXTENSIONS, true)) {
+                $categories['filetype'][] = $relativePath;
+
+                continue;
+            }
+
+            // Try to extract metadata
+            try {
+                $captureDateTime = $this->exifMetadataProvider->getCaptureDateTime($file);
+            } catch (ExifMetadataReadException) {
+                $categories['error'][] = $relativePath;
+
+                continue;
+            }
+
+            // No metadata at all
+            if (!$captureDateTime instanceof DateTimeInterface) {
+                // Still check for content identifier (LP video without date)
+                $contentId = $this->exifMetadataProvider->getContentIdentifier($file);
+
+                if (is_string($contentId)) {
+                    $this->addToContentIdMap($contentIdMap, $file, $contentId);
+                }
+
+                $categories['nodata'][] = $relativePath;
+
+                continue;
+            }
+
+            $hasIssue = false;
+
+            // Check ambiguous timezone
+            if ($this->exifMetadataProvider->isAmbiguousTimezone($file)) {
+                $categories['timezone'][] = $relativePath;
+                $hasIssue                 = true;
+            }
+
+            // Check fallback date
+            if ($this->exifMetadataProvider->isFallbackDateTime($file)) {
+                $categories['fallback'][] = $relativePath;
+                $hasIssue                 = true;
+            }
+
+            // Check date drift
+            if ($maxDateDrift > 0) {
+                $metadataDateStr = $captureDateTime->format('Y-m-d');
+                $fileDate        = FileHelper::extractDateFromPath($file->getPathname());
+
+                if ($fileDate instanceof DateTimeImmutable) {
+                    $metadataDate = FileHelper::extractDateFromPath($metadataDateStr . '.tmp');
+
+                    if ($metadataDate instanceof DateTimeImmutable) {
+                        $drift = $fileDate->diff($metadataDate)->days;
+
+                        if (($drift !== false) && ($drift > $maxDateDrift)) {
+                            $categories['drift'][] = $relativePath;
+                            $hasIssue              = true;
+                        }
+                    }
+                }
+            }
+
+            // Collect content identifier for LP check
+            $contentId = $this->exifMetadataProvider->getContentIdentifier($file);
+
+            if (is_string($contentId)) {
+                $this->addToContentIdMap($contentIdMap, $file, $contentId);
+            }
+
+            if (!$hasIssue) {
+                ++$okCount;
+            }
+        }
+
+        $progressBar?->finish();
+        $io->newLine(2);
+
+        // Check LP completeness per directory
+        foreach ($contentIdMap as $dirFiles) {
+            foreach ($dirFiles as $files) {
+                $hasStill = false;
+                $hasVideo = false;
+
+                foreach ($files as $entry) {
+                    if ($entry['isStill']) {
+                        $hasStill = true;
+                    } else {
+                        $hasVideo = true;
+                    }
+                }
+
+                if ($hasStill && $hasVideo) {
+                    continue;
+                }
+
+                foreach ($files as $entry) {
+                    $relativePath = FileSystemService::relativizePath($entry['pathname'], $sourceDirectory);
+
+                    if ($entry['isStill']) {
+                        $categories['livephoto'][] = $relativePath . ' → no paired MOV';
+                    } else {
+                        $categories['livephoto'][] = $relativePath . ' → no paired JPG/HEIC';
+                    }
+                }
+            }
+        }
+
+        // Flush metadata cache
+        $cache->flush();
+        $this->exifMetadataProvider->clearCache();
+
+        // Render output
+        $this->renderCategories($io, $categories, $showFilter);
+        $this->renderSummary($io, $scannedFiles, $okCount, $categories);
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * Resolves and validates the source directory path from the input argument.
+     *
+     * @return string|null Absolute source directory path, or null if invalid
+     */
+    private function resolveSourceDirectory(InputInterface $input): ?string
+    {
+        $sourceDirectory = $input->getArgument('source-directory');
+
+        if (!is_string($sourceDirectory)) {
+            return null;
+        }
+
+        $resolved = realpath($sourceDirectory);
+
+        if (($resolved === false) || !is_dir($resolved)) {
+            return null;
+        }
+
+        return rtrim($resolved, DIRECTORY_SEPARATOR);
+    }
+
+    /**
+     * Resolves the max date drift threshold from input option or env var.
+     */
+    private function resolveMaxDateDrift(InputInterface $input): int
+    {
+        $driftOption = $input->getOption('max-date-drift');
+
+        if (is_string($driftOption)) {
+            return (int) $driftOption;
+        }
+
+        $envDrift = getenv('MAX_DATE_DRIFT');
+
+        return is_string($envDrift) && $envDrift !== '' ? (int) $envDrift : 30;
+    }
+
+    /**
+     * Resolves the show filter from the --show option.
+     *
+     * @return list<string>|null Category IDs to display, or null for all
+     */
+    private function resolveShowFilter(InputInterface $input): ?array
+    {
+        $showOption = $input->getOption('show');
+
+        if (!is_string($showOption)) {
+            return null;
+        }
+
+        return array_map(trim(...), explode(',', $showOption));
+    }
+
+    /**
+     * Creates an all-files iterator for the source directory.
+     *
+     * @return RecursiveIteratorIterator<RecursiveIterator<string, SplFileInfo>>
+     */
+    private function createFileIterator(string $sourceDirectory): RecursiveIteratorIterator
+    {
+        return $this->fileSystemService->createFileIterator($sourceDirectory);
+    }
+
+    /**
+     * Adds a file's content identifier to the per-directory content ID map.
+     *
+     * @param array<string, array<string, list<array{pathname: string, isStill: bool}>>> $contentIdMap
+     */
+    private function addToContentIdMap(array &$contentIdMap, SplFileInfo $file, string $contentId): void
+    {
+        $directory = dirname($file->getPathname());
+        $isStill   = $this->mediaTypeClassifier->isLivePhotoStill($file);
+
+        $contentIdMap[$directory][$contentId][] = [
+            'pathname' => $file->getPathname(),
+            'isStill'  => $isStill,
+        ];
+    }
+
+    /**
+     * Renders the categorized file lists.
+     *
+     * @param SymfonyStyle                $io         Console IO
+     * @param array<string, list<string>> $categories Categorized file lists
+     * @param list<string>|null           $showFilter Categories to display, or null for all
+     */
+    private function renderCategories(SymfonyStyle $io, array $categories, ?array $showFilter): void
+    {
+        foreach (self::CATEGORY_LABELS as $categoryId => $label) {
+            if ($showFilter !== null && !in_array($categoryId, $showFilter, true)) {
+                continue;
+            }
+
+            $files = $categories[$categoryId];
+
+            if ($files === []) {
+                continue;
+            }
+
+            sort($files);
+
+            $io->text(sprintf('<fg=cyan>%s</> (%d files):', $label, count($files)));
+
+            foreach ($files as $file) {
+                $io->text(sprintf('  %s', $file));
+            }
+
+            $io->newLine();
+        }
+    }
+
+    /**
+     * Renders the summary table with file counts per category.
+     *
+     * @param SymfonyStyle                $io         Console IO
+     * @param int                         $scanned    Total files scanned
+     * @param int                         $ok         Files without issues
+     * @param array<string, list<string>> $categories Categorized file lists
+     */
+    private function renderSummary(SymfonyStyle $io, int $scanned, int $ok, array $categories): void
+    {
+        $io->text('<fg=cyan>Summary</>');
+        $io->newLine();
+
+        /** @var list<array{string, string}> $rows */
+        $rows = [
+            ['Scanned files', (string) $scanned],
+            ['OK', (string) $ok],
+        ];
+
+        foreach (self::CATEGORY_LABELS as $categoryId => $label) {
+            $count = count($categories[$categoryId]);
+
+            if ($count > 0) {
+                $rows[] = [$label, (string) $count];
+            }
+        }
+
+        $maxLabelLength = 0;
+        $maxValueLength = 0;
+
+        foreach ($rows as $row) {
+            $maxLabelLength = max($maxLabelLength, strlen($row[0]));
+            $maxValueLength = max($maxValueLength, strlen($row[1]));
+        }
+
+        foreach ($rows as $row) {
+            $io->text(sprintf(
+                ' %-' . $maxLabelLength . 's  %' . $maxValueLength . 's',
+                $row[0],
+                $row[1],
+            ));
+        }
+
+        $io->newLine();
+    }
+}
