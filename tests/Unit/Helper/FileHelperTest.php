@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Helper;
 
+use DateTimeImmutable;
 use MagicSunday\Renamer\Helper\FileHelper;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -122,6 +123,93 @@ class FileHelperTest extends TestCase
                 'basename'    => 'IMG_1234-duplicate-001-duplicate-002',
                 'expected'    => 'IMG_1234-duplicate-001',
                 'description' => 'Should strip only the trailing duplicate suffix thanks to end-of-string anchor',
+            ],
+        ];
+    }
+
+    /**
+     * Tests date+time extraction from filename paths.
+     *
+     * @param string      $path        The file path to test
+     * @param string|null $expected    The expected date+time string (Y-m-d H:i:s), or null
+     * @param string      $description Human-readable description of the test case
+     */
+    #[Test]
+    #[DataProvider('extractDateTimeFromPathProvider')]
+    public function extractDateTimeFromPath(
+        string $path,
+        ?string $expected,
+        string $description,
+    ): void {
+        $result = FileHelper::extractDateTimeFromPath($path);
+
+        if ($expected === null) {
+            self::assertNull(
+                $result,
+                sprintf('Failed for case: %s (expected null)', $description),
+            );
+        } else {
+            self::assertInstanceOf(
+                DateTimeImmutable::class,
+                $result,
+                sprintf('Failed for case: %s (expected DateTimeImmutable)', $description),
+            );
+
+            self::assertSame(
+                $expected,
+                $result->format('Y-m-d H:i:s'),
+                sprintf('Failed for case: %s', $description),
+            );
+        }
+    }
+
+    /**
+     * Provides test cases for extractDateTimeFromPath().
+     *
+     * @return array<string, array{path: string, expected: string|null, description: string}>
+     */
+    public static function extractDateTimeFromPathProvider(): array
+    {
+        return [
+            'date with time and milliseconds' => [
+                'path'        => '/photos/2013-10-17_10-36-18-000.mp4',
+                'expected'    => '2013-10-17 10:36:18',
+                'description' => 'Should extract date and time, ignoring milliseconds',
+            ],
+            'date with time' => [
+                'path'        => '/photos/2013-10-17_10-36-18.mp4',
+                'expected'    => '2013-10-17 10:36:18',
+                'description' => 'Should extract date and time from separator-style filename',
+            ],
+            'date only' => [
+                'path'        => '/photos/2013-10-17.jpg',
+                'expected'    => '2013-10-17 00:00:00',
+                'description' => 'Should extract date only, with time set to midnight',
+            ],
+            'compact date and time' => [
+                'path'        => '/photos/20131017_103618.jpg',
+                'expected'    => '2013-10-17 10:36:18',
+                'description' => 'Should extract date and time from compact format',
+            ],
+            'prefixed compact date and time' => [
+                'path'        => '/photos/IMG_20131017_103618.jpg',
+                'expected'    => '2013-10-17 10:36:18',
+                'description' => 'Should extract date and time from IMG_ prefixed compact format',
+            ],
+            'no date in filename' => [
+                'path'        => '/photos/IMG_1234.jpg',
+                'expected'    => null,
+                'description' => 'Should return null when no date pattern is found',
+            ],
+            'compact date only' => [
+                'path'        => '/photos/20131017.jpg',
+                'expected'    => '2013-10-17 00:00:00',
+                'description' => 'Should extract compact date only, with time set to midnight',
+            ],
+            'date with numbered suffix' => [
+                'path'        => '/photos/2019-06-12-01.jpg',
+                'expected'    => '2019-06-12 00:00:00',
+                'description' => 'Should extract date from filename with numeric suffix (not time)',
             ],
         ];
     }
