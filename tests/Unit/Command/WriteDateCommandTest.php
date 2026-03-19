@@ -70,7 +70,7 @@ final class WriteDateCommandTest extends TestCase
             $command  = $this->createCommandWithoutExiftool();
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
+                'source' => $workspace,
             ]);
 
             self::assertSame(Command::FAILURE, $exitCode);
@@ -91,7 +91,7 @@ final class WriteDateCommandTest extends TestCase
         $command  = $this->createCommand();
         $tester   = new CommandTester($command);
         $exitCode = $tester->execute([
-            'source-directory' => '/non-existent-path-' . uniqid('', true),
+            'source' => '/non-existent-path-' . uniqid('', true),
         ]);
 
         self::assertSame(Command::FAILURE, $exitCode);
@@ -109,8 +109,8 @@ final class WriteDateCommandTest extends TestCase
             $command  = $this->createCommand();
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
-                '--dry-run'        => true,
+                'source'    => $workspace,
+                '--dry-run' => true,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -137,8 +137,8 @@ final class WriteDateCommandTest extends TestCase
             $command  = $this->createCommand();
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
-                '--dry-run'        => true,
+                'source'    => $workspace,
+                '--dry-run' => true,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -174,8 +174,8 @@ final class WriteDateCommandTest extends TestCase
             $command  = $this->createCommand($metadataExtractor);
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
-                '--dry-run'        => true,
+                'source'    => $workspace,
+                '--dry-run' => true,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -207,8 +207,8 @@ final class WriteDateCommandTest extends TestCase
             $command  = $this->createCommand($metadataExtractor);
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
-                '--dry-run'        => true,
+                'source'    => $workspace,
+                '--dry-run' => true,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -247,8 +247,8 @@ final class WriteDateCommandTest extends TestCase
             $command  = $this->createCommand($metadataExtractor);
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
-                '--dry-run'        => true,
+                'source'    => $workspace,
+                '--dry-run' => true,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -288,8 +288,8 @@ final class WriteDateCommandTest extends TestCase
             $command  = $this->createCommand($metadataExtractor);
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
-                '--dry-run'        => true,
+                'source'    => $workspace,
+                '--dry-run' => true,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -327,7 +327,7 @@ final class WriteDateCommandTest extends TestCase
             $command  = $this->createCommand($metadataExtractor);
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
+                'source'           => $workspace,
                 '--dry-run'        => true,
                 '--max-date-drift' => '7',
             ]);
@@ -379,8 +379,8 @@ final class WriteDateCommandTest extends TestCase
 
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
-                '--dry-run'        => true,
+                'source'    => $workspace,
+                '--dry-run' => true,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);

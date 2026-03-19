@@ -103,9 +103,9 @@ final class WriteDateCommand extends Command
             ->setName('rename:write-date')
             ->setDescription('Writes date metadata from filenames into EXIF/QuickTime tags via exiftool.')
             ->addArgument(
-                'source-directory',
+                'source',
                 InputArgument::REQUIRED,
-                'Source directory with photos/videos to process.',
+                'Source directory or single file to process.',
             )
             ->addOption(
                 'dry-run',
@@ -137,13 +137,16 @@ final class WriteDateCommand extends Command
         $io = new SymfonyStyle($input, $output);
         $io->title($this->getName() ?? '');
 
-        $sourceDirectory = $this->resolveSourceDirectory($input);
+        $source = $this->resolveSource($input);
 
-        if ($sourceDirectory === null) {
-            $io->error('Source directory does not exist.');
+        if ($source === null) {
+            $io->error('Source path does not exist.');
 
             return self::FAILURE;
         }
+
+        $isSingleFile    = is_file($source);
+        $sourceDirectory = $isSingleFile ? dirname($source) : $source;
 
         if (!$this->isExiftoolAvailable()) {
             $io->error('exiftool is not installed or not found in PATH. Please install exiftool first.');
@@ -166,9 +169,11 @@ final class WriteDateCommand extends Command
         $noDateInName   = 0;
         $readErrors     = 0;
 
-        $files = $this->collectFiles($sourceDirectory);
+        $files = $isSingleFile
+            ? [new SplFileInfo($source)]
+            : $this->collectFiles($sourceDirectory);
 
-        $io->text(sprintf('<fg=cyan>Scanning:</> %s', $sourceDirectory));
+        $io->text(sprintf('<fg=cyan>Scanning:</> %s', $source));
 
         $progressBar = $files !== [] ? $io->createProgressBar(count($files)) : null;
         $progressBar?->setFormat(Constants::PROGRESS_BAR_FORMAT);
@@ -345,6 +350,26 @@ final class WriteDateCommand extends Command
         }
 
         return null;
+    }
+
+    /**
+     * Resolves the source path from input. Accepts both files and directories.
+     */
+    private function resolveSource(InputInterface $input): ?string
+    {
+        $source = $input->getArgument('source');
+
+        if (!is_string($source)) {
+            return null;
+        }
+
+        $resolved = realpath($source);
+
+        if ($resolved === false) {
+            return null;
+        }
+
+        return $resolved;
     }
 
     /**
