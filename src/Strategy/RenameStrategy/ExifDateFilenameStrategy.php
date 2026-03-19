@@ -20,6 +20,10 @@ use Override;
 use SplFileInfo;
 
 use function basename;
+use function mb_strlen;
+use function mb_substr;
+use function min;
+use function rtrim;
 
 /**
  * Generates target filenames by formatting the EXIF DateTimeOriginal value

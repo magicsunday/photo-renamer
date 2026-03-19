@@ -345,6 +345,8 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
 
                 unset($contentIdentifierCacheEntry);
 
+                $progressBar->advance();
+
                 continue;
             }
 

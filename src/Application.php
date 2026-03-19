@@ -27,7 +27,7 @@ use function trim;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-class Application extends \Symfony\Component\Console\Application
+final class Application extends \Symfony\Component\Console\Application
 {
     /**
      * The name of the application.

@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Command;
 
+use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
@@ -33,7 +34,6 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use function array_map;
 use function explode;
 use function getcwd;
-use function getenv;
 use function is_dir;
 use function is_string;
 use function ltrim;
@@ -59,6 +59,8 @@ use function trim;
  */
 abstract class AbstractRenameCommand extends Command
 {
+    use ConfiguresMetadataProvider;
+
     protected InputInterface $input;
 
     protected SymfonyStyle $io;
@@ -220,14 +222,7 @@ abstract class AbstractRenameCommand extends Command
         $this->skipFallback   = (bool) $input->getOption('skip-fallback');
         $this->listAll        = (bool) $input->getOption('list-all');
 
-        $driftOption = $input->getOption('max-date-drift');
-
-        if (is_string($driftOption)) {
-            $this->maxDateDrift = (int) $driftOption;
-        } else {
-            $envDrift           = getenv('MAX_DATE_DRIFT');
-            $this->maxDateDrift = is_string($envDrift) && $envDrift !== '' ? (int) $envDrift : 30;
-        }
+        $this->maxDateDrift = $this->resolveMaxDateDrift($input);
 
         $showOption = $input->getOption('show');
 
