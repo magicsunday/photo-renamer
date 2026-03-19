@@ -352,4 +352,92 @@ final class ExifMetadataProviderTest extends TestCase
             @rmdir($workspace);
         }
     }
+
+    /**
+     * Verifies that hasReliableDateTime returns true when raw metadata matches
+     * the filename date, even though isAmbiguousTimezone is true.
+     */
+    #[Test]
+    public function hasReliableDateTimeReturnsTrueWhenRawMatchesFilename(): void
+    {
+        $filePath = sys_get_temp_dir() . '/2012-06-16_15-45-34-000.mp4';
+        file_put_contents($filePath, 'test');
+
+        try {
+            $extractor = new StubMetadataExtractor();
+            $extractor->withResponse(
+                $filePath,
+                new TemporalMetadata(
+                    new DateTimeImmutable('2012-06-16T15:45:34+00:00'),
+                    null,
+                    false,
+                    true, // isAmbiguousTimezone
+                ),
+            );
+
+            $provider = new ExifMetadataProvider($extractor);
+
+            self::assertTrue($provider->hasReliableDateTime(new SplFileInfo($filePath)));
+        } finally {
+            @unlink($filePath);
+        }
+    }
+
+    /**
+     * Verifies that hasReliableDateTime returns false when ambiguous and raw
+     * does NOT match the filename date.
+     */
+    #[Test]
+    public function hasReliableDateTimeReturnsFalseWhenAmbiguousAndMismatch(): void
+    {
+        $filePath = sys_get_temp_dir() . '/2012-06-16_15-45-34-000.mp4';
+        file_put_contents($filePath, 'test');
+
+        try {
+            $extractor = new StubMetadataExtractor();
+            $extractor->withResponse(
+                $filePath,
+                new TemporalMetadata(
+                    new DateTimeImmutable('2012-06-16T13:45:34+00:00'), // 2h off
+                    null,
+                    false,
+                    true, // isAmbiguousTimezone
+                ),
+            );
+
+            $provider = new ExifMetadataProvider($extractor);
+
+            self::assertFalse($provider->hasReliableDateTime(new SplFileInfo($filePath)));
+        } finally {
+            @unlink($filePath);
+        }
+    }
+
+    /**
+     * Verifies that hasReliableDateTime returns true for normal files
+     * without any flags.
+     */
+    #[Test]
+    public function hasReliableDateTimeReturnsTrueForNormalFile(): void
+    {
+        $filePath = sys_get_temp_dir() . '/2024-01-15_10-30-00.jpg';
+        file_put_contents($filePath, 'test');
+
+        try {
+            $extractor = new StubMetadataExtractor();
+            $extractor->withResponse(
+                $filePath,
+                new TemporalMetadata(
+                    new DateTimeImmutable('2024-01-15T10:30:00+00:00'),
+                    null,
+                ),
+            );
+
+            $provider = new ExifMetadataProvider($extractor);
+
+            self::assertTrue($provider->hasReliableDateTime(new SplFileInfo($filePath)));
+        } finally {
+            @unlink($filePath);
+        }
+    }
 }

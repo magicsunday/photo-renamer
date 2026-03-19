@@ -11,7 +11,6 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Command;
 
-use DateTimeImmutable;
 use DateTimeInterface;
 use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
 use MagicSunday\Renamer\Constants;
@@ -245,25 +244,19 @@ final class VerifyCommand extends Command
 
             $hasIssue = false;
 
-            // If the raw metadata date matches the filename date, the file is
-            // considered fixed — skip ambiguous/fallback checks. This prevents
-            // re-flagging files that were already corrected by write-date.
-            $rawDateTime             = $this->exifMetadataProvider->getRawCaptureDateTime($file);
-            $filenameDateTime        = FileHelper::extractDateTimeFromPath($file->getPathname());
-            $metadataMatchesFilename = ($rawDateTime instanceof DateTimeInterface)
-                && ($filenameDateTime instanceof DateTimeImmutable)
-                && ($rawDateTime->format('Y-m-d H:i') === $filenameDateTime->format('Y-m-d H:i'));
+            // Check ambiguous timezone and fallback date — but only if the
+            // date is not already reliable (hasReliableDateTime handles the
+            // "raw matches filename" check centrally).
+            if (!$this->exifMetadataProvider->hasReliableDateTime($file)) {
+                if ($this->exifMetadataProvider->isAmbiguousTimezone($file)) {
+                    $categories['timezone'][] = $relativePath;
+                    $hasIssue                 = true;
+                }
 
-            // Check ambiguous timezone
-            if (!$metadataMatchesFilename && $this->exifMetadataProvider->isAmbiguousTimezone($file)) {
-                $categories['timezone'][] = $relativePath;
-                $hasIssue                 = true;
-            }
-
-            // Check fallback date
-            if (!$metadataMatchesFilename && $this->exifMetadataProvider->isFallbackDateTime($file)) {
-                $categories['fallback'][] = $relativePath;
-                $hasIssue                 = true;
+                if ($this->exifMetadataProvider->isFallbackDateTime($file)) {
+                    $categories['fallback'][] = $relativePath;
+                    $hasIssue                 = true;
+                }
             }
 
             // Check date drift

@@ -319,16 +319,18 @@ final class WriteDateCommand extends Command
             return 'no date in metadata';
         }
 
-        // Compare against the RAW metadata date (without timezone conversion).
-        // After a write-date run, the written value matches the filename, but
-        // getCaptureDateTime() may shift it via timezone conversion. The raw
-        // value is what's actually stored in the file.
-        $rawDateTime = $this->exifMetadataProvider->getRawCaptureDateTime($file);
+        // Date drift check — always runs, even for reliable dates. A large drift
+        // indicates the metadata was written incorrectly (e.g. re-encoded file).
+        if ($maxDateDrift > 0) {
+            $drift = $filenameDateTime->diff($captureDateTime)->days;
 
-        if (
-            ($rawDateTime instanceof DateTimeInterface)
-            && ($rawDateTime->format('Y-m-d H:i') === $filenameDateTime->format('Y-m-d H:i'))
-        ) {
+            if (($drift !== false) && ($drift > $maxDateDrift)) {
+                return sprintf('metadata date differs by %d days', $drift);
+            }
+        }
+
+        // If the date is reliable (no issues, or raw matches filename) → no write needed.
+        if ($this->exifMetadataProvider->hasReliableDateTime($file)) {
             return null;
         }
 
@@ -340,15 +342,6 @@ final class WriteDateCommand extends Command
         // Ambiguous timezone (QuickTime UTC ambiguity)
         if ($this->exifMetadataProvider->isAmbiguousTimezone($file)) {
             return 'QuickTime timestamp without timezone info';
-        }
-
-        // Date drift check
-        if ($maxDateDrift > 0) {
-            $drift = $filenameDateTime->diff($captureDateTime)->days;
-
-            if (($drift !== false) && ($drift > $maxDateDrift)) {
-                return sprintf('metadata date differs by %d days', $drift);
-            }
         }
 
         return null;

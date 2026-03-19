@@ -275,20 +275,20 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
                 continue;
             }
 
-            // Track files whose date came from the fallback DateTime tag.
+            // Track files with unreliable dates (fallback or ambiguous timezone)
+            // but only if the raw metadata does NOT already match the filename
+            // (which means the file was already fixed by write-date).
             if (
                 ($renameStrategy instanceof MetadataAwareRenameStrategyInterface)
-                && $renameStrategy->isFallbackDateTime($sourceFileInfo)
+                && !$renameStrategy->hasReliableDateTime($sourceFileInfo)
             ) {
-                $this->fallbackDateFiles[$sourceFileInfo->getPathname()] = true;
-            }
+                if ($renameStrategy->isFallbackDateTime($sourceFileInfo)) {
+                    $this->fallbackDateFiles[$sourceFileInfo->getPathname()] = true;
+                }
 
-            // Track files with ambiguous timezone (UTC vs local undetermined).
-            if (
-                ($renameStrategy instanceof MetadataAwareRenameStrategyInterface)
-                && $renameStrategy->isAmbiguousTimezone($sourceFileInfo)
-            ) {
-                $this->ambiguousTimezoneFiles[$sourceFileInfo->getPathname()] = true;
+                if ($renameStrategy->isAmbiguousTimezone($sourceFileInfo)) {
+                    $this->ambiguousTimezoneFiles[$sourceFileInfo->getPathname()] = true;
+                }
             }
 
             // Video companions with content identifiers defer to Live Photo pairing

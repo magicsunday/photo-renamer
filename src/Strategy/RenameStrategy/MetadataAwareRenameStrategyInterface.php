@@ -43,4 +43,14 @@ interface MetadataAwareRenameStrategyInterface extends RenameStrategyInterface
      * @return bool True when the timezone is ambiguous
      */
     public function isAmbiguousTimezone(SplFileInfo $splFileInfo): bool;
+
+    /**
+     * Returns whether the file has a reliable capture date. A date is reliable when
+     * it is not a fallback, not ambiguous, or the raw metadata matches the filename.
+     *
+     * @param SplFileInfo $splFileInfo File to query
+     *
+     * @return bool True when the capture date can be trusted
+     */
+    public function hasReliableDateTime(SplFileInfo $splFileInfo): bool;
 }

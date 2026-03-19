@@ -16,6 +16,7 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
+use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Service\MetadataCache;
 use SplFileInfo;
 
@@ -112,10 +113,13 @@ final class ExifMetadataProvider
         $metadata = $this->resolveMetadata($splFileInfo);
         $dateTime = $metadata?->getCaptureDateTime();
 
+        // Only convert ambiguous UTC timestamps when the date is NOT already
+        // reliable (raw matches filename = already fixed by write-date).
         if (
             ($dateTime instanceof DateTimeInterface)
             && $metadata->isAmbiguousTimezone()
             && ($this->defaultTimezone instanceof DateTimeZone)
+            && !$this->hasReliableDateTime($splFileInfo)
         ) {
             return DateTimeImmutable::createFromInterface($dateTime)
                 ->setTimezone($this->defaultTimezone);
@@ -159,6 +163,38 @@ final class ExifMetadataProvider
     public function isFallbackDateTime(SplFileInfo $splFileInfo): bool
     {
         return $this->resolveMetadata($splFileInfo)?->isFallbackDateTime() ?? false;
+    }
+
+    /**
+     * Returns whether the file has a reliable capture date. A date is reliable when:
+     * - It is not a fallback (0x0132) AND not ambiguous timezone, OR
+     * - The raw metadata date matches the filename date (file was already fixed).
+     *
+     * This is the single source of truth for "should we flag this file as problematic?"
+     * Used by rename:exif ([W]/[F] tags), rename:verify, and rename:write-date.
+     *
+     * @throws ExifMetadataReadException When the underlying metadata reader fails
+     */
+    public function hasReliableDateTime(SplFileInfo $splFileInfo): bool
+    {
+        $metadata = $this->resolveMetadata($splFileInfo);
+
+        if (!$metadata instanceof TemporalMetadata) {
+            return false;
+        }
+
+        // No issues → reliable
+        if (!$metadata->isFallbackDateTime() && !$metadata->isAmbiguousTimezone()) {
+            return true;
+        }
+
+        // Issue present, but raw metadata matches filename → already fixed → reliable
+        $rawDateTime      = $metadata->getCaptureDateTime();
+        $filenameDateTime = FileHelper::extractDateTimeFromPath($splFileInfo->getPathname());
+
+        return ($rawDateTime instanceof DateTimeInterface)
+        && ($filenameDateTime instanceof DateTimeImmutable)
+        && ($rawDateTime->format('Y-m-d H:i') === $filenameDateTime->format('Y-m-d H:i'));
     }
 
     /**

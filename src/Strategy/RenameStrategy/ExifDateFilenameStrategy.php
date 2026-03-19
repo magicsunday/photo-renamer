@@ -121,6 +121,14 @@ final readonly class ExifDateFilenameStrategy implements LivePhotoAwareRenameStr
     /**
      * {@inheritDoc}
      */
+    public function hasReliableDateTime(SplFileInfo $splFileInfo): bool
+    {
+        return $this->exifMetadataProvider->hasReliableDateTime($splFileInfo);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     #[Override]
     public function getLivePhotoContentIdentifier(SplFileInfo $splFileInfo): ?string
     {
