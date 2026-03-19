@@ -46,7 +46,7 @@ use function strtolower;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-class WriteDateCommand extends Command
+final class WriteDateCommand extends Command
 {
     use ConfiguresMetadataProvider;
 
@@ -58,11 +58,19 @@ class WriteDateCommand extends Command
     private const array SUPPORTED_EXTENSIONS = Constants::SUPPORTED_MEDIA_EXTENSIONS;
 
     /**
-     * @param ExifMetadataProvider         $exifMetadataProvider Metadata provider with caching
-     * @param MediaTypeClassifierInterface $mediaTypeClassifier  Classifies files as still or video
-     * @param FileSystemServiceInterface   $fileSystemService    Provides file iteration
-     * @param ExiftoolWriter               $exiftoolWriter       Writes metadata via exiftool
-     * @param RenameOutputRenderer         $renderer             Shared output rendering utilities
+     * Callable that checks whether exiftool is available. Injectable for testing.
+     *
+     * @var callable(): bool
+     */
+    private readonly mixed $exiftoolAvailabilityCheck;
+
+    /**
+     * @param ExifMetadataProvider         $exifMetadataProvider      Metadata provider with caching
+     * @param MediaTypeClassifierInterface $mediaTypeClassifier       Classifies files as still or video
+     * @param FileSystemServiceInterface   $fileSystemService         Provides file iteration
+     * @param ExiftoolWriter               $exiftoolWriter            Writes metadata via exiftool
+     * @param RenameOutputRenderer         $renderer                  Shared output rendering utilities
+     * @param (callable(): bool)|null      $exiftoolAvailabilityCheck Overrides the default exiftool check (for testing)
      */
     public function __construct(
         private readonly ExifMetadataProvider $exifMetadataProvider,
@@ -70,7 +78,18 @@ class WriteDateCommand extends Command
         private readonly FileSystemServiceInterface $fileSystemService,
         private readonly ExiftoolWriter $exiftoolWriter,
         private readonly RenameOutputRenderer $renderer,
+        ?callable $exiftoolAvailabilityCheck = null,
     ) {
+        $this->exiftoolAvailabilityCheck = $exiftoolAvailabilityCheck ?? static function (): bool {
+            if (!function_exists('exec')) {
+                return false;
+            }
+
+            exec('which exiftool', $output, $exitCode);
+
+            return $exitCode === 0;
+        };
+
         parent::__construct();
     }
 
@@ -338,12 +357,9 @@ class WriteDateCommand extends Command
     /**
      * Checks whether exiftool is available in the system PATH.
      */
-    protected function isExiftoolAvailable(): bool
+    private function isExiftoolAvailable(): bool
     {
-        $command = 'which exiftool';
-        $result  = @exec($command, $output, $exitCode);
-
-        return $result !== false && $exitCode === 0;
+        return ($this->exiftoolAvailabilityCheck)();
     }
 
     /**

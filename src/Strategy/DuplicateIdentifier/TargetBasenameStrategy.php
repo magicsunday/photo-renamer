@@ -25,7 +25,7 @@ use SplFileInfo;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-readonly class TargetBasenameStrategy implements DuplicateIdentifierStrategyInterface
+final readonly class TargetBasenameStrategy implements DuplicateIdentifierStrategyInterface
 {
     /**
      * Combines the target directory and basename (without extension) into a single
@@ -35,10 +35,10 @@ readonly class TargetBasenameStrategy implements DuplicateIdentifierStrategyInte
      * @param SplFileInfo $sourceFileInfo Unused by this strategy
      * @param SplFileInfo $targetFileInfo Target file whose directory + basename is used
      *
-     * @return string|false Directory-scoped identifier
+     * @return string Directory-scoped identifier
      */
     #[Override]
-    public function generateIdentifier(SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo): string|false
+    public function generateIdentifier(SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo): string
     {
         return $targetFileInfo->getPath()
             . DIRECTORY_SEPARATOR

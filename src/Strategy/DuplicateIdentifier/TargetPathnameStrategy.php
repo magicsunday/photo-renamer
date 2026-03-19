@@ -24,7 +24,7 @@ use SplFileInfo;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-readonly class TargetPathnameStrategy implements DuplicateIdentifierStrategyInterface
+final readonly class TargetPathnameStrategy implements DuplicateIdentifierStrategyInterface
 {
     /**
      * Returns the full target pathname as the grouping key, ensuring files in
@@ -33,10 +33,10 @@ readonly class TargetPathnameStrategy implements DuplicateIdentifierStrategyInte
      * @param SplFileInfo $sourceFileInfo Unused by this strategy
      * @param SplFileInfo $targetFileInfo Target file whose full pathname is used as key
      *
-     * @return string|false Full target pathname
+     * @return string Full target pathname
      */
     #[Override]
-    public function generateIdentifier(SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo): string|false
+    public function generateIdentifier(SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo): string
     {
         // We want to find duplicates in the current directory,
         // so the unique identifier must also contain the path.

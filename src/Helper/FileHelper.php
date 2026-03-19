@@ -17,7 +17,6 @@ use DateTimeInterface;
 use MagicSunday\Renamer\Constants;
 use SplFileInfo;
 
-use function abs;
 use function basename;
 use function preg_match;
 use function preg_quote;
@@ -108,11 +107,7 @@ final class FileHelper
 
         $days = $sourceDate->diff($targetDate)->days;
 
-        if ($days === false) {
-            return null;
-        }
-
-        return abs($days);
+        return $days !== false ? $days : 0;
     }
 
     /**
@@ -141,11 +136,7 @@ final class FileHelper
 
         $days = $fileDate->diff($metadataDateOnly)->days;
 
-        if ($days === false) {
-            return null;
-        }
-
-        return abs($days);
+        return $days !== false ? $days : 0;
     }
 
     /**

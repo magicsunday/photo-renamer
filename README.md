@@ -56,7 +56,7 @@ Large photo collections accumulated from multiple devices and backup sources ten
 
 **Out of scope:**
 
-- Image editing, transcoding, or metadata modification.
+- Image editing, transcoding, or metadata modification (except `rename:write-date` which writes date tags to fix broken metadata).
 - Cloud storage or network-based file access.
 - GUI or interactive mode.
 

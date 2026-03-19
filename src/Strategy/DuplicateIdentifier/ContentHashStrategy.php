@@ -24,7 +24,7 @@ use SplFileInfo;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-readonly class ContentHashStrategy implements DuplicateIdentifierStrategyInterface
+final readonly class ContentHashStrategy implements DuplicateIdentifierStrategyInterface
 {
     public function __construct(
         private SafeHashCalculator $hashCalculator,
@@ -38,10 +38,10 @@ readonly class ContentHashStrategy implements DuplicateIdentifierStrategyInterfa
      * @param SplFileInfo $sourceFileInfo Source file whose content is hashed
      * @param SplFileInfo $targetFileInfo Unused by this strategy
      *
-     * @return string|false Hex-encoded xxh128 hash, or false on read failure
+     * @return string Hex-encoded xxh128 hash
      */
     #[Override]
-    public function generateIdentifier(SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo): string|false
+    public function generateIdentifier(SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo): string
     {
         return $this->hashCalculator->hashFile($sourceFileInfo, 'xxh128');
     }
