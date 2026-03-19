@@ -19,6 +19,7 @@ use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
+use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -30,13 +31,9 @@ use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
-use function file_exists;
 use function file_get_contents;
 use function file_put_contents;
-use function is_dir;
 use function mkdir;
-use function rmdir;
-use function scandir;
 use function sprintf;
 use function str_replace;
 use function sys_get_temp_dir;
@@ -67,6 +64,8 @@ use const DIRECTORY_SEPARATOR;
  */
 final class FileSystemServiceTest extends TestCase
 {
+    use WorkspaceTrait;
+
     private string $workspace;
 
     protected function setUp(): void
@@ -79,7 +78,7 @@ final class FileSystemServiceTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeDirectory($this->workspace);
+        $this->removeWorkspace($this->workspace);
 
         parent::tearDown();
     }
@@ -1030,42 +1029,5 @@ final class FileSystemServiceTest extends TestCase
         $collection->set('identifier', $fileDuplicate);
 
         return $collection;
-    }
-
-    private function removeDirectory(string $directory): void
-    {
-        if ($directory === '' || !file_exists($directory)) {
-            return;
-        }
-
-        $files = scandir($directory);
-
-        if ($files === false) {
-            return;
-        }
-
-        foreach ($files as $file) {
-            if ($file === '.') {
-                continue;
-            }
-
-            if ($file === '..') {
-                continue;
-            }
-
-            $path = $directory . DIRECTORY_SEPARATOR . $file;
-
-            if (is_dir($path)) {
-                $this->removeDirectory($path);
-
-                continue;
-            }
-
-            unlink($path);
-        }
-
-        if (is_dir($directory)) {
-            rmdir($directory);
-        }
     }
 }

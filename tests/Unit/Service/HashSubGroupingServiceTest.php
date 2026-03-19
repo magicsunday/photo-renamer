@@ -12,29 +12,25 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
 use Closure;
-use FilesystemIterator;
 use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
+use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
 use SplFileInfo;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
-use function assert;
 use function file_put_contents;
 use function is_dir;
 use function iterator_to_array;
 use function mkdir;
-use function rmdir;
 use function rtrim;
 use function str_starts_with;
 use function strlen;
@@ -42,7 +38,6 @@ use function substr;
 use function sys_get_temp_dir;
 use function trim;
 use function uniqid;
-use function unlink;
 
 use const DIRECTORY_SEPARATOR;
 
@@ -65,13 +60,15 @@ use const DIRECTORY_SEPARATOR;
  */
 final class HashSubGroupingServiceTest extends TestCase
 {
+    use WorkspaceTrait;
+
     /** @var list<string> */
     private array $tempDirectories = [];
 
     protected function tearDown(): void
     {
         foreach ($this->tempDirectories as $directory) {
-            $this->removeDirectory($directory);
+            $this->removeWorkspace($directory);
         }
 
         $this->tempDirectories = [];
@@ -562,32 +559,5 @@ final class HashSubGroupingServiceTest extends TestCase
         $this->tempDirectories[] = $directory;
 
         return $directory;
-    }
-
-    private function removeDirectory(string $directory): void
-    {
-        if (!is_dir($directory)) {
-            return;
-        }
-
-        /** @var RecursiveIteratorIterator<RecursiveDirectoryIterator> $iterator */
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS),
-            RecursiveIteratorIterator::CHILD_FIRST,
-        );
-
-        foreach ($iterator as $fileInfo) {
-            assert($fileInfo instanceof SplFileInfo);
-
-            if ($fileInfo->isDir()) {
-                rmdir($fileInfo->getPathname());
-
-                continue;
-            }
-
-            unlink($fileInfo->getPathname());
-        }
-
-        rmdir($directory);
     }
 }

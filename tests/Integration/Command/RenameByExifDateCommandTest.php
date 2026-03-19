@@ -12,7 +12,6 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Integration\Command;
 
 use DateTimeImmutable;
-use FilesystemIterator;
 use MagicSunday\Renamer\Command\RenameByExifDateCommand;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
@@ -23,13 +22,11 @@ use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
+use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
-use SplFileInfo;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
@@ -40,17 +37,13 @@ use function array_filter;
 use function array_keys;
 use function array_search;
 use function array_values;
-use function assert;
 use function file_put_contents;
-use function is_dir;
 use function mkdir;
-use function rmdir;
 use function rtrim;
 use function str_starts_with;
 use function substr;
 use function sys_get_temp_dir;
 use function uniqid;
-use function unlink;
 
 use const DIRECTORY_SEPARATOR;
 
@@ -70,6 +63,8 @@ use const DIRECTORY_SEPARATOR;
 #[CoversClass(RenameByExifDateCommand::class)]
 final class RenameByExifDateCommandTest extends TestCase
 {
+    use WorkspaceTrait;
+
     private const string DATE_A = '2025-01-01T00:02:20.016+00:00';
 
     private const string DATE_B = '2025-01-01T00:02:21.345+00:00';
@@ -270,7 +265,7 @@ final class RenameByExifDateCommandTest extends TestCase
                 );
             }
         } finally {
-            $this->removeDirectory($workspace);
+            $this->removeWorkspace($workspace);
         }
     }
 
@@ -328,7 +323,7 @@ final class RenameByExifDateCommandTest extends TestCase
                 );
             }
         } finally {
-            $this->removeDirectory($workspace);
+            $this->removeWorkspace($workspace);
         }
     }
 
@@ -392,7 +387,7 @@ final class RenameByExifDateCommandTest extends TestCase
                 'HashB sub-group file must be idempotent (source == target)',
             );
         } finally {
-            $this->removeDirectory($workspace);
+            $this->removeWorkspace($workspace);
         }
     }
 
@@ -460,7 +455,7 @@ final class RenameByExifDateCommandTest extends TestCase
                 'Second sub-group file must be idempotent',
             );
         } finally {
-            $this->removeDirectory($workspace);
+            $this->removeWorkspace($workspace);
         }
     }
 
@@ -532,29 +527,5 @@ final class RenameByExifDateCommandTest extends TestCase
         }
 
         return $path;
-    }
-
-    private function removeDirectory(string $directory): void
-    {
-        if (!is_dir($directory)) {
-            return;
-        }
-
-        $items = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS),
-            RecursiveIteratorIterator::CHILD_FIRST,
-        );
-
-        foreach ($items as $item) {
-            assert($item instanceof SplFileInfo);
-
-            if ($item->isDir()) {
-                rmdir($item->getPathname());
-            } else {
-                unlink($item->getPathname());
-            }
-        }
-
-        rmdir($directory);
     }
 }
