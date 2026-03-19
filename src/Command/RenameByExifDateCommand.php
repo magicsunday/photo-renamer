@@ -11,8 +11,8 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Command;
 
-use DateTimeZone;
 use FilesystemIterator;
+use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
 use MagicSunday\Renamer\Command\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
@@ -22,7 +22,6 @@ use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairing;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingService;
-use MagicSunday\Renamer\Service\MetadataCache;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
@@ -35,7 +34,6 @@ use SplFileInfo;
 use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Input\InputOption;
 
-use function getenv;
 use function is_dir;
 use function is_string;
 
@@ -53,6 +51,8 @@ use function is_string;
  */
 class RenameByExifDateCommand extends AbstractRenameCommand
 {
+    use ConfiguresMetadataProvider;
+
     public function __construct(
         FileSystemServiceInterface $fileSystemService,
         DuplicateDetectionServiceInterface $duplicateDetectionService,
@@ -116,55 +116,15 @@ class RenameByExifDateCommand extends AbstractRenameCommand
             $this->duplicateIdentifierStrategy = null;
         }
 
-        $this->configureDefaultTimezone();
+        $this->configureProviderTimezone($this->exifMetadataProvider, $this->input);
 
-        $cache = $this->configurePersistentCache();
+        $cache = $this->configureProviderCache($this->exifMetadataProvider);
 
         $result = parent::executeCommand();
 
         $cache->flush();
 
         return $result;
-    }
-
-    /**
-     * Configures the default timezone on the EXIF metadata provider for converting
-     * UTC timestamps from video files without explicit timezone metadata.
-     *
-     * Resolution order: --timezone CLI option > TIMEZONE env var > no conversion.
-     */
-    private function configureDefaultTimezone(): void
-    {
-        $timezone = $this->input->getOption('timezone');
-
-        if (!is_string($timezone)) {
-            $envTimezone = getenv('TIMEZONE');
-            $timezone    = is_string($envTimezone) && ($envTimezone !== '') ? $envTimezone : null;
-        }
-
-        if (is_string($timezone)) {
-            $this->exifMetadataProvider->setDefaultTimezone(new DateTimeZone($timezone));
-        }
-    }
-
-    /**
-     * Configures the persistent metadata cache on the EXIF metadata provider.
-     * The cache directory is resolved from the CACHE_DIR env var, defaulting to
-     * .build/cache relative to the project root.
-     */
-    private function configurePersistentCache(): MetadataCache
-    {
-        $cacheDir = getenv('CACHE_DIR');
-
-        if (!is_string($cacheDir) || ($cacheDir === '')) {
-            $cacheDir = __DIR__ . '/../../.build/cache';
-        }
-
-        $cache = new MetadataCache($cacheDir . '/metadata-cache.php');
-
-        $this->exifMetadataProvider->setCache($cache);
-
-        return $cache;
     }
 
     /**
