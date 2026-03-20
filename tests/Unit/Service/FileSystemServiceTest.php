@@ -31,6 +31,7 @@ use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Filesystem\Exception\IOException;
 
 use function file_get_contents;
 use function file_put_contents;
@@ -579,16 +580,9 @@ final class FileSystemServiceTest extends TestCase
             $targetFile,
         );
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Directory');
+        $this->expectException(IOException::class);
 
-        set_error_handler(static fn (): bool => true);
-
-        try {
-            $service->renameFiles($fileDuplicateCollection);
-        } finally {
-            restore_error_handler();
-        }
+        $service->renameFiles($fileDuplicateCollection);
     }
 
     /**

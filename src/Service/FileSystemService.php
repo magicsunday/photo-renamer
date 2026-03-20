@@ -27,13 +27,10 @@ use RecursiveIteratorIterator;
 use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Filesystem\Filesystem;
 
-use function file_exists;
 use function in_array;
-use function is_dir;
 use function mb_strlen;
-use function mkdir;
-use function rename;
 use function rtrim;
 use function sprintf;
 use function strlen;
@@ -52,12 +49,14 @@ use function strlen;
 final readonly class FileSystemService implements FileSystemServiceInterface
 {
     /**
-     * @param SymfonyStyle         $io       Console IO for progress bars, status output and error messages
-     * @param RenameOutputRenderer $renderer Handles output entry building and summary rendering
+     * @param SymfonyStyle         $io         Console IO for progress bars, status output and error messages
+     * @param RenameOutputRenderer $renderer   Handles output entry building and summary rendering
+     * @param Filesystem           $filesystem Symfony Filesystem for file operations
      */
     public function __construct(
         private SymfonyStyle $io,
         private RenameOutputRenderer $renderer,
+        private Filesystem $filesystem = new Filesystem(),
     ) {
     }
 
@@ -330,20 +329,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
         SplFileInfo $targetFileInfo,
         array &$occupiedPaths = [],
     ): void {
-        $targetDirectory = $targetFileInfo->getPath();
-
-        if (
-            !file_exists($targetDirectory)
-            && !mkdir($targetDirectory, 0755, true)
-            && !is_dir($targetDirectory)
-        ) {
-            throw new RuntimeException(
-                sprintf(
-                    'Directory "%s" was not created',
-                    $targetDirectory
-                )
-            );
-        }
+        $this->filesystem->mkdir($targetFileInfo->getPath());
 
         $sourcePath = $sourceFileInfo->getPathname();
         $targetPath = $targetFileInfo->getPathname();
@@ -364,13 +350,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
             $targetPath     = $targetFileInfo->getPathname();
         }
 
-        $result = @rename($sourcePath, $targetPath);
-
-        if ($result === false) {
-            throw new RuntimeException(
-                sprintf('Failed to move file to "%s"', $targetPath),
-            );
-        }
+        $this->filesystem->rename($sourcePath, $targetPath);
 
         // Move: source freed.
         unset($occupiedPaths[$sourcePath]);
