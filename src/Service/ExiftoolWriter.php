@@ -11,7 +11,9 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service;
 
+use DateTimeImmutable;
 use DateTimeInterface;
+use DateTimeZone;
 use SplFileInfo;
 use Symfony\Component\Process\Process;
 
@@ -56,15 +58,23 @@ final class ExiftoolWriter
      */
     public function buildArguments(SplFileInfo $file, DateTimeInterface $dateTime, bool $isVideo): array
     {
-        $formattedDate = $dateTime->format('Y:m:d H:i:s');
-
         if ($isVideo) {
+            // QuickTime:CreateDate/ModifyDate are always UTC (Mac epoch).
+            // Keys:CreationDate carries the local time with timezone offset.
+            $utcDate = DateTimeImmutable::createFromInterface($dateTime)
+                ->setTimezone(new DateTimeZone('UTC'));
+            $utcFormatted   = $utcDate->format('Y:m:d H:i:s');
+            $localFormatted = $dateTime->format('Y:m:d H:i:sP');
+
             $args = [
                 '-overwrite_original',
-                '-QuickTime:CreateDate=' . $formattedDate,
-                '-QuickTime:ModifyDate=' . $formattedDate,
+                '-QuickTime:CreateDate=' . $utcFormatted,
+                '-QuickTime:ModifyDate=' . $utcFormatted,
+                '-Keys:CreationDate=' . $localFormatted,
             ];
         } else {
+            $formattedDate = $dateTime->format('Y:m:d H:i:s');
+
             $args = [
                 '-overwrite_original',
                 '-DateTimeOriginal=' . $formattedDate,

@@ -272,15 +272,20 @@ final class WriteDateCommand extends Command
                 continue;
             }
 
-            $formattedDate = $filenameDateTime->format('Y:m:d H:i:s');
+            // For timezone reason: use the converted capture date (with TZ applied)
+            // instead of the filename date, because the filename may lack a time component
+            // while the metadata has the real capture time.
+            $writeDateTime = ($reasonKey === self::REASON_TIMEZONE) && ($captureDateTime instanceof DateTimeInterface)
+                ? DateTimeImmutable::createFromInterface($captureDateTime)
+                : $filenameDateTime;
 
             $pendingWrites[] = [
                 'path'      => $file->getPathname(),
-                'date'      => $formattedDate,
+                'date'      => $writeDateTime->format('Y:m:d H:i:s'),
                 'reasonKey' => $reasonKey,
                 'reason'    => $reasonLabel,
                 'isVideo'   => $isVideo,
-                'dateTime'  => $filenameDateTime,
+                'dateTime'  => $writeDateTime,
             ];
         }
 
