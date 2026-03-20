@@ -110,22 +110,9 @@ final class ExifMetadataProvider
      */
     public function getCaptureDateTime(SplFileInfo $splFileInfo): ?DateTimeInterface
     {
-        $metadata = $this->resolveMetadata($splFileInfo);
-        $dateTime = $metadata?->getCaptureDateTime();
+        $metadata = $this->getTemporalMetadata($splFileInfo);
 
-        // Only convert ambiguous UTC timestamps when the date is NOT already
-        // reliable (raw matches filename = already fixed by write-date).
-        if (
-            ($dateTime instanceof DateTimeInterface)
-            && $metadata->isAmbiguousTimezone()
-            && ($this->defaultTimezone instanceof DateTimeZone)
-            && !$this->hasReliableDateTime($splFileInfo)
-        ) {
-            return DateTimeImmutable::createFromInterface($dateTime)
-                ->setTimezone($this->defaultTimezone);
-        }
-
-        return $dateTime;
+        return $metadata?->getCaptureDateTime();
     }
 
     /**
@@ -212,6 +199,27 @@ final class ExifMetadataProvider
     }
 
     /**
+     * Returns the full temporal metadata payload for the file, including
+     * additional camera/location/live-photo fields used by conflict heuristics.
+     *
+     * The returned capture timestamp is adjusted in the same way as
+     * {@see getCaptureDateTime()} so consumers compare the effective local
+     * capture times seen by the rest of the pipeline.
+     *
+     * @throws ExifMetadataReadException When the underlying metadata reader fails
+     */
+    public function getTemporalMetadata(SplFileInfo $splFileInfo): ?TemporalMetadata
+    {
+        $metadata = $this->resolveMetadata($splFileInfo);
+
+        if (!$metadata instanceof TemporalMetadata) {
+            return null;
+        }
+
+        return $this->applyConfiguredTimezone($metadata, $splFileInfo);
+    }
+
+    /**
      * Extracts and caches temporal metadata for the given file. Returns the cached
      * result on subsequent calls for the same pathname. When a persistent disk cache
      * is configured, it is checked before invoking the metadata extractor, and
@@ -251,15 +259,7 @@ final class ExifMetadataProvider
 
             // Store in persistent cache
             if ($this->cache instanceof MetadataCache) {
-                $meta = $this->metadataCache[$key];
-
-                $this->cache->set(
-                    $splFileInfo,
-                    $meta?->getCaptureDateTime()?->format('Y-m-d\TH:i:s.uP'),
-                    $meta?->getLivePhotoId(),
-                    $meta?->isFallbackDateTime() ?? false,
-                    $meta?->isAmbiguousTimezone() ?? false,
-                );
+                $this->cache->set($splFileInfo, $this->metadataCache[$key]);
             }
         }
 
@@ -270,7 +270,22 @@ final class ExifMetadataProvider
      * Reconstructs a TemporalMetadata instance from a persistent cache entry.
      * Returns null when the cached entry represents a file with no usable metadata.
      *
-     * @param array{mtime: int, size: int, captureDateTime: string|null, contentId: string|null, isFallback: bool, isAmbiguousTimezone: bool} $cached
+     * @param array{
+     *     mtime: int,
+     *     size: int,
+     *     captureDateTime: string|null,
+     *     contentId: string|null,
+     *     isFallback: bool,
+     *     isAmbiguousTimezone: bool,
+     *     livePhotoVideoIndex?: int|null,
+     *     cameraMake?: string|null,
+     *     cameraModel?: string|null,
+     *     software?: string|null,
+     *     latitude?: float|null,
+     *     longitude?: float|null,
+     *     videoDurationSeconds?: float|null,
+     *     hasQuickTimeLivePhotoMarker?: bool
+     * } $cached
      *
      * @return TemporalMetadata|null Reconstructed metadata, or null when the cache entry has no date or content ID
      */
@@ -297,6 +312,14 @@ final class ExifMetadataProvider
             $contentId,
             $cached['isFallback'],
             $cached['isAmbiguousTimezone'],
+            $cached['livePhotoVideoIndex'] ?? null,
+            $cached['cameraMake'] ?? null,
+            $cached['cameraModel'] ?? null,
+            $cached['software'] ?? null,
+            $cached['latitude'] ?? null,
+            $cached['longitude'] ?? null,
+            $cached['videoDurationSeconds'] ?? null,
+            $cached['hasQuickTimeLivePhotoMarker'] ?? false,
         );
     }
 
@@ -317,5 +340,35 @@ final class ExifMetadataProvider
         $normalized = strtolower(trim($contentIdentifier));
 
         return $normalized !== '' ? $normalized : null;
+    }
+
+    private function applyConfiguredTimezone(TemporalMetadata $metadata, SplFileInfo $splFileInfo): TemporalMetadata
+    {
+        $dateTime = $metadata->getCaptureDateTime();
+
+        if (
+            ($dateTime instanceof DateTimeInterface)
+            && $metadata->isAmbiguousTimezone()
+            && ($this->defaultTimezone instanceof DateTimeZone)
+            && !$this->hasReliableDateTime($splFileInfo)
+        ) {
+            $dateTime = DateTimeImmutable::createFromInterface($dateTime)
+                ->setTimezone($this->defaultTimezone);
+        }
+
+        return new TemporalMetadata(
+            $dateTime,
+            $metadata->getLivePhotoId(),
+            $metadata->isFallbackDateTime(),
+            $metadata->isAmbiguousTimezone(),
+            $metadata->getLivePhotoVideoIndex(),
+            $metadata->getCameraMake(),
+            $metadata->getCameraModel(),
+            $metadata->getSoftware(),
+            $metadata->getLatitude(),
+            $metadata->getLongitude(),
+            $metadata->getVideoDurationSeconds(),
+            $metadata->hasQuickTimeLivePhotoMarker(),
+        );
     }
 }

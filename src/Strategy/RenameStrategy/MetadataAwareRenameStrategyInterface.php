@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Strategy\RenameStrategy;
 
+use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use SplFileInfo;
 
 /**
@@ -53,4 +54,12 @@ interface MetadataAwareRenameStrategyInterface extends RenameStrategyInterface
      * @return bool True when the capture date can be trusted
      */
     public function hasReliableDateTime(SplFileInfo $splFileInfo): bool;
+
+    /**
+     * Returns the full temporal metadata payload for the file, including the
+     * additional markers used by Live Photo conflict heuristics.
+     *
+     * @return TemporalMetadata|null Metadata payload, or null when unavailable
+     */
+    public function getTemporalMetadata(SplFileInfo $splFileInfo): ?TemporalMetadata;
 }

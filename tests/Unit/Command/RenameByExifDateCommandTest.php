@@ -26,6 +26,7 @@ use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
+use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetector;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairing;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingCollection;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingService;
@@ -500,8 +501,13 @@ final class RenameByExifDateCommandTest extends TestCase
             $hashCalculator            = new SafeHashCalculator();
             $mediaTypeClassifier       = new MediaTypeClassifier();
             $hashSubGroupingService    = new HashSubGroupingService($hashCalculator, $style, $mediaTypeClassifier);
-            $duplicateDetectionService = new DuplicateDetectionService($style, $hashSubGroupingService, $mediaTypeClassifier);
-            $livePhotoPairingService   = new LivePhotoPairingService();
+            $duplicateDetectionService = new DuplicateDetectionService(
+                $style,
+                $hashSubGroupingService,
+                $mediaTypeClassifier,
+                new LivePhotoConflictDetector($mediaTypeClassifier),
+            );
+            $livePhotoPairingService = new LivePhotoPairingService();
 
             $command = new RenameByExifDateCommand(
                 $fileSystemService,

@@ -15,11 +15,13 @@ use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Model\SkippedFile;
 use MagicSunday\Renamer\Model\TargetFileResult;
+use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetectorInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\LivePhotoAwareRenameStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\MetadataAwareRenameStrategyInterface;
@@ -93,12 +95,27 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
     private array $diskIndex = [];
 
     /**
+     * All scanned files keyed by pathname so post-group heuristics can reason
+     * across the whole batch without rescanning the filesystem.
+     *
+     * @var array<string, SplFileInfo>
+     */
+    private array $filesByPath = [];
+
+    /**
      * Map from source pathname to normalized Live Photo content identifier.
      * Built during grouping, used for companion detection in createDuplicateFilenames.
      *
      * @var array<string, string>
      */
     private array $contentIdentifierMap = [];
+
+    /**
+     * Temporal metadata captured during grouping for later conflict detection.
+     *
+     * @var array<string, TemporalMetadata>
+     */
+    private array $temporalMetadataMap = [];
 
     /**
      * Number of files scanned during the last grouping pass.
@@ -145,6 +162,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
         private readonly SymfonyStyle $io,
         private readonly HashSubGroupingServiceInterface $hashSubGroupingService,
         private readonly MediaTypeClassifierInterface $mediaTypeClassifier,
+        private readonly ?LivePhotoConflictDetectorInterface $livePhotoConflictDetector = null,
     ) {
     }
 
@@ -263,6 +281,18 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
                 $sourceFileInfo,
                 $renameStrategy
             );
+
+            if ($renameStrategy instanceof MetadataAwareRenameStrategyInterface) {
+                try {
+                    $temporalMetadata = $renameStrategy->getTemporalMetadata($sourceFileInfo);
+                } catch (TargetFilenameException) {
+                    $temporalMetadata = null;
+                }
+
+                if ($temporalMetadata instanceof TemporalMetadata) {
+                    $this->temporalMetadataMap[$sourceFileInfo->getPathname()] = $temporalMetadata;
+                }
+            }
 
             try {
                 $normalizedContentIdentifier = $this->resolveNormalizedContentIdentifier(
@@ -475,6 +505,16 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
             if (!$fileDuplicateCollection->has($duplicateIdentifier)) {
                 $fileDuplicateCollection->set($duplicateIdentifier, $fileDuplicate);
             }
+        }
+
+        if ($this->livePhotoConflictDetector instanceof LivePhotoConflictDetectorInterface) {
+            $this->livePhotoConflictFiles = [
+                ...$this->livePhotoConflictFiles,
+                ...$this->livePhotoConflictDetector->detectConflictFiles(
+                    $this->filesByPath,
+                    $this->temporalMetadataMap,
+                ),
+            ];
         }
 
         return $fileDuplicateCollection;
@@ -794,14 +834,17 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
     private function buildDiskIndex(array $files): void
     {
         $this->diskIndex              = [];
+        $this->filesByPath            = [];
         $this->contentIdentifierMap   = [];
+        $this->temporalMetadataMap    = [];
         $this->skippedFiles           = [];
         $this->fallbackDateFiles      = [];
         $this->ambiguousTimezoneFiles = [];
         $this->livePhotoConflictFiles = [];
 
         foreach ($files as $file) {
-            $this->diskIndex[$file->getPathname()] = true;
+            $this->diskIndex[$file->getPathname()]   = true;
+            $this->filesByPath[$file->getPathname()] = $file;
         }
     }
 

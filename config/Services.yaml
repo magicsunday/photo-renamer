@@ -31,6 +31,9 @@ services:
     MagicSunday\Renamer\Service\MediaTypeClassifierInterface:
         class: MagicSunday\Renamer\Service\MediaTypeClassifier
 
+    MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetectorInterface:
+        class: MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetector
+
     MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface:
         class: MagicSunday\Renamer\Service\DuplicateDetectionService
         arguments:

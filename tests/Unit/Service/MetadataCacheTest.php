@@ -11,9 +11,12 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
+use DateTimeImmutable;
+use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Service\MetadataCache;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
 
@@ -46,6 +49,7 @@ use const DIRECTORY_SEPARATOR;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(MetadataCache::class)]
+#[UsesClass(TemporalMetadata::class)]
 final class MetadataCacheTest extends TestCase
 {
     private string $workspace;
@@ -113,12 +117,15 @@ final class MetadataCacheTest extends TestCase
         $file  = new SplFileInfo($filePath);
         $cache = new MetadataCache($this->cacheFile);
 
-        $cache->set($file, '2024-05-05T12:34:56+02:00', 'uuid-1234', false);
+        $cache->set($file, new TemporalMetadata(
+            new DateTimeImmutable('2024-05-05T12:34:56+02:00'),
+            'uuid-1234',
+        ));
 
         $entry = $cache->get($file);
 
         self::assertNotNull($entry);
-        self::assertSame('2024-05-05T12:34:56+02:00', $entry['captureDateTime']);
+        self::assertSame('2024-05-05T12:34:56.000000+02:00', $entry['captureDateTime']);
         self::assertSame('uuid-1234', $entry['contentId']);
         self::assertFalse($entry['isFallback']);
         self::assertFalse($entry['isAmbiguousTimezone']);
@@ -136,7 +143,10 @@ final class MetadataCacheTest extends TestCase
         $file  = new SplFileInfo($filePath);
         $cache = new MetadataCache($this->cacheFile);
 
-        $cache->set($file, '2024-05-05T12:34:56+02:00', null, false);
+        $cache->set($file, new TemporalMetadata(
+            new DateTimeImmutable('2024-05-05T12:34:56+02:00'),
+            null,
+        ));
 
         // Change file content (different size)
         file_put_contents($filePath, 'modified content with different length!!');
@@ -159,7 +169,10 @@ final class MetadataCacheTest extends TestCase
         $file  = new SplFileInfo($filePath);
         $cache = new MetadataCache($this->cacheFile);
 
-        $cache->set($file, '2024-05-05T12:34:56+02:00', null, false);
+        $cache->set($file, new TemporalMetadata(
+            new DateTimeImmutable('2024-05-05T12:34:56+02:00'),
+            null,
+        ));
 
         // Change mtime to the future (keep same size by writing same length)
         touch($filePath, time() + 100);
@@ -183,7 +196,12 @@ final class MetadataCacheTest extends TestCase
         $file   = new SplFileInfo($filePath);
         $cache1 = new MetadataCache($this->cacheFile);
 
-        $cache1->set($file, '2024-01-01T00:00:00+00:00', 'content-id', true, true);
+        $cache1->set($file, new TemporalMetadata(
+            new DateTimeImmutable('2024-01-01T00:00:00+00:00'),
+            'content-id',
+            true,
+            true,
+        ));
         $cache1->flush();
 
         self::assertFileExists($this->cacheFile);
@@ -193,7 +211,7 @@ final class MetadataCacheTest extends TestCase
         $entry  = $cache2->get($file);
 
         self::assertNotNull($entry);
-        self::assertSame('2024-01-01T00:00:00+00:00', $entry['captureDateTime']);
+        self::assertSame('2024-01-01T00:00:00.000000+00:00', $entry['captureDateTime']);
         self::assertSame('content-id', $entry['contentId']);
         self::assertTrue($entry['isFallback']);
         self::assertTrue($entry['isAmbiguousTimezone']);
@@ -237,7 +255,7 @@ final class MetadataCacheTest extends TestCase
         $file  = new SplFileInfo($filePath);
         $cache = new MetadataCache($this->cacheFile);
 
-        $cache->set($file, null, null, false);
+        $cache->set($file, null);
 
         $entry = $cache->get($file);
 
@@ -260,7 +278,10 @@ final class MetadataCacheTest extends TestCase
         $file  = new SplFileInfo($filePath);
         $cache = new MetadataCache($this->cacheFile);
 
-        $cache->set($file, '2024-06-15T08:00:00+00:00', null, false);
+        $cache->set($file, new TemporalMetadata(
+            new DateTimeImmutable('2024-06-15T08:00:00+00:00'),
+            null,
+        ));
         $cache->flush();
 
         $cacheDir = $this->workspace . DIRECTORY_SEPARATOR . 'cache';

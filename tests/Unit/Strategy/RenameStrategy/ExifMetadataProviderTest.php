@@ -203,7 +203,10 @@ final class ExifMetadataProviderTest extends TestCase
 
             // Pre-populate the persistent cache
             $cache = new MetadataCache($cacheFile);
-            $cache->set($file, '2024-05-05T12:34:56+02:00', 'uuid-1234', false);
+            $cache->set($file, new TemporalMetadata(
+                new DateTimeImmutable('2024-05-05T12:34:56+02:00'),
+                'uuid-1234',
+            ));
             $cache->flush();
 
             // Create a fresh cache instance that loads from disk

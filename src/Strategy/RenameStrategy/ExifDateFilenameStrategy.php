@@ -16,6 +16,7 @@ use DateTimeInterface;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
+use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use Override;
 use SplFileInfo;
 
@@ -127,6 +128,15 @@ final readonly class ExifDateFilenameStrategy implements LivePhotoAwareRenameStr
     public function hasReliableDateTime(SplFileInfo $splFileInfo): bool
     {
         return $this->exifMetadataProvider->hasReliableDateTime($splFileInfo);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    #[Override]
+    public function getTemporalMetadata(SplFileInfo $splFileInfo): ?TemporalMetadata
+    {
+        return $this->exifMetadataProvider->getTemporalMetadata($splFileInfo);
     }
 
     /**

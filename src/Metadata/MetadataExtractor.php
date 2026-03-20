@@ -14,6 +14,7 @@ namespace MagicSunday\Renamer\Metadata;
 use DateTimeInterface;
 use DateTimeZone;
 use MagicSunday\ImageMeta\MetadataReader;
+use MagicSunday\ImageMeta\Model\Metadata;
 use MagicSunday\ImageMeta\Model\QuickTime\QuickTimeMeta;
 use MagicSunday\ImageMeta\Value\StructuredMetadata;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
@@ -67,17 +68,44 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         }
 
         $structured  = $metadata->structured();
-        $livePhotoId = $this->extractContentIdentifier($structured);
+        $livePhotoId = $this->extractContentIdentifier($metadata);
 
         $isQuickTimeContainer = $metadata->quickTime instanceof QuickTimeMeta;
 
         [$captureDateTime, $isFallback, $isAmbiguousTimezone] = $this->extractCaptureDateTimeWithFallbackFlag($structured, $isQuickTimeContainer);
 
-        if (!($captureDateTime instanceof DateTimeInterface) && ($livePhotoId === null)) {
+        $livePhotoVideoIndex         = $structured->makerNotesApple?->livePhoto?->index;
+        $cameraMake                  = $this->normalizeNullable($structured->hardware->camera->make);
+        $cameraModel                 = $this->normalizeNullable($structured->hardware->camera->model);
+        $software                    = $this->normalizeNullable($structured->hardware->device->software);
+        $latitude                    = $structured->locationTime->gps->position?->latitudeSigned;
+        $longitude                   = $structured->locationTime->gps->position?->longitudeSigned;
+        $videoDurationSeconds        = $this->extractVideoDurationSeconds($metadata);
+        $hasQuickTimeLivePhotoMarker = $this->hasQuickTimeLivePhotoMarker($metadata);
+
+        if (
+            !($captureDateTime instanceof DateTimeInterface)
+            && ($livePhotoId === null)
+            && ($livePhotoVideoIndex === null)
+            && !$hasQuickTimeLivePhotoMarker
+        ) {
             return null;
         }
 
-        return new TemporalMetadata($captureDateTime, $livePhotoId, $isFallback, $isAmbiguousTimezone);
+        return new TemporalMetadata(
+            $captureDateTime,
+            $livePhotoId,
+            $isFallback,
+            $isAmbiguousTimezone,
+            $livePhotoVideoIndex,
+            $cameraMake,
+            $cameraModel,
+            $software,
+            $latitude,
+            $longitude,
+            $videoDurationSeconds,
+            $hasQuickTimeLivePhotoMarker,
+        );
     }
 
     /**
@@ -135,15 +163,61 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
      * or null when the file is not part of a Live Photo pair. Empty/whitespace-only
      * identifiers are normalised to null.
      */
-    private function extractContentIdentifier(StructuredMetadata $structured): ?string
+    private function extractContentIdentifier(Metadata $metadata): ?string
     {
-        $contentIdentifier = $structured->makerNotesApple?->identity?->contentIdentifier;
+        $contentIdentifier = $metadata->structured()->makerNotesApple?->identity->contentIdentifier
+            ?? $metadata->quickTime?->contentIdentifier();
 
         if ($contentIdentifier === null) {
             return null;
         }
 
         $trimmed = trim($contentIdentifier);
+
+        return $trimmed !== '' ? $trimmed : null;
+    }
+
+    private function extractVideoDurationSeconds(Metadata $metadata): ?float
+    {
+        if (!$metadata->quickTime instanceof QuickTimeMeta) {
+            return null;
+        }
+
+        $duration = $metadata->quickTime->floatValue('com.apple.quicktime.duration');
+
+        if ($duration === null) {
+            return null;
+        }
+
+        $timeScale = $metadata->quickTime->intValue('TimeScale');
+
+        if (($timeScale !== null) && ($timeScale > 0) && ($duration > $timeScale)) {
+            return $duration / $timeScale;
+        }
+
+        return $duration;
+    }
+
+    private function hasQuickTimeLivePhotoMarker(Metadata $metadata): bool
+    {
+        if (!$metadata->quickTime instanceof QuickTimeMeta) {
+            return false;
+        }
+
+        if ($metadata->quickTime->boolValue(QuickTimeMeta::STILL_IMAGE_TIME_KEY) ?? false) {
+            return true;
+        }
+
+        return $metadata->quickTime->boolValue(QuickTimeMeta::HAS_LIVE_PHOTO_INFO_KEY) ?? false;
+    }
+
+    private function normalizeNullable(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $trimmed = trim($value);
 
         return $trimmed !== '' ? $trimmed : null;
     }

@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service;
 
+use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use SplFileInfo;
 
 use function dirname;
@@ -41,7 +42,22 @@ use const JSON_THROW_ON_ERROR;
 final class MetadataCache
 {
     /**
-     * @var array<string, array{mtime: int, size: int, captureDateTime: string|null, contentId: string|null, isFallback: bool, isAmbiguousTimezone: bool}>
+     * @var array<string, array{
+     *     mtime: int,
+     *     size: int,
+     *     captureDateTime: string|null,
+     *     contentId: string|null,
+     *     isFallback: bool,
+     *     isAmbiguousTimezone: bool,
+     *     livePhotoVideoIndex?: int|null,
+     *     cameraMake?: string|null,
+     *     cameraModel?: string|null,
+     *     software?: string|null,
+     *     latitude?: float|null,
+     *     longitude?: float|null,
+     *     videoDurationSeconds?: float|null,
+     *     hasQuickTimeLivePhotoMarker?: bool
+     * }>
      */
     private array $entries = [];
 
@@ -65,7 +81,22 @@ final class MetadataCache
      * - The file is not in the cache
      * - The file's mtime or size has changed.
      *
-     * @return array{mtime: int, size: int, captureDateTime: string|null, contentId: string|null, isFallback: bool, isAmbiguousTimezone: bool}|null
+     * @return array{
+     *     mtime: int,
+     *     size: int,
+     *     captureDateTime: string|null,
+     *     contentId: string|null,
+     *     isFallback: bool,
+     *     isAmbiguousTimezone: bool,
+     *     livePhotoVideoIndex?: int|null,
+     *     cameraMake?: string|null,
+     *     cameraModel?: string|null,
+     *     software?: string|null,
+     *     latitude?: float|null,
+     *     longitude?: float|null,
+     *     videoDurationSeconds?: float|null,
+     *     hasQuickTimeLivePhotoMarker?: bool
+     * }|null
      */
     public function get(SplFileInfo $file): ?array
     {
@@ -90,20 +121,23 @@ final class MetadataCache
     /**
      * Stores metadata for the file in the cache.
      */
-    public function set(
-        SplFileInfo $file,
-        ?string $captureDateTime,
-        ?string $contentId,
-        bool $isFallback,
-        bool $isAmbiguousTimezone = false,
-    ): void {
+    public function set(SplFileInfo $file, ?TemporalMetadata $metadata): void
+    {
         $this->entries[$file->getPathname()] = [
-            'mtime'               => $file->getMTime(),
-            'size'                => $file->getSize(),
-            'captureDateTime'     => $captureDateTime,
-            'contentId'           => $contentId,
-            'isFallback'          => $isFallback,
-            'isAmbiguousTimezone' => $isAmbiguousTimezone,
+            'mtime'                       => $file->getMTime(),
+            'size'                        => $file->getSize(),
+            'captureDateTime'             => $metadata?->getCaptureDateTime()?->format('Y-m-d\TH:i:s.uP'),
+            'contentId'                   => $metadata?->getLivePhotoId(),
+            'isFallback'                  => $metadata?->isFallbackDateTime() ?? false,
+            'isAmbiguousTimezone'         => $metadata?->isAmbiguousTimezone() ?? false,
+            'livePhotoVideoIndex'         => $metadata?->getLivePhotoVideoIndex(),
+            'cameraMake'                  => $metadata?->getCameraMake(),
+            'cameraModel'                 => $metadata?->getCameraModel(),
+            'software'                    => $metadata?->getSoftware(),
+            'latitude'                    => $metadata?->getLatitude(),
+            'longitude'                   => $metadata?->getLongitude(),
+            'videoDurationSeconds'        => $metadata?->getVideoDurationSeconds(),
+            'hasQuickTimeLivePhotoMarker' => $metadata?->hasQuickTimeLivePhotoMarker() ?? false,
         ];
 
         $this->dirty = true;
@@ -150,7 +184,22 @@ final class MetadataCache
         $data = json_decode($contents, true);
 
         if (is_array($data)) {
-            /** @var array<string, array{mtime: int, size: int, captureDateTime: string|null, contentId: string|null, isFallback: bool, isAmbiguousTimezone: bool}> $data */
+            /** @var array<string, array{
+             *     mtime: int,
+             *     size: int,
+             *     captureDateTime: string|null,
+             *     contentId: string|null,
+             *     isFallback: bool,
+             *     isAmbiguousTimezone: bool,
+             *     livePhotoVideoIndex?: int|null,
+             *     cameraMake?: string|null,
+             *     cameraModel?: string|null,
+             *     software?: string|null,
+             *     latitude?: float|null,
+             *     longitude?: float|null,
+             *     videoDurationSeconds?: float|null,
+             *     hasQuickTimeLivePhotoMarker?: bool
+             * }> $data */
             $this->entries = $data;
         }
     }

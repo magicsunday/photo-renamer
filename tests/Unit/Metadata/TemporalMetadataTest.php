@@ -111,4 +111,37 @@ final class TemporalMetadataTest extends TestCase
 
         self::assertTrue($metadata->isAmbiguousTimezone());
     }
+
+    #[Test]
+    public function itExposesAdditionalLivePhotoHeuristicFields(): void
+    {
+        $metadata = new TemporalMetadata(
+            new DateTimeImmutable('2024-01-15 10:30:00'),
+            ' LivePhoto-ID ',
+            false,
+            false,
+            8192,
+            'Apple',
+            'iPhone 8',
+            '13.6.1',
+            51.79375,
+            10.60537,
+            2.6,
+            true,
+        );
+
+        self::assertSame(8192, $metadata->getLivePhotoVideoIndex());
+        self::assertSame('Apple', $metadata->getCameraMake());
+        self::assertSame('iPhone 8', $metadata->getCameraModel());
+        self::assertSame('13.6.1', $metadata->getSoftware());
+        self::assertSame(51.79375, $metadata->getLatitude());
+        self::assertSame(10.60537, $metadata->getLongitude());
+        self::assertSame(2.6, $metadata->getVideoDurationSeconds());
+        self::assertTrue($metadata->hasQuickTimeLivePhotoMarker());
+        self::assertTrue($metadata->hasStillLivePhotoMarker());
+        self::assertTrue($metadata->hasVideoLivePhotoMarker());
+        self::assertSame('livephoto-id', $metadata->getNormalizedLivePhotoId());
+        self::assertSame('apple|iphone 8|13.6.1', $metadata->getNormalizedDeviceKey());
+        self::assertTrue($metadata->hasComparableDeviceIdentity());
+    }
 }

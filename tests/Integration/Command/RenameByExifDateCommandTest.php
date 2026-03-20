@@ -18,6 +18,7 @@ use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Service\DuplicateDetectionService;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
+use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetector;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
@@ -484,11 +485,35 @@ final class RenameByExifDateCommandTest extends TestCase
             $metadataExtractor = new StubMetadataExtractor();
             $metadataExtractor->withResponse(
                 $jpgPath,
-                new TemporalMetadata($dateTime, 'photo-content-id'),
+                new TemporalMetadata(
+                    $dateTime,
+                    'photo-content-id',
+                    false,
+                    false,
+                    8192,
+                    'Apple',
+                    'iPhone 8',
+                    '13.6.1',
+                    51.79375,
+                    10.60537,
+                ),
             );
             $metadataExtractor->withResponse(
                 $movPath,
-                new TemporalMetadata($dateTime, 'video-content-id'),
+                new TemporalMetadata(
+                    $dateTime,
+                    'video-content-id',
+                    false,
+                    false,
+                    null,
+                    'Apple',
+                    'iPhone 8',
+                    '13.6.1',
+                    51.79376,
+                    10.60538,
+                    2.6,
+                    true,
+                ),
             );
 
             $output = $this->runDryRunOutput($workspace, $metadataExtractor);
@@ -523,12 +548,18 @@ final class RenameByExifDateCommandTest extends TestCase
         $output = new BufferedOutput();
         $style  = new SymfonyStyle(new ArrayInput([]), $output);
 
-        $mediaTypeClassifier    = new MediaTypeClassifier();
-        $hashSubGroupingService = new HashSubGroupingService(new SafeHashCalculator(), $style, $mediaTypeClassifier);
+        $mediaTypeClassifier       = new MediaTypeClassifier();
+        $hashSubGroupingService    = new HashSubGroupingService(new SafeHashCalculator(), $style, $mediaTypeClassifier);
+        $livePhotoConflictDetector = new LivePhotoConflictDetector($mediaTypeClassifier);
 
         $command = new RenameByExifDateCommand(
             new FileSystemService($style, new RenameOutputRenderer($style)),
-            new DuplicateDetectionService($style, $hashSubGroupingService, $mediaTypeClassifier),
+            new DuplicateDetectionService(
+                $style,
+                $hashSubGroupingService,
+                $mediaTypeClassifier,
+                $livePhotoConflictDetector,
+            ),
             new ExifMetadataProvider($metadataExtractor),
             new LivePhotoPairingService(),
         );
