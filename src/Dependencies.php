@@ -18,33 +18,17 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Dumper\PhpDumper;
 use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
-
-use function file_exists;
-use function file_put_contents;
-use function is_dir;
-use function mkdir;
-use function sprintf;
+use Symfony\Component\Filesystem\Filesystem;
 
 require_once __DIR__ . '/../.build/vendor/autoload.php';
 
 $cachedContainer = __DIR__ . '/../.build/cache/DependencyContainer.php';
-$cacheDir        = __DIR__ . '/../.build/cache';
+$filesystem      = new Filesystem();
 
-// Create a cache directory if it doesn't exist
-if (!file_exists($cacheDir)
-    && !mkdir($cacheDir, 0775, true)
-    && !is_dir($cacheDir)
-) {
-    throw new RuntimeException(
-        sprintf(
-            'Directory "%s" was not created',
-            $cacheDir
-        )
-    );
-}
+$filesystem->mkdir(__DIR__ . '/../.build/cache');
 
 // Create a cached container if it doesn't exist
-if (!file_exists($cachedContainer)) {
+if (!$filesystem->exists($cachedContainer)) {
     // Create and configure the container
     $containerBuilder = new ContainerBuilder();
 
@@ -68,13 +52,13 @@ if (!file_exists($cachedContainer)) {
     // Dump the container to a PHP file for caching
     $dumper = new PhpDumper($containerBuilder);
 
-    file_put_contents(
+    $filesystem->dumpFile(
         $cachedContainer,
         $dumper->dump(
             [
                 'class'     => 'DependencyContainer',
                 'namespace' => 'MagicSunday\Renamer',
             ]
-        )
+        ),
     );
 }
