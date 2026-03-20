@@ -23,16 +23,12 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Filesystem\Filesystem;
 
 use function count;
-use function file_exists;
-use function is_dir;
 use function is_string;
-use function mkdir;
-use function rename;
 use function sprintf;
 use function str_contains;
-use function unlink;
 
 /**
  * Finds files with "-duplicate-" in their name and either moves them to
@@ -52,6 +48,7 @@ final class DedupCommand extends Command
     public function __construct(
         private readonly FileSystemServiceInterface $fileSystemService,
         private readonly RenameOutputRenderer $renderer,
+        private readonly Filesystem $filesystem = new Filesystem(),
     ) {
         parent::__construct();
     }
@@ -144,7 +141,7 @@ final class DedupCommand extends Command
 
             $duplicates[] = [
                 'file'           => $file,
-                'originalExists' => file_exists($originalPath),
+                'originalExists' => $this->filesystem->exists($originalPath),
                 'relativePath'   => $relativePath,
             ];
         }
@@ -190,16 +187,7 @@ final class DedupCommand extends Command
                     ));
                 }
             } elseif ($delete) {
-                $deleted = unlink($file->getPathname());
-
-                if (!$deleted) {
-                    $io->text(sprintf(
-                        '<fg=red>[E]</> %s <fg=cyan>-></> Failed to delete',
-                        $relativePath,
-                    ));
-
-                    continue;
-                }
+                $this->filesystem->remove($file->getPathname());
 
                 $io->text(sprintf(
                     '<fg=green>[D]</> %s (deleted)',
@@ -219,20 +207,8 @@ final class DedupCommand extends Command
 
                 $targetPath = $targetDir . DIRECTORY_SEPARATOR . $file->getBasename();
 
-                if (!is_dir($targetDir)) {
-                    mkdir($targetDir, 0755, true);
-                }
-
-                $moved = rename($file->getPathname(), $targetPath);
-
-                if (!$moved) {
-                    $io->text(sprintf(
-                        '<fg=red>[E]</> %s <fg=cyan>-></> Failed to move',
-                        $relativePath,
-                    ));
-
-                    continue;
-                }
+                $this->filesystem->mkdir($targetDir);
+                $this->filesystem->rename($file->getPathname(), $targetPath);
 
                 $targetRelativePath = $target . DIRECTORY_SEPARATOR . $relativePath;
 
