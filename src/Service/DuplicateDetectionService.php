@@ -24,6 +24,7 @@ use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategy
 use MagicSunday\Renamer\Strategy\RenameStrategy\LivePhotoAwareRenameStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\MetadataAwareRenameStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
+use Override;
 use RecursiveIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
@@ -142,6 +143,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
     /**
      * Returns the number of groups where content-hash sub-grouping was applied.
      */
+    #[Override]
     public function getNamingCollisions(): int
     {
         return $this->namingCollisions;
@@ -151,6 +153,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      * Returns the number of files scanned during the last call to
      * {@see groupFilesByDuplicateIdentifier()}.
      */
+    #[Override]
     public function getLastScannedFileCount(): int
     {
         return $this->lastScannedFileCount;
@@ -162,6 +165,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      *
      * @return list<SkippedFile>
      */
+    #[Override]
     public function getSkippedFiles(): array
     {
         return $this->skippedFiles;
@@ -173,6 +177,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      *
      * @return array<string, true>
      */
+    #[Override]
     public function getFallbackDateFiles(): array
     {
         return $this->fallbackDateFiles;
@@ -181,6 +186,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
     /**
      * @return array<string, true>
      */
+    #[Override]
     public function getAmbiguousTimezoneFiles(): array
     {
         return $this->ambiguousTimezoneFiles;
@@ -198,6 +204,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      *
      * @return FileDuplicateCollection collection describing discovered duplicate groups
      */
+    #[Override]
     public function groupFilesByDuplicateIdentifier(
         RecursiveIteratorIterator $iterator,
         RenameStrategyInterface $renameStrategy,
@@ -460,6 +467,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      *
      * @return FileDuplicateCollection updated collection with rename operations populated
      */
+    #[Override]
     public function createDuplicateFilenames(
         FileDuplicateCollection $fileDuplicateCollection,
         string $sourceDirectory,

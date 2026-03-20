@@ -20,6 +20,7 @@ use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
+use Override;
 use RecursiveDirectoryIterator;
 use RecursiveIterator;
 use RecursiveIteratorIterator;
@@ -68,6 +69,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
      *
      * @return RecursiveIteratorIterator<RecursiveIterator<string, SplFileInfo>> Iterator yielding only leaf nodes (files)
      */
+    #[Override]
     public function createFileIterator(
         string $directory,
         ?RecursiveIterator $recursiveIterator = null,
@@ -95,6 +97,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
      *
      * @return list<SplFileInfo> All files found in the directory tree
      */
+    #[Override]
     public function collectFiles(string $directory): array
     {
         $iterator = $this->createFileIterator($directory);
@@ -120,6 +123,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
      * @param RenameResult            $result                  Pipeline-computed results (scanned files, collisions, skips)
      * @param list<string>|null       $showFilter              When set, only output entries matching these tags are shown
      */
+    #[Override]
     public function renameFiles(
         FileDuplicateCollection $fileDuplicateCollection,
         RenameOptions $options = new RenameOptions(),

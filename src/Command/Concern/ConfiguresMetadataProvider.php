@@ -64,7 +64,7 @@ trait ConfiguresMetadataProvider
             $cacheDir = __DIR__ . '/../../../.build/cache';
         }
 
-        $cache = new MetadataCache($cacheDir . '/metadata-cache.php');
+        $cache = new MetadataCache($cacheDir . '/metadata-cache.json');
 
         $provider->setCache($cache);
 

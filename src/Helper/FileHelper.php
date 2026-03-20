@@ -198,11 +198,8 @@ final class FileHelper
             return null;
         }
 
-        $metadataDateOnly = self::extractDateFromPath($metadataDate->format('Y-m-d') . '.tmp');
-
-        if (!$metadataDateOnly instanceof DateTimeImmutable) {
-            return null;
-        }
+        $metadataDateOnly = DateTimeImmutable::createFromInterface($metadataDate)
+            ->setTime(0, 0);
 
         $days = $fileDate->diff($metadataDateOnly)->days;
 

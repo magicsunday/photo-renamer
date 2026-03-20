@@ -16,8 +16,8 @@ binary-clean: .logo ## Remove SPC build artifacts to free space.
 	@rm -rf .build/spc/pkgroot/ .build/spc/downloads/ .build/spc/source/
 
 cache-clear: .logo ## Clear the persistent metadata cache.
-	@rm -f $${CACHE_DIR:-.build/cache}/metadata-cache.php
-	@echo "Metadata cache cleared ($${CACHE_DIR:-.build/cache}/metadata-cache.php)."
+	@rm -f $${CACHE_DIR:-.build/cache}/metadata-cache.json
+	@echo "Metadata cache cleared ($${CACHE_DIR:-.build/cache}/metadata-cache.json)."
 
 version: .logo ## Create a new version release.
 	@bash scripts/create-version
