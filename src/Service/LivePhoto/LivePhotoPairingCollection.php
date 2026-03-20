@@ -14,6 +14,7 @@ namespace MagicSunday\Renamer\Service\LivePhoto;
 use ArrayIterator;
 use Countable;
 use IteratorAggregate;
+use Override;
 
 use function array_values;
 use function count;
@@ -86,6 +87,7 @@ final class LivePhotoPairingCollection implements Countable, IteratorAggregate
     /**
      * Returns the number of pairings in the collection.
      */
+    #[Override]
     public function count(): int
     {
         return count($this->pairings);
@@ -96,6 +98,7 @@ final class LivePhotoPairingCollection implements Countable, IteratorAggregate
      *
      * @return ArrayIterator<int, LivePhotoPairing> iterator over the contained pairings
      */
+    #[Override]
     public function getIterator(): ArrayIterator
     {
         return new ArrayIterator($this->pairings);

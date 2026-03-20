@@ -49,7 +49,7 @@ use function sprintf;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(PatternFilenameStrategy::class)]
-class PatternFilenameStrategyTest extends TestCase
+final class PatternFilenameStrategyTest extends TestCase
 {
     /**
      * Tests that the strategy correctly applies pattern replacements.

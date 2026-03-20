@@ -50,6 +50,7 @@ final class RenameResultTest extends TestCase
         self::assertSame(0, $result->namingCollisions);
         self::assertSame([], $result->skippedFiles);
         self::assertSame([], $result->fallbackDateFiles);
+        self::assertSame([], $result->livePhotoConflictFiles);
     }
 
     /**
@@ -67,18 +68,21 @@ final class RenameResultTest extends TestCase
             new SkippedFile(new SplFileInfo('/tmp/video.mov'), 'no capture date'),
         ];
 
-        $fallbackDateFiles = ['/tmp/scan.jpg' => true];
+        $fallbackDateFiles      = ['/tmp/scan.jpg' => true];
+        $livePhotoConflictFiles = ['/tmp/live.jpg' => true, '/tmp/live.mov' => true];
 
         $result = new RenameResult(
             scannedFiles: 42,
             namingCollisions: 3,
             skippedFiles: $skippedFiles,
             fallbackDateFiles: $fallbackDateFiles,
+            livePhotoConflictFiles: $livePhotoConflictFiles,
         );
 
         self::assertSame(42, $result->scannedFiles);
         self::assertSame(3, $result->namingCollisions);
         self::assertSame($skippedFiles, $result->skippedFiles);
         self::assertSame($fallbackDateFiles, $result->fallbackDateFiles);
+        self::assertSame($livePhotoConflictFiles, $result->livePhotoConflictFiles);
     }
 }

@@ -14,6 +14,7 @@ namespace MagicSunday\Renamer\Model\Collection;
 use ArrayIterator;
 use Countable;
 use IteratorAggregate;
+use Override;
 use Traversable;
 
 use function array_key_exists;
@@ -53,6 +54,7 @@ abstract class AbstractCollection implements Countable, IteratorAggregate
      *
      * @return int<0, max>
      */
+    #[Override]
     public function count(): int
     {
         return count($this->elements);
@@ -126,6 +128,7 @@ abstract class AbstractCollection implements Countable, IteratorAggregate
      *
      * @return Traversable<TKey, TValue>
      */
+    #[Override]
     public function getIterator(): Traversable
     {
         return new ArrayIterator($this->elements);

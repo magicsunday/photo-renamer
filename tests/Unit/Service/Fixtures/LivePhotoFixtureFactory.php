@@ -16,6 +16,7 @@ use SplFileInfo;
 
 use function base64_decode;
 use function base64_encode;
+use function count;
 use function file_put_contents;
 use function pack;
 use function register_shutdown_function;

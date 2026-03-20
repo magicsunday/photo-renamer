@@ -33,7 +33,7 @@ use SplFileInfo;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(TargetBasenameStrategy::class)]
-class TargetBasenameStrategyTest extends TestCase
+final class TargetBasenameStrategyTest extends TestCase
 {
     /**
      * Verifies that the identifier equals the target filename with its extension

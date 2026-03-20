@@ -31,7 +31,7 @@ use SplFileInfo;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(RenameList::class)]
-class RenameListTest extends TestCase
+final class RenameListTest extends TestCase
 {
     /**
      * Verifies that a Rename instance appended to the list can be retrieved by its

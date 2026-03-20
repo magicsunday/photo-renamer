@@ -30,7 +30,7 @@ use PHPUnit\Framework\TestCase;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(DatePlaceholderExpressionMap::class)]
-class DatePlaceholderExpressionMapTest extends TestCase
+final class DatePlaceholderExpressionMapTest extends TestCase
 {
     /**
      * Verifies that all standard date placeholders ({Y}, {m}, {d}) in a pattern

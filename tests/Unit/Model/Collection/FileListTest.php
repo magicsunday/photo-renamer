@@ -30,7 +30,7 @@ use SplFileInfo;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(FileList::class)]
-class FileListTest extends TestCase
+final class FileListTest extends TestCase
 {
     /**
      * Verifies that a SplFileInfo appended to the list can be retrieved by its

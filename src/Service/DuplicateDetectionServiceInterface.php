@@ -94,4 +94,19 @@ interface DuplicateDetectionServiceInterface
      * @return array<string, true>
      */
     public function getAmbiguousTimezoneFiles(): array;
+
+    /**
+     * Returns pathnames of files that look like a Live Photo pair by fallback
+     * heuristics but expose conflicting non-null content identifiers.
+     *
+     * These files are surfaced as review candidates and skipped from rename.
+     *
+     * @return array<string, true>
+     */
+    public function getLivePhotoConflictFiles(): array;
+
+    /**
+     * Releases all cached hash results to free memory after the pipeline completes.
+     */
+    public function clearHashCache(): void;
 }

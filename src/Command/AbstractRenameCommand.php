@@ -164,7 +164,7 @@ abstract class AbstractRenameCommand extends Command
                 'show',
                 null,
                 InputOption::VALUE_REQUIRED,
-                'Filter output to specific entry types (comma-separated: R=renamed, F=fallback, D=duplicate, O=original, S=skipped, E=error).'
+                'Filter output to specific entry types (comma-separated: C=content ID conflict, R=renamed, F=fallback, D=duplicate, O=original, W=warning, S=skipped, E=error).'
             )
             ->addOption(
                 'timezone',
@@ -409,7 +409,9 @@ abstract class AbstractRenameCommand extends Command
         try {
             $this->processAndRenameFiles();
         } catch (RuntimeException $exception) {
-            return $this->handleExecutionError($exception);
+            $this->io->error($exception->getMessage());
+
+            return self::FAILURE;
         }
 
         $this->io->success('done');
@@ -437,6 +439,7 @@ abstract class AbstractRenameCommand extends Command
             skippedFiles: $this->duplicateDetectionService->getSkippedFiles(),
             fallbackDateFiles: $this->duplicateDetectionService->getFallbackDateFiles(),
             ambiguousTimezoneFiles: $this->duplicateDetectionService->getAmbiguousTimezoneFiles(),
+            livePhotoConflictFiles: $this->duplicateDetectionService->getLivePhotoConflictFiles(),
         );
 
         $this->fileSystemService
@@ -453,20 +456,8 @@ abstract class AbstractRenameCommand extends Command
                 $result,
                 $this->showFilter,
             );
-    }
 
-    /**
-     * Handles execution errors by displaying error message.
-     *
-     * @param RuntimeException $exception The exception that occurred
-     *
-     * @return int Always returns FAILURE
-     */
-    private function handleExecutionError(RuntimeException $exception): int
-    {
-        $this->io->error($exception->getMessage());
-
-        return self::FAILURE;
+        $this->duplicateDetectionService->clearHashCache();
     }
 
     /**

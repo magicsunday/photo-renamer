@@ -29,7 +29,7 @@ use function sprintf;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(FileHelper::class)]
-class FileHelperTest extends TestCase
+final class FileHelperTest extends TestCase
 {
     /**
      * Tests basename extraction without extension for various file types.

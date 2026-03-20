@@ -32,7 +32,7 @@ use SplFileInfo;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(FileDuplicateCollection::class)]
-class FileDuplicateCollectionTest extends TestCase
+final class FileDuplicateCollectionTest extends TestCase
 {
     /**
      * Verifies that a FileDuplicate stored under a specific key can be retrieved

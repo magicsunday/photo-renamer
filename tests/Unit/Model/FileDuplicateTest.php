@@ -34,7 +34,7 @@ use SplFileInfo;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(FileDuplicate::class)]
-class FileDuplicateTest extends TestCase
+final class FileDuplicateTest extends TestCase
 {
     /**
      * Verifies that addFile(), addRename(), and setTarget() correctly populate

@@ -48,7 +48,7 @@ use function implode;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(DatePatternFilenameStrategy::class)]
-class DatePatternFilenameStrategyTest extends TestCase
+final class DatePatternFilenameStrategyTest extends TestCase
 {
     /**
      * Tests that invalid regex patterns throw appropriate exceptions.

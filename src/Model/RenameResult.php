@@ -28,6 +28,8 @@ final readonly class RenameResult
      * @param list<SkippedFile>   $skippedFiles           Files skipped because the rename strategy produced no target filename
      * @param array<string, true> $fallbackDateFiles      Pathnames of files using the DateTime (0x0132) fallback
      * @param array<string, true> $ambiguousTimezoneFiles Pathnames of files with ambiguous timezone (UTC vs local)
+     * @param array<string, true> $livePhotoConflictFiles Pathnames of files that look like a Live Photo pair by heuristic
+     *                                                    but carry conflicting non-null content identifiers
      */
     public function __construct(
         public int $scannedFiles = 0,
@@ -35,6 +37,7 @@ final readonly class RenameResult
         public array $skippedFiles = [],
         public array $fallbackDateFiles = [],
         public array $ambiguousTimezoneFiles = [],
+        public array $livePhotoConflictFiles = [],
     ) {
     }
 }

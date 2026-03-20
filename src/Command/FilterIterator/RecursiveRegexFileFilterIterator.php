@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Command\FilterIterator;
 
 use MagicSunday\Renamer\Regex\SafeRegex;
+use Override;
 use RecursiveFilterIterator;
 use RecursiveIterator;
 use RuntimeException;
@@ -46,6 +47,7 @@ final class RecursiveRegexFileFilterIterator extends RecursiveFilterIterator
      * Accepts all directories (enabling recursive descent) and files whose
      * filename matches the configured regex. Rejects non-file, non-directory entries.
      */
+    #[Override]
     public function accept(): bool
     {
         /** @var SplFileInfo $fileInfo */
@@ -74,6 +76,7 @@ final class RecursiveRegexFileFilterIterator extends RecursiveFilterIterator
      *
      * @throws RuntimeException When the inner iterator does not support getChildren()
      */
+    #[Override]
     public function getChildren(): self
     {
         if (!$this->getInnerIterator() instanceof RecursiveIterator) {

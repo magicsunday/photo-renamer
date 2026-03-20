@@ -119,6 +119,41 @@ final class RenameOutputRendererTest extends TestCase
     }
 
     /**
+     * Verifies that buildOutputEntries tags heuristic Live Photo content-ID
+     * conflicts as review candidates and marks them as skipped.
+     */
+    #[Test]
+    public function buildOutputEntriesTagsLivePhotoContentIdConflictsAsCandidates(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $sourceDir = '/tmp/source';
+
+        $source = $sourceDir . '/photo.mov';
+        $target = $sourceDir . '/2025-01-01_00-02-20-016.mov';
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate->setTarget(new SplFileInfo($target));
+        $fileDuplicate->addRename(new Rename(new SplFileInfo($source), new SplFileInfo($target)));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('test', $fileDuplicate);
+
+        [$entries] = $renderer->buildOutputEntries(
+            $collection,
+            new RenameOptions(),
+            new RenameResult(
+                livePhotoConflictFiles: [$source => true],
+            ),
+            $sourceDir,
+        );
+
+        self::assertCount(1, $entries);
+        self::assertSame(OutputEntryTag::Candidate, $entries[0]['tag']);
+        self::assertTrue($entries[0]['shouldSkip']);
+    }
+
+    /**
      * Verifies that buildOutputEntries includes skipped files with correct counts.
      */
     #[Test]

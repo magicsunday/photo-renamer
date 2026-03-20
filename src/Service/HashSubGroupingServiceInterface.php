@@ -45,4 +45,9 @@ interface HashSubGroupingServiceInterface
         array $contentIdentifierMap,
         Closure $targetPathnameResolver,
     ): bool;
+
+    /**
+     * Releases all cached hash results to free memory.
+     */
+    public function clearCache(): void;
 }

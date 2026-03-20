@@ -362,4 +362,13 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
 
         return true;
     }
+
+    /**
+     * Releases all cached hash results to free memory.
+     */
+    #[Override]
+    public function clearCache(): void
+    {
+        $this->hashCalculator->clearCache();
+    }
 }

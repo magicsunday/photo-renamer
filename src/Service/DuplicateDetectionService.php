@@ -129,6 +129,14 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
     private array $ambiguousTimezoneFiles = [];
 
     /**
+     * Pathnames of files that look like a Live Photo pair by fallback heuristics
+     * but expose conflicting non-null content identifiers.
+     *
+     * @var array<string, true>
+     */
+    private array $livePhotoConflictFiles = [];
+
+    /**
      * @param SymfonyStyle                    $io                     Console IO for progress bars and error output
      * @param HashSubGroupingServiceInterface $hashSubGroupingService Service for content-hash-based sub-grouping
      * @param MediaTypeClassifierInterface    $mediaTypeClassifier    Classifies files by media type (still vs. video)
@@ -190,6 +198,24 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
     public function getAmbiguousTimezoneFiles(): array
     {
         return $this->ambiguousTimezoneFiles;
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    #[Override]
+    public function getLivePhotoConflictFiles(): array
+    {
+        return $this->livePhotoConflictFiles;
+    }
+
+    /**
+     * Releases all cached hash results to free memory after the pipeline completes.
+     */
+    #[Override]
+    public function clearHashCache(): void
+    {
+        $this->hashSubGroupingService->clearCache();
     }
 
     /**
@@ -772,6 +798,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
         $this->skippedFiles           = [];
         $this->fallbackDateFiles      = [];
         $this->ambiguousTimezoneFiles = [];
+        $this->livePhotoConflictFiles = [];
 
         foreach ($files as $file) {
             $this->diskIndex[$file->getPathname()] = true;
@@ -1147,6 +1174,9 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
         /** @var Rename|null $fallbackCompanion */
         $fallbackCompanion = null;
 
+        /** @var list<Rename> $fallbackCandidates */
+        $fallbackCandidates = [];
+
         foreach ($fileDuplicate->getRenames() as $rename) {
             if ($rename === $canonicalRename) {
                 continue;
@@ -1178,10 +1208,33 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
             }
 
             // Track the first different-media-type file as a fallback companion.
+            $fallbackCandidates[] = $rename;
             $fallbackCompanion ??= $rename;
         }
 
-        return $contentIdCompanion ?? $fallbackCompanion;
+        if ($contentIdCompanion instanceof Rename) {
+            return $contentIdCompanion;
+        }
+
+        if (
+            ($fallbackCompanion instanceof Rename)
+            && (count($fallbackCandidates) === 1)
+        ) {
+            $fallbackPath      = $fallbackCompanion->getSource()->getPathname();
+            $fallbackContentId = $this->contentIdentifierMap[$fallbackPath] ?? null;
+
+            if (
+                ($fallbackContentId !== null)
+                && ($fallbackContentId !== $canonicalContentId)
+            ) {
+                $this->livePhotoConflictFiles[$canonicalPath] = true;
+                $this->livePhotoConflictFiles[$fallbackPath]  = true;
+
+                return null;
+            }
+        }
+
+        return $fallbackCompanion;
     }
 
     /**

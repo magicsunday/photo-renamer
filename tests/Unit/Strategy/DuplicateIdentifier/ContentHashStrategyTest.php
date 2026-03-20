@@ -35,7 +35,7 @@ use SplFileInfo;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(ContentHashStrategy::class)]
-class ContentHashStrategyTest extends TestCase
+final class ContentHashStrategyTest extends TestCase
 {
     /**
      * Tests that generateIdentifier returns a valid hash for an existing file.

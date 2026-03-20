@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Test\Unit\Service\Fixtures;
 
 use MagicSunday\Renamer\Metadata\MetadataExtractorInterface;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
+use Override;
 use SplFileInfo;
 use Throwable;
 
@@ -42,6 +43,7 @@ final class StubMetadataExtractor implements MetadataExtractorInterface
         $this->responses[$path] = $response;
     }
 
+    #[Override]
     public function extractTemporalMetadata(SplFileInfo $file): ?TemporalMetadata
     {
         $path = $file->getPathname();

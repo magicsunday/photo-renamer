@@ -38,7 +38,7 @@ readonly class InheritFilenameStrategy implements RenameStrategyInterface
     #[Override]
     public function generateFilename(SplFileInfo $splFileInfo): string
     {
-        $basename = $this->removeDuplicateFileIdentifier(
+        $basename = FileHelper::stripDuplicateSuffix(
             FileHelper::basenameWithoutExtension($splFileInfo)
         );
 
@@ -47,18 +47,5 @@ readonly class InheritFilenameStrategy implements RenameStrategyInterface
         }
 
         return $basename;
-    }
-
-    /**
-     * Strips an existing "-duplicate-NNN" suffix (with exactly 3 digits) from
-     * the basename. Used to ensure idempotent re-runs do not stack suffixes.
-     *
-     * @param string $filename Basename without extension
-     *
-     * @return string Basename with the duplicate suffix removed
-     */
-    protected function removeDuplicateFileIdentifier(string $filename): string
-    {
-        return FileHelper::stripDuplicateSuffix($filename);
     }
 }

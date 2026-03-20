@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Regex;
 
+use function array_map;
 use function count;
 use function is_int;
 

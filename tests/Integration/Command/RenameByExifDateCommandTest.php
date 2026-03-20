@@ -39,8 +39,10 @@ use function array_search;
 use function array_values;
 use function file_put_contents;
 use function mkdir;
+use function preg_replace;
 use function rtrim;
 use function str_starts_with;
+use function strpos;
 use function substr;
 use function sys_get_temp_dir;
 use function uniqid;
@@ -460,11 +462,63 @@ final class RenameByExifDateCommandTest extends TestCase
     }
 
     /**
+     * Verifies that a still/video pair in the same timestamp group with
+     * conflicting non-null content identifiers is surfaced as a review
+     * candidate [C] and skipped instead of being auto-paired.
+     */
+    #[Test]
+    public function executeMarksConflictingLivePhotoContentIdentifiersAsCandidates(): void
+    {
+        $workspace = sys_get_temp_dir() . DIRECTORY_SEPARATOR . uniqid('renamer_live_conflict_', true);
+
+        mkdir($workspace, 0o755);
+
+        try {
+            $jpgPath = $workspace . DIRECTORY_SEPARATOR . 'IMG_0001.jpg';
+            $movPath = $workspace . DIRECTORY_SEPARATOR . 'IMG_0001.mov';
+
+            file_put_contents($jpgPath, 'photo');
+            file_put_contents($movPath, 'video');
+
+            $dateTime          = new DateTimeImmutable(self::DATE_A);
+            $metadataExtractor = new StubMetadataExtractor();
+            $metadataExtractor->withResponse(
+                $jpgPath,
+                new TemporalMetadata($dateTime, 'photo-content-id'),
+            );
+            $metadataExtractor->withResponse(
+                $movPath,
+                new TemporalMetadata($dateTime, 'video-content-id'),
+            );
+
+            $output = $this->runDryRunOutput($workspace, $metadataExtractor);
+            $clean  = preg_replace('/<[^>]+>/', '', $output) ?? $output;
+
+            self::assertNotFalse(
+                strpos($clean, '[C]'),
+                'Conflicting Live Photo candidates must be marked with [C]',
+            );
+            self::assertStringContainsString('IMG_0001.jpg', $clean);
+            self::assertStringContainsString('IMG_0001.mov', $clean);
+            self::assertStringContainsString('Skipped (conflicting content ID)', $clean);
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
      * Runs the command in dry-run mode and returns the source -> target mapping.
      *
      * @return array<string, string>
      */
     private function runDryRun(string $workspace, StubMetadataExtractor $metadataExtractor): array
+    {
+        $output = $this->runDryRunOutput($workspace, $metadataExtractor);
+
+        return $this->extractRenameMappings($output, $workspace);
+    }
+
+    private function runDryRunOutput(string $workspace, StubMetadataExtractor $metadataExtractor): string
     {
         $output = new BufferedOutput();
         $style  = new SymfonyStyle(new ArrayInput([]), $output);
@@ -488,7 +542,7 @@ final class RenameByExifDateCommandTest extends TestCase
 
         self::assertSame(Command::SUCCESS, $exitCode);
 
-        return $this->extractRenameMappings($output->fetch(), $workspace);
+        return $output->fetch();
     }
 
     /**

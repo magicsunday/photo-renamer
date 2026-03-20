@@ -18,6 +18,7 @@ use MagicSunday\Renamer\Service\MetadataCache;
 use Symfony\Component\Console\Input\InputInterface;
 
 use function getenv;
+use function in_array;
 use function is_string;
 
 /**
@@ -46,7 +47,7 @@ trait ConfiguresMetadataProvider
             $timezone    = is_string($envTimezone) && ($envTimezone !== '') ? $envTimezone : null;
         }
 
-        if (is_string($timezone)) {
+        if (is_string($timezone) && in_array($timezone, DateTimeZone::listIdentifiers(), true)) {
             $provider->setDefaultTimezone(new DateTimeZone($timezone));
         }
     }

@@ -24,6 +24,7 @@ use function sprintf;
  */
 enum OutputEntryTag: string
 {
+    case Candidate = 'C';
     case Rename    = 'R';
     case Fallback  = 'F';
     case Duplicate = 'D';
@@ -54,6 +55,7 @@ enum OutputEntryTag: string
     public function color(): string
     {
         return match ($this) {
+            self::Candidate => 'cyan',
             self::Rename    => 'green',
             self::Fallback  => 'yellow',
             self::Duplicate => 'red',

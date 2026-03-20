@@ -29,7 +29,7 @@ use PHPUnit\Framework\TestCase;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(PatternMatchSet::class)]
-class PatternMatchSetTest extends TestCase
+final class PatternMatchSetTest extends TestCase
 {
     /**
      * Verifies that fromPattern() parses a regex-like template and returns the

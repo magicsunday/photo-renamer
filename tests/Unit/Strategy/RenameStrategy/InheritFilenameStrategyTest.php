@@ -39,7 +39,7 @@ use function sprintf;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(InheritFilenameStrategy::class)]
-class InheritFilenameStrategyTest extends TestCase
+final class InheritFilenameStrategyTest extends TestCase
 {
     /**
      * The strategy instance being tested.

@@ -17,6 +17,7 @@ use MagicSunday\ImageMeta\MetadataReader;
 use MagicSunday\ImageMeta\Model\QuickTime\QuickTimeMeta;
 use MagicSunday\ImageMeta\Value\StructuredMetadata;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
+use Override;
 use SplFileInfo;
 use Throwable;
 
@@ -48,6 +49,7 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
      *
      * @throws ExifMetadataReadException When the underlying metadata reader fails
      */
+    #[Override]
     public function extractTemporalMetadata(SplFileInfo $file): ?TemporalMetadata
     {
         try {

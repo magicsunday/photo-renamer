@@ -79,4 +79,12 @@ class SafeHashCalculator
 
         return $hash;
     }
+
+    /**
+     * Releases all cached hash results to free memory.
+     */
+    public function clearCache(): void
+    {
+        $this->cache = [];
+    }
 }

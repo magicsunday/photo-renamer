@@ -35,7 +35,7 @@ use SplFileInfo;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(LowerCaseFilenameStrategy::class)]
-class LowerCaseFilenameStrategyTest extends TestCase
+final class LowerCaseFilenameStrategyTest extends TestCase
 {
     /**
      * The strategy instance being tested.

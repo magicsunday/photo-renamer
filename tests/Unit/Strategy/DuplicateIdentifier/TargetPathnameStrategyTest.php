@@ -29,7 +29,7 @@ use SplFileInfo;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(TargetPathnameStrategy::class)]
-class TargetPathnameStrategyTest extends TestCase
+final class TargetPathnameStrategyTest extends TestCase
 {
     /**
      * The strategy instance being tested.

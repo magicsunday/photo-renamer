@@ -117,7 +117,9 @@ final readonly class RenameOutputRenderer
 
                 $sourcePathname = $rename->getSource()->getPathname();
 
-                if ($isCanonicalEntry) {
+                if (isset($result->livePhotoConflictFiles[$sourcePathname])) {
+                    $tag = OutputEntryTag::Candidate;
+                } elseif ($isCanonicalEntry) {
                     $tag = OutputEntryTag::Original;
                 } elseif ($isDuplicateTarget) {
                     $tag = OutputEntryTag::Duplicate;
@@ -141,9 +143,11 @@ final readonly class RenameOutputRenderer
                     }
                 }
 
+                $isCandidate     = $tag === OutputEntryTag::Candidate;
                 $isWarning       = $tag === OutputEntryTag::Warning;
                 $isFallbackEntry = $tag === OutputEntryTag::Fallback;
                 $shouldSkip      = ($options->skipDuplicates && $isDuplicateTarget)
+                    || $isCandidate
                     || ($options->skipFallback && $isFallbackEntry)
                     || $isWarning;
                 $shouldPerformOperation = ($shouldSkip === false) && ($isCanonicalEntry === false);

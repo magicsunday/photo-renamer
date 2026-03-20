@@ -30,6 +30,7 @@ final class OutputEntryTagTest extends TestCase
     #[Test]
     public function itReturnsCorrectLetters(): void
     {
+        self::assertSame('C', OutputEntryTag::Candidate->letter());
         self::assertSame('R', OutputEntryTag::Rename->letter());
         self::assertSame('F', OutputEntryTag::Fallback->letter());
         self::assertSame('D', OutputEntryTag::Duplicate->letter());
@@ -42,6 +43,7 @@ final class OutputEntryTagTest extends TestCase
     #[Test]
     public function itReturnsFormattedTags(): void
     {
+        self::assertSame('<fg=cyan>[C]</>', OutputEntryTag::Candidate->formattedTag());
         self::assertSame('<fg=green>[R]</>', OutputEntryTag::Rename->formattedTag());
         self::assertSame('<fg=yellow>[F]</>', OutputEntryTag::Fallback->formattedTag());
         self::assertSame('<fg=red>[D]</>', OutputEntryTag::Duplicate->formattedTag());
@@ -54,6 +56,7 @@ final class OutputEntryTagTest extends TestCase
     #[Test]
     public function itReturnsCorrectColors(): void
     {
+        self::assertSame('cyan', OutputEntryTag::Candidate->color());
         self::assertSame('green', OutputEntryTag::Rename->color());
         self::assertSame('yellow', OutputEntryTag::Fallback->color());
         self::assertSame('red', OutputEntryTag::Duplicate->color());
