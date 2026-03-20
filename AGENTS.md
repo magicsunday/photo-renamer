@@ -15,7 +15,7 @@ PHP CLI tool for batch-renaming photos and videos using EXIF/QuickTime metadata.
 
 - **Namespace:** `MagicSunday\Renamer`
 - **PHP:** `^8.5`
-- **Framework:** Symfony Console + DI (autowiring via `config/Services.yaml`)
+- **Framework:** Symfony Console + DI (autowiring via `config/Services.yaml`), Symfony Filesystem for file operations
 - **Metadata:** `magicsunday/imagemeta` library (dev-main from GitHub)
 
 ## Running CI
@@ -85,7 +85,7 @@ KISS, SOLID, DRY, YAGNI, GRASP, Law of Demeter, SoC, CoC — in that order of pr
 | `rename:date-pattern` | Extract date from filename patterns |
 | `rename:lower` | Lowercase filenames |
 | `rename:verify` | Read-only metadata quality analysis |
-| `rename:write-date` | Fix metadata timestamps via exiftool |
+| `rename:write-date` | Fix metadata timestamps via exiftool (`--reason=nodata,fallback,timezone,drift`) |
 | `rename:dedup` | Move/delete `-duplicate-` files |
 
 ### Pipeline (rename:exif)
@@ -103,7 +103,8 @@ scan → group by target name → defer video companions → Live Photo pairing 
 | `ExifMetadataProvider` | Caching metadata layer, timezone conversion, reliability checks |
 | `MetadataExtractor` | Extract EXIF/QuickTime data via imagemeta library |
 | `LivePhotoPairingService` | Pair still + MOV by Apple Content Identifier |
-| `MetadataCache` | Persistent disk cache (PHP var_export/include) |
+| `LivePhotoConflictDetector` | Heuristic detection of mismatched content ID pairs |
+| `MetadataCache` | Persistent JSON disk cache keyed by pathname, mtime+size |
 
 ### Strategy Pattern
 
@@ -118,14 +119,16 @@ scan → group by target name → defer video companions → Live Photo pairing 
 - **Live Photo pairing** — MOV companions always inherit the paired still's date, never their own. Videos with Content Identifiers are deferred in the first grouping pass.
 - **Canonical selection** — already correctly named files (`source basename == target basename`) are always preferred as canonical.
 - **Idempotency** — re-running any command on already-processed files produces identical results.
+- **Symfony Filesystem** — all file operations (`rename`, `mkdir`, `remove`, `dumpFile`, `readFile`) use `Symfony\Component\Filesystem\Filesystem`. Never use procedural PHP functions for file I/O in production code.
 
 ### Output Tags (OutputEntryTag enum)
 
-`[R]` Rename, `[F]` Fallback, `[D]` Duplicate, `[O]` Original, `[W]` Warning, `[S]` Skipped, `[E]` Error
+`[R]` Rename, `[F]` Fallback, `[D]` Duplicate, `[O]` Original, `[W]` Warning, `[S]` Skipped, `[E]` Error, `[C]` Candidate (conflicting content ID)
 
 ### Timezone Handling
 
-- QuickTime/MP4 timestamps are stored in UTC. The `TIMEZONE` env var converts them to local time.
+- QuickTime/MP4 timestamps are stored in UTC (Mac epoch). The `TIMEZONE` env var converts them to local time.
+- **Non-Apple cameras** (Panasonic, Canon, etc.) store **local time as UTC** in QuickTime containers. `write-date --reason=timezone` preserves the raw CreateDate and adds `Keys:CreationDate` with the configured TZ offset.
 - EXIF dates in JPEG/HEIC are already in local camera time — never convert these.
 - Ambiguous timezone detection uses metadata structure (`QuickTimeMeta` presence + no `temporal->tz` + no offset tags), **not** file extensions.
 - The PHP container runs in UTC — EXIF dates only appear UTC but are local.
