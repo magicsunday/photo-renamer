@@ -1,38 +1,30 @@
 ---
 name: Bug report
-about: Create a report to help us improve
+about: Report a problem with Photo Renamer
 title: ''
-labels: ''
+labels: bug
 assignees: ''
 
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+**Command and arguments**
+The exact command you ran, e.g. `renamer rename:exif /photos --dry-run`
 
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+**Actual behavior**
+What happened? Paste relevant terminal output or error messages.
 
 **Expected behavior**
-A clear and concise description of what you expected to happen.
+What did you expect to happen instead?
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
+**File details**
+- File type(s) affected: [e.g. JPEG, HEIC, MOV, MP4]
+- Approximate number of files processed:
+- Is this related to Apple Live Photos? [yes/no]
 
-**Desktop (please complete the following information):**
- - OS: [e.g. iOS]
- - Browser [e.g. chrome, safari]
- - Version [e.g. 22]
-
-**Smartphone (please complete the following information):**
- - Device: [e.g. iPhone6]
- - OS: [e.g. iOS8.1]
- - Browser [e.g. stock browser, safari]
- - Version [e.g. 22]
+**Environment**
+- Photo Renamer version: [e.g. 1.1.0, output of `renamer --version`]
+- OS: [e.g. Ubuntu 24.04, Synology DSM 7, UGREEN UGOS Pro]
+- Running via: [Docker / standalone binary]
 
 **Additional context**
-Add any other context about the problem here.
+Any other context, sample filenames (anonymized), or EXIF data (`exiftool <file>` output) that helps reproduce the issue.
