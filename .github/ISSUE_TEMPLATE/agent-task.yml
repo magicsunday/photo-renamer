@@ -1,0 +1,80 @@
+name: "Agent Task"
+description: "Task for agent implementation with TDD and minimal-change rules."
+title: "<Title starting with capital letter>"
+labels:
+    - agent
+    - needs-implementation
+body:
+    - type: markdown
+      attributes:
+          value: |
+              ## Agent Instructions (Read First)
+              This repo is governed by `CLAUDE.md` and `AGENTS.md`.
+              If you would need to guess, expand scope, or relax guards: **STOP** and ask.
+
+              **TDD workflow:** Write a failing test first, then implement the minimal code to make it pass.
+              **Commit workflow:** Commit directly to `main`.
+              **Commit message:** Conventional Commits (`feat:`, `fix:`, `refactor:`, `test:`). No `Co-Authored-By` trailers.
+              **CI gate:** Run `make test` before committing. All checks must pass.
+              **Close rule:** If `make test` is fully green and the task is complete, close this issue.
+
+    - type: textarea
+      id: goal
+      attributes:
+          label: "Goal"
+          description: "What should be achieved? State observable behavior, not implementation."
+          placeholder: |
+              Example:
+              - rename:exif should detect and skip already-renamed Live Photo pairs
+              - rename:verify should report files with ambiguous timezone metadata
+      validations:
+          required: true
+
+    - type: textarea
+      id: scope
+      attributes:
+          label: "Allowed file scope"
+          description: "List the ONLY files/paths the agent may modify. If more are needed, the agent must STOP."
+          placeholder: |
+              Example:
+              - src/Service/DuplicateDetectionService.php
+              - tests/Unit/Service/DuplicateDetectionServiceTest.php
+      validations:
+          required: true
+
+    - type: textarea
+      id: acceptance
+      attributes:
+          label: "Acceptance criteria"
+          description: "Concrete pass/fail criteria."
+          placeholder: |
+              Example:
+              - make test green (PHPStan max, PHPUnit, CGL, Rector)
+              - At least 1 positive + 1 negative test
+              - Idempotent: re-running on already-processed files produces identical results
+      validations:
+          required: true
+
+    - type: textarea
+      id: tests_required
+      attributes:
+          label: "Tests (what to add/adjust)"
+          description: "Describe minimal test cases. If tests-only, say so."
+          placeholder: |
+              Example:
+              - Add test: itSkipsAlreadyCorrectlyNamedLivePhotoPair
+              - Use StubMetadataExtractor (no real EXIF files)
+      validations:
+          required: false
+
+    - type: textarea
+      id: risks
+      attributes:
+          label: "Risks / notes"
+          description: "Anything tricky or worth knowing."
+          placeholder: |
+              Example:
+              - Timezone-sensitive: PHP container runs in UTC
+              - Live Photo pairing: MOV always inherits still's date
+      validations:
+          required: false

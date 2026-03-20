@@ -1,0 +1,91 @@
+name: "Bug Report"
+description: "Something is not working as expected."
+title: ""
+labels:
+    - bug
+body:
+    - type: input
+      id: command
+      attributes:
+          label: "Command and arguments"
+          description: "The exact command you ran."
+          placeholder: "renamer rename:exif /photos --dry-run"
+      validations:
+          required: true
+
+    - type: textarea
+      id: actual_behavior
+      attributes:
+          label: "Actual behavior"
+          description: "What happened? Paste relevant terminal output or error messages."
+          render: shell
+      validations:
+          required: true
+
+    - type: textarea
+      id: expected_behavior
+      attributes:
+          label: "Expected behavior"
+          description: "What did you expect to happen instead?"
+      validations:
+          required: true
+
+    - type: dropdown
+      id: file_types
+      attributes:
+          label: "Affected file types"
+          multiple: true
+          options:
+              - JPEG
+              - HEIC
+              - MOV
+              - MP4
+              - All / not file-type specific
+      validations:
+          required: true
+
+    - type: dropdown
+      id: live_photo
+      attributes:
+          label: "Related to Apple Live Photos?"
+          options:
+              - "No"
+              - "Yes"
+              - "Not sure"
+      validations:
+          required: true
+
+    - type: input
+      id: version
+      attributes:
+          label: "Photo Renamer version"
+          description: "Output of `renamer --version`."
+          placeholder: "1.1.0"
+      validations:
+          required: true
+
+    - type: input
+      id: os
+      attributes:
+          label: "Operating system"
+          placeholder: "Ubuntu 24.04 / Synology DSM 7 / UGREEN UGOS Pro"
+      validations:
+          required: true
+
+    - type: dropdown
+      id: install_method
+      attributes:
+          label: "Running via"
+          options:
+              - Docker
+              - Standalone binary
+      validations:
+          required: true
+
+    - type: textarea
+      id: additional_context
+      attributes:
+          label: "Additional context"
+          description: "Sample filenames (anonymized), exiftool output, or anything else that helps reproduce the issue."
+      validations:
+          required: false
