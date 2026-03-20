@@ -116,6 +116,18 @@ final class ExifMetadataProvider
     }
 
     /**
+     * Returns the raw capture timestamp without timezone conversion. Used by
+     * write-date to preserve the original time when resolving timezone ambiguity
+     * (non-Apple cameras store local time as UTC in QuickTime containers).
+     *
+     * @throws ExifMetadataReadException When the underlying metadata reader fails
+     */
+    public function getRawCaptureDateTime(SplFileInfo $splFileInfo): ?DateTimeInterface
+    {
+        return $this->resolveMetadata($splFileInfo)?->getCaptureDateTime();
+    }
+
+    /**
      * Returns whether the given file has an ambiguous timezone — the QuickTime
      * timestamp could be UTC or local time but we cannot determine which.
      *

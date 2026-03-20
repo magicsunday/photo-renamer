@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Command;
 
 use DateTimeImmutable;
 use DateTimeInterface;
+use DateTimeZone;
 use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
@@ -35,6 +36,7 @@ use function array_map;
 use function count;
 use function dirname;
 use function explode;
+use function getenv;
 use function in_array;
 use function is_file;
 use function is_string;
@@ -217,7 +219,7 @@ final class WriteDateCommand extends Command
         $progressBar?->setFormat(Constants::PROGRESS_BAR_FORMAT);
         $progressBar?->start();
 
-        /** @var list<array{path: string, date: string, reasonKey: string, reason: string, isVideo: bool, dateTime: DateTimeImmutable}> $pendingWrites */
+        /** @var list<array{path: string, date: string, reasonKey: string, reason: string, isVideo: bool, dateTime: DateTimeImmutable, preserveCreateDate: bool}> $pendingWrites */
         $pendingWrites = [];
 
         foreach ($files as $file) {
@@ -272,20 +274,35 @@ final class WriteDateCommand extends Command
                 continue;
             }
 
-            // For timezone reason: use the converted capture date (with TZ applied)
-            // instead of the filename date, because the filename may lack a time component
-            // while the metadata has the real capture time.
-            $writeDateTime = ($reasonKey === self::REASON_TIMEZONE) && ($captureDateTime instanceof DateTimeInterface)
-                ? DateTimeImmutable::createFromInterface($captureDateTime)
-                : $filenameDateTime;
+            // For timezone reason: use the raw (unconverted) metadata time and stamp
+            // it with the configured timezone. Non-Apple cameras store local time as
+            // "UTC" in QuickTime containers, so the raw value IS the local time.
+            if ($reasonKey === self::REASON_TIMEZONE) {
+                $rawDateTime = $this->exifMetadataProvider->getRawCaptureDateTime($file);
+
+                if ($rawDateTime instanceof DateTimeInterface) {
+                    $parsed = DateTimeImmutable::createFromFormat(
+                        'Y-m-d H:i:s',
+                        $rawDateTime->format('Y-m-d H:i:s'),
+                        $this->resolveTimezone($input),
+                    );
+
+                    $writeDateTime = $parsed instanceof DateTimeImmutable ? $parsed : $filenameDateTime;
+                } else {
+                    $writeDateTime = $filenameDateTime;
+                }
+            } else {
+                $writeDateTime = $filenameDateTime;
+            }
 
             $pendingWrites[] = [
-                'path'      => $file->getPathname(),
-                'date'      => $writeDateTime->format('Y:m:d H:i:s'),
-                'reasonKey' => $reasonKey,
-                'reason'    => $reasonLabel,
-                'isVideo'   => $isVideo,
-                'dateTime'  => $writeDateTime,
+                'path'               => $file->getPathname(),
+                'date'               => $writeDateTime->format('Y:m:d H:i:s'),
+                'reasonKey'          => $reasonKey,
+                'reason'             => $reasonLabel,
+                'isVideo'            => $isVideo,
+                'dateTime'           => $writeDateTime,
+                'preserveCreateDate' => $reasonKey === self::REASON_TIMEZONE,
             ];
         }
 
@@ -300,7 +317,7 @@ final class WriteDateCommand extends Command
                 $targetField = $entry['isVideo'] ? 'QuickTime:CreateDate' : 'DateTimeOriginal';
 
                 $io->text(sprintf(
-                    '<fg=yellow>[W]</> %s <fg=cyan>-></> %s: %s',
+                    '<fg=yellow>[W]</> %s <fg=cyan>→</> %s: %s',
                     $relativePath,
                     $targetField,
                     $entry['date'],
@@ -314,13 +331,13 @@ final class WriteDateCommand extends Command
                 ++$wouldWrite;
             } else {
                 $fileInfo = new SplFileInfo($entry['path']);
-                $success  = $this->exiftoolWriter->writeDateTime($fileInfo, $entry['dateTime'], $entry['isVideo']);
+                $success  = $this->exiftoolWriter->writeDateTime($fileInfo, $entry['dateTime'], $entry['isVideo'], $entry['preserveCreateDate']);
 
                 if ($success) {
                     $targetField = $entry['isVideo'] ? 'QuickTime:CreateDate' : 'DateTimeOriginal';
 
                     $io->text(sprintf(
-                        '<fg=green>[W]</> %s <fg=cyan>-></> %s: %s',
+                        '<fg=green>[W]</> %s <fg=cyan>→</> %s: %s',
                         $relativePath,
                         $targetField,
                         $entry['date'],
@@ -334,7 +351,7 @@ final class WriteDateCommand extends Command
                     ++$written;
                 } else {
                     $io->text(sprintf(
-                        '<fg=red>[E]</> %s <fg=cyan>-></> FAILED to write: %s',
+                        '<fg=red>[E]</> %s <fg=cyan>→</> FAILED to write: %s',
                         $relativePath,
                         $entry['date'],
                     ));
@@ -498,5 +515,25 @@ final class WriteDateCommand extends Command
         $this->renderer->renderAlignedTable($rows, $io);
 
         $io->newLine();
+    }
+
+    /**
+     * Resolves the configured timezone from --timezone option or TIMEZONE env var.
+     * Returns null when no timezone is configured.
+     */
+    private function resolveTimezone(InputInterface $input): ?DateTimeZone
+    {
+        $timezone = $input->getOption('timezone');
+
+        if (!is_string($timezone)) {
+            $envTimezone = getenv('TIMEZONE');
+            $timezone    = is_string($envTimezone) && ($envTimezone !== '') ? $envTimezone : null;
+        }
+
+        if (!is_string($timezone) || !in_array($timezone, DateTimeZone::listIdentifiers(), true)) {
+            return null;
+        }
+
+        return new DateTimeZone($timezone);
     }
 }

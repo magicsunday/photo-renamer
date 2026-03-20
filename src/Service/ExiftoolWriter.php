@@ -29,18 +29,25 @@ final class ExiftoolWriter
 {
     /**
      * Writes the given date/time into the metadata of the specified file.
-     * For videos, sets QuickTime:CreateDate and QuickTime:ModifyDate.
+     * For videos, sets QuickTime:CreateDate, QuickTime:ModifyDate and Keys:CreationDate.
      * For images, sets DateTimeOriginal and CreateDate.
      *
-     * @param SplFileInfo       $file     File to write metadata to
-     * @param DateTimeInterface $dateTime Date/time to write
-     * @param bool              $isVideo  Whether the file is a video (MOV/MP4) or still image
+     * @param SplFileInfo       $file               File to write metadata to
+     * @param DateTimeInterface $dateTime           Date/time to write (local time with timezone for videos)
+     * @param bool              $isVideo            Whether the file is a video (MOV/MP4) or still image
+     * @param bool              $preserveCreateDate When true, only writes Keys:CreationDate without
+     *                                              touching QuickTime:CreateDate/ModifyDate (used for
+     *                                              timezone disambiguation of existing correct timestamps)
      *
      * @return bool True when exiftool reports success, false otherwise
      */
-    public function writeDateTime(SplFileInfo $file, DateTimeInterface $dateTime, bool $isVideo): bool
-    {
-        $args    = $this->buildArguments($file, $dateTime, $isVideo);
+    public function writeDateTime(
+        SplFileInfo $file,
+        DateTimeInterface $dateTime,
+        bool $isVideo,
+        bool $preserveCreateDate = false,
+    ): bool {
+        $args    = $this->buildArguments($file, $dateTime, $isVideo, $preserveCreateDate);
         $process = new Process(['exiftool', ...$args]);
         $process->run();
 
@@ -50,28 +57,43 @@ final class ExiftoolWriter
     /**
      * Builds the exiftool command-line arguments for writing a date.
      *
-     * @param SplFileInfo       $file     File to write metadata to
-     * @param DateTimeInterface $dateTime Date/time to write
-     * @param bool              $isVideo  Whether the file is a video (MOV/MP4) or still image
+     * @param SplFileInfo       $file               File to write metadata to
+     * @param DateTimeInterface $dateTime           Date/time to write (local time with timezone for videos)
+     * @param bool              $isVideo            Whether the file is a video (MOV/MP4) or still image
+     * @param bool              $preserveCreateDate When true, only writes Keys:CreationDate
      *
      * @return list<string>
      */
-    public function buildArguments(SplFileInfo $file, DateTimeInterface $dateTime, bool $isVideo): array
-    {
+    public function buildArguments(
+        SplFileInfo $file,
+        DateTimeInterface $dateTime,
+        bool $isVideo,
+        bool $preserveCreateDate = false,
+    ): array {
         if ($isVideo) {
-            // QuickTime:CreateDate/ModifyDate are always UTC (Mac epoch).
-            // Keys:CreationDate carries the local time with timezone offset.
-            $utcDate = DateTimeImmutable::createFromInterface($dateTime)
-                ->setTimezone(new DateTimeZone('UTC'));
-            $utcFormatted   = $utcDate->format('Y:m:d H:i:s');
             $localFormatted = $dateTime->format('Y:m:d H:i:sP');
 
-            $args = [
-                '-overwrite_original',
-                '-QuickTime:CreateDate=' . $utcFormatted,
-                '-QuickTime:ModifyDate=' . $utcFormatted,
-                '-Keys:CreationDate=' . $localFormatted,
-            ];
+            if ($preserveCreateDate) {
+                // Only add Keys:CreationDate with offset — leave QuickTime:CreateDate untouched.
+                // Used when the existing CreateDate is correct but lacks timezone info.
+                $args = [
+                    '-overwrite_original',
+                    '-Keys:CreationDate=' . $localFormatted,
+                ];
+            } else {
+                // QuickTime:CreateDate/ModifyDate are always UTC (Mac epoch).
+                // Keys:CreationDate carries the local time with timezone offset.
+                $utcDate = DateTimeImmutable::createFromInterface($dateTime)
+                    ->setTimezone(new DateTimeZone('UTC'));
+                $utcFormatted = $utcDate->format('Y:m:d H:i:s');
+
+                $args = [
+                    '-overwrite_original',
+                    '-QuickTime:CreateDate=' . $utcFormatted,
+                    '-QuickTime:ModifyDate=' . $utcFormatted,
+                    '-Keys:CreationDate=' . $localFormatted,
+                ];
+            }
         } else {
             $formattedDate = $dateTime->format('Y:m:d H:i:s');
 
