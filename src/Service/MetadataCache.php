@@ -13,16 +13,12 @@ namespace MagicSunday\Renamer\Service;
 
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use SplFileInfo;
+use Symfony\Component\Filesystem\Filesystem;
 
-use function dirname;
 use function file_get_contents;
-use function file_put_contents;
 use function is_array;
-use function is_dir;
-use function is_file;
 use function json_decode;
 use function json_encode;
-use function mkdir;
 
 use const JSON_PRETTY_PRINT;
 use const JSON_THROW_ON_ERROR;
@@ -71,6 +67,7 @@ final class MetadataCache
      */
     public function __construct(
         private readonly string $cacheFile,
+        private readonly Filesystem $filesystem = new Filesystem(),
     ) {
         $this->load();
     }
@@ -152,13 +149,7 @@ final class MetadataCache
             return;
         }
 
-        $dir = dirname($this->cacheFile);
-
-        if (!is_dir($dir)) {
-            mkdir($dir, 0o755, true);
-        }
-
-        file_put_contents(
+        $this->filesystem->dumpFile(
             $this->cacheFile,
             json_encode($this->entries, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT),
         );
@@ -171,7 +162,7 @@ final class MetadataCache
      */
     private function load(): void
     {
-        if (!is_file($this->cacheFile)) {
+        if (!$this->filesystem->exists($this->cacheFile)) {
             return;
         }
 
