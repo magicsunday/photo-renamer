@@ -24,12 +24,6 @@ COMPOSE_BIN := $(shell \
 		echo "echo 'Error: Docker not found' && exit 1"; \
 	fi)
 
-# Verify Docker Compose is available
-.PHONY: check-docker
-
-check-docker:
-	@$(COMPOSE_BIN) --version >/dev/null 2>&1 || (echo "Docker Compose not available" && exit 1)
-
 COMPOSE_BUILD := $(COMPOSE_BIN) run --rm buildbox
 
 # Includes
