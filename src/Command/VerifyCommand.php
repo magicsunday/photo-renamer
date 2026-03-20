@@ -385,9 +385,6 @@ final class VerifyCommand extends Command
      */
     private function renderSummary(SymfonyStyle $io, int $scanned, int $ok, array $categories): void
     {
-        $io->text('<fg=cyan>Summary</>');
-        $io->newLine();
-
         /** @var list<array{string, string}> $rows */
         $rows = [
             ['Scanned files', (string) $scanned],
@@ -402,8 +399,6 @@ final class VerifyCommand extends Command
             }
         }
 
-        $this->renderer->renderAlignedTable($rows, $io);
-
-        $io->newLine();
+        $this->renderer->renderSummarySection($rows, $io);
     }
 }

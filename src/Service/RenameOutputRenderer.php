@@ -218,6 +218,25 @@ final readonly class RenameOutputRenderer
     }
 
     /**
+     * Renders a summary section with header, aligned table and trailing newline.
+     * Shared by all commands for consistent summary output.
+     *
+     * @param list<array{string, string}> $rows Label/value pairs to display
+     * @param SymfonyStyle|null           $io   Console IO to render to (defaults to constructor-injected IO)
+     */
+    public function renderSummarySection(array $rows, ?SymfonyStyle $io = null): void
+    {
+        $io ??= $this->io;
+
+        $io->text('<fg=cyan>Summary</>');
+        $io->newLine();
+
+        $this->renderAlignedTable($rows, $io);
+
+        $io->newLine();
+    }
+
+    /**
      * Renders the summary table with file counts and statistics.
      *
      * @param array<string, int> $counters

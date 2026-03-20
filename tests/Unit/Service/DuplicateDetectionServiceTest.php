@@ -53,8 +53,6 @@ use function preg_match;
 use function preg_quote;
 use function rename;
 use function sprintf;
-use function sys_get_temp_dir;
-use function uniqid;
 
 use const DIRECTORY_SEPARATOR;
 
@@ -96,8 +94,6 @@ final class DuplicateDetectionServiceTest extends TestCase
         }
 
         $this->tempDirectories = [];
-
-        parent::tearDown();
     }
 
     /**
@@ -2838,12 +2834,7 @@ final class DuplicateDetectionServiceTest extends TestCase
 
     private function createTempDirectory(): string
     {
-        $directory = sys_get_temp_dir() . DIRECTORY_SEPARATOR . uniqid('photo-renamer-', true);
-
-        if (!mkdir($directory, 0777, true) && !is_dir($directory)) {
-            self::fail('Failed to create temporary directory: ' . $directory);
-        }
-
+        $directory               = $this->createTempWorkspace('photo-renamer-');
         $this->tempDirectories[] = $directory;
 
         return $directory;

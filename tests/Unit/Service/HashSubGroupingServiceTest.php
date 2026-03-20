@@ -28,16 +28,12 @@ use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function file_put_contents;
-use function is_dir;
 use function iterator_to_array;
-use function mkdir;
 use function rtrim;
 use function str_starts_with;
 use function strlen;
 use function substr;
-use function sys_get_temp_dir;
 use function trim;
-use function uniqid;
 
 use const DIRECTORY_SEPARATOR;
 
@@ -72,8 +68,6 @@ final class HashSubGroupingServiceTest extends TestCase
         }
 
         $this->tempDirectories = [];
-
-        parent::tearDown();
     }
 
     /**
@@ -550,12 +544,7 @@ final class HashSubGroupingServiceTest extends TestCase
 
     private function createTempDirectory(): string
     {
-        $directory = sys_get_temp_dir() . DIRECTORY_SEPARATOR . uniqid('photo-renamer-', true);
-
-        if (!mkdir($directory, 0777, true) && !is_dir($directory)) {
-            self::fail('Failed to create temporary directory: ' . $directory);
-        }
-
+        $directory               = $this->createTempWorkspace('photo-renamer-');
         $this->tempDirectories[] = $directory;
 
         return $directory;

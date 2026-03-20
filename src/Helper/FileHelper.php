@@ -220,19 +220,7 @@ final class FileHelper
      */
     public static function extractDateFromPath(string $path): ?DateTimeImmutable
     {
-        $basename = basename($path);
-
-        // Pattern 1: YYYY-MM-DD or YYYY_MM_DD or YYYY.MM.DD
-        if (preg_match('/(\d{4})[-_.](\d{2})[-_.](\d{2})/', $basename, $matches) === 1) {
-            return self::tryCreateDate((int) $matches[1], (int) $matches[2], (int) $matches[3]);
-        }
-
-        // Pattern 2: YYYYMMDD (8 digits starting with 19xx or 20xx)
-        if (preg_match('/((?:19|20)\d{2})(\d{2})(\d{2})/', $basename, $matches) === 1) {
-            return self::tryCreateDate((int) $matches[1], (int) $matches[2], (int) $matches[3]);
-        }
-
-        return null;
+        return self::extractDateTimeFromPath($path)?->setTime(0, 0);
     }
 
     /**
@@ -290,36 +278,6 @@ final class FileHelper
         }
 
         return null;
-    }
-
-    /**
-     * Creates a validated DateTimeImmutable from year/month/day components.
-     * Returns null when the components form an invalid date (e.g. Feb 30).
-     *
-     * @param int $year  Four-digit year
-     * @param int $month Month (1-12)
-     * @param int $day   Day (1-31)
-     *
-     * @return DateTimeImmutable|null Validated date, or null on invalid input
-     */
-    private static function tryCreateDate(int $year, int $month, int $day): ?DateTimeImmutable
-    {
-        if ($month < 1 || $month > 12 || $day < 1 || $day > 31) {
-            return null;
-        }
-
-        try {
-            $date = new DateTimeImmutable(sprintf('%04d-%02d-%02d', $year, $month, $day));
-
-            // Validate the date is real (not Feb 30 etc.)
-            if ((int) $date->format('Y') !== $year || (int) $date->format('m') !== $month || (int) $date->format('d') !== $day) {
-                return null;
-            }
-
-            return $date;
-        } catch (DateMalformedStringException) {
-            return null;
-        }
     }
 
     /**

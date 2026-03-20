@@ -359,17 +359,17 @@ final class ExifMetadataProvider
         $dateTime = $metadata->getCaptureDateTime();
 
         if (
-            ($dateTime instanceof DateTimeInterface)
-            && $metadata->isAmbiguousTimezone()
-            && ($this->defaultTimezone instanceof DateTimeZone)
-            && !$this->hasReliableDateTime($splFileInfo)
+            !($dateTime instanceof DateTimeInterface)
+            || !$metadata->isAmbiguousTimezone()
+            || !($this->defaultTimezone instanceof DateTimeZone)
+            || $this->hasReliableDateTime($splFileInfo)
         ) {
-            $dateTime = DateTimeImmutable::createFromInterface($dateTime)
-                ->setTimezone($this->defaultTimezone);
+            return $metadata;
         }
 
         return new TemporalMetadata(
-            $dateTime,
+            DateTimeImmutable::createFromInterface($dateTime)
+                ->setTimezone($this->defaultTimezone),
             $metadata->getLivePhotoId(),
             $metadata->isFallbackDateTime(),
             $metadata->isAmbiguousTimezone(),

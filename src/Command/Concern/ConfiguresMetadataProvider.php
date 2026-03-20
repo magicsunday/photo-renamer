@@ -40,6 +40,21 @@ trait ConfiguresMetadataProvider
      */
     protected function configureProviderTimezone(ExifMetadataProvider $provider, InputInterface $input): void
     {
+        $timezone = $this->resolveTimezone($input);
+
+        if ($timezone instanceof DateTimeZone) {
+            $provider->setDefaultTimezone($timezone);
+        }
+    }
+
+    /**
+     * Resolves the configured timezone from --timezone option or TIMEZONE env var.
+     * Returns null when no valid timezone is configured.
+     *
+     * Resolution order: --timezone CLI option > TIMEZONE env var > null.
+     */
+    protected function resolveTimezone(InputInterface $input): ?DateTimeZone
+    {
         $timezone = $input->getOption('timezone');
 
         if (!is_string($timezone)) {
@@ -47,9 +62,11 @@ trait ConfiguresMetadataProvider
             $timezone    = is_string($envTimezone) && ($envTimezone !== '') ? $envTimezone : null;
         }
 
-        if (is_string($timezone) && in_array($timezone, DateTimeZone::listIdentifiers(), true)) {
-            $provider->setDefaultTimezone(new DateTimeZone($timezone));
+        if (!is_string($timezone) || !in_array($timezone, DateTimeZone::listIdentifiers(), true)) {
+            return null;
         }
+
+        return new DateTimeZone($timezone);
     }
 
     /**

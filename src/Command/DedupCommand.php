@@ -291,9 +291,6 @@ final class DedupCommand extends Command
         int $orphanedCount,
         int $spaceReclaimable,
     ): void {
-        $io->text('<fg=cyan>Summary</>');
-        $io->newLine();
-
         /** @var list<array{string, string}> $rows */
         $rows = [
             ['Scanned files', (string) $scannedFiles],
@@ -306,8 +303,6 @@ final class DedupCommand extends Command
 
         $rows[] = ['Space reclaimable', $this->formatSize($spaceReclaimable)];
 
-        $this->renderer->renderAlignedTable($rows, $io);
-
-        $io->newLine();
+        $this->renderer->renderSummarySection($rows, $io);
     }
 }

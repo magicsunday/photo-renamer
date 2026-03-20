@@ -13,7 +13,6 @@ namespace MagicSunday\Renamer\Command;
 
 use DateTimeImmutable;
 use DateTimeInterface;
-use DateTimeZone;
 use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
@@ -36,7 +35,6 @@ use function array_map;
 use function count;
 use function dirname;
 use function explode;
-use function getenv;
 use function in_array;
 use function is_file;
 use function is_string;
@@ -483,9 +481,6 @@ final class WriteDateCommand extends Command
         int $readErrors,
         bool $dryRun,
     ): void {
-        $io->text('<fg=cyan>Summary</>');
-        $io->newLine();
-
         /** @var list<array{string, string}> $rows */
         $rows = [
             ['Scanned files', (string) $scannedFiles],
@@ -512,28 +507,6 @@ final class WriteDateCommand extends Command
             $rows[] = ['Read errors', (string) $readErrors];
         }
 
-        $this->renderer->renderAlignedTable($rows, $io);
-
-        $io->newLine();
-    }
-
-    /**
-     * Resolves the configured timezone from --timezone option or TIMEZONE env var.
-     * Returns null when no timezone is configured.
-     */
-    private function resolveTimezone(InputInterface $input): ?DateTimeZone
-    {
-        $timezone = $input->getOption('timezone');
-
-        if (!is_string($timezone)) {
-            $envTimezone = getenv('TIMEZONE');
-            $timezone    = is_string($envTimezone) && ($envTimezone !== '') ? $envTimezone : null;
-        }
-
-        if (!is_string($timezone) || !in_array($timezone, DateTimeZone::listIdentifiers(), true)) {
-            return null;
-        }
-
-        return new DateTimeZone($timezone);
+        $this->renderer->renderSummarySection($rows, $io);
     }
 }
