@@ -445,6 +445,7 @@ final class WriteDateCommandTest extends TestCase
             $fileSystemService,
             $exiftoolWriter,
             $renderer,
+            static fn (): bool => true,
         );
     }
 }
