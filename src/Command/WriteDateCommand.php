@@ -217,7 +217,7 @@ final class WriteDateCommand extends Command
         $progressBar?->setFormat(Constants::PROGRESS_BAR_FORMAT);
         $progressBar?->start();
 
-        /** @var list<array{path: string, date: string, reason: string, isVideo: bool, dateTime: DateTimeImmutable}> $pendingWrites */
+        /** @var list<array{path: string, date: string, reasonKey: string, reason: string, isVideo: bool, dateTime: DateTimeImmutable}> $pendingWrites */
         $pendingWrites = [];
 
         foreach ($files as $file) {
@@ -275,11 +275,12 @@ final class WriteDateCommand extends Command
             $formattedDate = $filenameDateTime->format('Y:m:d H:i:s');
 
             $pendingWrites[] = [
-                'path'     => $file->getPathname(),
-                'date'     => $formattedDate,
-                'reason'   => $reasonLabel,
-                'isVideo'  => $isVideo,
-                'dateTime' => $filenameDateTime,
+                'path'      => $file->getPathname(),
+                'date'      => $formattedDate,
+                'reasonKey' => $reasonKey,
+                'reason'    => $reasonLabel,
+                'isVideo'   => $isVideo,
+                'dateTime'  => $filenameDateTime,
             ];
         }
 
@@ -300,7 +301,8 @@ final class WriteDateCommand extends Command
                     $entry['date'],
                 ));
                 $io->text(sprintf(
-                    '      <fg=gray>Reason: %s</>',
+                    '      <fg=gray>Reason [%s]: %s</>',
+                    $entry['reasonKey'],
                     $entry['reason'],
                 ));
 
@@ -319,7 +321,8 @@ final class WriteDateCommand extends Command
                         $entry['date'],
                     ));
                     $io->text(sprintf(
-                        '      <fg=gray>%s</>',
+                        '      <fg=gray>[%s] %s</>',
+                        $entry['reasonKey'],
                         $entry['reason'],
                     ));
 
