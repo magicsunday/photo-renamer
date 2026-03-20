@@ -32,13 +32,10 @@ use function in_array;
 use function is_dir;
 use function mb_strlen;
 use function mkdir;
-use function preg_match;
 use function rename;
 use function rtrim;
 use function sprintf;
-use function str_starts_with;
 use function strlen;
-use function substr;
 
 /**
  * Handles all direct file system interactions: creating file iterators, counting files,
@@ -92,6 +89,30 @@ final readonly class FileSystemService implements FileSystemServiceInterface
     }
 
     /**
+     * Collects all regular files from the given directory into a flat list.
+     *
+     * @param string $directory Absolute directory path to scan
+     *
+     * @return list<SplFileInfo> All files found in the directory tree
+     */
+    public function collectFiles(string $directory): array
+    {
+        $iterator = $this->createFileIterator($directory);
+
+        /** @var list<SplFileInfo> $files */
+        $files = [];
+
+        /** @var SplFileInfo $file */
+        foreach ($iterator as $file) {
+            if ($file->isFile()) {
+                $files[] = $file;
+            }
+        }
+
+        return $files;
+    }
+
+    /**
      * Renames or copies files represented by the provided duplicate collection.
      *
      * @param FileDuplicateCollection $fileDuplicateCollection Collection describing source/target file pairs grouped by duplicate identifier
@@ -129,29 +150,6 @@ final readonly class FileSystemService implements FileSystemServiceInterface
             'namingCollisions' => $result->namingCollisions,
             ...$counters,
         ], $options->dryRun);
-    }
-
-    /**
-     * Scans a directory recursively and returns all file paths as an occupied-paths index.
-     *
-     * @param string $directory Absolute path to the directory to scan
-     *
-     * @return array<string, true>
-     */
-    public static function scanDirectoryPaths(string $directory): array
-    {
-        $paths    = [];
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS),
-            RecursiveIteratorIterator::LEAVES_ONLY,
-        );
-
-        /** @var SplFileInfo $file */
-        foreach ($iterator as $file) {
-            $paths[$file->getPathname()] = true;
-        }
-
-        return $paths;
     }
 
     /**
@@ -285,46 +283,6 @@ final readonly class FileSystemService implements FileSystemServiceInterface
             'plannedMoves'   => $plannedMoves,
             'plannedSkips'   => $plannedSkips,
         ];
-    }
-
-    /**
-     * Converts an absolute pathname to a display-friendly relative path by stripping
-     * the base directory prefix and prepending the base directory's own name. Falls back
-     * to the full pathname when the path does not start with the base or when the base
-     * directory is a relative path.
-     *
-     * @param string      $pathname      Absolute file path
-     * @param string|null $baseDirectory Normalized base directory (trailing separator stripped)
-     *
-     * @return string Relative or absolute path suitable for display
-     */
-    public static function relativizePath(string $pathname, ?string $baseDirectory): string
-    {
-        if (($baseDirectory === null) || ($baseDirectory === '')) {
-            return $pathname;
-        }
-
-        $normalizedBase = rtrim($baseDirectory, DIRECTORY_SEPARATOR);
-
-        if ($normalizedBase === '') {
-            return $pathname;
-        }
-
-        if (
-            !str_starts_with($normalizedBase, DIRECTORY_SEPARATOR)
-            && !str_starts_with($normalizedBase, '\\')
-            && (preg_match('/^[A-Za-z]:(?:[\\\\\\/]|$)/', $normalizedBase) !== 1)
-        ) {
-            return $pathname;
-        }
-
-        $prefix = $normalizedBase . DIRECTORY_SEPARATOR;
-
-        if (str_starts_with($pathname, $prefix)) {
-            return substr($pathname, strlen($prefix));
-        }
-
-        return $pathname;
     }
 
     /**

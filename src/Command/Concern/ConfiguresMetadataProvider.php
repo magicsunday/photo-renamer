@@ -12,15 +12,13 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Command\Concern;
 
 use DateTimeZone;
+use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Service\MetadataCache;
 use Symfony\Component\Console\Input\InputInterface;
 
 use function getenv;
-use function is_dir;
 use function is_string;
-use function realpath;
-use function rtrim;
 
 /**
  * Shared configuration logic for commands that use the ExifMetadataProvider:
@@ -80,19 +78,10 @@ trait ConfiguresMetadataProvider
      */
     protected function resolveSourceDirectory(InputInterface $input): ?string
     {
-        $sourceDirectory = $input->getArgument('source-directory');
+        /** @var string|null $directory */
+        $directory = $input->getArgument('source-directory');
 
-        if (!is_string($sourceDirectory)) {
-            return null;
-        }
-
-        $resolved = realpath($sourceDirectory);
-
-        if (($resolved === false) || !is_dir($resolved)) {
-            return null;
-        }
-
-        return rtrim($resolved, DIRECTORY_SEPARATOR);
+        return FileHelper::resolveDirectory($directory);
     }
 
     /**

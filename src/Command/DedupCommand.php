@@ -13,7 +13,6 @@ namespace MagicSunday\Renamer\Command;
 
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Helper\FileHelper;
-use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use Override;
@@ -30,13 +29,10 @@ use function file_exists;
 use function is_dir;
 use function is_string;
 use function mkdir;
-use function realpath;
-use function rtrim;
+use function rename;
 use function sprintf;
 use function str_contains;
 use function unlink;
-
-use const DIRECTORY_SEPARATOR;
 
 /**
  * Finds files with "-duplicate-" in their name and either moves them to
@@ -104,7 +100,9 @@ final class DedupCommand extends Command
         $io = new SymfonyStyle($input, $output);
         $io->title($this->getName() ?? '');
 
-        $sourceDirectory = $this->resolveSourceDirectory($input);
+        /** @var string|null $sourceDir */
+        $sourceDir       = $input->getArgument('source-directory');
+        $sourceDirectory = FileHelper::resolveDirectory($sourceDir);
 
         if ($sourceDirectory === null) {
             $io->error('Source directory does not exist.');
@@ -120,7 +118,7 @@ final class DedupCommand extends Command
             $target = '_duplicates';
         }
 
-        $files = $this->collectFiles($sourceDirectory);
+        $files = $this->fileSystemService->collectFiles($sourceDirectory);
 
         $io->text(sprintf('<fg=cyan>Scanning:</> %s', $sourceDirectory));
 
@@ -142,7 +140,7 @@ final class DedupCommand extends Command
 
             $originalBasename = FileHelper::stripDuplicateSuffix($basename);
             $originalPath     = $file->getPath() . DIRECTORY_SEPARATOR . $originalBasename . '.' . $file->getExtension();
-            $relativePath     = FileSystemService::relativizePath($file->getPathname(), $sourceDirectory);
+            $relativePath     = FileHelper::relativizePath($file->getPathname(), $sourceDirectory);
 
             $duplicates[] = [
                 'file'           => $file,
@@ -192,14 +190,23 @@ final class DedupCommand extends Command
                     ));
                 }
             } elseif ($delete) {
-                @unlink($file->getPathname());
+                $deleted = unlink($file->getPathname());
+
+                if (!$deleted) {
+                    $io->text(sprintf(
+                        '<fg=red>[E]</> %s <fg=cyan>-></> Failed to delete',
+                        $relativePath,
+                    ));
+
+                    continue;
+                }
 
                 $io->text(sprintf(
                     '<fg=green>[D]</> %s (deleted)',
                     $relativePath,
                 ));
             } else {
-                $relativeDir = FileSystemService::relativizePath($file->getPath(), $sourceDirectory);
+                $relativeDir = FileHelper::relativizePath($file->getPath(), $sourceDirectory);
 
                 // When the file is at the root of the source directory, relativizePath
                 // returns the absolute path unchanged. In that case use the target
@@ -216,7 +223,16 @@ final class DedupCommand extends Command
                     mkdir($targetDir, 0755, true);
                 }
 
-                @rename($file->getPathname(), $targetPath);
+                $moved = rename($file->getPathname(), $targetPath);
+
+                if (!$moved) {
+                    $io->text(sprintf(
+                        '<fg=red>[E]</> %s <fg=cyan>-></> Failed to move',
+                        $relativePath,
+                    ));
+
+                    continue;
+                }
 
                 $targetRelativePath = $target . DIRECTORY_SEPARATOR . $relativePath;
 
@@ -233,50 +249,6 @@ final class DedupCommand extends Command
         $this->renderSummary($io, count($files), $duplicatesFound, $orphanedCount, $spaceReclaimable);
 
         return self::SUCCESS;
-    }
-
-    /**
-     * Resolves and validates the source directory path from the input argument.
-     *
-     * @return string|null Absolute source directory path, or null if invalid
-     */
-    private function resolveSourceDirectory(InputInterface $input): ?string
-    {
-        $sourceDirectory = $input->getArgument('source-directory');
-
-        if (!is_string($sourceDirectory)) {
-            return null;
-        }
-
-        $resolved = realpath($sourceDirectory);
-
-        if (($resolved === false) || !is_dir($resolved)) {
-            return null;
-        }
-
-        return rtrim($resolved, DIRECTORY_SEPARATOR);
-    }
-
-    /**
-     * Collects all regular files from the source directory into a flat list.
-     *
-     * @return list<SplFileInfo> All files found in the directory tree
-     */
-    private function collectFiles(string $sourceDirectory): array
-    {
-        $iterator = $this->fileSystemService->createFileIterator($sourceDirectory);
-
-        /** @var list<SplFileInfo> $files */
-        $files = [];
-
-        /** @var SplFileInfo $file */
-        foreach ($iterator as $file) {
-            if ($file->isFile()) {
-                $files[] = $file;
-            }
-        }
-
-        return $files;
     }
 
     /**

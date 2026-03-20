@@ -105,6 +105,7 @@ final readonly class ExifDateFilenameStrategy implements LivePhotoAwareRenameStr
      *
      * @return bool True when the date came from the fallback tag
      */
+    #[Override]
     public function isFallbackDateTime(SplFileInfo $splFileInfo): bool
     {
         return $this->exifMetadataProvider->isFallbackDateTime($splFileInfo);
@@ -113,6 +114,7 @@ final readonly class ExifDateFilenameStrategy implements LivePhotoAwareRenameStr
     /**
      * Returns whether the given file has an ambiguous timezone.
      */
+    #[Override]
     public function isAmbiguousTimezone(SplFileInfo $splFileInfo): bool
     {
         return $this->exifMetadataProvider->isAmbiguousTimezone($splFileInfo);
@@ -121,6 +123,7 @@ final readonly class ExifDateFilenameStrategy implements LivePhotoAwareRenameStr
     /**
      * {@inheritDoc}
      */
+    #[Override]
     public function hasReliableDateTime(SplFileInfo $splFileInfo): bool
     {
         return $this->exifMetadataProvider->hasReliableDateTime($splFileInfo);

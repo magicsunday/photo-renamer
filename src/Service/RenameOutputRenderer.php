@@ -76,7 +76,7 @@ final readonly class RenameOutputRenderer
 
         foreach ($fileDuplicateCollection as $fileDuplicate) {
             foreach ($fileDuplicate->getRenames() as $rename) {
-                $relativeSource = FileSystemService::relativizePath($rename->getSource()->getPathname(), $sourceBaseDirectory);
+                $relativeSource = FileHelper::relativizePath($rename->getSource()->getPathname(), $sourceBaseDirectory);
 
                 if (mb_strlen($relativeSource) > $maxFilenameLength) {
                     $maxFilenameLength = mb_strlen($relativeSource);
@@ -85,7 +85,7 @@ final readonly class RenameOutputRenderer
         }
 
         foreach ($result->skippedFiles as $skippedFile) {
-            $relativeSource = FileSystemService::relativizePath($skippedFile->getFile()->getPathname(), $sourceBaseDirectory);
+            $relativeSource = FileHelper::relativizePath($skippedFile->getFile()->getPathname(), $sourceBaseDirectory);
 
             if (mb_strlen($relativeSource) > $maxFilenameLength) {
                 $maxFilenameLength = mb_strlen($relativeSource);
@@ -112,8 +112,8 @@ final readonly class RenameOutputRenderer
                 $isCanonicalEntry = $isNoOp
                     || ($options->listAll && $rename->getSource()->getPathname() === $canonicalTargetPath);
 
-                $sourcePath = FileSystemService::relativizePath($rename->getSource()->getPathname(), $sourceBaseDirectory);
-                $targetPath = FileSystemService::relativizePath($rename->getTarget()->getPathname(), $sourceBaseDirectory);
+                $sourcePath = FileHelper::relativizePath($rename->getSource()->getPathname(), $sourceBaseDirectory);
+                $targetPath = FileHelper::relativizePath($rename->getTarget()->getPathname(), $sourceBaseDirectory);
 
                 $sourcePathname = $rename->getSource()->getPathname();
 
@@ -175,7 +175,7 @@ final readonly class RenameOutputRenderer
             $outputEntries[] = [
                 'sortKey'    => $skippedFile->getFile()->getPathname(),
                 'type'       => 'skip',
-                'sourcePath' => FileSystemService::relativizePath($skippedFile->getFile()->getPathname(), $sourceBaseDirectory),
+                'sourcePath' => FileHelper::relativizePath($skippedFile->getFile()->getPathname(), $sourceBaseDirectory),
                 'reason'     => ucfirst($skippedFile->getReason()),
                 'tag'        => $skippedFile->isError() ? OutputEntryTag::Error : OutputEntryTag::Skipped,
             ];

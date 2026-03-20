@@ -33,7 +33,7 @@ use function strlen;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-readonly class DatePatternFilenameStrategy extends InheritFilenameStrategy
+final readonly class DatePatternFilenameStrategy extends InheritFilenameStrategy
 {
     /**
      * Pre-computed date format characters from the pattern placeholders.

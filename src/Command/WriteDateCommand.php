@@ -19,7 +19,6 @@ use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Service\ExiftoolWriter;
-use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
@@ -33,7 +32,11 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function count;
+use function dirname;
 use function in_array;
+use function is_file;
+use function is_string;
+use function realpath;
 use function sprintf;
 use function strtolower;
 
@@ -49,13 +52,6 @@ use function strtolower;
 final class WriteDateCommand extends Command
 {
     use ConfiguresMetadataProvider;
-
-    /**
-     * File extensions recognized as processable media files.
-     *
-     * @var list<string>
-     */
-    private const array SUPPORTED_EXTENSIONS = Constants::SUPPORTED_MEDIA_EXTENSIONS;
 
     /**
      * Callable that checks whether exiftool is available. Injectable for testing.
@@ -171,7 +167,7 @@ final class WriteDateCommand extends Command
 
         $files = $isSingleFile
             ? [new SplFileInfo($source)]
-            : $this->collectFiles($sourceDirectory);
+            : $this->fileSystemService->collectFiles($sourceDirectory);
 
         $io->text(sprintf('<fg=cyan>Scanning:</> %s', $source));
 
@@ -189,7 +185,7 @@ final class WriteDateCommand extends Command
             $extension = strtolower($file->getExtension());
 
             // Skip unsupported file types
-            if (!in_array($extension, self::SUPPORTED_EXTENSIONS, true)) {
+            if (!in_array($extension, Constants::SUPPORTED_MEDIA_EXTENSIONS, true)) {
                 continue;
             }
 
@@ -243,7 +239,7 @@ final class WriteDateCommand extends Command
 
         // Process pending writes
         foreach ($pendingWrites as $entry) {
-            $relativePath = FileSystemService::relativizePath($entry['path'], $sourceDirectory);
+            $relativePath = FileHelper::relativizePath($entry['path'], $sourceDirectory);
 
             if ($dryRun) {
                 $targetField = $entry['isVideo'] ? 'QuickTime:CreateDate' : 'DateTimeOriginal';
@@ -378,28 +374,6 @@ final class WriteDateCommand extends Command
     private function isExiftoolAvailable(): bool
     {
         return ($this->exiftoolAvailabilityCheck)();
-    }
-
-    /**
-     * Collects all regular files from the source directory into a flat list.
-     *
-     * @return list<SplFileInfo> All files found in the directory tree
-     */
-    private function collectFiles(string $sourceDirectory): array
-    {
-        $iterator = $this->fileSystemService->createFileIterator($sourceDirectory);
-
-        /** @var list<SplFileInfo> $files */
-        $files = [];
-
-        /** @var SplFileInfo $file */
-        foreach ($iterator as $file) {
-            if ($file->isFile()) {
-                $files[] = $file;
-            }
-        }
-
-        return $files;
     }
 
     /**

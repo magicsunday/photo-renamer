@@ -40,6 +40,15 @@ interface FileSystemServiceInterface
     public function createFileIterator(string $directory, ?RecursiveIterator $recursiveIterator = null): RecursiveIteratorIterator;
 
     /**
+     * Collects all regular files from the given directory into a flat list.
+     *
+     * @param string $directory Absolute directory path to scan
+     *
+     * @return list<SplFileInfo> All files found in the directory tree
+     */
+    public function collectFiles(string $directory): array;
+
+    /**
      * Renames all the files in the collection.
      *
      * @param FileDuplicateCollection $fileDuplicateCollection Collection of file duplicates

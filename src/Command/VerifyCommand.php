@@ -17,16 +17,12 @@ use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
-use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use Override;
-use RecursiveIterator;
-use RecursiveIteratorIterator;
 use SplFileInfo;
 use Symfony\Component\Console\Command\Command;
-use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -58,13 +54,6 @@ use function trim;
 final class VerifyCommand extends Command
 {
     use ConfiguresMetadataProvider;
-
-    /**
-     * File extensions recognized as processable media files.
-     *
-     * @var list<string>
-     */
-    private const array SUPPORTED_EXTENSIONS = Constants::SUPPORTED_MEDIA_EXTENSIONS;
 
     /**
      * Category definitions mapping internal IDs to display labels.
@@ -175,45 +164,23 @@ final class VerifyCommand extends Command
         $scannedFiles = 0;
         $okCount      = 0;
 
-        $iterator = $this->createFileIterator($sourceDirectory);
-
-        // Count files for progress bar
-        $fileCount = 0;
-
-        /** @var SplFileInfo $file */
-        foreach ($iterator as $file) {
-            if ($file->isFile()) {
-                ++$fileCount;
-            }
-        }
-
-        $iterator->rewind();
+        $files = $this->fileSystemService->collectFiles($sourceDirectory);
 
         $io->text(sprintf('<fg=cyan>Scanning:</> %s', $sourceDirectory));
 
-        /** @var ProgressBar|null $progressBar */
-        $progressBar = null;
+        $progressBar = $files !== [] ? $io->createProgressBar(count($files)) : null;
+        $progressBar?->setFormat(Constants::PROGRESS_BAR_FORMAT);
+        $progressBar?->start();
 
-        if ($fileCount > 0) {
-            $progressBar = $io->createProgressBar($fileCount);
-            $progressBar->setFormat(Constants::PROGRESS_BAR_FORMAT);
-            $progressBar->start();
-        }
-
-        /** @var SplFileInfo $file */
-        foreach ($iterator as $file) {
-            if (!$file->isFile()) {
-                continue;
-            }
-
+        foreach ($files as $file) {
             ++$scannedFiles;
             $progressBar?->advance();
 
-            $relativePath = FileSystemService::relativizePath($file->getPathname(), $sourceDirectory);
+            $relativePath = FileHelper::relativizePath($file->getPathname(), $sourceDirectory);
             $extension    = strtolower($file->getExtension());
 
             // Check for unrecognized file type
-            if (!in_array($extension, self::SUPPORTED_EXTENSIONS, true)) {
+            if (!in_array($extension, Constants::SUPPORTED_MEDIA_EXTENSIONS, true)) {
                 $categories['filetype'][] = $relativePath;
 
                 continue;
@@ -286,11 +253,11 @@ final class VerifyCommand extends Command
 
         // Check LP completeness per directory
         foreach ($contentIdMap as $dirFiles) {
-            foreach ($dirFiles as $files) {
+            foreach ($dirFiles as $contentIdFiles) {
                 $hasStill = false;
                 $hasVideo = false;
 
-                foreach ($files as $entry) {
+                foreach ($contentIdFiles as $entry) {
                     if ($entry['isStill']) {
                         $hasStill = true;
                     } else {
@@ -302,8 +269,8 @@ final class VerifyCommand extends Command
                     continue;
                 }
 
-                foreach ($files as $entry) {
-                    $relativePath = FileSystemService::relativizePath($entry['pathname'], $sourceDirectory);
+                foreach ($contentIdFiles as $entry) {
+                    $relativePath = FileHelper::relativizePath($entry['pathname'], $sourceDirectory);
 
                     if ($entry['isStill']) {
                         $categories['livephoto'][] = $relativePath . ' → no paired MOV';
@@ -358,16 +325,6 @@ final class VerifyCommand extends Command
             static fn (string $token): string => self::TAG_ALIASES[strtoupper($token)] ?? strtolower($token),
             $tokens,
         );
-    }
-
-    /**
-     * Creates an all-files iterator for the source directory.
-     *
-     * @return RecursiveIteratorIterator<RecursiveIterator<string, SplFileInfo>>
-     */
-    private function createFileIterator(string $sourceDirectory): RecursiveIteratorIterator
-    {
-        return $this->fileSystemService->createFileIterator($sourceDirectory);
     }
 
     /**

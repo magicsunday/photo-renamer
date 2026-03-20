@@ -14,17 +14,22 @@ namespace MagicSunday\Renamer\Service;
 use SplFileInfo;
 
 use function dirname;
+use function file_get_contents;
 use function file_put_contents;
 use function is_array;
 use function is_dir;
 use function is_file;
+use function json_decode;
+use function json_encode;
 use function mkdir;
-use function var_export;
+
+use const JSON_PRETTY_PRINT;
+use const JSON_THROW_ON_ERROR;
 
 /**
  * Persistent disk cache for metadata extraction results. Keyed by file pathname,
  * entries are invalidated when a file's mtime or size changes. Uses PHP's native
- * var_export/include for fastest possible serialization and deserialization.
+ * JSON-based serialization for portable and safe disk storage.
  *
  * The cache is loaded eagerly on construction and flushed explicitly via flush().
  * Only writes to disk when entries have been added or invalidated (dirty tracking).
@@ -46,7 +51,7 @@ final class MetadataCache
     private bool $dirty = false;
 
     /**
-     * @param string $cacheFile Absolute path to the PHP cache file on disk
+     * @param string $cacheFile Absolute path to the cache file on disk
      */
     public function __construct(
         private readonly string $cacheFile,
@@ -121,7 +126,7 @@ final class MetadataCache
 
         file_put_contents(
             $this->cacheFile,
-            '<?php return ' . var_export($this->entries, true) . ';' . PHP_EOL,
+            json_encode($this->entries, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT),
         );
 
         $this->dirty = false;
@@ -136,7 +141,13 @@ final class MetadataCache
             return;
         }
 
-        $data = @include $this->cacheFile;
+        $contents = @file_get_contents($this->cacheFile);
+
+        if ($contents === false) {
+            return;
+        }
+
+        $data = json_decode($contents, true);
 
         if (is_array($data)) {
             /** @var array<string, array{mtime: int, size: int, captureDateTime: string|null, contentId: string|null, isFallback: bool, isAmbiguousTimezone: bool}> $data */

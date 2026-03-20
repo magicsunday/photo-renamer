@@ -18,11 +18,18 @@ use MagicSunday\Renamer\Constants;
 use SplFileInfo;
 
 use function basename;
+use function is_dir;
+use function is_string;
 use function preg_match;
 use function preg_quote;
 use function preg_replace;
+use function realpath;
+use function rtrim;
 use function sprintf;
+use function str_starts_with;
+use function strlen;
 use function strtolower;
+use function substr;
 
 /**
  * Shared file-related utility methods used across the rename pipeline.
@@ -52,7 +59,7 @@ final class FileHelper
 
     /**
      * Normalizes a file extension to lowercase and maps common aliases.
-     * Currently maps: jpeg → jpg. Empty extensions are returned as-is.
+     * Currently maps: jpeg -> jpg. Empty extensions are returned as-is.
      *
      * @param string $extension Raw file extension (without leading dot)
      *
@@ -85,6 +92,69 @@ final class FileHelper
             '',
             $basename
         ) ?? $basename;
+    }
+
+    /**
+     * Converts an absolute pathname to a display-friendly relative path by stripping
+     * the base directory prefix and prepending the base directory's own name. Falls back
+     * to the full pathname when the path does not start with the base or when the base
+     * directory is a relative path.
+     *
+     * @param string      $pathname      Absolute file path
+     * @param string|null $baseDirectory Normalized base directory (trailing separator stripped)
+     *
+     * @return string Relative or absolute path suitable for display
+     */
+    public static function relativizePath(string $pathname, ?string $baseDirectory): string
+    {
+        if (($baseDirectory === null) || ($baseDirectory === '')) {
+            return $pathname;
+        }
+
+        $normalizedBase = rtrim($baseDirectory, DIRECTORY_SEPARATOR);
+
+        if ($normalizedBase === '') {
+            return $pathname;
+        }
+
+        if (
+            !str_starts_with($normalizedBase, DIRECTORY_SEPARATOR)
+            && !str_starts_with($normalizedBase, '\\')
+            && (preg_match('/^[A-Za-z]:(?:[\\\\\\/]|$)/', $normalizedBase) !== 1)
+        ) {
+            return $pathname;
+        }
+
+        $prefix = $normalizedBase . DIRECTORY_SEPARATOR;
+
+        if (str_starts_with($pathname, $prefix)) {
+            return substr($pathname, strlen($prefix));
+        }
+
+        return $pathname;
+    }
+
+    /**
+     * Resolves and validates a directory path from a CLI input argument.
+     * Returns the canonicalized absolute path or null if the path is invalid.
+     *
+     * @param string|null $directory Raw directory path from CLI input
+     *
+     * @return string|null Absolute directory path, or null if invalid
+     */
+    public static function resolveDirectory(?string $directory): ?string
+    {
+        if (!is_string($directory)) {
+            return null;
+        }
+
+        $resolved = realpath($directory);
+
+        if (($resolved === false) || !is_dir($resolved)) {
+            return null;
+        }
+
+        return rtrim($resolved, DIRECTORY_SEPARATOR);
     }
 
     /**

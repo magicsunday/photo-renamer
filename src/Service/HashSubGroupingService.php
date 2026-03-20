@@ -140,16 +140,16 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
             return false;
         }
 
+        /** @var array<int, true> $nonCompanionLookup */
+        $nonCompanionLookup = [];
+
+        foreach ($nonCompanionRenames as $r) {
+            $nonCompanionLookup[spl_object_id($r)] = true;
+        }
+
         // Heuristic 1: If all companion videos share the same hash, the stills
         // are semantic duplicates (same capture, different JPG encoding/metadata).
         if ($companionRename instanceof Rename) {
-            /** @var array<int, true> $nonCompanionLookup */
-            $nonCompanionLookup = [];
-
-            foreach ($nonCompanionRenames as $r) {
-                $nonCompanionLookup[spl_object_id($r)] = true;
-            }
-
             $companionHashes = [];
 
             foreach ($fileDuplicate->getRenames() as $rename) {
@@ -272,14 +272,6 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
         /** @var array<string, int> $excludedDuplicateCountByContentId */
         $excludedDuplicateCountByContentId = [];
 
-        // Pre-build O(1) lookup set to replace O(n) in_array() in the excluded-files loop.
-        /** @var array<int, true> $nonCompanionSet */
-        $nonCompanionSet = [];
-
-        foreach ($nonCompanionRenames as $r) {
-            $nonCompanionSet[spl_object_id($r)] = true;
-        }
-
         // Pre-build content-ID -> sub-group map to replace O(n) inner foreach.
         /** @var array<string, int> $contentIdToSubGroup */
         $contentIdToSubGroup = [];
@@ -308,7 +300,7 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
 
         foreach ($fileDuplicate->getRenames() as $rename) {
             // Skip files already processed as non-companion (stills).
-            if (isset($nonCompanionSet[spl_object_id($rename)])) {
+            if (isset($nonCompanionLookup[spl_object_id($rename)])) {
                 continue;
             }
 
