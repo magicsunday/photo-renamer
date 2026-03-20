@@ -1,6 +1,5 @@
 name: "Feature Request"
 description: "Suggest an idea for Photo Renamer."
-title: ""
 labels:
     - enhancement
 body:
