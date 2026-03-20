@@ -13,9 +13,9 @@ namespace MagicSunday\Renamer\Service;
 
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use SplFileInfo;
+use Symfony\Component\Filesystem\Exception\IOException;
 use Symfony\Component\Filesystem\Filesystem;
 
-use function file_get_contents;
 use function is_array;
 use function json_decode;
 use function json_encode;
@@ -166,9 +166,9 @@ final class MetadataCache
             return;
         }
 
-        $contents = @file_get_contents($this->cacheFile);
-
-        if ($contents === false) {
+        try {
+            $contents = $this->filesystem->readFile($this->cacheFile);
+        } catch (IOException) {
             return;
         }
 
