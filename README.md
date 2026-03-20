@@ -135,11 +135,17 @@ Review the report to understand what problems exist: missing metadata, ambiguous
 # Preview what would be written
 renamer rename:write-date --dry-run ~/Photos
 
-# Write dates from filenames into metadata (requires exiftool)
-renamer rename:write-date ~/Photos
+# Fix only files with no metadata
+renamer rename:write-date --reason=nodata --dry-run ~/Photos
+
+# Fix only ambiguous timezone files
+renamer rename:write-date --reason=timezone --dry-run ~/Photos
+
+# Fix multiple categories at once
+renamer rename:write-date --reason=nodata,fallback ~/Photos
 ```
 
-Fixes files flagged as `[W]` (ambiguous timezone), `[F]` (fallback date), or with date drift. Only touches files where the metadata is missing or unreliable.
+Fixes files flagged as `[W]` (ambiguous timezone), `[F]` (fallback date), or with date drift. Only touches files where the metadata is missing or unreliable. The `--reason` filter allows working through categories separately: `nodata`, `fallback`, `timezone`, `drift`.
 
 ### Step 3: Rename by EXIF date
 

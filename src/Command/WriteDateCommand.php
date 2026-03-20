@@ -31,14 +31,17 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
+use function array_map;
 use function count;
 use function dirname;
+use function explode;
 use function in_array;
 use function is_file;
 use function is_string;
 use function realpath;
 use function sprintf;
 use function strtolower;
+use function trim;
 
 /**
  * Extracts dates from filenames and writes them into EXIF/QuickTime metadata
@@ -52,6 +55,38 @@ use function strtolower;
 final class WriteDateCommand extends Command
 {
     use ConfiguresMetadataProvider;
+
+    /**
+     * Reason key for files with no metadata date at all.
+     */
+    private const string REASON_NODATA = 'nodata';
+
+    /**
+     * Reason key for files using only ModifyDate (0x0132) as fallback.
+     */
+    private const string REASON_FALLBACK = 'fallback';
+
+    /**
+     * Reason key for QuickTime files with ambiguous UTC timestamps.
+     */
+    private const string REASON_TIMEZONE = 'timezone';
+
+    /**
+     * Reason key for files whose metadata date differs significantly from filename date.
+     */
+    private const string REASON_DRIFT = 'drift';
+
+    /**
+     * Maps reason keys to human-readable labels for output.
+     *
+     * @var array<string, string>
+     */
+    private const array REASON_LABELS = [
+        self::REASON_NODATA   => 'no date in metadata',
+        self::REASON_FALLBACK => 'only ModifyDate (0x0132), no DateTimeOriginal',
+        self::REASON_TIMEZONE => 'QuickTime timestamp without timezone info',
+        self::REASON_DRIFT    => 'metadata date differs by %d days',
+    ];
 
     /**
      * Callable that checks whether exiftool is available. Injectable for testing.
@@ -120,6 +155,12 @@ final class WriteDateCommand extends Command
                 null,
                 InputOption::VALUE_REQUIRED,
                 'Timezone for video files without timezone metadata (e.g. Europe/Berlin). Overrides TIMEZONE env var.',
+            )
+            ->addOption(
+                'reason',
+                null,
+                InputOption::VALUE_REQUIRED,
+                'Filter by write reason (comma-separated: nodata, fallback, timezone, drift). Default: all reasons.',
             );
     }
 
@@ -152,6 +193,7 @@ final class WriteDateCommand extends Command
 
         $dryRun       = (bool) $input->getOption('dry-run');
         $maxDateDrift = $this->resolveMaxDateDrift($input, 7);
+        $reasonFilter = $this->resolveReasonFilter($input);
 
         $this->configureProviderTimezone($this->exifMetadataProvider, $input);
 
@@ -210,14 +252,21 @@ final class WriteDateCommand extends Command
             $isVideo = !$this->mediaTypeClassifier->isLivePhotoStill($file);
 
             // Determine if write is needed
-            $reason = $this->determineWriteReason(
+            [$reasonKey, $reasonLabel] = $this->determineWriteReason(
                 $file,
                 $captureDateTime,
                 $filenameDateTime,
                 $maxDateDrift,
             );
 
-            if ($reason === null) {
+            if ($reasonKey === null) {
+                ++$alreadyCorrect;
+
+                continue;
+            }
+
+            // Apply reason filter
+            if (($reasonFilter !== null) && !in_array($reasonKey, $reasonFilter, true)) {
                 ++$alreadyCorrect;
 
                 continue;
@@ -228,7 +277,7 @@ final class WriteDateCommand extends Command
             $pendingWrites[] = [
                 'path'     => $file->getPathname(),
                 'date'     => $formattedDate,
-                'reason'   => $reason,
+                'reason'   => $reasonLabel,
                 'isVideo'  => $isVideo,
                 'dateTime' => $filenameDateTime,
             ];
@@ -300,24 +349,24 @@ final class WriteDateCommand extends Command
 
     /**
      * Determines whether metadata needs to be written for the given file and returns
-     * the reason string. Returns null when the metadata is already correct.
+     * a reason key + label pair. Returns [null, null] when the metadata is already correct.
      *
      * @param SplFileInfo            $file             File to check
      * @param DateTimeInterface|null $captureDateTime  Current metadata date, or null
      * @param DateTimeImmutable      $filenameDateTime Date extracted from the filename
      * @param int                    $maxDateDrift     Maximum allowed drift in days
      *
-     * @return string|null Reason string, or null when no write is needed
+     * @return array{string|null, string|null} Reason key and label, or [null, null] when no write is needed
      */
     private function determineWriteReason(
         SplFileInfo $file,
         ?DateTimeInterface $captureDateTime,
         DateTimeImmutable $filenameDateTime,
         int $maxDateDrift,
-    ): ?string {
+    ): array {
         // No capture date at all
         if (!$captureDateTime instanceof DateTimeInterface) {
-            return 'no date in metadata';
+            return [self::REASON_NODATA, self::REASON_LABELS[self::REASON_NODATA]];
         }
 
         // Date drift check — always runs, even for reliable dates. A large drift
@@ -326,26 +375,45 @@ final class WriteDateCommand extends Command
             $drift = $filenameDateTime->diff($captureDateTime)->days;
 
             if (($drift !== false) && ($drift > $maxDateDrift)) {
-                return sprintf('metadata date differs by %d days', $drift);
+                return [self::REASON_DRIFT, sprintf(self::REASON_LABELS[self::REASON_DRIFT], $drift)];
             }
         }
 
         // If the date is reliable (no issues, or raw matches filename) → no write needed.
         if ($this->exifMetadataProvider->hasReliableDateTime($file)) {
-            return null;
+            return [null, null];
         }
 
         // Fallback DateTime only (0x0132)
         if ($this->exifMetadataProvider->isFallbackDateTime($file)) {
-            return 'only ModifyDate (0x0132), no DateTimeOriginal';
+            return [self::REASON_FALLBACK, self::REASON_LABELS[self::REASON_FALLBACK]];
         }
 
         // Ambiguous timezone (QuickTime UTC ambiguity)
         if ($this->exifMetadataProvider->isAmbiguousTimezone($file)) {
-            return 'QuickTime timestamp without timezone info';
+            return [self::REASON_TIMEZONE, self::REASON_LABELS[self::REASON_TIMEZONE]];
         }
 
-        return null;
+        return [null, null];
+    }
+
+    /**
+     * Resolves the --reason filter option into a list of reason keys.
+     *
+     * @return list<string>|null Reason keys to include, or null for all
+     */
+    private function resolveReasonFilter(InputInterface $input): ?array
+    {
+        $option = $input->getOption('reason');
+
+        if (!is_string($option)) {
+            return null;
+        }
+
+        return array_map(
+            static fn (string $token): string => strtolower(trim($token)),
+            explode(',', $option),
+        );
     }
 
     /**
