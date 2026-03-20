@@ -13,9 +13,9 @@ namespace MagicSunday\Renamer;
 
 use Override;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Filesystem\Exception\IOException;
+use Symfony\Component\Filesystem\Filesystem;
 
-use function file_exists;
-use function file_get_contents;
 use function trim;
 
 /**
@@ -81,13 +81,11 @@ final class Application extends \Symfony\Component\Console\Application
      */
     private function loadVersion(): string
     {
-        $content = false;
+        $filesystem = new Filesystem();
 
-        if (file_exists(self::VERSION_FILE)) {
-            $content = file_get_contents(self::VERSION_FILE);
-        }
-
-        if ($content === false) {
+        try {
+            $content = $filesystem->readFile(self::VERSION_FILE);
+        } catch (IOException) {
             return self::DEFAULT_VERSION;
         }
 
