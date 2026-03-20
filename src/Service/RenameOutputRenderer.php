@@ -27,7 +27,6 @@ use function implode;
 use function is_string;
 use function max;
 use function mb_str_split;
-use function mb_strlen;
 use function min;
 use function sprintf;
 use function str_contains;
@@ -64,7 +63,7 @@ final readonly class RenameOutputRenderer
      * @param RenameResult            $result                  Pipeline-computed results (scanned files, collisions, skips)
      * @param string|null             $sourceBaseDirectory     Normalized base directory for path relativization
      *
-     * @return array{list<array<string, mixed>>, int, int, int} Tuple of [entries, maxFilenameLength, skippedCount, errorCount]
+     * @return array{list<array<string, mixed>>, int, int} Tuple of [entries, skippedCount, errorCount]
      */
     public function buildOutputEntries(
         FileDuplicateCollection $fileDuplicateCollection,
@@ -72,26 +71,6 @@ final readonly class RenameOutputRenderer
         RenameResult $result,
         ?string $sourceBaseDirectory,
     ): array {
-        $maxFilenameLength = 0;
-
-        foreach ($fileDuplicateCollection as $fileDuplicate) {
-            foreach ($fileDuplicate->getRenames() as $rename) {
-                $relativeSource = FileHelper::relativizePath($rename->getSource()->getPathname(), $sourceBaseDirectory);
-
-                if (mb_strlen($relativeSource) > $maxFilenameLength) {
-                    $maxFilenameLength = mb_strlen($relativeSource);
-                }
-            }
-        }
-
-        foreach ($result->skippedFiles as $skippedFile) {
-            $relativeSource = FileHelper::relativizePath($skippedFile->getFile()->getPathname(), $sourceBaseDirectory);
-
-            if (mb_strlen($relativeSource) > $maxFilenameLength) {
-                $maxFilenameLength = mb_strlen($relativeSource);
-            }
-        }
-
         /** @var list<array<string, mixed>> $outputEntries */
         $outputEntries = [];
 
@@ -187,7 +166,7 @@ final readonly class RenameOutputRenderer
 
         usort($outputEntries, static fn (array $a, array $b): int => $a['sortKey'] <=> $b['sortKey']);
 
-        return [$outputEntries, $maxFilenameLength, $skippedCount, $errorCount];
+        return [$outputEntries, $skippedCount, $errorCount];
     }
 
     /**

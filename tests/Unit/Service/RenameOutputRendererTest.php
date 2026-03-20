@@ -69,7 +69,7 @@ final class RenameOutputRendererTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('test', $fileDuplicate);
 
-        [$entries, $maxFilenameLength, $skippedCount, $errorCount] = $renderer->buildOutputEntries(
+        [$entries, $skippedCount, $errorCount] = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(),
             new RenameResult(),
@@ -82,7 +82,6 @@ final class RenameOutputRendererTest extends TestCase
         self::assertSame($sourceA, $entries[1]['sortKey']);
         self::assertSame(0, $skippedCount);
         self::assertSame(0, $errorCount);
-        self::assertGreaterThan(0, $maxFilenameLength);
     }
 
     /**
@@ -172,7 +171,7 @@ final class RenameOutputRendererTest extends TestCase
             ],
         );
 
-        [$entries, , $skippedCount, $errorCount] = $renderer->buildOutputEntries(
+        [$entries, $skippedCount, $errorCount] = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(),
             $result,

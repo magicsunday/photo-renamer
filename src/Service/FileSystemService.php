@@ -134,7 +134,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
         $livePhotoGroups = $this->renderer->countLivePhotoGroups($fileDuplicateCollection);
         $totalOperations = $this->renderer->countTotalOperations($fileDuplicateCollection);
 
-        [$outputEntries, $maxFilenameLength, $skippedCount, $errorCount]
+        [$outputEntries, $skippedCount, $errorCount]
             = $this->renderer->buildOutputEntries($fileDuplicateCollection, $options, $result, $sourceBaseDirectory);
 
         $occupiedPaths = $this->buildOccupiedPaths($fileDuplicateCollection);
@@ -143,7 +143,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
         $this->io->text('<fg=cyan>Renaming files</>');
         $this->io->newLine();
 
-        $counters = $this->renderOutputEntries($outputEntries, $maxFilenameLength, $options, $occupiedPaths, $showFilter);
+        $counters = $this->renderOutputEntries($outputEntries, $options, $occupiedPaths, $showFilter);
 
         $this->renderer->renderSummary([
             'scannedFiles'     => $result->scannedFiles > 0 ? $result->scannedFiles : $totalOperations,
@@ -186,11 +186,26 @@ final readonly class FileSystemService implements FileSystemServiceInterface
      */
     private function renderOutputEntries(
         array $outputEntries,
-        int $maxFilenameLength,
         RenameOptions $options,
         array &$occupiedPaths,
         ?array $showFilter = null,
     ): array {
+        // Compute max path length only over visible entries so padding is tight
+        $maxFilenameLength = 0;
+
+        foreach ($outputEntries as $entry) {
+            /** @var OutputEntryTag $entryTag */
+            $entryTag = $entry['tag'];
+
+            if ($showFilter !== null && !in_array($entryTag->letter(), $showFilter, true)) {
+                continue;
+            }
+
+            /** @var string $sourcePath */
+            $sourcePath        = $entry['sourcePath'];
+            $maxFilenameLength = max($maxFilenameLength, mb_strlen($sourcePath));
+        }
+
         $fileCount      = 0;
         $duplicateCount = 0;
         $plannedMoves   = 0;
