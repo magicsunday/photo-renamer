@@ -149,7 +149,13 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         // with offset, no OffsetTime* tags) are flagged as ambiguous. We cannot
         // determine if the timestamp is UTC (modern cameras) or local time (old cameras).
         // The user sees [W] and can use --timezone for manual correction.
+        //
+        // Exception: HEIC/HEIF images are ISO BMFF containers (detected as QuickTime)
+        // but store EXIF dates in local time like JPEG. If the date came from EXIF
+        // DateTimeOriginal (0x9003) or CreateDate (0x9004), the timezone is NOT ambiguous.
+        $hasExifDate         = ($original instanceof DateTimeInterface) || ($create instanceof DateTimeInterface);
         $isAmbiguousTimezone = $isQuickTimeContainer
+            && !$hasExifDate
             && !($temporal->tz instanceof DateTimeZone)
             && ($temporal->offsetTimeOriginal === null)
             && ($temporal->offsetTimeDigitized === null)
