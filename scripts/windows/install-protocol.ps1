@@ -34,7 +34,8 @@ if (-not (Test-Path $HandlerPath)) {
     exit 1
 }
 
-$HandlerPath = (Resolve-Path $HandlerPath).Path
+# Resolve-Path adds "Microsoft.PowerShell.Core\FileSystem::" prefix for UNC paths — strip it
+$HandlerPath = (Resolve-Path $HandlerPath).ProviderPath
 $command = "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$HandlerPath`" `"%1`""
 
 # Register protocol
