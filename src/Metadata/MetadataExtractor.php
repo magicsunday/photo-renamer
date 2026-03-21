@@ -199,7 +199,7 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
 
         $timeScale = $metadata->quickTime->intValue('TimeScale');
 
-        if (($timeScale !== null) && ($timeScale > 0) && ($duration > $timeScale)) {
+        if (($timeScale !== null) && ($timeScale > 1)) {
             return $duration / $timeScale;
         }
 

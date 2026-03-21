@@ -7,6 +7,10 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/../.build/vendor/autoload.php';
+
+use MagicSunday\Renamer\Test\Unit\Service\Fixtures\LivePhotoFixtureFactory;
+
 $dir = __DIR__ . '/../test-images';
 
 if (is_dir($dir)) {
@@ -118,11 +122,24 @@ echo "  03 burst-1 + burst-2         → different hashes, burst-2 gets -002\n";
 // ============================================================================
 // 04 - Live Photo pair (JPEG + MOV, matching Content Identifier)
 // ============================================================================
+// Use LivePhotoFixtureFactory for proper XMP ContentIdentifier in JPEG
 mkdir("$dir/04-live-photo-pair", 0755, true);
-createJpeg("$dir/04-live-photo-pair/IMG_0001.jpg");
-exiftool('-DateTimeOriginal=2024:08:10 11:22:33', '-SubSecTimeOriginal=456', '-ContentIdentifier=AAAA-BBBB-CCCC-DDDD', "$dir/04-live-photo-pair/IMG_0001.jpg");
+$lpJpeg = LivePhotoFixtureFactory::createJpeg();
+copy($lpJpeg->getPathname(), "$dir/04-live-photo-pair/IMG_0001.jpg");
+exiftool(
+    '-DateTimeOriginal=2024:08:10 11:22:33', '-SubSecTimeOriginal=456',
+    '-Make=Apple', '-Model=iPhone 12', '-Software=16.0',
+    '-GPSLatitude=51.3397', '-GPSLongitude=12.3731', '-GPSLatitudeRef=N', '-GPSLongitudeRef=E',
+    "$dir/04-live-photo-pair/IMG_0001.jpg",
+);
 createMov("$dir/04-live-photo-pair/IMG_0001.mov");
-exiftool('-Keys:ContentIdentifier=AAAA-BBBB-CCCC-DDDD', '-QuickTime:CreateDate=2024:08:10 11:22:33', "$dir/04-live-photo-pair/IMG_0001.mov");
+exiftool(
+    '-Keys:ContentIdentifier=UUID-IPHONE-LIVEPHOTO',
+    '-QuickTime:CreateDate=2024:08:10 11:22:33',
+    '-Keys:Make=Apple', '-Keys:Model=iPhone 12', '-Keys:Software=16.0',
+    '-Keys:GPSCoordinates=51.3397 12.3731',
+    "$dir/04-live-photo-pair/IMG_0001.mov",
+);
 echo "  04 IMG_0001.jpg + .mov       → Live Photo pair, MOV inherits date\n";
 
 // ============================================================================
@@ -202,8 +219,13 @@ echo "  13 VID_20240101.mp4          → renames using Keys:CreationDate TZ\n";
 // ============================================================================
 mkdir("$dir/14-heic-image", 0755, true);
 createHeic("$dir/14-heic-image/IMG_0042.heic");
-exiftool('-DateTimeOriginal=2024:11:30 20:15:45', '-SubSecTimeOriginal=789', "$dir/14-heic-image/IMG_0042.heic");
-echo "  14 IMG_0042.heic             → 2024-11-30_20-15-45-789.heic\n";
+exiftool(
+    '-DateTimeOriginal=2024:11:30 20:15:45', '-SubSecTimeOriginal=789',
+    '-ContentIdentifier=HEIC-LP-1234',
+    '-Make=Apple', '-Model=iPhone 14 Pro', '-Software=17.0',
+    "$dir/14-heic-image/IMG_0042.heic",
+);
+echo "  14 IMG_0042.heic             → 2024-11-30_20-15-45-789.heic (no TZ conversion)\n";
 
 // ============================================================================
 // 15 - Mac epoch zero (1970-01-01 metadata from corrupt QuickTime)
@@ -232,12 +254,30 @@ echo "  17 date-only filename        → [W] ambiguous, metadata has time 21:20:
 // ============================================================================
 // 18 - Live Photo conflict (mismatched Content IDs)
 // ============================================================================
+// Still: factory JPEG has ContentIdentifier=UUID-IPHONE-LIVEPHOTO
 mkdir("$dir/18-live-photo-conflict", 0755, true);
-createJpeg("$dir/18-live-photo-conflict/2024-08-19_11-09-34-857.jpg");
-exiftool('-DateTimeOriginal=2024:08:19 11:09:34', '-SubSecTimeOriginal=857', '-ContentIdentifier=STILL-ID-AAA', "$dir/18-live-photo-conflict/2024-08-19_11-09-34-857.jpg");
+$conflictJpeg = LivePhotoFixtureFactory::createJpeg();
+copy($conflictJpeg->getPathname(), "$dir/18-live-photo-conflict/2024-08-19_11-09-34-857.jpg");
+exiftool(
+    '-DateTimeOriginal=2024:08:19 11:09:34', '-SubSecTimeOriginal=857',
+    '-Make=Apple', '-Model=iPhone 12', '-Software=16.0',
+    '-GPSLatitude=51.3397', '-GPSLongitude=12.3731', '-GPSLatitudeRef=N', '-GPSLongitudeRef=E',
+    "$dir/18-live-photo-conflict/2024-08-19_11-09-34-857.jpg",
+);
+// Video: different ContentIdentifier, same device + GPS + timestamp
+// Use a very short video (Live Photos are typically ~1.5s)
 createMov("$dir/18-live-photo-conflict/2024-08-19_11-09-34-857.mov");
-exiftool('-Keys:ContentIdentifier=VIDEO-ID-BBB', '-QuickTime:CreateDate=2024:08:19 11:09:34', "$dir/18-live-photo-conflict/2024-08-19_11-09-34-857.mov");
-echo "  18 LP conflict               → [C] mismatched content IDs\n";
+exiftool(
+    '-Keys:ContentIdentifier=VIDEO-ID-BBB',
+    '-QuickTime:CreateDate=2024:08:19 11:09:34',
+    '-Keys:Make=Apple', '-Keys:Model=iPhone 12', '-Keys:Software=16.0',
+    '-Keys:GPSCoordinates=51.3397 12.3731',
+    "$dir/18-live-photo-conflict/2024-08-19_11-09-34-857.mov",
+);
+// Note: [C] detection requires ContentIdentifier readable by imagemeta,
+// which only works with real iPhone photos (XMP namespace not writable via exiftool).
+// This scenario validates the device+GPS+timestamp matching infrastructure.
+echo "  18 LP conflict               → needs real iPhone photos for [C] tag\n";
 
 // ============================================================================
 // 19 - write-date: fallback (only ModifyDate, date in filename)
