@@ -198,15 +198,62 @@ exiftool('-QuickTime:CreateDate=2024:01:01 14:00:00', '-Keys:CreationDate=2024:0
 echo "  13 VID_20240101.mp4          → renames using Keys:CreationDate TZ\n";
 
 // ============================================================================
-// 14 - HEIC image with Content Identifier
-// ============================================================================
-// ============================================================================
 // 14 - HEIC image (real HEIF container via heif-enc)
 // ============================================================================
 mkdir("$dir/14-heic-image", 0755, true);
 createHeic("$dir/14-heic-image/IMG_0042.heic");
 exiftool('-DateTimeOriginal=2024:11:30 20:15:45', '-SubSecTimeOriginal=789', "$dir/14-heic-image/IMG_0042.heic");
 echo "  14 IMG_0042.heic             → 2024-11-30_20-15-45-789.heic\n";
+
+// ============================================================================
+// 15 - Mac epoch zero (1970-01-01 metadata from corrupt QuickTime)
+// ============================================================================
+mkdir("$dir/15-epoch-zero", 0755, true);
+createMov("$dir/15-epoch-zero/2022-06-05_17-55-00.mp4");
+exiftool('-QuickTime:CreateDate=1970:01:01 00:00:00', '-QuickTime:ModifyDate=1970:01:01 00:00:00', "$dir/15-epoch-zero/2022-06-05_17-55-00.mp4");
+echo "  15 epoch-zero                → [W] 1970 metadata, drift from 2022 filename\n";
+
+// ============================================================================
+// 16 - Re-export drift (filename 2022, metadata 2024 = re-encoded)
+// ============================================================================
+mkdir("$dir/16-reexport-drift", 0755, true);
+createMov("$dir/16-reexport-drift/2022-12-10_14-19-08.mov");
+exiftool('-QuickTime:CreateDate=2024:09:19 00:06:04', "$dir/16-reexport-drift/2022-12-10_14-19-08.mov");
+echo "  16 re-export drift           → [W] filename 2022, metadata 2024\n";
+
+// ============================================================================
+// 17 - Filename without time (date-only name + metadata has real time)
+// ============================================================================
+mkdir("$dir/17-date-only-filename", 0755, true);
+createMov("$dir/17-date-only-filename/2020-02-07-3483.mov");
+exiftool('-QuickTime:CreateDate=2020:02:07 21:20:25', "$dir/17-date-only-filename/2020-02-07-3483.mov");
+echo "  17 date-only filename        → [W] ambiguous, metadata has time 21:20:25\n";
+
+// ============================================================================
+// 18 - Live Photo conflict (mismatched Content IDs)
+// ============================================================================
+mkdir("$dir/18-live-photo-conflict", 0755, true);
+createJpeg("$dir/18-live-photo-conflict/2024-08-19_11-09-34-857.jpg");
+exiftool('-DateTimeOriginal=2024:08:19 11:09:34', '-SubSecTimeOriginal=857', '-ContentIdentifier=STILL-ID-AAA', "$dir/18-live-photo-conflict/2024-08-19_11-09-34-857.jpg");
+createMov("$dir/18-live-photo-conflict/2024-08-19_11-09-34-857.mov");
+exiftool('-Keys:ContentIdentifier=VIDEO-ID-BBB', '-QuickTime:CreateDate=2024:08:19 11:09:34', "$dir/18-live-photo-conflict/2024-08-19_11-09-34-857.mov");
+echo "  18 LP conflict               → [C] mismatched content IDs\n";
+
+// ============================================================================
+// 19 - write-date: fallback (only ModifyDate, date in filename)
+// ============================================================================
+mkdir("$dir/19-write-date-fallback", 0755, true);
+createJpeg("$dir/19-write-date-fallback/2023-12-25_08-00-00.jpg");
+exiftool('-ModifyDate=2023:12:25 08:00:00', "$dir/19-write-date-fallback/2023-12-25_08-00-00.jpg");
+echo "  19 write-date fallback       → needs DateTimeOriginal from filename\n";
+
+// ============================================================================
+// 20 - write-date: drift (metadata date far from filename date)
+// ============================================================================
+mkdir("$dir/20-write-date-drift", 0755, true);
+createJpeg("$dir/20-write-date-drift/2024-01-15_10-00-00.jpg");
+exiftool('-DateTimeOriginal=2024:03:20 10:00:00', '-SubSecTimeOriginal=000', "$dir/20-write-date-drift/2024-01-15_10-00-00.jpg");
+echo "  20 write-date drift          → metadata 65 days from filename\n";
 
 echo "\nDone. Run:\n";
 echo "  make run CMD=\"rename:exif test-images --dry-run --list-all\"\n";

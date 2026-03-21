@@ -72,7 +72,9 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
 
         $isQuickTimeContainer = $metadata->quickTime instanceof QuickTimeMeta;
 
-        [$captureDateTime, $isFallback, $isAmbiguousTimezone] = $this->extractCaptureDateTimeWithFallbackFlag($structured, $isQuickTimeContainer);
+        $hasExifDateTimeOriginal = $metadata->exifDoc?->dateTimeOriginal() instanceof DateTimeInterface;
+
+        [$captureDateTime, $isFallback, $isAmbiguousTimezone] = $this->extractCaptureDateTimeWithFallbackFlag($structured, $isQuickTimeContainer, $hasExifDateTimeOriginal);
 
         $livePhotoVideoIndex         = $structured->makerNotesApple?->livePhoto?->index;
         $cameraMake                  = $this->normalizeNullable($structured->hardware->camera->make);
@@ -121,7 +123,7 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
      *
      * @return array{DateTimeInterface|null, bool, bool} Tuple of [captureDateTime, isFallback, isAmbiguousTimezone]
      */
-    private function extractCaptureDateTimeWithFallbackFlag(StructuredMetadata $structured, bool $isQuickTimeContainer): array
+    private function extractCaptureDateTimeWithFallbackFlag(StructuredMetadata $structured, bool $isQuickTimeContainer, bool $hasExifDateTimeOriginal): array
     {
         $temporal = $structured->locationTime->temporal;
         $original = $temporal->original;
@@ -151,11 +153,11 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         // The user sees [W] and can use --timezone for manual correction.
         //
         // Exception: HEIC/HEIF images are ISO BMFF containers (detected as QuickTime)
-        // but store EXIF dates in local time like JPEG. If the date came from EXIF
-        // DateTimeOriginal (0x9003) or CreateDate (0x9004), the timezone is NOT ambiguous.
-        $hasExifDate         = ($original instanceof DateTimeInterface) || ($create instanceof DateTimeInterface);
+        // but store EXIF dates in local time like JPEG. If the file has a real EXIF
+        // DateTimeOriginal tag (from the EXIF document, not from QuickTime atoms),
+        // the timezone is NOT ambiguous.
         $isAmbiguousTimezone = $isQuickTimeContainer
-            && !$hasExifDate
+            && !$hasExifDateTimeOriginal
             && !($temporal->tz instanceof DateTimeZone)
             && ($temporal->offsetTimeOriginal === null)
             && ($temporal->offsetTimeDigitized === null)
