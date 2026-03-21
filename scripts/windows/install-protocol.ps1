@@ -36,7 +36,15 @@ if (-not (Test-Path $HandlerPath)) {
 
 # Resolve-Path adds "Microsoft.PowerShell.Core\FileSystem::" prefix for UNC paths — strip it
 $HandlerPath = (Resolve-Path $HandlerPath).ProviderPath
-$command = "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$HandlerPath`" `"%1`""
+
+# Use the VBS wrapper for silent execution (no PowerShell window flash)
+$vbsPath = Join-Path (Split-Path $HandlerPath) "photo-select.vbs"
+
+if (Test-Path $vbsPath) {
+    $command = "wscript.exe `"$vbsPath`" `"%1`""
+} else {
+    $command = "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$HandlerPath`" `"%1`""
+}
 
 # Register protocol
 New-Item -Path $regPath -Force | Out-Null

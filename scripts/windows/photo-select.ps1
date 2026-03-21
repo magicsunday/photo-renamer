@@ -11,19 +11,32 @@ if (-not $uri) { exit 1 }
 # Strip protocol prefix
 $path = $uri -replace '^photo-select:/+', ''
 
-# URL-decode (%20 → space, %28 → (, etc.)
+# URL-decode (%20 -> space, %28 -> (, etc.)
 $path = [System.Uri]::UnescapeDataString($path)
 
 # Convert forward slashes to backslashes
 $path = $path -replace '/', '\'
 
-# Open Explorer with the file selected
+# Open Explorer with the file selected and bring to foreground
 if (Test-Path $path) {
     Start-Process explorer.exe -ArgumentList "/select,`"$path`""
-} else {
-    # If file doesn't exist, open the parent directory
-    $dir = Split-Path $path -Parent
-    if (Test-Path $dir) {
-        Start-Process explorer.exe -ArgumentList "`"$dir`""
-    }
+} elseif (Test-Path (Split-Path $path -Parent)) {
+    Start-Process explorer.exe -ArgumentList "`"$(Split-Path $path -Parent)`""
+}
+
+# Bring Explorer to foreground
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public class ForegroundWindow {
+    [DllImport("user32.dll")]
+    public static extern bool SetForegroundWindow(IntPtr hWnd);
+}
+"@
+
+Start-Sleep -Milliseconds 500
+
+$explorer = Get-Process explorer -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($explorer) {
+    [ForegroundWindow]::SetForegroundWindow($explorer.MainWindowHandle) | Out-Null
 }
