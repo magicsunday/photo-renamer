@@ -342,9 +342,10 @@ final class FileHelper
     {
         $path = str_replace('\\', '/', $nativePath);
 
-        // UNC path: //server/share → file://server/share
+        // UNC path: //server/share → file://///server/share
+        // Windows requires 5 slashes for UNC in file:// URLs
         if (str_starts_with($path, '//')) {
-            return 'file:' . $path;
+            return 'file:///' . $path;
         }
 
         // Drive letter: F:/... → file:///F:/...
