@@ -222,7 +222,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
             /** @var OutputEntryTag $entryTag */
             $entryTag = $entry['tag'];
 
-            $padding    = str_repeat(' ', $maxFilenameLength - mb_strlen($sourcePath));
+            $padding    = str_repeat(' ', max(0, $maxFilenameLength - mb_strlen($sourcePath)));
             $linkedPath = FileHelper::linkifyPath($sourcePath, $sourcePath, $linkBase);
 
             if ($entry['type'] === 'skip') {
