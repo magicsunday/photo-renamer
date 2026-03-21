@@ -18,6 +18,7 @@ use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
+use MagicSunday\Renamer\Model\LinkConfig;
 use MagicSunday\Renamer\Service\ExiftoolWriter;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
@@ -35,7 +36,6 @@ use function array_map;
 use function count;
 use function dirname;
 use function explode;
-use function getenv;
 use function in_array;
 use function is_file;
 use function is_string;
@@ -318,65 +318,33 @@ final class WriteDateCommand extends Command
             $maxPathLength = max($maxPathLength, mb_strlen($relativePath));
         }
 
-        $linkRoot = getenv('FILE_LINK_ROOT');
-        $linkRoot = is_string($linkRoot) && ($linkRoot !== '') ? $linkRoot : null;
-
-        $linkBase = getenv('FILE_LINK_BASE');
-        $linkBase = is_string($linkBase) && ($linkBase !== '') ? $linkBase : null;
-
-        $linkProtocol = getenv('FILE_LINK_PROTOCOL');
-        $linkProtocol = is_string($linkProtocol) && ($linkProtocol !== '') ? $linkProtocol : null;
+        $linkConfig = LinkConfig::fromEnv();
 
         // Process pending writes
         foreach ($pendingWrites as $entry) {
             $relativePath = FileHelper::relativizePath($entry['path'], $sourceDirectory);
             $padding      = str_repeat(' ', $maxPathLength - mb_strlen($relativePath));
-            $linkedPath   = FileHelper::linkifyPath($relativePath, $relativePath, $sourceDirectory, $linkRoot, $linkBase, $linkProtocol);
+            $linkedPath   = FileHelper::linkifyPath($relativePath, $relativePath, $sourceDirectory, $linkConfig);
+            $targetField  = $entry['isVideo'] ? 'QuickTime:CreateDate' : 'DateTimeOriginal';
+
+            /** @var string $reasonKey */
+            $reasonKey = $entry['reasonKey'];
+
+            /** @var string $reasonLabel */
+            $reasonLabel = $entry['reason'];
 
             if ($dryRun) {
-                $targetField = $entry['isVideo'] ? 'QuickTime:CreateDate' : 'DateTimeOriginal';
-
-                $io->text(sprintf(
-                    ' %s %s' . $padding . ' <fg=cyan>→</> %s',
-                    '<fg=yellow>[W]</>',
-                    $linkedPath,
-                    $targetField . ': ' . $entry['date'],
-                ));
-                $io->text(sprintf(
-                    '      <fg=gray>Reason [%s]: %s</>',
-                    $entry['reasonKey'],
-                    $entry['reason'],
-                ));
-
+                $this->renderWriteEntry($io, '<fg=yellow>[W]</>', $linkedPath, $padding, $targetField . ': ' . $entry['date'], $reasonKey, $reasonLabel);
                 ++$wouldWrite;
             } else {
                 $fileInfo = new SplFileInfo($entry['path']);
                 $success  = $this->exiftoolWriter->writeDateTime($fileInfo, $entry['dateTime'], $entry['isVideo'], $entry['preserveCreateDate']);
 
                 if ($success) {
-                    $targetField = $entry['isVideo'] ? 'QuickTime:CreateDate' : 'DateTimeOriginal';
-
-                    $io->text(sprintf(
-                        ' %s %s' . $padding . ' <fg=cyan>→</> %s',
-                        '<fg=green>[W]</>',
-                        $linkedPath,
-                        $targetField . ': ' . $entry['date'],
-                    ));
-                    $io->text(sprintf(
-                        '      <fg=gray>[%s] %s</>',
-                        $entry['reasonKey'],
-                        $entry['reason'],
-                    ));
-
+                    $this->renderWriteEntry($io, '<fg=green>[W]</>', $linkedPath, $padding, $targetField . ': ' . $entry['date'], $reasonKey, $reasonLabel);
                     ++$written;
                 } else {
-                    $io->text(sprintf(
-                        ' %s %s' . $padding . ' <fg=cyan>→</> %s',
-                        '<fg=red>[E]</>',
-                        $linkedPath,
-                        'FAILED to write: ' . $entry['date'],
-                    ));
-
+                    $this->renderWriteEntry($io, '<fg=red>[E]</>', $linkedPath, $padding, 'FAILED to write: ' . $entry['date']);
                     ++$writeFailed;
                 }
             }
@@ -391,6 +359,25 @@ final class WriteDateCommand extends Command
         $this->renderSummary($io, $scannedFiles, $alreadyCorrect, $wouldWrite, $written, $writeFailed, $noDateInName, $readErrors, $dryRun);
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Renders a single write-date output entry with aligned formatting.
+     */
+    private function renderWriteEntry(
+        SymfonyStyle $io,
+        string $tag,
+        string $linkedPath,
+        string $padding,
+        string $detail,
+        ?string $reasonKey = null,
+        ?string $reasonLabel = null,
+    ): void {
+        $io->text(sprintf(' %s %s' . $padding . ' <fg=cyan>→</> %s', $tag, $linkedPath, $detail));
+
+        if ($reasonKey !== null) {
+            $io->text(sprintf('      <fg=gray>[%s] %s</>', $reasonKey, $reasonLabel ?? ''));
+        }
     }
 
     /**

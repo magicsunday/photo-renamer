@@ -17,7 +17,6 @@ use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Service\MetadataCache;
 use Symfony\Component\Console\Input\InputInterface;
 
-use function getenv;
 use function in_array;
 use function is_string;
 
@@ -58,8 +57,7 @@ trait ConfiguresMetadataProvider
         $timezone = $input->getOption('timezone');
 
         if (!is_string($timezone)) {
-            $envTimezone = getenv('TIMEZONE');
-            $timezone    = is_string($envTimezone) && ($envTimezone !== '') ? $envTimezone : null;
+            $timezone = FileHelper::env('TIMEZONE');
         }
 
         if (!is_string($timezone) || !in_array($timezone, DateTimeZone::listIdentifiers(), true)) {
@@ -76,11 +74,7 @@ trait ConfiguresMetadataProvider
      */
     protected function configureProviderCache(ExifMetadataProvider $provider): MetadataCache
     {
-        $cacheDir = getenv('CACHE_DIR');
-
-        if (!is_string($cacheDir) || ($cacheDir === '')) {
-            $cacheDir = __DIR__ . '/../../../.build/cache';
-        }
+        $cacheDir = FileHelper::env('CACHE_DIR') ?? __DIR__ . '/../../../.build/cache';
 
         $cache = new MetadataCache($cacheDir . '/metadata-cache.json');
 
@@ -115,8 +109,8 @@ trait ConfiguresMetadataProvider
             return (int) $driftOption;
         }
 
-        $envDrift = getenv('MAX_DATE_DRIFT');
+        $envDrift = FileHelper::env('MAX_DATE_DRIFT');
 
-        return is_string($envDrift) && $envDrift !== '' ? (int) $envDrift : $default;
+        return $envDrift !== null ? (int) $envDrift : $default;
     }
 }

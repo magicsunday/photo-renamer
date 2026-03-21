@@ -15,11 +15,13 @@ use DateMalformedStringException;
 use DateTimeImmutable;
 use DateTimeInterface;
 use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Model\LinkConfig;
 use SplFileInfo;
 
 use function array_map;
 use function basename;
 use function explode;
+use function getenv;
 use function implode;
 use function is_dir;
 use function is_string;
@@ -46,6 +48,20 @@ use function substr;
  */
 final class FileHelper
 {
+    /**
+     * Reads an environment variable and returns null for missing or empty values.
+     *
+     * @param string $name Environment variable name
+     *
+     * @return string|null Value, or null when absent/empty
+     */
+    public static function env(string $name): ?string
+    {
+        $value = getenv($name);
+
+        return is_string($value) && ($value !== '') ? $value : null;
+    }
+
     /**
      * Returns the filename without extension. Handles the edge case where
      * a file has no extension (avoids stripping a trailing dot).
@@ -370,7 +386,7 @@ final class FileHelper
 
     /**
      * Wraps a display path in a Symfony Console terminal hyperlink tag.
-     * Returns the plain display text when no link base is configured.
+     * Returns the plain display text when no link config is set or disabled.
      *
      * Computes the host-accessible path by replacing FILE_LINK_ROOT with
      * FILE_LINK_BASE and appending the source directory offset + relative path.
@@ -378,9 +394,7 @@ final class FileHelper
      * @param string      $displayPath     Text to show in the terminal
      * @param string      $relativePath    Relative path to the file (relative to sourceDirectory)
      * @param string|null $sourceDirectory Absolute source directory passed to the command
-     * @param string|null $linkRoot        NAS/Docker-side root from FILE_LINK_ROOT env var
-     * @param string|null $linkBase        Host-accessible base from FILE_LINK_BASE env var
-     * @param string|null $linkProtocol    Custom URI protocol (e.g. "photo-select") or null for "file"
+     * @param LinkConfig  $linkConfig      Link configuration from env vars
      *
      * @return string Display text, optionally wrapped in <href=...>...</>
      */
@@ -388,16 +402,14 @@ final class FileHelper
         string $displayPath,
         string $relativePath,
         ?string $sourceDirectory,
-        ?string $linkRoot,
-        ?string $linkBase,
-        ?string $linkProtocol = null,
+        LinkConfig $linkConfig,
     ): string {
-        if (($linkBase === null) || ($linkBase === '') || ($linkRoot === null) || ($linkRoot === '')) {
+        if (!$linkConfig->isEnabled()) {
             return $displayPath;
         }
 
         // Compute subdirectory offset: sourceDirectory minus linkRoot
-        $normalizedRoot   = rtrim(str_replace('\\', '/', $linkRoot), '/');
+        $normalizedRoot   = rtrim(str_replace('\\', '/', $linkConfig->root ?? ''), '/');
         $normalizedSource = rtrim(str_replace('\\', '/', $sourceDirectory ?? ''), '/');
         $offset           = '';
 
@@ -406,13 +418,13 @@ final class FileHelper
             $offset = ltrim($offset, '/');
         }
 
-        $normalizedBase = rtrim(str_replace('\\', '/', $linkBase), '/');
+        $normalizedBase = rtrim(str_replace('\\', '/', $linkConfig->base ?? ''), '/');
         $fullFilePath   = $normalizedBase . '/' . ($offset !== '' ? $offset . '/' : '') . $relativePath;
 
-        if (!in_array($linkProtocol, [null, '', 'file'], true)) {
+        if (!in_array($linkConfig->protocol, [null, '', 'file'], true)) {
             // Custom protocol (e.g. photo-select://) links to the file directly
             $url = self::pathToFileUrl($fullFilePath);
-            $url = preg_replace('/^file/', $linkProtocol, $url) ?? $url;
+            $url = preg_replace('/^file/', $linkConfig->protocol ?? '', $url) ?? $url;
         } else {
             // Default file:// links to the parent directory to open a file manager
             $dirPath = implode('/', explode('/', $fullFilePath, -1));

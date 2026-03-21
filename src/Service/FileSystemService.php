@@ -16,6 +16,7 @@ use MagicSunday\Renamer\Command\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
+use MagicSunday\Renamer\Model\LinkConfig;
 use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Model\RenameOptions;
@@ -29,9 +30,7 @@ use SplFileInfo;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Filesystem\Filesystem;
 
-use function getenv;
 use function in_array;
-use function is_string;
 use function mb_strlen;
 use function rtrim;
 use function sprintf;
@@ -209,7 +208,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
             $maxFilenameLength = max($maxFilenameLength, mb_strlen($sourcePath));
         }
 
-        [$linkRoot, $linkBase, $linkProtocol] = $this->resolveLinkConfig();
+        $linkConfig = LinkConfig::fromEnv();
 
         $fileCount      = 0;
         $duplicateCount = 0;
@@ -224,7 +223,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
             $entryTag = $entry['tag'];
 
             $padding    = str_repeat(' ', max(0, $maxFilenameLength - mb_strlen($sourcePath)));
-            $linkedPath = FileHelper::linkifyPath($sourcePath, $sourcePath, $sourceBaseDirectory, $linkRoot, $linkBase, $linkProtocol);
+            $linkedPath = FileHelper::linkifyPath($sourcePath, $sourcePath, $sourceBaseDirectory, $linkConfig);
 
             if ($entry['type'] === 'skip') {
                 /** @var string $reason */
@@ -304,24 +303,6 @@ final readonly class FileSystemService implements FileSystemServiceInterface
             'duplicateCount' => $duplicateCount,
             'plannedMoves'   => $plannedMoves,
             'plannedSkips'   => $plannedSkips,
-        ];
-    }
-
-    /**
-     * Resolves FILE_LINK_ROOT, FILE_LINK_BASE and FILE_LINK_PROTOCOL env vars.
-     *
-     * @return array{string|null, string|null, string|null}
-     */
-    private function resolveLinkConfig(): array
-    {
-        $linkRoot     = getenv('FILE_LINK_ROOT');
-        $linkBase     = getenv('FILE_LINK_BASE');
-        $linkProtocol = getenv('FILE_LINK_PROTOCOL');
-
-        return [
-            is_string($linkRoot) && ($linkRoot !== '') ? $linkRoot : null,
-            is_string($linkBase) && ($linkBase !== '') ? $linkBase : null,
-            is_string($linkProtocol) && ($linkProtocol !== '') ? $linkProtocol : null,
         ];
     }
 
