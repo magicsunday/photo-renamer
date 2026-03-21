@@ -405,8 +405,11 @@ final class FileHelper
         }
 
         $normalizedBase = rtrim(str_replace('\\', '/', $linkBase), '/');
-        $fullPath       = $normalizedBase . '/' . ($offset !== '' ? $offset . '/' : '') . $relativePath;
-        $url            = self::pathToFileUrl($fullPath);
+        $fullFilePath   = $normalizedBase . '/' . ($offset !== '' ? $offset . '/' : '') . $relativePath;
+
+        // Link to the parent directory so the OS opens a file manager, not the file's default app
+        $dirPath = implode('/', explode('/', $fullFilePath, -1));
+        $url     = self::pathToFileUrl($dirPath . '/');
 
         return sprintf('<href=%s>%s</>', $url, $displayPath);
     }
