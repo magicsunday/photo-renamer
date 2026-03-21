@@ -223,8 +223,6 @@ final readonly class RenameOutputRenderer
     public function renderSummary(array $counters, bool $dryRun): void
     {
         $this->io->newLine();
-        $this->io->text('<fg=cyan>Summary</>');
-        $this->io->newLine();
 
         $rows = [
             ['Scanned files', (string) $counters['scannedFiles']],
@@ -260,9 +258,7 @@ final readonly class RenameOutputRenderer
 
         $rows[] = [$dryRun ? 'Files to process' : 'Files processed', (string) $counters['fileCount']];
 
-        $this->renderAlignedTable($rows);
-
-        $this->io->newLine();
+        $this->renderSummarySection($rows);
     }
 
     /**
