@@ -252,16 +252,23 @@ cp .env.dist .env
 
 ### Clickable file paths in terminal output
 
-When `FILE_LINK_ROOT` and `FILE_LINK_BASE` are set, file paths in the output become clickable (Ctrl+Click) in terminals that support OSC 8 hyperlinks (PhpStorm, VS Code, iTerm2).
+When `FILE_LINK_ROOT` and `FILE_LINK_BASE` are set, file paths in the output become clickable (Ctrl+Click) in terminals that support OSC 8 hyperlinks.
 
-**Basic setup (opens the file's directory):**
+| Terminal | `file://` links | `photo-select://` links |
+|----------|----------------|------------------------|
+| PhpStorm | Yes | Yes |
+| VS Code | Yes | Yes |
+| iTerm2 (macOS) | Yes | n/a |
+| Windows Terminal | No (`file://` blocked) | Yes (with protocol handler) |
+
+**Basic setup (opens the file's parent directory):**
 
 ```env
 FILE_LINK_ROOT=/srv/photos
 FILE_LINK_BASE=Z:\Photos
 ```
 
-**Advanced setup (opens Explorer with the file selected, Windows only):**
+**Advanced setup — Windows Explorer with file selected:**
 
 ```env
 FILE_LINK_ROOT=/srv/photos
@@ -269,17 +276,33 @@ FILE_LINK_BASE=Z:\Photos
 FILE_LINK_PROTOCOL=photo-select
 ```
 
-The `photo-select` protocol requires a one-time setup on Windows:
+The `photo-select` protocol requires a one-time setup on Windows. Open a PowerShell window (**not** as Administrator) and run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/windows/install-protocol.ps1
+powershell -ExecutionPolicy Bypass -File \\YOUR-NAS-IP\docker\renamer\scripts\windows\install-protocol.ps1 -HandlerPath "\\YOUR-NAS-IP\docker\renamer\scripts\windows\photo-select.ps1"
 ```
 
-This registers a `photo-select://` URI handler that calls `explorer.exe /select` to highlight the clicked file. To uninstall:
+> **Note:** Use the NAS IP address, not hostname, if DNS resolution is unreliable. The entire command must be on one line.
+
+This registers a `photo-select://` URI handler that calls `explorer.exe /select` to highlight the clicked file. A VBS wrapper (`photo-select.vbs`) prevents the PowerShell window from flashing.
+
+To uninstall:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/windows/install-protocol.ps1 -Uninstall
+powershell -ExecutionPolicy Bypass -File \\YOUR-NAS-IP\docker\renamer\scripts\windows\install-protocol.ps1 -Uninstall
 ```
+
+**Troubleshooting clickable links:**
+
+| Problem | Cause | Solution |
+|---------|-------|----------|
+| Links not clickable | Terminal doesn't support OSC 8 | Use PhpStorm, VS Code, or iTerm2 |
+| "This link type is not supported" | Windows Terminal blocks `file://` | Set `FILE_LINK_PROTOCOL=photo-select` and install the protocol handler |
+| PowerShell window flashes briefly | VBS wrapper not registered | Re-run `install-protocol.ps1` (it auto-detects `photo-select.vbs`) |
+| Explorer opens but file not found | Path mapping mismatch | Verify `FILE_LINK_ROOT` matches the Docker/NAS source path and `FILE_LINK_BASE` matches the Windows drive letter or mount point |
+| Install script produces no output | NAS hostname not resolvable | Use IP address instead of hostname in the script path |
+| "Handler: Microsoft.PowerShell.Core\FileSystem::..." | Old install script | Update to latest version and re-run install |
+| Links open photo viewer instead of Explorer | `FILE_LINK_PROTOCOL` not set | Set `FILE_LINK_PROTOCOL=photo-select` in `.env` |
 
 ## 🛠️ Development
 
