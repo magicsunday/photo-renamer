@@ -3,7 +3,9 @@ FROM php:8.5-cli-alpine AS dev
 
 RUN apk add --no-cache \
     bash \
+    ffmpeg \
     git \
+    libheif-tools \
     nodejs \
     npm \
     openssh-client \
