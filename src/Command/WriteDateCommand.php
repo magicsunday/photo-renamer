@@ -318,6 +318,9 @@ final class WriteDateCommand extends Command
             $maxPathLength = max($maxPathLength, mb_strlen($relativePath));
         }
 
+        $linkRoot = getenv('FILE_LINK_ROOT');
+        $linkRoot = is_string($linkRoot) && ($linkRoot !== '') ? $linkRoot : null;
+
         $linkBase = getenv('FILE_LINK_BASE');
         $linkBase = is_string($linkBase) && ($linkBase !== '') ? $linkBase : null;
 
@@ -325,7 +328,7 @@ final class WriteDateCommand extends Command
         foreach ($pendingWrites as $entry) {
             $relativePath = FileHelper::relativizePath($entry['path'], $sourceDirectory);
             $padding      = str_repeat(' ', $maxPathLength - mb_strlen($relativePath));
-            $linkedPath   = FileHelper::linkifyPath($relativePath, $relativePath, $linkBase);
+            $linkedPath   = FileHelper::linkifyPath($relativePath, $relativePath, $sourceDirectory, $linkRoot, $linkBase);
 
             if ($dryRun) {
                 $targetField = $entry['isVideo'] ? 'QuickTime:CreateDate' : 'DateTimeOriginal';

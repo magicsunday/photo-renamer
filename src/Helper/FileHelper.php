@@ -23,6 +23,7 @@ use function explode;
 use function implode;
 use function is_dir;
 use function is_string;
+use function ltrim;
 use function preg_match;
 use function preg_quote;
 use function preg_replace;
@@ -371,20 +372,41 @@ final class FileHelper
      * Wraps a display path in a Symfony Console terminal hyperlink tag.
      * Returns the plain display text when no link base is configured.
      *
-     * @param string      $displayPath  Text to show in the terminal
-     * @param string      $relativePath Relative path to the file (appended to linkBase)
-     * @param string|null $linkBase     Host-accessible base path from FILE_LINK_BASE env var
+     * Computes the host-accessible path by replacing FILE_LINK_ROOT with
+     * FILE_LINK_BASE and appending the source directory offset + relative path.
+     *
+     * @param string      $displayPath     Text to show in the terminal
+     * @param string      $relativePath    Relative path to the file (relative to sourceDirectory)
+     * @param string|null $sourceDirectory Absolute source directory passed to the command
+     * @param string|null $linkRoot        NAS/Docker-side root from FILE_LINK_ROOT env var
+     * @param string|null $linkBase        Host-accessible base from FILE_LINK_BASE env var
      *
      * @return string Display text, optionally wrapped in <href=...>...</>
      */
-    public static function linkifyPath(string $displayPath, string $relativePath, ?string $linkBase): string
-    {
-        if (($linkBase === null) || ($linkBase === '')) {
+    public static function linkifyPath(
+        string $displayPath,
+        string $relativePath,
+        ?string $sourceDirectory,
+        ?string $linkRoot,
+        ?string $linkBase,
+    ): string {
+        if (($linkBase === null) || ($linkBase === '') || ($linkRoot === null) || ($linkRoot === '')) {
             return $displayPath;
         }
 
-        $fullPath = rtrim(str_replace('\\', '/', $linkBase), '/') . '/' . $relativePath;
-        $url      = self::pathToFileUrl($fullPath);
+        // Compute subdirectory offset: sourceDirectory minus linkRoot
+        $normalizedRoot   = rtrim(str_replace('\\', '/', $linkRoot), '/');
+        $normalizedSource = rtrim(str_replace('\\', '/', $sourceDirectory ?? ''), '/');
+        $offset           = '';
+
+        if (($normalizedSource !== '') && str_starts_with($normalizedSource, $normalizedRoot)) {
+            $offset = substr($normalizedSource, strlen($normalizedRoot));
+            $offset = ltrim($offset, '/');
+        }
+
+        $normalizedBase = rtrim(str_replace('\\', '/', $linkBase), '/');
+        $fullPath       = $normalizedBase . '/' . ($offset !== '' ? $offset . '/' : '') . $relativePath;
+        $url            = self::pathToFileUrl($fullPath);
 
         return sprintf('<href=%s>%s</>', $url, $displayPath);
     }

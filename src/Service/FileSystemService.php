@@ -145,7 +145,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
         $this->io->text('<fg=cyan>Renaming files</>');
         $this->io->newLine();
 
-        $counters = $this->renderOutputEntries($outputEntries, $options, $occupiedPaths, $showFilter);
+        $counters = $this->renderOutputEntries($outputEntries, $options, $occupiedPaths, $sourceBaseDirectory, $showFilter);
 
         $this->renderer->renderSummary([
             'scannedFiles'     => $result->scannedFiles > 0 ? $result->scannedFiles : $totalOperations,
@@ -190,6 +190,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
         array $outputEntries,
         RenameOptions $options,
         array &$occupiedPaths,
+        ?string $sourceBaseDirectory = null,
         ?array $showFilter = null,
     ): array {
         // Compute max path length only over visible entries so padding is tight
@@ -208,7 +209,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
             $maxFilenameLength = max($maxFilenameLength, mb_strlen($sourcePath));
         }
 
-        $linkBase = $this->resolveLinkBase();
+        [$linkRoot, $linkBase] = $this->resolveLinkConfig();
 
         $fileCount      = 0;
         $duplicateCount = 0;
@@ -223,7 +224,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
             $entryTag = $entry['tag'];
 
             $padding    = str_repeat(' ', max(0, $maxFilenameLength - mb_strlen($sourcePath)));
-            $linkedPath = FileHelper::linkifyPath($sourcePath, $sourcePath, $linkBase);
+            $linkedPath = FileHelper::linkifyPath($sourcePath, $sourcePath, $sourceBaseDirectory, $linkRoot, $linkBase);
 
             if ($entry['type'] === 'skip') {
                 /** @var string $reason */
@@ -307,13 +308,19 @@ final readonly class FileSystemService implements FileSystemServiceInterface
     }
 
     /**
-     * Resolves the FILE_LINK_BASE env var for clickable terminal links.
+     * Resolves FILE_LINK_ROOT and FILE_LINK_BASE env vars for clickable terminal links.
+     *
+     * @return array{string|null, string|null}
      */
-    private function resolveLinkBase(): ?string
+    private function resolveLinkConfig(): array
     {
+        $linkRoot = getenv('FILE_LINK_ROOT');
         $linkBase = getenv('FILE_LINK_BASE');
 
-        return is_string($linkBase) && ($linkBase !== '') ? $linkBase : null;
+        return [
+            is_string($linkRoot) && ($linkRoot !== '') ? $linkRoot : null,
+            is_string($linkBase) && ($linkBase !== '') ? $linkBase : null,
+        ];
     }
 
     /**

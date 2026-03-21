@@ -12,6 +12,7 @@ services:
             - TIMEZONE=${TIMEZONE:-}
             - MAX_DATE_DRIFT=${MAX_DATE_DRIFT:-}
             - CACHE_DIR=${CACHE_DIR:-}
+            - FILE_LINK_ROOT=${FILE_LINK_ROOT:-}
             - FILE_LINK_BASE=${FILE_LINK_BASE:-}
 
     builder:
