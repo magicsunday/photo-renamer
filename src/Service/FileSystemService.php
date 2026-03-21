@@ -29,11 +29,13 @@ use SplFileInfo;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Filesystem\Filesystem;
 
+use function getenv;
 use function in_array;
+use function is_string;
 use function mb_strlen;
 use function rtrim;
 use function sprintf;
-use function strlen;
+use function str_repeat;
 
 /**
  * Handles all direct file system interactions: creating file iterators, counting files,
@@ -206,6 +208,8 @@ final readonly class FileSystemService implements FileSystemServiceInterface
             $maxFilenameLength = max($maxFilenameLength, mb_strlen($sourcePath));
         }
 
+        $linkBase = $this->resolveLinkBase();
+
         $fileCount      = 0;
         $duplicateCount = 0;
         $plannedMoves   = 0;
@@ -218,11 +222,8 @@ final readonly class FileSystemService implements FileSystemServiceInterface
             /** @var OutputEntryTag $entryTag */
             $entryTag = $entry['tag'];
 
-            // Compensate for multi-byte characters: sprintf pads by byte length,
-            // but the terminal aligns by display width (mb_strlen).
-            $padWidth = $maxFilenameLength + strlen($sourcePath) - mb_strlen($sourcePath);
-
-            $formatString = ' %s <fg=yellow>%-' . $padWidth . 's</> <fg=cyan>→</> %s';
+            $padding    = str_repeat(' ', $maxFilenameLength - mb_strlen($sourcePath));
+            $linkedPath = FileHelper::linkifyPath($sourcePath, $sourcePath, $linkBase);
 
             if ($entry['type'] === 'skip') {
                 /** @var string $reason */
@@ -230,10 +231,11 @@ final readonly class FileSystemService implements FileSystemServiceInterface
 
                 if ($showFilter === null || in_array($entryTag->letter(), $showFilter, true)) {
                     $this->io->text(sprintf(
-                        $formatString,
+                        ' %s <fg=yellow>%s</>' . $padding . ' <fg=cyan>→</> <fg=%s>%s</>',
                         $entryTag->formattedTag(),
-                        $sourcePath,
-                        sprintf('<fg=%s>%s</>', $entryTag->color(), $reason),
+                        $linkedPath,
+                        $entryTag->color(),
+                        $reason,
                     ));
                 }
 
@@ -257,9 +259,9 @@ final readonly class FileSystemService implements FileSystemServiceInterface
 
             if ($showFilter === null || in_array($entryTag->letter(), $showFilter, true)) {
                 $this->io->text(sprintf(
-                    $formatString,
+                    ' %s <fg=yellow>%s</>' . $padding . ' <fg=cyan>→</> %s',
                     $entryTag->formattedTag(),
-                    $sourcePath,
+                    $linkedPath,
                     $this->renderer->highlightDiff($sourcePath, $targetPath, 'green'),
                 ));
 
@@ -302,6 +304,16 @@ final readonly class FileSystemService implements FileSystemServiceInterface
             'plannedMoves'   => $plannedMoves,
             'plannedSkips'   => $plannedSkips,
         ];
+    }
+
+    /**
+     * Resolves the FILE_LINK_BASE env var for clickable terminal links.
+     */
+    private function resolveLinkBase(): ?string
+    {
+        $linkBase = getenv('FILE_LINK_BASE');
+
+        return is_string($linkBase) && ($linkBase !== '') ? $linkBase : null;
     }
 
     /**
