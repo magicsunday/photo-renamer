@@ -17,12 +17,16 @@ use DateTimeInterface;
 use MagicSunday\Renamer\Constants;
 use SplFileInfo;
 
+use function array_map;
 use function basename;
+use function explode;
+use function implode;
 use function is_dir;
 use function is_string;
 use function preg_match;
 use function preg_quote;
 use function preg_replace;
+use function rawurlencode;
 use function realpath;
 use function rtrim;
 use function sprintf;
@@ -342,19 +346,25 @@ final class FileHelper
     {
         $path = str_replace('\\', '/', $nativePath);
 
+        // Encode each path segment (preserving / separators)
+        $parts   = explode('/', $path);
+        $encoded = implode('/', array_map(rawurlencode(...), $parts));
+
         // UNC path: //server/share → file://///server/share
-        // Windows requires 5 slashes for UNC in file:// URLs
-        if (str_starts_with($path, '//')) {
-            return 'file:///' . $path;
+        if (str_starts_with($encoded, '//')) {
+            return 'file:///' . $encoded;
         }
 
         // Drive letter: F:/... → file:///F:/...
-        if (preg_match('/^[A-Za-z]:/', $path) === 1) {
-            return 'file:///' . $path;
+        if (preg_match('/^[A-Za-z]%3A/', $encoded) === 1) {
+            // Restore the colon after drive letter (rawurlencode encodes : to %3A)
+            $encoded = $encoded[0] . ':' . substr($encoded, 4);
+
+            return 'file:///' . $encoded;
         }
 
         // Unix absolute: /srv/photos → file:///srv/photos
-        return 'file://' . $path;
+        return 'file://' . $encoded;
     }
 
     /**
