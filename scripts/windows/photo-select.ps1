@@ -17,26 +17,9 @@ $path = [System.Uri]::UnescapeDataString($path)
 # Convert forward slashes to backslashes
 $path = $path -replace '/', '\'
 
-# Open Explorer with the file selected and bring to foreground
+# Open Explorer with the file selected, or the parent directory as fallback
 if (Test-Path $path) {
     Start-Process explorer.exe -ArgumentList "/select,`"$path`""
 } elseif (Test-Path (Split-Path $path -Parent)) {
     Start-Process explorer.exe -ArgumentList "`"$(Split-Path $path -Parent)`""
-}
-
-# Bring Explorer to foreground
-Add-Type -TypeDefinition @"
-using System;
-using System.Runtime.InteropServices;
-public class ForegroundWindow {
-    [DllImport("user32.dll")]
-    public static extern bool SetForegroundWindow(IntPtr hWnd);
-}
-"@
-
-Start-Sleep -Milliseconds 500
-
-$explorer = Get-Process explorer -ErrorAction SilentlyContinue | Select-Object -First 1
-if ($explorer) {
-    [ForegroundWindow]::SetForegroundWindow($explorer.MainWindowHandle) | Out-Null
 }
