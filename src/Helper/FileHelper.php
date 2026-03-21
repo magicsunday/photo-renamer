@@ -26,6 +26,7 @@ use function preg_replace;
 use function realpath;
 use function rtrim;
 use function sprintf;
+use function str_replace;
 use function str_starts_with;
 use function strlen;
 use function strtolower;
@@ -327,5 +328,53 @@ final class FileHelper
         } catch (DateMalformedStringException) {
             return null;
         }
+    }
+
+    /**
+     * Converts a native file path to a file:// URL suitable for terminal hyperlinks.
+     * Handles Windows drive letters (F:\), UNC paths (\\server\share), and Unix paths.
+     *
+     * @param string $nativePath Full path in the host's native format
+     *
+     * @return string file:// URL
+     */
+    public static function pathToFileUrl(string $nativePath): string
+    {
+        $path = str_replace('\\', '/', $nativePath);
+
+        // UNC path: //server/share → file://server/share
+        if (str_starts_with($path, '//')) {
+            return 'file:' . $path;
+        }
+
+        // Drive letter: F:/... → file:///F:/...
+        if (preg_match('/^[A-Za-z]:/', $path) === 1) {
+            return 'file:///' . $path;
+        }
+
+        // Unix absolute: /srv/photos → file:///srv/photos
+        return 'file://' . $path;
+    }
+
+    /**
+     * Wraps a display path in a Symfony Console terminal hyperlink tag.
+     * Returns the plain display text when no link base is configured.
+     *
+     * @param string      $displayPath  Text to show in the terminal
+     * @param string      $relativePath Relative path to the file (appended to linkBase)
+     * @param string|null $linkBase     Host-accessible base path from FILE_LINK_BASE env var
+     *
+     * @return string Display text, optionally wrapped in <href=...>...</>
+     */
+    public static function linkifyPath(string $displayPath, string $relativePath, ?string $linkBase): string
+    {
+        if (($linkBase === null) || ($linkBase === '')) {
+            return $displayPath;
+        }
+
+        $fullPath = rtrim(str_replace('\\', '/', $linkBase), '/') . '/' . $relativePath;
+        $url      = self::pathToFileUrl($fullPath);
+
+        return sprintf('<href=%s>%s</>', $url, $displayPath);
     }
 }
