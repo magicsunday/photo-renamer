@@ -35,13 +35,14 @@ use function array_map;
 use function count;
 use function dirname;
 use function explode;
+use function getenv;
 use function in_array;
 use function is_file;
 use function is_string;
 use function mb_strlen;
 use function realpath;
 use function sprintf;
-use function strlen;
+use function str_repeat;
 use function strtolower;
 use function trim;
 
@@ -317,19 +318,22 @@ final class WriteDateCommand extends Command
             $maxPathLength = max($maxPathLength, mb_strlen($relativePath));
         }
 
+        $linkBase = getenv('FILE_LINK_BASE');
+        $linkBase = is_string($linkBase) && ($linkBase !== '') ? $linkBase : null;
+
         // Process pending writes
         foreach ($pendingWrites as $entry) {
             $relativePath = FileHelper::relativizePath($entry['path'], $sourceDirectory);
-            $padWidth     = $maxPathLength + strlen($relativePath) - mb_strlen($relativePath);
-            $formatString = ' %s %-' . $padWidth . 's <fg=cyan>→</> %s';
+            $padding      = str_repeat(' ', $maxPathLength - mb_strlen($relativePath));
+            $linkedPath   = FileHelper::linkifyPath($relativePath, $relativePath, $linkBase);
 
             if ($dryRun) {
                 $targetField = $entry['isVideo'] ? 'QuickTime:CreateDate' : 'DateTimeOriginal';
 
                 $io->text(sprintf(
-                    $formatString,
+                    ' %s %s' . $padding . ' <fg=cyan>→</> %s',
                     '<fg=yellow>[W]</>',
-                    $relativePath,
+                    $linkedPath,
                     $targetField . ': ' . $entry['date'],
                 ));
                 $io->text(sprintf(
@@ -347,9 +351,9 @@ final class WriteDateCommand extends Command
                     $targetField = $entry['isVideo'] ? 'QuickTime:CreateDate' : 'DateTimeOriginal';
 
                     $io->text(sprintf(
-                        $formatString,
+                        ' %s %s' . $padding . ' <fg=cyan>→</> %s',
                         '<fg=green>[W]</>',
-                        $relativePath,
+                        $linkedPath,
                         $targetField . ': ' . $entry['date'],
                     ));
                     $io->text(sprintf(
@@ -361,9 +365,9 @@ final class WriteDateCommand extends Command
                     ++$written;
                 } else {
                     $io->text(sprintf(
-                        $formatString,
+                        ' %s %s' . $padding . ' <fg=cyan>→</> %s',
                         '<fg=red>[E]</>',
-                        $relativePath,
+                        $linkedPath,
                         'FAILED to write: ' . $entry['date'],
                     ));
 
