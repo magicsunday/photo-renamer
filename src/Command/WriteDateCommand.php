@@ -324,11 +324,14 @@ final class WriteDateCommand extends Command
         $linkBase = getenv('FILE_LINK_BASE');
         $linkBase = is_string($linkBase) && ($linkBase !== '') ? $linkBase : null;
 
+        $linkProtocol = getenv('FILE_LINK_PROTOCOL');
+        $linkProtocol = is_string($linkProtocol) && ($linkProtocol !== '') ? $linkProtocol : null;
+
         // Process pending writes
         foreach ($pendingWrites as $entry) {
             $relativePath = FileHelper::relativizePath($entry['path'], $sourceDirectory);
             $padding      = str_repeat(' ', $maxPathLength - mb_strlen($relativePath));
-            $linkedPath   = FileHelper::linkifyPath($relativePath, $relativePath, $sourceDirectory, $linkRoot, $linkBase);
+            $linkedPath   = FileHelper::linkifyPath($relativePath, $relativePath, $sourceDirectory, $linkRoot, $linkBase, $linkProtocol);
 
             if ($dryRun) {
                 $targetField = $entry['isVideo'] ? 'QuickTime:CreateDate' : 'DateTimeOriginal';

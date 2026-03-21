@@ -380,6 +380,7 @@ final class FileHelper
      * @param string|null $sourceDirectory Absolute source directory passed to the command
      * @param string|null $linkRoot        NAS/Docker-side root from FILE_LINK_ROOT env var
      * @param string|null $linkBase        Host-accessible base from FILE_LINK_BASE env var
+     * @param string|null $linkProtocol    Custom URI protocol (e.g. "photo-select") or null for "file"
      *
      * @return string Display text, optionally wrapped in <href=...>...</>
      */
@@ -389,6 +390,7 @@ final class FileHelper
         ?string $sourceDirectory,
         ?string $linkRoot,
         ?string $linkBase,
+        ?string $linkProtocol = null,
     ): string {
         if (($linkBase === null) || ($linkBase === '') || ($linkRoot === null) || ($linkRoot === '')) {
             return $displayPath;
@@ -407,9 +409,15 @@ final class FileHelper
         $normalizedBase = rtrim(str_replace('\\', '/', $linkBase), '/');
         $fullFilePath   = $normalizedBase . '/' . ($offset !== '' ? $offset . '/' : '') . $relativePath;
 
-        // Link to the parent directory so the OS opens a file manager, not the file's default app
-        $dirPath = implode('/', explode('/', $fullFilePath, -1));
-        $url     = self::pathToFileUrl($dirPath . '/');
+        if (!in_array($linkProtocol, [null, '', 'file'], true)) {
+            // Custom protocol (e.g. photo-select://) links to the file directly
+            $url = self::pathToFileUrl($fullFilePath);
+            $url = preg_replace('/^file/', $linkProtocol, $url) ?? $url;
+        } else {
+            // Default file:// links to the parent directory to open a file manager
+            $dirPath = implode('/', explode('/', $fullFilePath, -1));
+            $url     = self::pathToFileUrl($dirPath . '/');
+        }
 
         return sprintf('<href=%s>%s</>', $url, $displayPath);
     }
