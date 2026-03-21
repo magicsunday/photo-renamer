@@ -246,6 +246,40 @@ cp .env.dist .env
 | `TIMEZONE` | `Europe/Berlin` | Default timezone for video files without timezone metadata (see above).      |
 | `MAX_DATE_DRIFT` | `30`    | Maximum date drift in days between source filename date and target date. Set to `0` to disable. |
 | `CACHE_DIR` | `.build/cache` | Directory for the persistent metadata cache. Speeds up subsequent runs by skipping unchanged files. |
+| `FILE_LINK_ROOT` | *(empty)* | Source path as seen inside Docker/NAS (e.g. `/srv/photos`). |
+| `FILE_LINK_BASE` | *(empty)* | Same path as seen from the terminal host (e.g. `Z:\Photos`). |
+| `FILE_LINK_PROTOCOL` | *(empty)* | URI scheme for clickable links: empty = `file://` (opens directory), `photo-select` = custom protocol (opens Explorer with file selected). |
+
+### Clickable file paths in terminal output
+
+When `FILE_LINK_ROOT` and `FILE_LINK_BASE` are set, file paths in the output become clickable (Ctrl+Click) in terminals that support OSC 8 hyperlinks (PhpStorm, VS Code, iTerm2).
+
+**Basic setup (opens the file's directory):**
+
+```env
+FILE_LINK_ROOT=/srv/photos
+FILE_LINK_BASE=Z:\Photos
+```
+
+**Advanced setup (opens Explorer with the file selected, Windows only):**
+
+```env
+FILE_LINK_ROOT=/srv/photos
+FILE_LINK_BASE=Z:\Photos
+FILE_LINK_PROTOCOL=photo-select
+```
+
+The `photo-select` protocol requires a one-time setup on Windows:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/windows/install-protocol.ps1
+```
+
+This registers a `photo-select://` URI handler that calls `explorer.exe /select` to highlight the clicked file. To uninstall:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/windows/install-protocol.ps1 -Uninstall
+```
 
 ## 🛠️ Development
 
