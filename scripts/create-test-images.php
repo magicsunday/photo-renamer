@@ -364,6 +364,30 @@ exiftool(
 );
 echo "  26 same-dir diff software    → original keeps name, edit gets -002 (diff software)\n";
 
+// ============================================================================
+// 27 - Same-dir semantic duplicates + cross-dir copy
+//      Two iPhone captures in root (semantic duplicates) plus a copy in sub/.
+//      Expected: root canonical + root -duplicate-001, sub/ keeps unsuffixed.
+// ============================================================================
+mkdir("$dir/27-semantic-dup-plus-crossdir", 0755, true);
+mkdir("$dir/27-semantic-dup-plus-crossdir/backup", 0755, true);
+createJpeg("$dir/27-semantic-dup-plus-crossdir/capture-a.jpg");
+exiftool(
+    '-DateTimeOriginal=2024:09:21 18:15:42', '-SubSecTimeOriginal=617',
+    '-Make=Apple', '-Model=iPhone 13 mini', '-Software=18.0',
+    "$dir/27-semantic-dup-plus-crossdir/capture-a.jpg",
+);
+createJpeg("$dir/27-semantic-dup-plus-crossdir/capture-b.jpg");
+file_put_contents("$dir/27-semantic-dup-plus-crossdir/capture-b.jpg", file_get_contents("$dir/27-semantic-dup-plus-crossdir/capture-b.jpg") . 'slightly-different');
+exiftool(
+    '-DateTimeOriginal=2024:09:21 18:15:42', '-SubSecTimeOriginal=617',
+    '-Make=Apple', '-Model=iPhone 13 mini', '-Software=18.0',
+    "$dir/27-semantic-dup-plus-crossdir/capture-b.jpg",
+);
+// Copy canonical to subdirectory (same content = same hash)
+copy("$dir/27-semantic-dup-plus-crossdir/capture-a.jpg", "$dir/27-semantic-dup-plus-crossdir/backup/copy.jpg");
+echo "  27 semantic dup + cross-dir  → root canonical + -duplicate-001, backup/ -duplicate-001\n";
+
 echo "\nDone. Run:\n";
 echo "  make run CMD=\"rename:exif test-images --dry-run --list-all\"\n";
 echo "  make run CMD=\"rename:write-date test-images --dry-run\"\n";
