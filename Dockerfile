@@ -10,7 +10,10 @@ RUN apk add --no-cache \
     npm \
     openssh-client \
     perl \
+    php85-pecl-pcov \
     exiftool && \
+    echo "extension=/usr/lib/php85/modules/pcov.so" > /usr/local/etc/php/conf.d/pcov.ini && \
+    echo "pcov.enabled=0" >> /usr/local/etc/php/conf.d/pcov.ini && \
     git config --global --add safe.directory /app
 
 ENV COMPOSER_ALLOW_SUPERUSER=1 \

@@ -4,7 +4,7 @@
 
 #### CI
 
-.PHONY: test lint cgl-check rector-check stan unit cpd
+.PHONY: test lint cgl-check rector-check stan unit coverage cpd
 
 test: .logo ## Runs the full CI pipeline (lint, cgl, rector, phpstan, phpunit, cpd).
 	$(COMPOSE_BUILD) composer ci:test
@@ -23,6 +23,9 @@ stan: .logo ## Runs PHPStan analysis.
 
 unit: .logo ## Runs the PHPUnit tests.
 	$(COMPOSE_BUILD) composer ci:test:php:unit
+
+coverage: .logo ## Runs PHPUnit tests with HTML + Clover coverage report (.build/coverage/).
+	-$(COMPOSE_BUILD) composer ci:test:php:unit:coverage
 
 cpd: .logo ## Runs copy-paste detection (jscpd).
 	$(COMPOSE_BUILD) composer ci:test:php:cpd
