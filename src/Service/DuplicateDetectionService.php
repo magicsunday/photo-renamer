@@ -664,11 +664,12 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
             );
 
             // SubSecond semantic duplicate heuristic: when all non-companion files
-            // in the group share the same non-zero subsecond precision AND the same
-            // software tag (or all null), they are from the same camera at the same
-            // millisecond → treat as semantic duplicates, skip hash sub-grouping.
-            // Different software tags indicate editing (Photoshop, Panorama stitch, etc.)
-            // which must go through hash sub-grouping to be properly separated.
+            // in the group share the same non-zero subsecond precision, the same
+            // software tag, AND reside in the same directory, they are likely
+            // from the same capture (burst, format backup) → treat as semantic
+            // duplicates, skip hash sub-grouping.
+            // Cross-directory groups go through hash sub-grouping even with
+            // matching software, as they may be distinct edits (e.g. retouched).
             $isSemanticDuplicate = false;
 
             if (!$skipHashSubGrouping && !($companionRename instanceof Rename)) {
@@ -678,18 +679,22 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
                     (preg_match('/-(\d{3})$/', $canonicalBasename, $subsecondMatch) === 1)
                     && ((int) $subsecondMatch[1] > 0)
                 ) {
-                    // Check if all files in the group share the same software tag
                     $softwareTags = [];
+                    $directories  = [];
 
                     foreach ($fileDuplicate->getFiles() as $file) {
-                        $metadata       = $this->temporalMetadataMap[$file->getPathname()] ?? null;
-                        $softwareTags[] = $metadata?->getSoftware();
+                        $metadata                      = $this->temporalMetadataMap[$file->getPathname()] ?? null;
+                        $softwareTags[]                = $metadata?->getSoftware();
+                        $directories[$file->getPath()] = true;
                     }
 
                     $uniqueSoftware = array_unique($softwareTags);
 
-                    // All same software (including all null) → semantic duplicates, skip sub-grouping
-                    $isSemanticDuplicate = count($uniqueSoftware) === 1;
+                    // All same software + all same directory → semantic duplicate.
+                    // Cross-directory groups with matching software are likely
+                    // original + edited versions (e.g. Fotostudio + bearbeitet/).
+                    $isSemanticDuplicate = (count($uniqueSoftware) === 1)
+                        && (count($directories) === 1);
                 }
             }
 

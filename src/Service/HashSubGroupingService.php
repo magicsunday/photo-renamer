@@ -208,23 +208,17 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
             ++$subGroupNumber;
         }
 
-        // Build a per-directory file count for cross-directory conflict resolution.
-        // Files that are alone in their directory with a given hash don't need a sub-group
-        // suffix — they have no naming conflict in their own directory.
+        // Build a per-directory total file count for cross-directory conflict resolution.
+        // A file that is the only member of this group in its directory has no naming
+        // conflict there and can keep the unsuffixed canonical basename.
         $canonicalDir = $canonicalRename?->getSource()->getPath();
 
-        /** @var array<string, array<string, int>> $dirHashCounts directory → hash → count */
-        $dirHashCounts = [];
+        /** @var array<string, int> $dirFileCounts directory → total file count */
+        $dirFileCounts = [];
 
         foreach ($nonCompanionRenames as $rename) {
-            $dir  = $rename->getSource()->getPath();
-            $hash = $renameToHash[$rename->getSource()->getPathname()] ?? '';
-
-            if (!isset($dirHashCounts[$dir][$hash])) {
-                $dirHashCounts[$dir][$hash] = 0;
-            }
-
-            ++$dirHashCounts[$dir][$hash];
+            $dir                 = $rename->getSource()->getPath();
+            $dirFileCounts[$dir] = ($dirFileCounts[$dir] ?? 0) + 1;
         }
 
         // Now process all hash groups in their assigned order.
@@ -243,11 +237,11 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
                 $renameDir = $rename->getSource()->getPath();
 
                 // Cross-directory resolution: a file in a different directory than
-                // the canonical that is the only file with its hash in its directory
+                // the canonical that is the only file from this group in its directory
                 // has no naming conflict — it keeps the unsuffixed canonical basename.
                 $isCrossDirNoConflict = ($renameDir !== $canonicalDir)
                     && !$isCanonicalGroup
-                    && (($dirHashCounts[$renameDir][$hash] ?? 0) <= 1);
+                    && (($dirFileCounts[$renameDir] ?? 0) <= 1);
 
                 if ($isCrossDirNoConflict) {
                     $newTargetFilename = $canonicalBasename . '.' . $ext;
