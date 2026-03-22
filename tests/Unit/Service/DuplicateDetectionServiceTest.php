@@ -15,6 +15,7 @@ use FilesystemIterator;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
+use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
@@ -33,6 +34,7 @@ use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use RecursiveArrayIterator;
 use RecursiveDirectoryIterator;
@@ -63,6 +65,7 @@ use const DIRECTORY_SEPARATOR;
 #[CoversClass(RenameList::class)]
 #[CoversClass(Rename::class)]
 #[CoversClass(TargetBasenameStrategy::class)]
+#[UsesClass(FileHelper::class)]
 /**
  * Verifies the DuplicateDetectionService, the core orchestrator that groups
  * source files by duplicate identifier, applies hash sub-grouping, and assigns
@@ -2845,7 +2848,9 @@ final class DuplicateDetectionServiceTest extends TestCase
         $sourceDirectory = $this->createTempDirectory();
         $subDirectory    = $sourceDirectory . DIRECTORY_SEPARATOR . 'sub';
 
-        mkdir($subDirectory, 0777, true);
+        if (!is_dir($subDirectory)) {
+            mkdir($subDirectory, 0777, true);
+        }
 
         $fileRoot = $sourceDirectory . DIRECTORY_SEPARATOR . 'root-photo.jpg';
         $fileSub  = $subDirectory . DIRECTORY_SEPARATOR . 'sub-photo.jpg';
@@ -2857,10 +2862,15 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         $renameStrategy = $this->createMock(RenameStrategyInterface::class);
         $renameStrategy
+            ->expects(self::exactly(2))
             ->method('generateFilename')
             ->willReturn('2025-01-01_12-00-00-000.jpg');
 
-        $duplicateIdentifierStrategy = new TargetBasenameStrategy();
+        $duplicateIdentifierStrategy = $this->createMock(DuplicateIdentifierStrategyInterface::class);
+        $duplicateIdentifierStrategy
+            ->expects(self::exactly(2))
+            ->method('generateIdentifier')
+            ->willReturn('2025-01-01_12-00-00-000');
 
         $collection = $service->groupFilesByDuplicateIdentifier(
             $iterator,
@@ -2890,7 +2900,9 @@ final class DuplicateDetectionServiceTest extends TestCase
         $sourceDirectory = $this->createTempDirectory();
         $subDirectory    = $sourceDirectory . DIRECTORY_SEPARATOR . 'sub';
 
-        mkdir($subDirectory, 0777, true);
+        if (!is_dir($subDirectory)) {
+            mkdir($subDirectory, 0777, true);
+        }
 
         $fileRoot = $sourceDirectory . DIRECTORY_SEPARATOR . 'root-photo.jpg';
         $fileSub  = $subDirectory . DIRECTORY_SEPARATOR . 'sub-photo.jpg';
