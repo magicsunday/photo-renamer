@@ -2988,6 +2988,122 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertTrue($hasDuplicate, 'One file should have a -duplicate- suffix');
     }
 
+    /**
+     * Verifies cross-directory grouping when ALL files are in subdirectories
+     * with none in the root. The shallowest subdirectory should win canonical.
+     */
+    #[Test]
+    public function groupFilesByDuplicateIdentifierGroupsSubdirectoriesWithNoRoot(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $subA            = $sourceDirectory . DIRECTORY_SEPARATOR . 'sub-a';
+        $subB            = $sourceDirectory . DIRECTORY_SEPARATOR . 'sub-b';
+
+        if (!is_dir($subA)) {
+            mkdir($subA, 0777, true);
+        }
+
+        if (!is_dir($subB)) {
+            mkdir($subB, 0777, true);
+        }
+
+        $fileA = $subA . DIRECTORY_SEPARATOR . 'photo.jpg';
+        $fileB = $subB . DIRECTORY_SEPARATOR . 'photo.jpg';
+
+        file_put_contents($fileA, 'content-a');
+        file_put_contents($fileB, 'content-a');
+
+        $iterator = $this->createIterator($sourceDirectory);
+
+        $renameStrategy = $this->createMock(RenameStrategyInterface::class);
+        $renameStrategy
+            ->expects(self::exactly(2))
+            ->method('generateFilename')
+            ->willReturn('2025-06-01_10-00-00-000.jpg');
+
+        $duplicateIdentifierStrategy = $this->createMock(DuplicateIdentifierStrategyInterface::class);
+        $duplicateIdentifierStrategy
+            ->expects(self::exactly(2))
+            ->method('generateIdentifier')
+            ->willReturn('2025-06-01_10-00-00-000');
+
+        $collection = $service->groupFilesByDuplicateIdentifier(
+            $iterator,
+            $renameStrategy,
+            $duplicateIdentifierStrategy,
+            $sourceDirectory,
+        );
+
+        // Both files in different subdirs should land in one group
+        self::assertCount(1, $collection);
+        self::assertTrue($collection->has('2025-06-01_10-00-00-000'));
+
+        $group = $collection->get('2025-06-01_10-00-00-000');
+        self::assertInstanceOf(FileDuplicate::class, $group);
+        self::assertCount(2, $group->getFiles());
+    }
+
+    /**
+     * Verifies cross-directory grouping with files across 3+ directories.
+     * All should land in one group, with the shallowest directory as canonical.
+     */
+    #[Test]
+    public function groupFilesByDuplicateIdentifierGroupsThreePlusDirectories(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $subA            = $sourceDirectory . DIRECTORY_SEPARATOR . 'a';
+        $subB            = $sourceDirectory . DIRECTORY_SEPARATOR . 'b';
+        $subC            = $sourceDirectory . DIRECTORY_SEPARATOR . 'c';
+
+        foreach ([$subA, $subB, $subC] as $dir) {
+            if (!is_dir($dir)) {
+                mkdir($dir, 0777, true);
+            }
+        }
+
+        $rootFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg';
+        $fileA    = $subA . DIRECTORY_SEPARATOR . 'copy-a.jpg';
+        $fileB    = $subB . DIRECTORY_SEPARATOR . 'copy-b.jpg';
+        $fileC    = $subC . DIRECTORY_SEPARATOR . 'copy-c.jpg';
+
+        file_put_contents($rootFile, 'same-content');
+        file_put_contents($fileA, 'same-content');
+        file_put_contents($fileB, 'same-content');
+        file_put_contents($fileC, 'same-content');
+
+        $iterator = $this->createIterator($sourceDirectory);
+
+        $renameStrategy = $this->createMock(RenameStrategyInterface::class);
+        $renameStrategy
+            ->expects(self::exactly(4))
+            ->method('generateFilename')
+            ->willReturn('2025-06-01_10-00-00-000.jpg');
+
+        $duplicateIdentifierStrategy = $this->createMock(DuplicateIdentifierStrategyInterface::class);
+        $duplicateIdentifierStrategy
+            ->expects(self::exactly(4))
+            ->method('generateIdentifier')
+            ->willReturn('2025-06-01_10-00-00-000');
+
+        $collection = $service->groupFilesByDuplicateIdentifier(
+            $iterator,
+            $renameStrategy,
+            $duplicateIdentifierStrategy,
+            $sourceDirectory,
+        );
+
+        // All 4 files from root + 3 subdirs should be in one group
+        self::assertCount(1, $collection);
+
+        $group = $collection->get('2025-06-01_10-00-00-000');
+        self::assertInstanceOf(FileDuplicate::class, $group);
+        self::assertCount(4, $group->getFiles());
+    }
+
     private function createTempDirectory(): string
     {
         $directory               = $this->createTempWorkspace('photo-renamer-');
