@@ -36,11 +36,9 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use Throwable;
 
 use function array_key_exists;
-use function array_unique;
 use function assert;
 use function count;
 use function is_string;
-use function preg_match;
 use function rtrim;
 use function sprintf;
 use function str_contains;
@@ -663,56 +661,12 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
                 $fileDuplicate,
             );
 
-            // SubSecond semantic duplicate heuristic: same non-zero subsecond +
-            // same software tag + either multiple file extensions (format backup,
-            // e.g. JPG + HEIC) OR canonical's directory has ≥2 group members
-            // (burst/re-save in same folder) → semantic duplicates, skip hash
-            // sub-grouping.
-            // Same-extension, single-canonical-dir groups with cross-dir members
-            // are likely distinct edits (e.g. Fotostudio + bearbeitet/).
-            $isSemanticDuplicate = false;
-
-            if (!$skipHashSubGrouping && !($companionRename instanceof Rename)) {
-                $canonicalBasename = FileHelper::basenameWithoutExtension($fileDuplicate->getTarget());
-
-                if (
-                    (preg_match('/-(\d{3})$/', $canonicalBasename, $subsecondMatch) === 1)
-                    && ((int) $subsecondMatch[1] > 0)
-                ) {
-                    $softwareTags    = [];
-                    $extensions      = [];
-                    $canonicalDir    = $canonicalRename?->getSource()->getPath();
-                    $canonicalDirCnt = 0;
-
-                    foreach ($fileDuplicate->getFiles() as $file) {
-                        $metadata       = $this->temporalMetadataMap[$file->getPathname()] ?? null;
-                        $softwareTags[] = $metadata?->getSoftware();
-
-                        $extensions[strtolower($file->getExtension())] = true;
-
-                        if ($file->getPath() === $canonicalDir) {
-                            ++$canonicalDirCnt;
-                        }
-                    }
-
-                    $uniqueSoftware      = array_unique($softwareTags);
-                    $hasMultipleFormats  = count($extensions) > 1;
-                    $hasSameDirDuplicate = $canonicalDirCnt >= 2;
-
-                    // Format backups (JPG+HEIC) are semantic duplicates regardless
-                    // of directory. Same-format groups require ≥2 files in the
-                    // canonical's directory to be treated as semantic duplicates.
-                    $isSemanticDuplicate = (count($uniqueSoftware) === 1)
-                        && ($hasMultipleFormats || $hasSameDirDuplicate);
-                }
-            }
-
-            // Content-hash sub-grouping: when multiple distinct files share the
-            // same target name, assign sequential numbers per unique content hash.
-            // Skipped for semantic duplicates (same subsecond + same software).
+            // Content-hash sub-grouping with perceptual hash merge: when multiple
+            // distinct files share the same target name, assign sequential numbers
+            // per unique content hash. Hash groups that are visually identical
+            // (dHash Hamming distance ≤ threshold) are merged as semantic duplicates.
             if (
                 !$skipHashSubGrouping
-                && !$isSemanticDuplicate
                 && $this->hashSubGroupingService->apply(
                     $fileDuplicate,
                     $canonicalRename,
