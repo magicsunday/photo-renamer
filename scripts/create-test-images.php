@@ -293,6 +293,77 @@ file_put_contents("$dir/23-subsec-padding/photo-55ms.jpg", file_get_contents("$d
 exiftool('-DateTimeOriginal=2024:12:15 10:00:00', '-SubSecTimeOriginal=55', "$dir/23-subsec-padding/photo-55ms.jpg");
 echo "  23 SubSecTime padding        → -500 vs -550 (different targets from 5 vs 55)\n";
 
+// ============================================================================
+// 24 - Cross-directory edits (same timestamp + software, different dirs)
+//      Fotostudio scenario: original + retouched versions in subdirectory.
+//      All have same EXIF date and software, but different content.
+//      Expected: original keeps name, edits get -002, -003 sub-group numbers.
+// ============================================================================
+mkdir("$dir/24-cross-dir-edits", 0755, true);
+mkdir("$dir/24-cross-dir-edits/bearbeitet", 0755, true);
+createJpeg("$dir/24-cross-dir-edits/original.jpg");
+exiftool(
+    '-DateTimeOriginal=2024:07:25 11:27:50', '-SubSecTimeOriginal=100',
+    '-Make=NIKON CORPORATION', '-Model=NIKON D100', '-Software=Adobe Photoshop 7.0',
+    "$dir/24-cross-dir-edits/original.jpg",
+);
+createJpeg("$dir/24-cross-dir-edits/bearbeitet/edit-1.jpg");
+file_put_contents("$dir/24-cross-dir-edits/bearbeitet/edit-1.jpg", file_get_contents("$dir/24-cross-dir-edits/bearbeitet/edit-1.jpg") . 'edit-version-1');
+exiftool(
+    '-DateTimeOriginal=2024:07:25 11:27:50', '-SubSecTimeOriginal=100',
+    '-Make=NIKON CORPORATION', '-Model=NIKON D100', '-Software=Adobe Photoshop 7.0',
+    "$dir/24-cross-dir-edits/bearbeitet/edit-1.jpg",
+);
+createJpeg("$dir/24-cross-dir-edits/bearbeitet/edit-2.jpg");
+file_put_contents("$dir/24-cross-dir-edits/bearbeitet/edit-2.jpg", file_get_contents("$dir/24-cross-dir-edits/bearbeitet/edit-2.jpg") . 'edit-version-2');
+exiftool(
+    '-DateTimeOriginal=2024:07:25 11:27:50', '-SubSecTimeOriginal=100',
+    '-Make=NIKON CORPORATION', '-Model=NIKON D100', '-Software=Adobe Photoshop 7.0',
+    "$dir/24-cross-dir-edits/bearbeitet/edit-2.jpg",
+);
+echo "  24 cross-dir edits           → root canonical, bearbeitet/ gets -002, -003\n";
+
+// ============================================================================
+// 25 - Same-directory semantic duplicates (same timestamp + software + dir)
+//      iPhone scenario: two JPG captures of same millisecond.
+//      Expected: one canonical, other gets -duplicate-001.
+// ============================================================================
+mkdir("$dir/25-same-dir-semantic-dup", 0755, true);
+createJpeg("$dir/25-same-dir-semantic-dup/capture-a.jpg");
+exiftool(
+    '-DateTimeOriginal=2024:09:21 17:02:07', '-SubSecTimeOriginal=833',
+    '-Make=Apple', '-Model=iPhone 13 mini', '-Software=18.0',
+    "$dir/25-same-dir-semantic-dup/capture-a.jpg",
+);
+createJpeg("$dir/25-same-dir-semantic-dup/capture-b.jpg");
+file_put_contents("$dir/25-same-dir-semantic-dup/capture-b.jpg", file_get_contents("$dir/25-same-dir-semantic-dup/capture-b.jpg") . 'slightly-different');
+exiftool(
+    '-DateTimeOriginal=2024:09:21 17:02:07', '-SubSecTimeOriginal=833',
+    '-Make=Apple', '-Model=iPhone 13 mini', '-Software=18.0',
+    "$dir/25-same-dir-semantic-dup/capture-b.jpg",
+);
+echo "  25 same-dir semantic dup     → one canonical, other -duplicate-001 (same software+dir)\n";
+
+// ============================================================================
+// 26 - Same-directory different software (Photoshop edit of original)
+//      Expected: hash sub-grouping → original keeps name, edit gets -002.
+// ============================================================================
+mkdir("$dir/26-same-dir-diff-software", 0755, true);
+createJpeg("$dir/26-same-dir-diff-software/from-camera.jpg");
+exiftool(
+    '-DateTimeOriginal=2024:11:15 09:30:00', '-SubSecTimeOriginal=450',
+    '-Make=Apple', '-Model=iPhone 14 Pro', '-Software=17.2',
+    "$dir/26-same-dir-diff-software/from-camera.jpg",
+);
+createJpeg("$dir/26-same-dir-diff-software/photoshopped.jpg");
+file_put_contents("$dir/26-same-dir-diff-software/photoshopped.jpg", file_get_contents("$dir/26-same-dir-diff-software/photoshopped.jpg") . 'photoshop-edit');
+exiftool(
+    '-DateTimeOriginal=2024:11:15 09:30:00', '-SubSecTimeOriginal=450',
+    '-Make=Apple', '-Model=iPhone 14 Pro', '-Software=Adobe Photoshop 2024',
+    "$dir/26-same-dir-diff-software/photoshopped.jpg",
+);
+echo "  26 same-dir diff software    → original keeps name, edit gets -002 (diff software)\n";
+
 echo "\nDone. Run:\n";
 echo "  make run CMD=\"rename:exif test-images --dry-run --list-all\"\n";
 echo "  make run CMD=\"rename:write-date test-images --dry-run\"\n";
