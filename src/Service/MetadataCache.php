@@ -151,7 +151,7 @@ final class MetadataCache
 
         $this->filesystem->dumpFile(
             $this->cacheFile,
-            json_encode($this->entries, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT),
+            json_encode($this->entries, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_INVALID_UTF8_SUBSTITUTE),
         );
 
         $this->dirty = false;
