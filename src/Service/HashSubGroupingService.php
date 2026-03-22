@@ -24,7 +24,6 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function array_keys;
 use function count;
-use function preg_match;
 use function spl_object_id;
 use function sprintf;
 use function strtolower;
@@ -175,19 +174,9 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
 
         // Multiple hashes: naming conflict. The canonical's sub-group keeps the
         // unsuffixed base name; other sub-groups get sequential numbers starting at 002.
+        // Note: the SubSecond semantic duplicate heuristic has been moved to
+        // DuplicateDetectionService where it has access to TemporalMetadata software tags.
         $canonicalBasename = FileHelper::basenameWithoutExtension($fileDuplicate->getTarget());
-
-        // Heuristic 2: Non-zero subsecond precision in the target timestamp means
-        // the capture moment is unique to the millisecond. Multiple files sharing
-        // that exact millisecond are overwhelmingly the same capture, not different photos.
-        // Only applies when no Live Photo companions are present; companion groups use
-        // heuristic 1 (companion hash cross-reference) instead.
-        if (!($companionRename instanceof Rename)
-            && preg_match('/-(\d{3})$/', $canonicalBasename, $subsecondMatch) === 1
-            && (int) $subsecondMatch[1] > 0
-        ) {
-            return false;
-        }
 
         // Determine which hash group contains the canonical.
         $canonicalHash = null;

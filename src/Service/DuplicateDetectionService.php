@@ -36,9 +36,11 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use Throwable;
 
 use function array_key_exists;
+use function array_unique;
 use function assert;
 use function count;
 use function is_string;
+use function preg_match;
 use function rtrim;
 use function sprintf;
 use function str_contains;
@@ -661,10 +663,42 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
                 $fileDuplicate,
             );
 
+            // SubSecond semantic duplicate heuristic: when all non-companion files
+            // in the group share the same non-zero subsecond precision AND the same
+            // software tag (or all null), they are from the same camera at the same
+            // millisecond → treat as semantic duplicates, skip hash sub-grouping.
+            // Different software tags indicate editing (Photoshop, Panorama stitch, etc.)
+            // which must go through hash sub-grouping to be properly separated.
+            $isSemanticDuplicate = false;
+
+            if (!$skipHashSubGrouping && !($companionRename instanceof Rename)) {
+                $canonicalBasename = FileHelper::basenameWithoutExtension($fileDuplicate->getTarget());
+
+                if (
+                    (preg_match('/-(\d{3})$/', $canonicalBasename, $subsecondMatch) === 1)
+                    && ((int) $subsecondMatch[1] > 0)
+                ) {
+                    // Check if all files in the group share the same software tag
+                    $softwareTags = [];
+
+                    foreach ($fileDuplicate->getFiles() as $file) {
+                        $metadata       = $this->temporalMetadataMap[$file->getPathname()] ?? null;
+                        $softwareTags[] = $metadata?->getSoftware();
+                    }
+
+                    $uniqueSoftware = array_unique($softwareTags);
+
+                    // All same software (including all null) → semantic duplicates, skip sub-grouping
+                    $isSemanticDuplicate = count($uniqueSoftware) === 1;
+                }
+            }
+
             // Content-hash sub-grouping: when multiple distinct files share the
             // same target name, assign sequential numbers per unique content hash.
+            // Skipped for semantic duplicates (same subsecond + same software).
             if (
                 !$skipHashSubGrouping
+                && !$isSemanticDuplicate
                 && $this->hashSubGroupingService->apply(
                     $fileDuplicate,
                     $canonicalRename,

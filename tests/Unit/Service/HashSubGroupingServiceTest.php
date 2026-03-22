@@ -424,13 +424,12 @@ final class HashSubGroupingServiceTest extends TestCase
     }
 
     /**
-     * Verifies that apply() returns false when the canonical target basename
-     * contains a non-zero subsecond timestamp suffix (-NNN where NNN > 0),
-     * because captures sharing the exact same millisecond are overwhelmingly
-     * the same photo (semantic duplicates), not different captures.
+     * Verifies that apply() performs sub-grouping even when the canonical target
+     * basename contains a non-zero subsecond timestamp. The SubSecond heuristic
+     * has been moved to DuplicateDetectionService where software tags are checked.
      */
     #[Test]
-    public function applySkipsSubGroupingWhenSubsecondTimestampPresent(): void
+    public function applySubGroupsEvenWithSubsecondTimestamp(): void
     {
         $service = $this->createHashSubGroupingService();
 
@@ -465,7 +464,7 @@ final class HashSubGroupingServiceTest extends TestCase
             $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
         );
 
-        self::assertFalse($result);
+        self::assertTrue($result);
     }
 
     /**
