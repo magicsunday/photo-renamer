@@ -85,11 +85,14 @@ final readonly class RenameOutputRenderer
                 $renameBasename = $rename->getTarget()->getBasename(
                     '.' . $rename->getTarget()->getExtension()
                 );
-                $isDuplicateTarget = $renameBasename !== $canonicalBasename
+                // A file is a duplicate if its target basename differs from the canonical
+                // and contains the duplicate identifier. This is status-based: both no-op
+                // duplicates (already correctly named) and rename targets are marked as [D].
+                $isDuplicateTarget = ($renameBasename !== $canonicalBasename)
                     && str_contains($renameBasename, Constants::DUPLICATE_IDENTIFIER);
                 $isNoOp           = $rename->getSource()->getPathname() === $rename->getTarget()->getPathname();
-                $isCanonicalEntry = $isNoOp
-                    || ($options->listAll && $rename->getSource()->getPathname() === $canonicalTargetPath);
+                $isCanonicalEntry = ($renameBasename === $canonicalBasename)
+                    && ($isNoOp || ($options->listAll && $rename->getSource()->getPathname() === $canonicalTargetPath));
 
                 $sourcePath = FileHelper::relativizePath($rename->getSource()->getPathname(), $sourceBaseDirectory);
                 $targetPath = FileHelper::relativizePath($rename->getTarget()->getPathname(), $sourceBaseDirectory);
@@ -98,10 +101,10 @@ final readonly class RenameOutputRenderer
 
                 if (isset($result->livePhotoConflictFiles[$sourcePathname])) {
                     $tag = OutputEntryTag::Candidate;
-                } elseif ($isCanonicalEntry) {
-                    $tag = OutputEntryTag::Original;
                 } elseif ($isDuplicateTarget) {
                     $tag = OutputEntryTag::Duplicate;
+                } elseif ($isCanonicalEntry) {
+                    $tag = OutputEntryTag::Original;
                 } elseif (isset($result->ambiguousTimezoneFiles[$sourcePathname])) {
                     $tag = OutputEntryTag::Warning;
                 } elseif (isset($result->fallbackDateFiles[$sourcePathname])) {
@@ -129,7 +132,7 @@ final readonly class RenameOutputRenderer
                     || $isCandidate
                     || ($options->skipFallback && $isFallbackEntry)
                     || $isWarning;
-                $shouldPerformOperation = ($shouldSkip === false) && ($isCanonicalEntry === false);
+                $shouldPerformOperation = ($shouldSkip === false) && !$isNoOp;
 
                 $outputEntries[] = [
                     'sortKey'                => $rename->getSource()->getPathname(),
