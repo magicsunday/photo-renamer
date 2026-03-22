@@ -103,7 +103,7 @@ final readonly class RenameOutputRenderer
                     $tag = OutputEntryTag::Candidate;
                 } elseif ($isDuplicateTarget) {
                     $tag = OutputEntryTag::Duplicate;
-                } elseif ($isCanonicalEntry) {
+                } elseif ($isCanonicalEntry || $isNoOp) {
                     $tag = OutputEntryTag::Original;
                 } elseif (isset($result->ambiguousTimezoneFiles[$sourcePathname])) {
                     $tag = OutputEntryTag::Warning;
