@@ -99,8 +99,8 @@ Duplicate detection is **cross-directory**: files with the same EXIF date in dif
 
 | Service | Responsibility |
 |---------|---------------|
-| `DuplicateDetectionService` | Grouping, canonical selection, Live Photo pairing |
-| `HashSubGroupingService` | Content-hash sub-groups, semantic duplicate heuristics |
+| `DuplicateDetectionService` | Grouping, canonical selection, Live Photo pairing, semantic duplicate heuristics (SubSecond + Software tag) |
+| `HashSubGroupingService` | Content-hash sub-groups for naming conflicts |
 | `FileSystemService` | File I/O, collision resolution |
 | `RenameOutputRenderer` | Output formatting, LCS diff highlighting, summary tables |
 | `ExifMetadataProvider` | Caching metadata layer, timezone conversion, reliability checks |
