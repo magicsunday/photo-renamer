@@ -86,8 +86,8 @@ final readonly class RenameOutputRenderer
                     '.' . $rename->getTarget()->getExtension()
                 );
                 // A file is a duplicate if its target basename differs from the canonical
-                // and contains the duplicate identifier. This is status-based: both no-op
-                // duplicates (already correctly named) and rename targets are marked as [D].
+                // and contains the duplicate identifier. Only actual renames are tagged [D];
+                // no-op duplicates (already correctly named) fall through to [O].
                 $isDuplicateTarget = ($renameBasename !== $canonicalBasename)
                     && str_contains($renameBasename, Constants::DUPLICATE_IDENTIFIER);
                 $isNoOp           = $rename->getSource()->getPathname() === $rename->getTarget()->getPathname();
@@ -101,7 +101,7 @@ final readonly class RenameOutputRenderer
 
                 if (isset($result->livePhotoConflictFiles[$sourcePathname])) {
                     $tag = OutputEntryTag::Candidate;
-                } elseif ($isDuplicateTarget) {
+                } elseif ($isDuplicateTarget && !$isNoOp) {
                     $tag = OutputEntryTag::Duplicate;
                 } elseif ($isCanonicalEntry || $isNoOp) {
                     $tag = OutputEntryTag::Original;
