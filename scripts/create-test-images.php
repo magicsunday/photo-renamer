@@ -204,9 +204,9 @@ echo "  09 photo.JPEG                → 2024-05-01_12-00-00-000.jpg\n";
 // 10 - Already correctly named (idempotent)
 // ============================================================================
 mkdir("$dir/10-already-correct", 0755, true);
-createJpeg("$dir/10-already-correct/2024-06-15_14-30-00-000.jpg");
-exiftool('-DateTimeOriginal=2024:06:15 14:30:00', '-SubSecTimeOriginal=000', "$dir/10-already-correct/2024-06-15_14-30-00-000.jpg");
-echo "  10 2024-06-15_14-30-00-000   → [O] already correct\n";
+createJpeg("$dir/10-already-correct/2024-10-20_16-45-00-000.jpg");
+exiftool('-DateTimeOriginal=2024:10:20 16:45:00', '-SubSecTimeOriginal=000', "$dir/10-already-correct/2024-10-20_16-45-00-000.jpg");
+echo "  10 2024-10-20_16-45-00-000   → [O] already correct\n";
 
 // ============================================================================
 // 11 - write-date: nodata (date in filename, no metadata)
@@ -220,9 +220,9 @@ echo "  11 write-date nodata         → needs DateTimeOriginal written\n";
 // 12 - write-date: timezone (MOV with ambiguous UTC, date in filename)
 // ============================================================================
 mkdir("$dir/12-write-date-timezone", 0755, true);
-createMov("$dir/12-write-date-timezone/2024-02-14-video.mov");
-exiftool('-QuickTime:CreateDate=2024:02:14 19:30:00', '-QuickTime:ModifyDate=2024:02:14 19:30:00', "$dir/12-write-date-timezone/2024-02-14-video.mov");
-echo "  12 2024-02-14-video.mov      → [W] timezone, needs Keys:CreationDate\n";
+createMov("$dir/12-write-date-timezone/2024-04-20-video.mov");
+exiftool('-QuickTime:CreateDate=2024:04:20 15:45:00', '-QuickTime:ModifyDate=2024:04:20 15:45:00', "$dir/12-write-date-timezone/2024-04-20-video.mov");
+echo "  12 2024-04-20-video.mov      → [W] timezone, needs Keys:CreationDate\n";
 
 // ============================================================================
 // 13 - MP4 video with proper TZ
@@ -285,8 +285,8 @@ echo "  18 LP conflict               → [C] mismatched content IDs from real iP
 // 19 - write-date: fallback (only ModifyDate, date in filename)
 // ============================================================================
 mkdir("$dir/19-write-date-fallback", 0755, true);
-createJpeg("$dir/19-write-date-fallback/2023-12-25_08-00-00.jpg");
-exiftool('-ModifyDate=2023:12:25 08:00:00', "$dir/19-write-date-fallback/2023-12-25_08-00-00.jpg");
+createJpeg("$dir/19-write-date-fallback/2024-02-14_09-00-00.jpg");
+exiftool('-ModifyDate=2024:02:14 09:00:00', "$dir/19-write-date-fallback/2024-02-14_09-00-00.jpg");
 echo "  19 write-date fallback       → needs DateTimeOriginal from filename\n";
 
 // ============================================================================
@@ -294,8 +294,8 @@ echo "  19 write-date fallback       → needs DateTimeOriginal from filename\n"
 // ============================================================================
 mkdir("$dir/20-write-date-drift", 0755, true);
 createJpeg("$dir/20-write-date-drift/2024-01-15_10-00-00.jpg");
-exiftool('-DateTimeOriginal=2024:03:20 10:00:00', '-SubSecTimeOriginal=000', "$dir/20-write-date-drift/2024-01-15_10-00-00.jpg");
-echo "  20 write-date drift          → metadata 65 days from filename\n";
+exiftool('-DateTimeOriginal=2024:06:20 10:00:00', '-SubSecTimeOriginal=000', "$dir/20-write-date-drift/2024-01-15_10-00-00.jpg");
+echo "  20 write-date drift          → metadata 157 days from filename\n";
 
 echo "\nDone. Run:\n";
 echo "  make run CMD=\"rename:exif test-images --dry-run --list-all\"\n";
