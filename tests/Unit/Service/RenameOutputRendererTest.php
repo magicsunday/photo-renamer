@@ -28,6 +28,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
@@ -519,6 +520,52 @@ final class RenameOutputRendererTest extends TestCase
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Warning, $entries[0]['tag']);
         self::assertTrue($entries[0]['shouldSkip']);
+    }
+
+    /**
+     * Verifies that highlightDiff produces both base-color and bright-color
+     * ANSI codes when source and target differ.
+     */
+    #[Test]
+    public function highlightDiffProducesColorCodesForChangedRegion(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $source = '2021-01-01_00-19-23-8313.mov';
+        $target = '2021-01-01_00-19-23-000.mov';
+
+        $result = $renderer->highlightDiff($source, $target, 'green');
+
+        // Result must contain both base-color and highlight-color Symfony tags
+        self::assertStringContainsString('<fg=green>', $result, 'Must contain base green color tag');
+        self::assertStringContainsString('<fg=bright-green;options=bold>', $result, 'Must contain bright-green highlight tag');
+
+        // Verify that Symfony Console renders both ANSI codes
+        $formatter = new OutputFormatter(true);
+        $rendered  = (string) $formatter->format($result);
+
+        // ANSI green (32m) for unchanged parts
+        self::assertStringContainsString("\033[32m", $rendered, 'Rendered output must contain ANSI green');
+
+        // ANSI bright-green + bold (92;1m) for changed parts
+        self::assertStringContainsString("\033[92;1m", $rendered, 'Rendered output must contain ANSI bright-green+bold');
+
+        // The changed region (000) must appear in the output
+        self::assertStringContainsString('000', $rendered);
+    }
+
+    /**
+     * Verifies that highlightDiff returns plain base-color when source equals target.
+     */
+    #[Test]
+    public function highlightDiffReturnsBaseColorWhenIdentical(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $path   = '2021-01-01_00-19-23-000.mov';
+        $result = $renderer->highlightDiff($path, $path, 'green');
+
+        self::assertSame('<fg=green>' . $path . '</>', $result);
     }
 
     /**

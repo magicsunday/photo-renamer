@@ -395,17 +395,21 @@ final class FileHelper
      * @param string      $relativePath    Relative path to the file (relative to sourceDirectory)
      * @param string|null $sourceDirectory Absolute source directory passed to the command
      * @param LinkConfig  $linkConfig      Link configuration from env vars
+     * @param string|null $color           Symfony Console color name (e.g. 'yellow') to apply to the display text
      *
-     * @return string Display text, optionally wrapped in <href=...>...</>
+     * @return string Display text with optional color and/or href formatting
      */
     public static function linkifyPath(
         string $displayPath,
         string $relativePath,
         ?string $sourceDirectory,
         LinkConfig $linkConfig,
+        ?string $color = null,
     ): string {
         if (!$linkConfig->isEnabled()) {
-            return $displayPath;
+            return $color !== null
+                ? sprintf('<fg=%s>%s</>', $color, $displayPath)
+                : $displayPath;
         }
 
         // Compute subdirectory offset: sourceDirectory minus linkRoot
@@ -429,6 +433,10 @@ final class FileHelper
             // Default file:// links to the parent directory to open a file manager
             $dirPath = implode('/', explode('/', $fullFilePath, -1));
             $url     = self::pathToFileUrl($dirPath . '/');
+        }
+
+        if ($color !== null) {
+            return sprintf('<fg=%s;href=%s>%s</>', $color, $url, $displayPath);
         }
 
         return sprintf('<href=%s>%s</>', $url, $displayPath);

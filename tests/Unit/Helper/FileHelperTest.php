@@ -13,11 +13,14 @@ namespace MagicSunday\Renamer\Test\Unit\Helper;
 
 use DateTimeImmutable;
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Model\LinkConfig;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 
 use function sprintf;
 
@@ -29,6 +32,7 @@ use function sprintf;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(FileHelper::class)]
+#[UsesClass(LinkConfig::class)]
 final class FileHelperTest extends TestCase
 {
     /**
@@ -212,5 +216,95 @@ final class FileHelperTest extends TestCase
                 'description' => 'Should extract date from filename with numeric suffix (not time)',
             ],
         ];
+    }
+
+    /**
+     * When link config is disabled, linkifyPath returns plain display text.
+     */
+    #[Test]
+    public function linkifyPathReturnsPlainTextWhenDisabled(): void
+    {
+        $config = new LinkConfig(null, null, null);
+
+        self::assertSame(
+            'photos/test.jpg',
+            FileHelper::linkifyPath('photos/test.jpg', 'photos/test.jpg', null, $config),
+        );
+    }
+
+    /**
+     * When link config is enabled, linkifyPath wraps display text in href tags.
+     */
+    #[Test]
+    public function linkifyPathReturnsHrefWhenEnabled(): void
+    {
+        $config = new LinkConfig('/volume1/Fotos', 'F:\\', 'photo-select');
+
+        $result = FileHelper::linkifyPath(
+            'Hochzeit/photo.jpg',
+            'Hochzeit/photo.jpg',
+            '/volume1/Fotos',
+            $config,
+        );
+
+        self::assertStringStartsWith('<href=', $result);
+        self::assertStringContainsString('photo-select://', $result);
+        self::assertStringContainsString('Hochzeit/photo.jpg', $result);
+        self::assertStringEndsWith('</>', $result);
+    }
+
+    /**
+     * Verifies that the href tag from linkifyPath can be combined with
+     * Symfony Console color tags without losing either color or link.
+     *
+     * Symfony Console cannot nest <fg> and <href> — one eats the other.
+     * The correct approach is to combine both in a single tag:
+     * <fg=yellow;href=url>text</>
+     */
+    #[Test]
+    public function linkifyPathOutputCombinesColorAndHrefInSingleTag(): void
+    {
+        $config = new LinkConfig('/volume1/Fotos', 'F:\\', 'photo-select');
+
+        $result = FileHelper::linkifyPath(
+            'photo.jpg',
+            'photo.jpg',
+            '/volume1/Fotos',
+            $config,
+            'yellow',
+        );
+
+        // Must produce a single combined tag: <fg=yellow;href=...>text</>
+        self::assertMatchesRegularExpression(
+            '/<fg=yellow;href=[^>]+>photo\.jpg<\/>/',
+            $result,
+            'linkifyPath should produce a combined fg+href tag, not nested tags',
+        );
+
+        // Verify that Symfony Console renders both color AND href
+        $formatter = new OutputFormatter(true);
+        $rendered  = (string) $formatter->format($result);
+
+        // Must contain ANSI yellow (ESC[33m)
+        self::assertStringContainsString("\033[33m", $rendered, 'Output must contain ANSI yellow color code');
+
+        // Must contain OSC 8 href sequence
+        self::assertStringContainsString("\033]8;;", $rendered, 'Output must contain OSC 8 href sequence');
+
+        // Must contain the display text
+        self::assertStringContainsString('photo.jpg', $rendered);
+    }
+
+    /**
+     * When color is specified without links, wraps in plain fg tag.
+     */
+    #[Test]
+    public function linkifyPathAppliesColorWithoutHref(): void
+    {
+        $config = new LinkConfig(null, null, null);
+
+        $result = FileHelper::linkifyPath('photo.jpg', 'photo.jpg', null, $config, 'yellow');
+
+        self::assertSame('<fg=yellow>photo.jpg</>', $result);
     }
 }

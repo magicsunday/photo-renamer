@@ -223,7 +223,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
             $entryTag = $entry['tag'];
 
             $padding    = str_repeat(' ', max(0, $maxFilenameLength - mb_strlen($sourcePath)));
-            $linkedPath = FileHelper::linkifyPath($sourcePath, $sourcePath, $sourceBaseDirectory, $linkConfig);
+            $linkedPath = FileHelper::linkifyPath($sourcePath, $sourcePath, $sourceBaseDirectory, $linkConfig, 'yellow');
 
             if ($entry['type'] === 'skip') {
                 /** @var string $reason */
@@ -231,7 +231,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
 
                 if ($showFilter === null || in_array($entryTag->letter(), $showFilter, true)) {
                     $this->io->text(sprintf(
-                        ' %s <fg=yellow>%s</>' . $padding . ' <fg=cyan>→</> <fg=%s>%s</>',
+                        ' %s %s' . $padding . ' <fg=cyan>→</> <fg=%s>%s</>',
                         $entryTag->formattedTag(),
                         $linkedPath,
                         $entryTag->color(),
@@ -259,7 +259,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
 
             if ($showFilter === null || in_array($entryTag->letter(), $showFilter, true)) {
                 $this->io->text(sprintf(
-                    ' %s <fg=yellow>%s</>' . $padding . ' <fg=cyan>→</> %s',
+                    ' %s %s' . $padding . ' <fg=cyan>→</> %s',
                     $entryTag->formattedTag(),
                     $linkedPath,
                     $this->renderer->highlightDiff($sourcePath, $targetPath, 'green'),

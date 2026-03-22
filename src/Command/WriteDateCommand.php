@@ -324,7 +324,7 @@ final class WriteDateCommand extends Command
         foreach ($pendingWrites as $entry) {
             $relativePath = FileHelper::relativizePath($entry['path'], $sourceDirectory);
             $padding      = str_repeat(' ', $maxPathLength - mb_strlen($relativePath));
-            $linkedPath   = FileHelper::linkifyPath($relativePath, $relativePath, $sourceDirectory, $linkConfig);
+            $linkedPath   = FileHelper::linkifyPath($relativePath, $relativePath, $sourceDirectory, $linkConfig, 'yellow');
             $targetField  = $entry['isVideo'] ? 'QuickTime:CreateDate' : 'DateTimeOriginal';
 
             /** @var string $reasonKey */
