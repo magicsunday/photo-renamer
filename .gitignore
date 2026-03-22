@@ -27,3 +27,4 @@ images2/
 # Reports
 coverage-report/
 coverage-report-xdebug/
+test-images/

@@ -12,21 +12,45 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Integration\Command;
 
 use DateTimeImmutable;
+use MagicSunday\Renamer\Command\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Command\RenameByExifDateCommand;
+use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
+use MagicSunday\Renamer\Model\Collection\AbstractCollection;
+use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
+use MagicSunday\Renamer\Model\Collection\FileList;
+use MagicSunday\Renamer\Model\Collection\RenameList;
+use MagicSunday\Renamer\Model\FileDuplicate;
+use MagicSunday\Renamer\Model\LinkConfig;
+use MagicSunday\Renamer\Model\OutputEntryTag;
+use MagicSunday\Renamer\Model\Rename;
+use MagicSunday\Renamer\Model\RenameOptions;
+use MagicSunday\Renamer\Model\RenameResult;
+use MagicSunday\Renamer\Model\TargetFileResult;
+use MagicSunday\Renamer\Regex\RegexMatchResult;
+use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\DuplicateDetectionService;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
+use MagicSunday\Renamer\Service\LivePhoto\LivePhotoBasenameTargetMap;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetector;
+use MagicSunday\Renamer\Service\LivePhoto\LivePhotoContentIdentifierTarget;
+use MagicSunday\Renamer\Service\LivePhoto\LivePhotoContentIdentifierTargetMap;
+use MagicSunday\Renamer\Service\LivePhoto\LivePhotoExistingFilePathnameIndex;
+use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingCollection;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
+use MagicSunday\Renamer\Service\MetadataCache;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
+use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -64,6 +88,39 @@ use const DIRECTORY_SEPARATOR;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(RenameByExifDateCommand::class)]
+#[UsesClass(RecursiveRegexFileFilterIterator::class)]
+#[UsesClass(FileHelper::class)]
+#[UsesClass(ExifMetadataProvider::class)]
+#[UsesClass(TemporalMetadata::class)]
+#[UsesClass(AbstractCollection::class)]
+#[UsesClass(FileDuplicateCollection::class)]
+#[UsesClass(FileList::class)]
+#[UsesClass(RenameList::class)]
+#[UsesClass(FileDuplicate::class)]
+#[UsesClass(LinkConfig::class)]
+#[UsesClass(OutputEntryTag::class)]
+#[UsesClass(Rename::class)]
+#[UsesClass(RenameOptions::class)]
+#[UsesClass(RenameResult::class)]
+#[UsesClass(TargetFileResult::class)]
+#[UsesClass(RegexMatchResult::class)]
+#[UsesClass(SafeRegex::class)]
+#[UsesClass(DuplicateDetectionService::class)]
+#[UsesClass(FileSystemService::class)]
+#[UsesClass(HashSubGroupingService::class)]
+#[UsesClass(LivePhotoBasenameTargetMap::class)]
+#[UsesClass(LivePhotoConflictDetector::class)]
+#[UsesClass(LivePhotoContentIdentifierTarget::class)]
+#[UsesClass(LivePhotoContentIdentifierTargetMap::class)]
+#[UsesClass(LivePhotoExistingFilePathnameIndex::class)]
+#[UsesClass(LivePhotoPairingCollection::class)]
+#[UsesClass(LivePhotoPairingService::class)]
+#[UsesClass(MediaTypeClassifier::class)]
+#[UsesClass(MetadataCache::class)]
+#[UsesClass(RenameOutputRenderer::class)]
+#[UsesClass(SafeHashCalculator::class)]
+#[UsesClass(TargetBasenameStrategy::class)]
+#[UsesClass(ExifDateFilenameStrategy::class)]
 final class RenameByExifDateCommandTest extends TestCase
 {
     use WorkspaceTrait;

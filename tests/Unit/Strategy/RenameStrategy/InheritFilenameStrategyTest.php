@@ -11,10 +11,12 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy;
 
+use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Strategy\RenameStrategy\InheritFilenameStrategy;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
 
@@ -39,6 +41,7 @@ use function sprintf;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(InheritFilenameStrategy::class)]
+#[UsesClass(FileHelper::class)]
 final class InheritFilenameStrategyTest extends TestCase
 {
     /**

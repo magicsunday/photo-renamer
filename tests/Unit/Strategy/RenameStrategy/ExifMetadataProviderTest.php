@@ -14,12 +14,14 @@ namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy;
 use DateTimeImmutable;
 use DateTimeInterface;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
+use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Service\MetadataCache;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
 
@@ -49,6 +51,9 @@ use const DIRECTORY_SEPARATOR;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(ExifMetadataProvider::class)]
+#[UsesClass(FileHelper::class)]
+#[UsesClass(TemporalMetadata::class)]
+#[UsesClass(MetadataCache::class)]
 final class ExifMetadataProviderTest extends TestCase
 {
     /**

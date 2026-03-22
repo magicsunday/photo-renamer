@@ -12,9 +12,12 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Command\FilterIterator;
 
 use MagicSunday\Renamer\Command\FilterIterator\RecursiveRegexFileFilterIterator;
+use MagicSunday\Renamer\Regex\RegexMatchResult;
+use MagicSunday\Renamer\Regex\SafeRegex;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 use RecursiveArrayIterator;
@@ -38,6 +41,8 @@ use SplFileInfo;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(RecursiveRegexFileFilterIterator::class)]
+#[UsesClass(RegexMatchResult::class)]
+#[UsesClass(SafeRegex::class)]
 final class RecursiveRegexFileFilterIteratorTest extends TestCase
 {
     /** @var string Regular expression pattern to match .txt files */

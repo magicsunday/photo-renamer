@@ -14,6 +14,7 @@ namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy;
 use DateTimeImmutable;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
+use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
@@ -21,6 +22,7 @@ use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
 
@@ -45,6 +47,9 @@ use function uniqid;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(ExifDateFilenameStrategy::class)]
+#[UsesClass(FileHelper::class)]
+#[UsesClass(ExifMetadataProvider::class)]
+#[UsesClass(TemporalMetadata::class)]
 final class ExifDateFilenameStrategyTest extends TestCase
 {
     /**

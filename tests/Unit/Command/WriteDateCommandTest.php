@@ -13,17 +13,24 @@ namespace MagicSunday\Renamer\Test\Unit\Command;
 
 use DateTimeImmutable;
 use DateTimeZone;
+use MagicSunday\Renamer\Command\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Command\WriteDateCommand;
+use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
+use MagicSunday\Renamer\Model\LinkConfig;
+use MagicSunday\Renamer\Regex\RegexMatchResult;
+use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\ExiftoolWriter;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
+use MagicSunday\Renamer\Service\MetadataCache;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 use Symfony\Component\Console\Command\Command;
@@ -43,6 +50,17 @@ use function unlink;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(WriteDateCommand::class)]
+#[UsesClass(RecursiveRegexFileFilterIterator::class)]
+#[UsesClass(FileHelper::class)]
+#[UsesClass(ExifMetadataProvider::class)]
+#[UsesClass(TemporalMetadata::class)]
+#[UsesClass(LinkConfig::class)]
+#[UsesClass(RegexMatchResult::class)]
+#[UsesClass(SafeRegex::class)]
+#[UsesClass(FileSystemService::class)]
+#[UsesClass(MediaTypeClassifier::class)]
+#[UsesClass(MetadataCache::class)]
+#[UsesClass(RenameOutputRenderer::class)]
 final class WriteDateCommandTest extends TestCase
 {
     use WorkspaceTrait;

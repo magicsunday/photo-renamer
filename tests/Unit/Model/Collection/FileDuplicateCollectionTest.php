@@ -12,9 +12,12 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Model\Collection;
 
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
+use MagicSunday\Renamer\Model\Collection\FileList;
+use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
 
@@ -32,6 +35,9 @@ use SplFileInfo;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(FileDuplicateCollection::class)]
+#[UsesClass(FileList::class)]
+#[UsesClass(RenameList::class)]
+#[UsesClass(FileDuplicate::class)]
 final class FileDuplicateCollectionTest extends TestCase
 {
     /**

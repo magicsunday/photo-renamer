@@ -11,9 +11,11 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy;
 
+use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Strategy\RenameStrategy\LowerCaseFilenameStrategy;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
 
@@ -35,6 +37,7 @@ use SplFileInfo;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(LowerCaseFilenameStrategy::class)]
+#[UsesClass(FileHelper::class)]
 final class LowerCaseFilenameStrategyTest extends TestCase
 {
     /**

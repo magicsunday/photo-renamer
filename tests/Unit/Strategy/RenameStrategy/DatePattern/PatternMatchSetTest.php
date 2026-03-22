@@ -11,9 +11,12 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy\DatePattern;
 
+use MagicSunday\Renamer\Regex\RegexMatchAllResult;
+use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Strategy\RenameStrategy\DatePattern\PatternMatchSet;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -29,6 +32,8 @@ use PHPUnit\Framework\TestCase;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(PatternMatchSet::class)]
+#[UsesClass(RegexMatchAllResult::class)]
+#[UsesClass(SafeRegex::class)]
 final class PatternMatchSetTest extends TestCase
 {
     /**

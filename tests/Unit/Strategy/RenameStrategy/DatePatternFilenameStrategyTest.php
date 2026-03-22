@@ -12,11 +12,17 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy;
 
 use MagicSunday\Renamer\Exception\TargetFilenameException;
+use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Regex\RegexMatchAllResult;
+use MagicSunday\Renamer\Regex\RegexMatchCollection;
+use MagicSunday\Renamer\Regex\RegexMatchGroup;
+use MagicSunday\Renamer\Regex\RegexMatchResult;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Strategy\RenameStrategy\DatePattern\PatternMatchSet;
 use MagicSunday\Renamer\Strategy\RenameStrategy\DatePatternFilenameStrategy;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
 
@@ -48,6 +54,13 @@ use function implode;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(DatePatternFilenameStrategy::class)]
+#[UsesClass(FileHelper::class)]
+#[UsesClass(RegexMatchAllResult::class)]
+#[UsesClass(RegexMatchCollection::class)]
+#[UsesClass(RegexMatchGroup::class)]
+#[UsesClass(RegexMatchResult::class)]
+#[UsesClass(SafeRegex::class)]
+#[UsesClass(PatternMatchSet::class)]
 final class DatePatternFilenameStrategyTest extends TestCase
 {
     /**

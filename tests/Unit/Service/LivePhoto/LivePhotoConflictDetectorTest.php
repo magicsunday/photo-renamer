@@ -17,10 +17,13 @@ use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetector;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
 
 #[CoversClass(LivePhotoConflictDetector::class)]
+#[UsesClass(TemporalMetadata::class)]
+#[UsesClass(MediaTypeClassifier::class)]
 final class LivePhotoConflictDetectorTest extends TestCase
 {
     #[Test]

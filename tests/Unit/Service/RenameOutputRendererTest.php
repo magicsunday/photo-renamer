@@ -12,7 +12,10 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
 use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
+use MagicSunday\Renamer\Model\Collection\FileList;
+use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\Rename;
@@ -22,6 +25,7 @@ use MagicSunday\Renamer\Model\SkippedFile;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -43,6 +47,9 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
+#[UsesClass(FileHelper::class)]
+#[UsesClass(FileList::class)]
+#[UsesClass(RenameList::class)]
 final class RenameOutputRendererTest extends TestCase
 {
     /**

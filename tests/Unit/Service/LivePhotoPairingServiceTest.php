@@ -11,16 +11,27 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
+use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
+use MagicSunday\Renamer\Model\Collection\AbstractCollection;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
+use MagicSunday\Renamer\Model\Collection\FileList;
+use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
+use MagicSunday\Renamer\Service\LivePhoto\LivePhotoBasenameTargetMap;
+use MagicSunday\Renamer\Service\LivePhoto\LivePhotoContentIdentifierTarget;
+use MagicSunday\Renamer\Service\LivePhoto\LivePhotoContentIdentifierTargetMap;
+use MagicSunday\Renamer\Service\LivePhoto\LivePhotoExistingFilePathnameIndex;
+use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairing;
+use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingCollection;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingService;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\LivePhotoFixtureFactory;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use RecursiveArrayIterator;
 use RecursiveIteratorIterator;
@@ -41,6 +52,21 @@ use SplFileInfo;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(LivePhotoPairingService::class)]
+#[UsesClass(FileHelper::class)]
+#[UsesClass(ExifMetadataProvider::class)]
+#[UsesClass(TemporalMetadata::class)]
+#[UsesClass(AbstractCollection::class)]
+#[UsesClass(FileDuplicateCollection::class)]
+#[UsesClass(FileList::class)]
+#[UsesClass(RenameList::class)]
+#[UsesClass(FileDuplicate::class)]
+#[UsesClass(LivePhotoBasenameTargetMap::class)]
+#[UsesClass(LivePhotoContentIdentifierTarget::class)]
+#[UsesClass(LivePhotoContentIdentifierTargetMap::class)]
+#[UsesClass(LivePhotoExistingFilePathnameIndex::class)]
+#[UsesClass(LivePhotoPairing::class)]
+#[UsesClass(LivePhotoPairingCollection::class)]
+#[UsesClass(ExifDateFilenameStrategy::class)]
 final class LivePhotoPairingServiceTest extends TestCase
 {
     /**

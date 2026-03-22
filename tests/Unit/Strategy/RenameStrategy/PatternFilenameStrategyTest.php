@@ -12,11 +12,13 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy;
 
 use MagicSunday\Renamer\Exception\TargetFilenameException;
+use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Strategy\RenameStrategy\PatternFilenameStrategy;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
 
@@ -49,6 +51,8 @@ use function sprintf;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(PatternFilenameStrategy::class)]
+#[UsesClass(FileHelper::class)]
+#[UsesClass(SafeRegex::class)]
 final class PatternFilenameStrategyTest extends TestCase
 {
     /**

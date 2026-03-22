@@ -15,6 +15,7 @@ use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\Rename;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
 
@@ -31,6 +32,7 @@ use SplFileInfo;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(RenameList::class)]
+#[UsesClass(Rename::class)]
 final class RenameListTest extends TestCase
 {
     /**

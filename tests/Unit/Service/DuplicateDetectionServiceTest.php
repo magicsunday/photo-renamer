@@ -17,10 +17,16 @@ use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
+use MagicSunday\Renamer\Model\Collection\FileList;
 use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
+use MagicSunday\Renamer\Model\LinkConfig;
+use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Model\RenameOptions;
+use MagicSunday\Renamer\Model\RenameResult;
+use MagicSunday\Renamer\Model\SkippedFile;
+use MagicSunday\Renamer\Model\TargetFileResult;
 use MagicSunday\Renamer\Service\DuplicateDetectionService;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
@@ -83,6 +89,17 @@ use const DIRECTORY_SEPARATOR;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
+#[UsesClass(FileList::class)]
+#[UsesClass(LinkConfig::class)]
+#[UsesClass(OutputEntryTag::class)]
+#[UsesClass(RenameOptions::class)]
+#[UsesClass(RenameResult::class)]
+#[UsesClass(SkippedFile::class)]
+#[UsesClass(TargetFileResult::class)]
+#[UsesClass(FileSystemService::class)]
+#[UsesClass(MediaTypeClassifier::class)]
+#[UsesClass(RenameOutputRenderer::class)]
+#[UsesClass(SafeHashCalculator::class)]
 final class DuplicateDetectionServiceTest extends TestCase
 {
     use WorkspaceTrait;
