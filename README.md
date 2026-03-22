@@ -344,7 +344,17 @@ make run CMD="rename:exif images --dry-run --list-all"
 | `make rector-check` | Check Rector rules (dry-run). |
 | `make stan`    | Run PHPStan analysis.                |
 | `make unit`    | Run PHPUnit tests.                   |
+| `make coverage` | Run PHPUnit with HTML + Clover coverage report (`.build/coverage/`). |
 | `make cpd`     | Run copy-paste detection.            |
+
+### Test images
+
+Generate synthetic test files covering all 23 renamer scenarios (duplicates, Live Photos, timezone, drift, HEIC, cross-directory, etc.):
+
+```bash
+docker compose run --rm buildbox php scripts/create-test-images.php
+make run CMD="rename:exif test-images --dry-run --list-all"
+```
 
 ### Fix targets
 

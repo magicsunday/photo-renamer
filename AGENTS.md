@@ -26,6 +26,7 @@ All commands run inside Docker via `make`. **Never run PHP, composer, or phpunit
 make test           # Full CI pipeline (MANDATORY before any commit)
 make unit           # PHPUnit only
 make stan           # PHPStan only
+make coverage       # PHPUnit with HTML + Clover coverage (.build/coverage/)
 make cgl            # Fix code style
 make rector         # Apply rector rules
 make install        # Composer install
@@ -90,7 +91,9 @@ KISS, SOLID, DRY, YAGNI, GRASP, Law of Demeter, SoC, CoC — in that order of pr
 
 ### Pipeline (rename:exif)
 
-scan → group by target name → defer video companions → Live Photo pairing → assign filenames → execute renames
+scan → group by target basename (cross-directory) → defer video companions → Live Photo pairing → hash sub-grouping → assign filenames → execute renames
+
+Duplicate detection is **cross-directory**: files with the same EXIF date in different subdirectories land in one group. The canonical is in the shallowest directory. Files stay in their original directory after renaming.
 
 ### Key Services
 
