@@ -72,10 +72,10 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
 
         $isQuickTimeContainer = $metadata->quickTime instanceof QuickTimeMeta;
 
-        // Use dateTimeOriginalRaw() which returns the actual 0x9003 tag value
-        // without falling back to 0x0132 (ModifyDate). This is critical for both
-        // fallback detection and HEIC timezone ambiguity detection.
-        $hasExifDateTimeOriginal = $metadata->exifDoc?->dateTimeOriginalRaw() !== null;
+        // dateTimeOriginal() returns null when only 0x0132 (ModifyDate) exists
+        // (fixed in imagemeta #2287). Critical for fallback detection and HEIC
+        // timezone ambiguity detection.
+        $hasExifDateTimeOriginal = $metadata->exifDoc?->dateTimeOriginal() instanceof DateTimeInterface;
 
         [$captureDateTime, $isFallback, $isAmbiguousTimezone] = $this->extractCaptureDateTimeWithFallbackFlag($structured, $isQuickTimeContainer, $hasExifDateTimeOriginal);
 
