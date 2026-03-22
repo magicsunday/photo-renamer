@@ -13,49 +13,20 @@ if (is_dir($dir)) {
     exec('rm -rf ' . escapeshellarg($dir));
 }
 
-// Minimal valid JPEG with JFIF/EXIF header (from LivePhotoFixtureFactory)
-const JPEG_BASE64 = '/9j/4QBYRXhpZgAASUkqAAgAAAABAGmHBAABAAAAGgAAAAAAAAACAAOQAgAUAAAAOAAAAJGSAgAE'
-    . 'AAAATAAAAAAAAAAyMDI0OjAxOjAyIDEyOjM0OjU2ADEyMwD/4QFgaHR0cDovL25zLmFkb2JlLmNv'
-    . 'bS94YXAvMS4wL1wwPD94cGFja2V0IGJlZ2luPSdcdUZFRkYnIGlkPSdXNU0wTXBDZWhpSHpyZVN6'
-    . 'TlRjemtjOWQnPz48eDp4bXBtZXRhIHhtbG5zOng9J2Fkb2JlOm5zOm1ldGEvJz48cmRmOlJERiB4'
-    . 'bWxuczpyZGY9J2h0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMnPjxy'
-    . 'ZGY6RGVzY3JpcHRpb24geG1sbnM6eG1wPSdodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvJyB4'
-    . 'bXA6Q29udGVudElkZW50aWZpZXI9J1VVSUQtSVBIT05FLUxJVkVQSE9UTyc+PC9yZGY6RGVzY3Jp'
-    . 'cHRpb24+PC9yZGY6UkRGPjwveDp4bXBtZXRhPjw/eHBhY2tldCBlbmQ9J3cnPz7/4AAQSkZJRgAB'
-    . 'AQEAYABgAAD//gA7Q1JFQVRPUjogZ2QtanBlZyB2MS4wICh1c2luZyBJSkcgSlBFRyB2ODApLCBx'
-    . 'dWFsaXR5ID0gOTAK/9sAQwADAgIDAgIDAwMDBAMDBAUIBQUEBAUKBwcGCAwKDAwLCgsLDQ4SEA0O'
-    . 'EQ4LCxAWEBETFBUVFQwPFxgWFBgSFBUU/9sAQwEDBAQFBAUJBQUJFA0LDRQUFBQUFBQUFBQUFBQU'
-    . 'FBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQU/8AAEQgAAQABAwERAAIRAQMRAf/E'
-    . 'AB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAE'
-    . 'EQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZH'
-    . 'SElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1'
-    . 'tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEB'
-    . 'AQEAAAAAAAABAgMEBQYHCAkKC//EALURAAIBAgQEAwQHBQQEAAECdwABAgMRBAUhMQYSQVEHYXET'
-    . 'IjKBCBRCkaGxwQkjM1LwFWJy0QoWJDThJfEXGBkaJicoKSo1Njc4OTpDREVGR0hJSlNUVVZXWFla'
-    . 'Y2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXG'
-    . 'x8jJytLT1NXW19jZ2uLj5OXm5+jp6vLz9PX29/j5+v/aAAwDAQACEQMRAD8A/VOgD//Z';
-
 function createJpeg(string $path): void
 {
-    $jpeg = base64_decode(JPEG_BASE64, true);
-    file_put_contents($path, $jpeg);
-    // Strip ALL pre-existing metadata (including non-standard XMP segments)
-    exec('exiftool -overwrite_original -all= -XMP:all= ' . escapeshellarg($path) . ' 2>/dev/null');
-}
-
-function createMov(string $path): void
-{
-    // Generate a real 0.1s QuickTime MOV via ffmpeg (1 frame, black, silent)
+    // Create minimal 1x1 JPEG via ffmpeg — clean, no pre-existing metadata
     exec(sprintf(
-        'ffmpeg -y -f lavfi -i color=black:s=16x16:d=0.1 -f lavfi -i anullsrc=r=44100:cl=mono -t 0.1 -c:v libx264 -c:a aac -movflags +faststart -f mov %s 2>/dev/null',
+        'ffmpeg -y -f lavfi -i color=white:s=1x1 -frames:v 1 %s 2>/dev/null',
         escapeshellarg($path),
     ));
 }
 
-function createMp4(string $path): void
+function createVideo(string $path, string $format = 'mov'): void
 {
     exec(sprintf(
-        'ffmpeg -y -f lavfi -i color=black:s=16x16:d=0.1 -f lavfi -i anullsrc=r=44100:cl=mono -t 0.1 -c:v libx264 -c:a aac -movflags +faststart -f mp4 %s 2>/dev/null',
+        'ffmpeg -y -f lavfi -i color=black:s=16x16:d=0.1 -f lavfi -i anullsrc=r=44100:cl=mono -t 0.1 -c:v libx264 -c:a aac -movflags +faststart -f %s %s 2>/dev/null',
+        escapeshellarg($format),
         escapeshellarg($path),
     ));
 }
@@ -89,7 +60,7 @@ function stripToMetadataOnly(string $source, string $dest, bool $isVideo = false
 
     if ($isVideo) {
         // Create minimal MOV, then copy metadata from real file
-        createMov($dest);
+        createVideo($dest);
     } else {
         // Create 1x1 JPEG via ffmpeg, then copy metadata from real file
         exec(sprintf('ffmpeg -y -f lavfi -i color=white:s=1x1 -frames:v 1 %s 2>/dev/null', escapeshellarg($dest)));
@@ -136,7 +107,7 @@ exiftool('-DateTimeOriginal=2024:07:04 18:00:00', '-SubSecTimeOriginal=100', "$d
 createJpeg("$dir/03-hash-subgroups/burst-2.jpg");
 file_put_contents("$dir/03-hash-subgroups/burst-2.jpg", file_get_contents("$dir/03-hash-subgroups/burst-2.jpg") . 'different');
 exiftool('-DateTimeOriginal=2024:07:04 18:00:00', '-SubSecTimeOriginal=200', "$dir/03-hash-subgroups/burst-2.jpg");
-echo "  03 burst-1 + burst-2         → different hashes, burst-2 gets -002\n";
+echo "  03 burst-1 + burst-2         → different SubSecTime → separate targets (-100, -200)\n";
 
 // ============================================================================
 // 04 - Live Photo pair (JPEG + MOV, matching Content Identifier)
@@ -155,13 +126,13 @@ echo "  04 IMG_0001.jpg + .mov       → Live Photo pair, MOV inherits still's d
 mkdir("$dir/05-fallback-date", 0755, true);
 createJpeg("$dir/05-fallback-date/scan-001.jpg");
 exiftool('-ModifyDate=2023:12:25 08:00:00', "$dir/05-fallback-date/scan-001.jpg");
-echo "  05 scan-001.jpg              → [F] fallback date from ModifyDate\n";
+echo "  05 scan-001.jpg              → [F] fallback, only ModifyDate (0x0132)\n";
 
 // ============================================================================
 // 06 - Ambiguous timezone (QuickTime MOV without TZ info)
 // ============================================================================
 mkdir("$dir/06-ambiguous-timezone", 0755, true);
-createMov("$dir/06-ambiguous-timezone/MVI_1234.mov");
+createVideo("$dir/06-ambiguous-timezone/MVI_1234.mov");
 exiftool('-QuickTime:CreateDate=2024:02:14 19:30:00', '-QuickTime:ModifyDate=2024:02:14 19:30:00', "$dir/06-ambiguous-timezone/MVI_1234.mov");
 echo "  06 MVI_1234.mov              → [W] ambiguous timezone\n";
 
@@ -209,7 +180,7 @@ echo "  11 write-date nodata         → needs DateTimeOriginal written\n";
 // 12 - write-date: timezone (MOV with ambiguous UTC, date in filename)
 // ============================================================================
 mkdir("$dir/12-write-date-timezone", 0755, true);
-createMov("$dir/12-write-date-timezone/2024-04-20-video.mov");
+createVideo("$dir/12-write-date-timezone/2024-04-20-video.mov");
 exiftool('-QuickTime:CreateDate=2024:04:20 15:45:00', '-QuickTime:ModifyDate=2024:04:20 15:45:00', "$dir/12-write-date-timezone/2024-04-20-video.mov");
 echo "  12 2024-04-20-video.mov      → [W] timezone, needs Keys:CreationDate\n";
 
@@ -217,7 +188,7 @@ echo "  12 2024-04-20-video.mov      → [W] timezone, needs Keys:CreationDate\n
 // 13 - MP4 video with proper TZ
 // ============================================================================
 mkdir("$dir/13-mp4-with-tz", 0755, true);
-createMp4("$dir/13-mp4-with-tz/VID_20240101.mp4");
+createVideo("$dir/13-mp4-with-tz/VID_20240101.mp4", 'mp4');
 exiftool('-QuickTime:CreateDate=2024:01:01 14:00:00', '-Keys:CreationDate=2024:01:01 15:00:00+01:00', "$dir/13-mp4-with-tz/VID_20240101.mp4");
 echo "  13 VID_20240101.mp4          → renames using Keys:CreationDate TZ\n";
 
@@ -228,7 +199,6 @@ mkdir("$dir/14-heic-image", 0755, true);
 createHeic("$dir/14-heic-image/IMG_0042.heic");
 exiftool(
     '-DateTimeOriginal=2024:11:30 20:15:45', '-SubSecTimeOriginal=789',
-    '-ContentIdentifier=HEIC-LP-1234',
     '-Make=Apple', '-Model=iPhone 14 Pro', '-Software=17.0',
     "$dir/14-heic-image/IMG_0042.heic",
 );
@@ -238,15 +208,15 @@ echo "  14 IMG_0042.heic             → 2024-11-30_20-15-45-789.heic (no TZ con
 // 15 - Mac epoch zero (1970-01-01 metadata from corrupt QuickTime)
 // ============================================================================
 mkdir("$dir/15-epoch-zero", 0755, true);
-createMov("$dir/15-epoch-zero/2022-06-05_17-55-00.mp4");
+createVideo("$dir/15-epoch-zero/2022-06-05_17-55-00.mp4", 'mp4');
 exiftool('-QuickTime:CreateDate=1970:01:01 00:00:00', '-QuickTime:ModifyDate=1970:01:01 00:00:00', "$dir/15-epoch-zero/2022-06-05_17-55-00.mp4");
-echo "  15 epoch-zero                → [W] 1970 metadata, drift from 2022 filename\n";
+echo "  15 epoch-zero                → [S] no capture date (0000:00:00 from Mac epoch 0)\n";
 
 // ============================================================================
 // 16 - Re-export drift (filename 2022, metadata 2024 = re-encoded)
 // ============================================================================
 mkdir("$dir/16-reexport-drift", 0755, true);
-createMov("$dir/16-reexport-drift/2022-12-10_14-19-08.mov");
+createVideo("$dir/16-reexport-drift/2022-12-10_14-19-08.mov");
 exiftool('-QuickTime:CreateDate=2024:09:19 00:06:04', "$dir/16-reexport-drift/2022-12-10_14-19-08.mov");
 echo "  16 re-export drift           → [W] filename 2022, metadata 2024\n";
 
@@ -254,7 +224,7 @@ echo "  16 re-export drift           → [W] filename 2022, metadata 2024\n";
 // 17 - Filename without time (date-only name + metadata has real time)
 // ============================================================================
 mkdir("$dir/17-date-only-filename", 0755, true);
-createMov("$dir/17-date-only-filename/2020-02-07-3483.mov");
+createVideo("$dir/17-date-only-filename/2020-02-07-3483.mov");
 exiftool('-QuickTime:CreateDate=2020:02:07 21:20:25', "$dir/17-date-only-filename/2020-02-07-3483.mov");
 echo "  17 date-only filename        → [W] ambiguous, metadata has time 21:20:25\n";
 
@@ -274,9 +244,10 @@ echo "  18 LP conflict               → [C] mismatched content IDs from real iP
 // 19 - write-date: fallback (only ModifyDate, date in filename)
 // ============================================================================
 mkdir("$dir/19-write-date-fallback", 0755, true);
-createJpeg("$dir/19-write-date-fallback/2024-02-14_09-00-00.jpg");
-exiftool('-ModifyDate=2024:02:14 09:00:00', "$dir/19-write-date-fallback/2024-02-14_09-00-00.jpg");
-echo "  19 write-date fallback       → needs DateTimeOriginal from filename\n";
+// Filename says 14:00, but metadata only has ModifyDate at 09:00 → mismatch → fallback detected
+createJpeg("$dir/19-write-date-fallback/2024-02-14_14-00-00.jpg");
+exiftool('-ModifyDate=2024:02:14 09:00:00', "$dir/19-write-date-fallback/2024-02-14_14-00-00.jpg");
+echo "  19 write-date fallback       → [fallback] only ModifyDate, no DateTimeOriginal\n";
 
 // ============================================================================
 // 20 - write-date: drift (metadata date far from filename date)
@@ -285,6 +256,42 @@ mkdir("$dir/20-write-date-drift", 0755, true);
 createJpeg("$dir/20-write-date-drift/2024-01-15_10-00-00.jpg");
 exiftool('-DateTimeOriginal=2024:06:20 10:00:00', '-SubSecTimeOriginal=000', "$dir/20-write-date-drift/2024-01-15_10-00-00.jpg");
 echo "  20 write-date drift          → metadata 157 days from filename\n";
+
+// ============================================================================
+// 21 - Non-Apple camera MOV (stores local time as "UTC")
+// ============================================================================
+mkdir("$dir/21-non-apple-camera", 0755, true);
+createVideo("$dir/21-non-apple-camera/MVI_0511.mov");
+exiftool(
+    '-QuickTime:CreateDate=2024:09:15 14:30:00',
+    '-QuickTime:ModifyDate=2024:09:15 14:30:00',
+    '-Keys:Make=Panasonic', '-Keys:Model=DMC-GH5',
+    "$dir/21-non-apple-camera/MVI_0511.mov",
+);
+echo "  21 Non-Apple MOV             → [W] ambiguous timezone, local time as UTC\n";
+
+// ============================================================================
+// 22 - Cross-directory duplicates (same EXIF in root + sub)
+// ============================================================================
+mkdir("$dir/22-cross-dir-duplicates", 0755, true);
+mkdir("$dir/22-cross-dir-duplicates/backup", 0755, true);
+createJpeg("$dir/22-cross-dir-duplicates/original.jpg");
+exiftool('-DateTimeOriginal=2024:12:01 09:00:00', '-SubSecTimeOriginal=000', "$dir/22-cross-dir-duplicates/original.jpg");
+copy("$dir/22-cross-dir-duplicates/original.jpg", "$dir/22-cross-dir-duplicates/backup/copy.jpg");
+echo "  22 cross-dir duplicates      → root [O], backup/ [D] -duplicate-001\n";
+
+// ============================================================================
+// 23 - SubSecTime padding (2-digit vs 3-digit)
+// ============================================================================
+mkdir("$dir/23-subsec-padding", 0755, true);
+// SubSecTime "5" → "500", "50" → "500", "500" → "500" — all the same!
+// SubSecTime "5" → "500", "55" → "550" — different targets
+createJpeg("$dir/23-subsec-padding/photo-5ms.jpg");
+exiftool('-DateTimeOriginal=2024:12:15 10:00:00', '-SubSecTimeOriginal=5', "$dir/23-subsec-padding/photo-5ms.jpg");
+createJpeg("$dir/23-subsec-padding/photo-55ms.jpg");
+file_put_contents("$dir/23-subsec-padding/photo-55ms.jpg", file_get_contents("$dir/23-subsec-padding/photo-55ms.jpg") . 'different');
+exiftool('-DateTimeOriginal=2024:12:15 10:00:00', '-SubSecTimeOriginal=55', "$dir/23-subsec-padding/photo-55ms.jpg");
+echo "  23 SubSecTime padding        → -500 vs -550 (different targets from 5 vs 55)\n";
 
 echo "\nDone. Run:\n";
 echo "  make run CMD=\"rename:exif test-images --dry-run --list-all\"\n";
