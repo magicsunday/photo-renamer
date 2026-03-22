@@ -76,6 +76,8 @@ final class RenameByExifDateCommandTest extends TestCase
 
     private const string DATE_D = '2025-01-01T00:02:23.000+00:00';
 
+    private const string DATE_E = '2025-01-01T00:02:25.000+00:00';
+
     /**
      * A timestamp with zero subseconds, used by idempotency tests for hash
      * sub-grouping. Zero subseconds ensure sub-grouping is not bypassed by
@@ -100,7 +102,7 @@ final class RenameByExifDateCommandTest extends TestCase
      *   2.jpg       hash:123  dateA  —       → duplicate of 1 (same hash, no LP)
      *   3.jpg       hash:456  dateB  —       → unique
      *   4.jpg       hash:789  dateC  —       → unique
-     *   sub/1.jpg   hash:456  dateB  —       → duplicate of 3 (subdirectory)
+     *   sub/1.jpg   hash:456  dateE  —       → unique (subdirectory, different date)
      *   a.jpg       hash:234  dateD  —       → canonical for dateD
      *   A.jpg       hash:234  dateD  —       → duplicate of a (same hash)
      *   A.JPG       hash:123  dateA  —       → duplicate of 1 (same hash, uppercase ext)
@@ -121,8 +123,8 @@ final class RenameByExifDateCommandTest extends TestCase
      *   companion MOV inherits the -002 sub-group number
      * - Unique files: unsuffixed names at their respective timestamps
      * - Mixed case/extension: A.JPG (uppercase ext) gets lowercased and duplicate-suffixed
-     * - Subdirectory: nested file gets its relative path preserved with duplicate suffix
-     * - Parent-before-child ordering: parent dir file becomes canonical before nested one
+     * - Subdirectory: nested file gets its relative path preserved with own date
+     * - Parent-before-child ordering: parent dir files are processed before nested ones
      * - No nested -duplicate--duplicate- patterns in any target name
      */
     #[Test]
@@ -141,7 +143,7 @@ final class RenameByExifDateCommandTest extends TestCase
                 '2.jpg'               => ['hash-123', self::DATE_A, null],
                 '3.jpg'               => ['hash-456', self::DATE_B, null],
                 '4.jpg'               => ['hash-789', self::DATE_C, null],
-                'sub/1.jpg'           => ['hash-456', self::DATE_B, null],
+                'sub/1.jpg'           => ['hash-456', self::DATE_E, null],
                 'a.jpg'               => ['hash-234', self::DATE_D, null],
                 'A.jpg'               => ['hash-234', self::DATE_D, null],
                 'A.JPG'               => ['hash-123', self::DATE_A, null],
@@ -238,11 +240,11 @@ final class RenameByExifDateCommandTest extends TestCase
                 'a.jpg is duplicate',
             );
 
-            // ---- Subdirectory: independent group (directory-scoped grouping) ----
+            // ---- Subdirectory: independent group (basename-only grouping, different date) ----
             self::assertSame(
-                'sub' . DIRECTORY_SEPARATOR . '2025-01-01_00-02-21-345.jpg',
+                'sub' . DIRECTORY_SEPARATOR . '2025-01-01_00-02-25-000.jpg',
                 $mappings['sub' . DIRECTORY_SEPARATOR . '1.jpg'],
-                'Subdirectory file is independent from parent directory (no duplicate suffix)',
+                'Subdirectory file has its own date and gets unsuffixed name',
             );
 
             // ---- Ordering: parent dir before subdirectory ----

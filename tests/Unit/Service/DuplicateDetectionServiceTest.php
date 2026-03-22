@@ -2228,9 +2228,9 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         // After the fix: 1 group (JPG's), MOV is a member of it.
         self::assertCount(1, $collection);
-        self::assertTrue($collection->has($sourceDirectory . DIRECTORY_SEPARATOR . '2025-01-01_12-00-00-000'));
+        self::assertTrue($collection->has('2025-01-01_12-00-00-000'));
 
-        $duplicate = $collection->get($sourceDirectory . DIRECTORY_SEPARATOR . '2025-01-01_12-00-00-000');
+        $duplicate = $collection->get('2025-01-01_12-00-00-000');
         self::assertInstanceOf(FileDuplicate::class, $duplicate);
 
         $files = iterator_to_array($duplicate->getFiles());
@@ -2288,9 +2288,9 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         // The standalone video must still have its own group (not be lost).
         self::assertCount(1, $collection);
-        self::assertTrue($collection->has($sourceDirectory . DIRECTORY_SEPARATOR . '2025-01-01_11-00-00-000'));
+        self::assertTrue($collection->has('2025-01-01_11-00-00-000'));
 
-        $duplicate = $collection->get($sourceDirectory . DIRECTORY_SEPARATOR . '2025-01-01_11-00-00-000');
+        $duplicate = $collection->get('2025-01-01_11-00-00-000');
         self::assertInstanceOf(FileDuplicate::class, $duplicate);
 
         $files = iterator_to_array($duplicate->getFiles());
@@ -2368,7 +2368,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         // All four files must land in one group (same target basename).
         self::assertCount(1, $collection);
 
-        $duplicate = $collection->get($sourceDirectory . DIRECTORY_SEPARATOR . '2025-01-01_12-00-00-000');
+        $duplicate = $collection->get('2025-01-01_12-00-00-000');
         self::assertInstanceOf(FileDuplicate::class, $duplicate);
 
         $files = iterator_to_array($duplicate->getFiles());
@@ -2470,7 +2470,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         // All four files must land in one group (same target basename).
         self::assertCount(1, $collection);
 
-        $duplicate = $collection->get($sourceDirectory . DIRECTORY_SEPARATOR . '2025-01-01_12-00-00-000');
+        $duplicate = $collection->get('2025-01-01_12-00-00-000');
         self::assertInstanceOf(FileDuplicate::class, $duplicate);
 
         $files = iterator_to_array($duplicate->getFiles());
@@ -2573,7 +2573,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         // All four files must land in one group (same target basename).
         self::assertCount(1, $collection);
 
-        $duplicate = $collection->get($sourceDirectory . DIRECTORY_SEPARATOR . '2025-01-01_12-00-00-000');
+        $duplicate = $collection->get('2025-01-01_12-00-00-000');
         self::assertInstanceOf(FileDuplicate::class, $duplicate);
 
         $files = iterator_to_array($duplicate->getFiles());
@@ -2675,7 +2675,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         // All four files must land in one group (same target basename, same directory).
         self::assertCount(1, $collection);
 
-        $groupKey  = $directory . DIRECTORY_SEPARATOR . '2025-01-01_12-00-00-000';
+        $groupKey  = '2025-01-01_12-00-00-000';
         $duplicate = $collection->get($groupKey);
         self::assertInstanceOf(FileDuplicate::class, $duplicate);
 
@@ -2774,7 +2774,7 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         self::assertCount(1, $collection);
 
-        $groupKey  = $sourceDirectory . DIRECTORY_SEPARATOR . '2025-01-01_12-00-00-000';
+        $groupKey  = '2025-01-01_12-00-00-000';
         $duplicate = $collection->get($groupKey);
         self::assertInstanceOf(FileDuplicate::class, $duplicate);
 
@@ -2830,6 +2830,132 @@ final class DuplicateDetectionServiceTest extends TestCase
     ): void {
         $sourceProperty = new ReflectionProperty($service, 'sourceDirectory');
         $sourceProperty->setValue($service, $sourceDirectory);
+    }
+
+    /**
+     * Verifies that files in different subdirectories with the same EXIF date
+     * are grouped together into a single duplicate group. This is essential for
+     * detecting duplicates across a large photo collection with nested folders.
+     */
+    #[Test]
+    public function groupFilesByDuplicateIdentifierGroupsFilesAcrossDirectories(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $subDirectory    = $sourceDirectory . DIRECTORY_SEPARATOR . 'sub';
+
+        mkdir($subDirectory, 0777, true);
+
+        $fileRoot = $sourceDirectory . DIRECTORY_SEPARATOR . 'root-photo.jpg';
+        $fileSub  = $subDirectory . DIRECTORY_SEPARATOR . 'sub-photo.jpg';
+
+        file_put_contents($fileRoot, 'content-root');
+        file_put_contents($fileSub, 'content-sub');
+
+        $iterator = $this->createIterator($sourceDirectory);
+
+        $renameStrategy = $this->createMock(RenameStrategyInterface::class);
+        $renameStrategy
+            ->method('generateFilename')
+            ->willReturn('2025-01-01_12-00-00-000.jpg');
+
+        $duplicateIdentifierStrategy = new TargetBasenameStrategy();
+
+        $collection = $service->groupFilesByDuplicateIdentifier(
+            $iterator,
+            $renameStrategy,
+            $duplicateIdentifierStrategy,
+            $sourceDirectory,
+        );
+
+        // Both files should land in ONE group despite being in different directories
+        self::assertCount(1, $collection);
+        self::assertTrue($collection->has('2025-01-01_12-00-00-000'));
+
+        $group = $collection->get('2025-01-01_12-00-00-000');
+        self::assertInstanceOf(FileDuplicate::class, $group);
+        self::assertCount(2, $group->getFiles());
+    }
+
+    /**
+     * Verifies that cross-directory duplicates retain their original directory
+     * when assigned filenames. The duplicate in sub/ stays in sub/, not moved to root.
+     */
+    #[Test]
+    public function createDuplicateFilenamesCrossDirectoryRetainsOriginalDirectory(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+        $subDirectory    = $sourceDirectory . DIRECTORY_SEPARATOR . 'sub';
+
+        mkdir($subDirectory, 0777, true);
+
+        $fileRoot = $sourceDirectory . DIRECTORY_SEPARATOR . 'root-photo.jpg';
+        $fileSub  = $subDirectory . DIRECTORY_SEPARATOR . 'sub-photo.jpg';
+
+        file_put_contents($fileRoot, 'identical-content');
+        file_put_contents($fileSub, 'identical-content');
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate
+            ->addFile(new SplFileInfo($fileRoot))
+            ->addFile(new SplFileInfo($fileSub))
+            ->setTarget(new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . '2025-01-01_12-00-00-000.jpg'));
+
+        $fileDuplicate->addRename(new Rename(
+            new SplFileInfo($fileRoot),
+            new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . '2025-01-01_12-00-00-000.jpg'),
+        ));
+        $fileDuplicate->addRename(new Rename(
+            new SplFileInfo($fileSub),
+            new SplFileInfo($subDirectory . DIRECTORY_SEPARATOR . '2025-01-01_12-00-00-000.jpg'),
+        ));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('2025-01-01_12-00-00-000', $fileDuplicate);
+
+        $service->createDuplicateFilenames($collection, $sourceDirectory);
+
+        $group = $collection->get('2025-01-01_12-00-00-000');
+        self::assertInstanceOf(FileDuplicate::class, $group);
+
+        $renames = $group->getRenames();
+
+        // Root file = canonical, sub file = duplicate
+        $rootRename = null;
+        $subRename  = null;
+
+        foreach ($renames as $rename) {
+            if (str_contains($rename->getSource()->getPathname(), 'sub')) {
+                $subRename = $rename;
+            } else {
+                $rootRename = $rename;
+            }
+        }
+
+        self::assertNotNull($rootRename);
+        self::assertNotNull($subRename);
+
+        // Root keeps original directory
+        self::assertSame(
+            $sourceDirectory,
+            $rootRename->getTarget()->getPath(),
+        );
+
+        // Sub keeps its subdirectory — NOT moved to root
+        self::assertSame(
+            $subDirectory,
+            $subRename->getTarget()->getPath(),
+        );
+
+        // One is canonical (no duplicate suffix), the other has -duplicate-
+        $rootBasename = $rootRename->getTarget()->getBasename();
+        $subBasename  = $subRename->getTarget()->getBasename();
+
+        $hasDuplicate = str_contains($rootBasename, '-duplicate-') || str_contains($subBasename, '-duplicate-');
+        self::assertTrue($hasDuplicate, 'One file should have a -duplicate- suffix');
     }
 
     private function createTempDirectory(): string

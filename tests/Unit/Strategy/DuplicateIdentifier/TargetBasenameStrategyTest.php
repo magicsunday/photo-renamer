@@ -54,7 +54,7 @@ final class TargetBasenameStrategyTest extends TestCase
             new SplFileInfo('/tmp/2025-01-01_00-02-20-016.jpg'),
         );
 
-        self::assertSame('/tmp/2025-01-01_00-02-20-016', $identifier);
+        self::assertSame('2025-01-01_00-02-20-016', $identifier);
     }
 
     /**
@@ -75,6 +75,6 @@ final class TargetBasenameStrategyTest extends TestCase
             new SplFileInfo('/tmp/target.mov'),
         );
 
-        self::assertSame('/tmp/target', $identifier);
+        self::assertSame('target', $identifier);
     }
 }

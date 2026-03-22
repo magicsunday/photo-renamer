@@ -16,10 +16,10 @@ use Override;
 use SplFileInfo;
 
 /**
- * Groups files by their target directory and basename (filename without extension).
- * Files in the same directory sharing the same EXIF date produce the same identifier
- * and land in one unified group, regardless of file extension. Files in different
- * directories are always independent, even with identical timestamps.
+ * Groups files by their target basename (filename without extension), regardless
+ * of directory. Files across the entire directory tree sharing the same EXIF date
+ * produce the same identifier and land in one unified group. This enables
+ * cross-directory duplicate detection in large photo collections.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -28,20 +28,18 @@ use SplFileInfo;
 final readonly class TargetBasenameStrategy implements DuplicateIdentifierStrategyInterface
 {
     /**
-     * Combines the target directory and basename (without extension) into a single
-     * grouping key. For example, "/photos/2025/2025-01-01_12-00-00-000.jpg" yields
-     * "/photos/2025/2025-01-01_12-00-00-000".
+     * Returns the target basename (without extension) as the grouping key.
+     * For example, "/photos/2025/2025-01-01_12-00-00-000.jpg" yields
+     * "2025-01-01_12-00-00-000".
      *
      * @param SplFileInfo $sourceFileInfo Unused by this strategy
-     * @param SplFileInfo $targetFileInfo Target file whose directory + basename is used
+     * @param SplFileInfo $targetFileInfo Target file whose basename is used
      *
-     * @return string Directory-scoped identifier
+     * @return string Cross-directory identifier
      */
     #[Override]
     public function generateIdentifier(SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo): string
     {
-        return $targetFileInfo->getPath()
-            . DIRECTORY_SEPARATOR
-            . FileHelper::basenameWithoutExtension($targetFileInfo);
+        return FileHelper::basenameWithoutExtension($targetFileInfo);
     }
 }
