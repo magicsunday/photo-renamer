@@ -39,5 +39,11 @@ services:
         arguments:
             $io: '@Symfony\Component\Console\Style\SymfonyStyle'
 
+    MagicSunday\Renamer\Service\PerceptualHash\FfmpegGrayscaleLoaderInterface:
+        class: MagicSunday\Renamer\Service\PerceptualHash\FfmpegGrayscaleLoader
+
+    MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface:
+        class: MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator
+
     MagicSunday\ImageMeta\MetadataReader:
         factory: ['MagicSunday\ImageMeta\MetadataReader', 'createDefault']
