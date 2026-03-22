@@ -141,24 +141,13 @@ echo "  03 burst-1 + burst-2         → different hashes, burst-2 gets -002\n";
 // ============================================================================
 // 04 - Live Photo pair (JPEG + MOV, matching Content Identifier)
 // ============================================================================
+// Use metadata from real iPhone Live Photo pair for proper ContentIdentifier
+// that imagemeta can read. Source: /volume1/Fotos/2025/
 mkdir("$dir/04-live-photo-pair", 0755, true);
-createJpeg("$dir/04-live-photo-pair/IMG_0001.jpg");
-exiftool(
-    '-DateTimeOriginal=2024:08:10 11:22:33', '-SubSecTimeOriginal=456',
-    '-ContentIdentifier=AAAA-BBBB-CCCC-DDDD',
-    '-Make=Apple', '-Model=iPhone 12', '-Software=16.0',
-    '-GPSLatitude=51.3397', '-GPSLongitude=12.3731', '-GPSLatitudeRef=N', '-GPSLongitudeRef=E',
-    "$dir/04-live-photo-pair/IMG_0001.jpg",
-);
-createMov("$dir/04-live-photo-pair/IMG_0001.mov");
-exiftool(
-    '-Keys:ContentIdentifier=AAAA-BBBB-CCCC-DDDD',
-    '-QuickTime:CreateDate=2024:08:10 11:22:33',
-    '-Keys:Make=Apple', '-Keys:Model=iPhone 12', '-Keys:Software=16.0',
-    '-Keys:GPSCoordinates=51.3397 12.3731',
-    "$dir/04-live-photo-pair/IMG_0001.mov",
-);
-echo "  04 IMG_0001.jpg + .mov       → Live Photo pair, MOV inherits date\n";
+$lpSource = '/volume1/Fotos/2025/2025-01-01_00-02-20-016';
+stripToMetadataOnly("$lpSource.jpg", "$dir/04-live-photo-pair/IMG_0001.jpg");
+stripToMetadataOnly("$lpSource.mov", "$dir/04-live-photo-pair/IMG_0001.mov", true);
+echo "  04 IMG_0001.jpg + .mov       → Live Photo pair, MOV inherits still's date\n";
 
 // ============================================================================
 // 05 - Fallback date (only ModifyDate, no DateTimeOriginal)
