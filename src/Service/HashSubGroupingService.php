@@ -219,6 +219,25 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
             ++$subGroupNumber;
         }
 
+        // Build a per-directory file count for cross-directory conflict resolution.
+        // Files that are alone in their directory with a given hash don't need a sub-group
+        // suffix — they have no naming conflict in their own directory.
+        $canonicalDir = $canonicalRename?->getSource()->getPath();
+
+        /** @var array<string, array<string, int>> $dirHashCounts directory → hash → count */
+        $dirHashCounts = [];
+
+        foreach ($nonCompanionRenames as $rename) {
+            $dir  = $rename->getSource()->getPath();
+            $hash = $renameToHash[$rename->getSource()->getPathname()] ?? '';
+
+            if (!isset($dirHashCounts[$dir][$hash])) {
+                $dirHashCounts[$dir][$hash] = 0;
+            }
+
+            ++$dirHashCounts[$dir][$hash];
+        }
+
         // Now process all hash groups in their assigned order.
         foreach ($hashGroups as $hash => $groupRenames) {
             $groupNumber      = $hashToSubGroup[$hash];
@@ -231,7 +250,25 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
             $duplicateIndex = 1;
 
             foreach ($groupRenames as $rename) {
-                $ext = strtolower($rename->getTarget()->getExtension());
+                $ext       = strtolower($rename->getTarget()->getExtension());
+                $renameDir = $rename->getSource()->getPath();
+
+                // Cross-directory resolution: a file in a different directory than
+                // the canonical that is the only file with its hash in its directory
+                // has no naming conflict — it keeps the unsuffixed canonical basename.
+                $isCrossDirNoConflict = ($renameDir !== $canonicalDir)
+                    && !$isCanonicalGroup
+                    && (($dirHashCounts[$renameDir][$hash] ?? 0) <= 1);
+
+                if ($isCrossDirNoConflict) {
+                    $newTargetFilename = $canonicalBasename . '.' . $ext;
+                    $targetPathname    = $targetPathnameResolver($rename->getSource(), $newTargetFilename);
+
+                    $rename->setTarget(new SplFileInfo($targetPathname));
+                    $newRenames[] = $rename;
+
+                    continue;
+                }
 
                 // In the canonical group, the actual canonical rename gets no suffix.
                 // In other groups, the first file gets no suffix (sub-group canonical).
