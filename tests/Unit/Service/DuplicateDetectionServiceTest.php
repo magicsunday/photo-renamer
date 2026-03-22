@@ -38,6 +38,7 @@ use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\LivePhotoAwareRenameStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
+use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubPerceptualHashCalculator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
@@ -100,6 +101,7 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(MediaTypeClassifier::class)]
 #[UsesClass(RenameOutputRenderer::class)]
 #[UsesClass(SafeHashCalculator::class)]
+#[UsesClass(StubPerceptualHashCalculator::class)]
 final class DuplicateDetectionServiceTest extends TestCase
 {
     use WorkspaceTrait;
@@ -1315,7 +1317,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         $io     = new SymfonyStyle(new ArrayInput([]), $output);
 
         $mediaTypeClassifier    = new MediaTypeClassifier();
-        $hashSubGroupingService = new HashSubGroupingService($hashCalculator, $io, $mediaTypeClassifier);
+        $hashSubGroupingService = new HashSubGroupingService($hashCalculator, $io, $mediaTypeClassifier, new StubPerceptualHashCalculator());
         $service                = new DuplicateDetectionService($io, $hashSubGroupingService, $mediaTypeClassifier);
 
         $targetFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'target.jpg';
@@ -1370,7 +1372,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         $io     = new SymfonyStyle(new ArrayInput([]), $output);
 
         $mediaTypeClassifier    = new MediaTypeClassifier();
-        $hashSubGroupingService = new HashSubGroupingService($hashCalculator, $io, $mediaTypeClassifier);
+        $hashSubGroupingService = new HashSubGroupingService($hashCalculator, $io, $mediaTypeClassifier, new StubPerceptualHashCalculator());
         $service                = new DuplicateDetectionService($io, $hashSubGroupingService, $mediaTypeClassifier);
 
         $sourceDirectory = $this->createTempDirectory();
@@ -1437,7 +1439,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         $io     = new SymfonyStyle(new ArrayInput([]), $output);
 
         $mediaTypeClassifier    = new MediaTypeClassifier();
-        $hashSubGroupingService = new HashSubGroupingService($hashCalculator, $io, $mediaTypeClassifier);
+        $hashSubGroupingService = new HashSubGroupingService($hashCalculator, $io, $mediaTypeClassifier, new StubPerceptualHashCalculator());
         $service                = new DuplicateDetectionService($io, $hashSubGroupingService, $mediaTypeClassifier);
 
         $sourceDirectory = $this->createTempDirectory();
@@ -2835,7 +2837,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         $fileSystemService      = new FileSystemService($io, new RenameOutputRenderer($io));
         $hashCalculator         = new SafeHashCalculator();
         $mediaTypeClassifier    = new MediaTypeClassifier();
-        $hashSubGroupingService = new HashSubGroupingService($hashCalculator, $io, $mediaTypeClassifier);
+        $hashSubGroupingService = new HashSubGroupingService($hashCalculator, $io, $mediaTypeClassifier, new StubPerceptualHashCalculator());
         $service                = new DuplicateDetectionService($io, $hashSubGroupingService, $mediaTypeClassifier);
 
         return [$service, $output, $fileSystemService];

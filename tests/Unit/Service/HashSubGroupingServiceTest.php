@@ -19,8 +19,10 @@ use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
+use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
+use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubPerceptualHashCalculator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
@@ -61,6 +63,7 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(FileList::class)]
 #[UsesClass(MediaTypeClassifier::class)]
 #[UsesClass(SafeHashCalculator::class)]
+#[UsesClass(StubPerceptualHashCalculator::class)]
 final class HashSubGroupingServiceTest extends TestCase
 {
     use WorkspaceTrait;
@@ -536,7 +539,156 @@ final class HashSubGroupingServiceTest extends TestCase
         };
     }
 
+    /**
+     * Verifies that apply() merges hash groups when their dHash Hamming distance
+     * is below the threshold, treating them as perceptual duplicates.
+     *
+     * Two files with different xxh128 content hashes but identical visual content
+     * (same dHash) should be merged into a single group → apply() returns false.
+     */
+    #[Test]
+    public function applyMergesPerceptuallySimilarHashGroups(): void
+    {
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $fileA = $sourceDirectory . DIRECTORY_SEPARATOR . 'a.jpg';
+        $fileB = $sourceDirectory . DIRECTORY_SEPARATOR . 'b.jpg';
+
+        file_put_contents($fileA, 'content-A');
+        file_put_contents($fileB, 'content-B-different');
+
+        $target = $targetDirectory . DIRECTORY_SEPARATOR . 'target.jpg';
+
+        // Both files produce the same dHash → visually identical → merge
+        $stub = new StubPerceptualHashCalculator()
+            ->withHash($fileA, 'abcdef0123456789')
+            ->withHash($fileB, 'abcdef0123456789');
+
+        $service = $this->createHashSubGroupingServiceWithStub($stub);
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate
+            ->addFile(new SplFileInfo($fileA))
+            ->addFile(new SplFileInfo($fileB))
+            ->setTarget(new SplFileInfo($target));
+
+        $renameA = new Rename(new SplFileInfo($fileA), new SplFileInfo($target));
+        $renameB = new Rename(new SplFileInfo($fileB), new SplFileInfo($target));
+        $fileDuplicate->addRename($renameA);
+        $fileDuplicate->addRename($renameB);
+
+        $result = $service->apply(
+            $fileDuplicate,
+            $renameA,
+            null,
+            [],
+            $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
+        );
+
+        self::assertFalse($result, 'Perceptually identical files should be merged → no sub-grouping');
+    }
+
+    /**
+     * Verifies that apply() keeps hash groups separate when their dHash Hamming
+     * distance exceeds the threshold (visually distinct content → sub-groups).
+     */
+    #[Test]
+    public function applyKeepsPerceptuallyDistinctHashGroups(): void
+    {
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $fileA = $sourceDirectory . DIRECTORY_SEPARATOR . 'a.jpg';
+        $fileB = $sourceDirectory . DIRECTORY_SEPARATOR . 'b.jpg';
+
+        file_put_contents($fileA, 'content-A');
+        file_put_contents($fileB, 'content-B-different');
+
+        $target = $targetDirectory . DIRECTORY_SEPARATOR . 'target.jpg';
+
+        // Maximally different dHashes → visually distinct → keep separate
+        $stub = new StubPerceptualHashCalculator()
+            ->withHash($fileA, '0000000000000000')
+            ->withHash($fileB, 'ffffffffffffffff');
+
+        $service = $this->createHashSubGroupingServiceWithStub($stub);
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate
+            ->addFile(new SplFileInfo($fileA))
+            ->addFile(new SplFileInfo($fileB))
+            ->setTarget(new SplFileInfo($target));
+
+        $renameA = new Rename(new SplFileInfo($fileA), new SplFileInfo($target));
+        $renameB = new Rename(new SplFileInfo($fileB), new SplFileInfo($target));
+        $fileDuplicate->addRename($renameA);
+        $fileDuplicate->addRename($renameB);
+
+        $result = $service->apply(
+            $fileDuplicate,
+            $renameA,
+            null,
+            [],
+            $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
+        );
+
+        self::assertTrue($result, 'Visually distinct files should remain in separate sub-groups');
+    }
+
+    /**
+     * Verifies that apply() gracefully handles dHash computation failures
+     * by keeping hash groups separate (conservative: assume different content).
+     */
+    #[Test]
+    public function applyHandlesDhashFailureGracefully(): void
+    {
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $fileA = $sourceDirectory . DIRECTORY_SEPARATOR . 'a.jpg';
+        $fileB = $sourceDirectory . DIRECTORY_SEPARATOR . 'b.jpg';
+
+        file_put_contents($fileA, 'content-A');
+        file_put_contents($fileB, 'content-B-different');
+
+        $target = $targetDirectory . DIRECTORY_SEPARATOR . 'target.jpg';
+
+        // dHash returns null for both → cannot compare → keep separate
+        $stub = new StubPerceptualHashCalculator()
+            ->withHash($fileA, null)
+            ->withHash($fileB, null);
+
+        $service = $this->createHashSubGroupingServiceWithStub($stub);
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate
+            ->addFile(new SplFileInfo($fileA))
+            ->addFile(new SplFileInfo($fileB))
+            ->setTarget(new SplFileInfo($target));
+
+        $renameA = new Rename(new SplFileInfo($fileA), new SplFileInfo($target));
+        $renameB = new Rename(new SplFileInfo($fileB), new SplFileInfo($target));
+        $fileDuplicate->addRename($renameA);
+        $fileDuplicate->addRename($renameB);
+
+        $result = $service->apply(
+            $fileDuplicate,
+            $renameA,
+            null,
+            [],
+            $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
+        );
+
+        self::assertTrue($result, 'Failed dHash should result in separate sub-groups (conservative)');
+    }
+
     private function createHashSubGroupingService(): HashSubGroupingService
+    {
+        return $this->createHashSubGroupingServiceWithStub(new StubPerceptualHashCalculator());
+    }
+
+    private function createHashSubGroupingServiceWithStub(PerceptualHashCalculatorInterface $perceptualHashCalculator): HashSubGroupingService
     {
         $output = new BufferedOutput();
         $io     = new SymfonyStyle(new ArrayInput([]), $output);
@@ -545,6 +697,7 @@ final class HashSubGroupingServiceTest extends TestCase
             new SafeHashCalculator(),
             $io,
             new MediaTypeClassifier(),
+            $perceptualHashCalculator,
         );
     }
 

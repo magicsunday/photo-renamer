@@ -18,6 +18,7 @@ use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
+use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
 use Override;
 use SplFileInfo;
 use Symfony\Component\Console\Style\SymfonyStyle;
@@ -41,14 +42,22 @@ use function strtolower;
 final readonly class HashSubGroupingService implements HashSubGroupingServiceInterface
 {
     /**
-     * @param SafeHashCalculator           $hashCalculator      Computes file content hashes for sub-group keying
-     * @param SymfonyStyle                 $io                  Console IO for error output on hash computation failures
-     * @param MediaTypeClassifierInterface $mediaTypeClassifier Classifies files as still or video
+     * Maximum Hamming distance (out of 64 bits) for two dHash values
+     * to be considered perceptually similar (near-duplicates).
+     */
+    private const int DHASH_SIMILARITY_THRESHOLD = 10;
+
+    /**
+     * @param SafeHashCalculator                $hashCalculator           Computes file content hashes for sub-group keying
+     * @param SymfonyStyle                      $io                       Console IO for error output on hash computation failures
+     * @param MediaTypeClassifierInterface      $mediaTypeClassifier      Classifies files as still or video
+     * @param PerceptualHashCalculatorInterface $perceptualHashCalculator Computes dHash for visual similarity comparison
      */
     public function __construct(
         private SafeHashCalculator $hashCalculator,
         private SymfonyStyle $io,
         private MediaTypeClassifierInterface $mediaTypeClassifier,
+        private PerceptualHashCalculatorInterface $perceptualHashCalculator,
     ) {
     }
 
@@ -135,6 +144,15 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
 
         // If all files have the same hash, this is a pure duplicate group.
         // Fall through to existing logic.
+        if (count($hashGroups) <= 1) {
+            return false;
+        }
+
+        // Merge hash groups that are perceptually similar (near-duplicates).
+        // Files with different content hashes but visually identical dHash
+        // (e.g. re-imports, format conversions) are merged into one group.
+        $hashGroups = $this->mergePerceptuallySimilarGroups($hashGroups);
+
         if (count($hashGroups) <= 1) {
             return false;
         }
@@ -384,11 +402,114 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
     }
 
     /**
+     * Merges hash groups whose representative files are perceptually similar.
+     *
+     * For each hash group, computes a dHash of the first file. Groups whose
+     * dHash Hamming distance is within the threshold are merged. This handles
+     * format conversions (JPG↔HEIC), re-imports, and re-encodes that produce
+     * different byte content but are visually identical.
+     *
+     * @param array<string, list<Rename>> $hashGroups Content-hash → rename list
+     *
+     * @return array<string, list<Rename>> Merged groups
+     */
+    private function mergePerceptuallySimilarGroups(array $hashGroups): array
+    {
+        $hashes = array_keys($hashGroups);
+        $count  = count($hashes);
+
+        if ($count <= 1) {
+            return $hashGroups;
+        }
+
+        // Compute dHash for one representative file per hash group.
+        /** @var array<string, string|null> $dhashByHash content-hash → dHash hex */
+        $dhashByHash = [];
+
+        foreach ($hashGroups as $hash => $renames) {
+            $dhashByHash[$hash] = $this->perceptualHashCalculator->computeDhash(
+                $renames[0]->getSource(),
+            );
+        }
+
+        // Union-find: parent[i] = index of parent in $hashes array.
+        /** @var array<int, int> $parent */
+        $parent = [];
+
+        for ($i = 0; $i < $count; ++$i) {
+            $parent[$i] = $i;
+        }
+
+        // Pairwise comparison — merge groups with similar dHash.
+        for ($i = 0; $i < $count; ++$i) {
+            $dhashI = $dhashByHash[$hashes[$i]];
+
+            if ($dhashI === null) {
+                continue;
+            }
+
+            for ($j = $i + 1; $j < $count; ++$j) {
+                $dhashJ = $dhashByHash[$hashes[$j]];
+
+                if ($dhashJ === null) {
+                    continue;
+                }
+
+                $distance = $this->perceptualHashCalculator->hammingDistance($dhashI, $dhashJ);
+
+                if ($distance <= self::DHASH_SIMILARITY_THRESHOLD) {
+                    // Merge: set j's root to i's root.
+                    $rootI = $this->findRoot($parent, $i);
+                    $rootJ = $this->findRoot($parent, $j);
+
+                    if ($rootI !== $rootJ) {
+                        $parent[$rootJ] = $rootI;
+                    }
+                }
+            }
+        }
+
+        // Build merged groups keyed by root's content hash.
+        /** @var array<string, list<Rename>> $merged */
+        $merged = [];
+
+        for ($i = 0; $i < $count; ++$i) {
+            $rootHash = $hashes[$this->findRoot($parent, $i)];
+
+            if (!isset($merged[$rootHash])) {
+                $merged[$rootHash] = [];
+            }
+
+            foreach ($hashGroups[$hashes[$i]] as $rename) {
+                $merged[$rootHash][] = $rename;
+            }
+        }
+
+        return $merged;
+    }
+
+    /**
+     * Finds the root of element $i in the union-find structure with path compression.
+     *
+     * @param array<int, int> $parent
+     */
+    private function findRoot(array &$parent, int $i): int
+    {
+        while ($parent[$i] !== $i) {
+            $parent[$i] = $parent[$parent[$i]];
+            $i          = $parent[$i];
+        }
+
+        return $i;
+    }
+
+    /**
      * Releases all cached hash results to free memory.
      */
     #[Override]
     public function clearCache(): void
     {
         $this->hashCalculator->clearCache();
+        $this->perceptualHashCalculator->clearCache();
     }
 }
