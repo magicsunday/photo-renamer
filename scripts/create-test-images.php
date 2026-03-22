@@ -388,6 +388,27 @@ exiftool(
 copy("$dir/27-semantic-dup-plus-crossdir/capture-a.jpg", "$dir/27-semantic-dup-plus-crossdir/backup/copy.jpg");
 echo "  27 semantic dup + cross-dir  → root canonical + -duplicate-001, backup/ -duplicate-001\n";
 
+// ============================================================================
+// 28 - Cross-directory format backup (JPG in root, HEIC in subdir)
+//      Same capture, different format, different directories.
+//      Expected: semantic duplicate (format backup), not sub-grouped.
+// ============================================================================
+mkdir("$dir/28-cross-dir-format-backup", 0755, true);
+mkdir("$dir/28-cross-dir-format-backup/backup", 0755, true);
+createJpeg("$dir/28-cross-dir-format-backup/photo.jpg");
+exiftool(
+    '-DateTimeOriginal=2025:11:15 20:26:50', '-SubSecTimeOriginal=647',
+    '-Make=Apple', '-Model=iPhone 16 Pro', '-Software=18.1',
+    "$dir/28-cross-dir-format-backup/photo.jpg",
+);
+createHeic("$dir/28-cross-dir-format-backup/backup/photo.heic");
+exiftool(
+    '-DateTimeOriginal=2025:11:15 20:26:50', '-SubSecTimeOriginal=647',
+    '-Make=Apple', '-Model=iPhone 16 Pro', '-Software=18.1',
+    "$dir/28-cross-dir-format-backup/backup/photo.heic",
+);
+echo "  28 cross-dir format backup   → JPG canonical, HEIC gets -duplicate-001 (format backup)\n";
+
 echo "\nDone. Run:\n";
 echo "  make run CMD=\"rename:exif test-images --dry-run --list-all\"\n";
 echo "  make run CMD=\"rename:write-date test-images --dry-run\"\n";
