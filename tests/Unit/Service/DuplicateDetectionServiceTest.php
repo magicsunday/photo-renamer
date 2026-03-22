@@ -768,25 +768,26 @@ final class DuplicateDetectionServiceTest extends TestCase
             $renamesBySource[$rename->getSource()->getPathname()] = $rename;
         }
 
+        $pattern = '/' . preg_quote(Constants::DUPLICATE_IDENTIFIER, '/') . '(\d{3})\.jpg$/';
+
+        // Root file = canonical (no suffix)
         self::assertArrayHasKey($rootFile, $renamesBySource);
         self::assertSame(
             $sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg',
             $renamesBySource[$rootFile]->getTarget()->getPathname(),
         );
 
-        // nested/photo.jpg has target == source — already correctly named, no rename needed.
+        // nested/photo.jpg is a cross-directory duplicate — must get a duplicate suffix
+        // even though source == target in its own directory, because the canonical is in root.
         self::assertArrayHasKey($duplicateFile, $renamesBySource);
         self::assertSame(
-            $duplicateFile,
-            $renamesBySource[$duplicateFile]->getTarget()->getPathname(),
-            'nested/photo.jpg stays at its path (target == source)',
+            1,
+            preg_match($pattern, $renamesBySource[$duplicateFile]->getTarget()->getFilename()),
+            'Cross-directory duplicate nested/photo.jpg gets a duplicate suffix',
         );
 
         // nested/photo-duplicate-001.jpg keeps its suffix (target photo.jpg is occupied).
         self::assertArrayHasKey($preRenamedDuplicate, $renamesBySource);
-
-        $pattern = '/' . preg_quote(Constants::DUPLICATE_IDENTIFIER, '/') . '(\d{3})\.jpg$/';
-
         self::assertSame(
             1,
             preg_match($pattern, $renamesBySource[$preRenamedDuplicate]->getTarget()->getFilename()),

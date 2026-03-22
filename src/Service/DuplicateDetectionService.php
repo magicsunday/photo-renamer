@@ -745,6 +745,12 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
                         && (($rename !== $canonicalRename) || !$canonicalNeedsPromotion)
                         && ($rename->getTarget()->getPathname() === $canonicalTargetPath);
 
+                    // Cross-directory duplicate: file is in a different directory than
+                    // the canonical. Even if source == target (idempotent in its own dir),
+                    // it must get a duplicate suffix because the canonical lives elsewhere.
+                    $isCrossDirectoryDuplicate = ($canonicalRename instanceof Rename)
+                        && ($rename->getSource()->getPath() !== $canonicalRename->getSource()->getPath());
+
                     $rename->setTarget(
                         $this->createDuplicateTargetFileInfo(
                             $rename->getSource(),
@@ -752,7 +758,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
                             $duplicateCountByExtension[$ext],
                             $processedDuplicates === 0,
                             $hasAdditionalRenames,
-                            $requiresCanonicalDisambiguation,
+                            $requiresCanonicalDisambiguation || $isCrossDirectoryDuplicate,
                             $groupSourcePaths,
                         )
                     );
@@ -958,7 +964,9 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
         array $groupSourcePaths = [],
     ): SplFileInfo {
         // File already at its target path — no rename needed (idempotency).
-        if ($target->getPathname() === $source->getPathname()) {
+        // Exception: cross-directory duplicates must still get a suffix even if
+        // their local source == target, because the canonical lives in another directory.
+        if (($target->getPathname() === $source->getPathname()) && !$requiresCanonicalDisambiguation) {
             return $target;
         }
 
