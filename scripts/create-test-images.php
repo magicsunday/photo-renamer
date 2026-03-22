@@ -278,7 +278,7 @@ mkdir("$dir/22-cross-dir-duplicates/backup", 0755, true);
 createJpeg("$dir/22-cross-dir-duplicates/original.jpg");
 exiftool('-DateTimeOriginal=2024:12:01 09:00:00', '-SubSecTimeOriginal=000', "$dir/22-cross-dir-duplicates/original.jpg");
 copy("$dir/22-cross-dir-duplicates/original.jpg", "$dir/22-cross-dir-duplicates/backup/copy.jpg");
-echo "  22 cross-dir duplicates      → root [O], backup/ [D] -duplicate-001\n";
+echo "  22 cross-dir duplicates      → root [R] canonical, backup/ [D] -duplicate-001\n";
 
 // ============================================================================
 // 23 - SubSecTime padding (2-digit vs 3-digit)
