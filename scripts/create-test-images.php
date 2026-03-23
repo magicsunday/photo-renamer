@@ -301,21 +301,20 @@ echo "  23 SubSecTime padding        → -500 vs -550 (different targets from 5 
 // ============================================================================
 mkdir("$dir/24-cross-dir-edits", 0755, true);
 mkdir("$dir/24-cross-dir-edits/bearbeitet", 0755, true);
-createJpeg("$dir/24-cross-dir-edits/original.jpg");
+// Use visually DIFFERENT images (different colors) so perceptual hashing sees them as distinct
+exec(sprintf('ffmpeg -y -f lavfi -i color=red:s=64x64 -frames:v 1 %s 2>/dev/null', escapeshellarg("$dir/24-cross-dir-edits/original.jpg")));
 exiftool(
     '-DateTimeOriginal=2024:07:25 11:27:50', '-SubSecTimeOriginal=100',
     '-Make=NIKON CORPORATION', '-Model=NIKON D100', '-Software=Adobe Photoshop 7.0',
     "$dir/24-cross-dir-edits/original.jpg",
 );
-createJpeg("$dir/24-cross-dir-edits/bearbeitet/edit-1.jpg");
-file_put_contents("$dir/24-cross-dir-edits/bearbeitet/edit-1.jpg", file_get_contents("$dir/24-cross-dir-edits/bearbeitet/edit-1.jpg") . 'edit-version-1');
+exec(sprintf('ffmpeg -y -f lavfi -i color=green:s=64x64 -frames:v 1 %s 2>/dev/null', escapeshellarg("$dir/24-cross-dir-edits/bearbeitet/edit-1.jpg")));
 exiftool(
     '-DateTimeOriginal=2024:07:25 11:27:50', '-SubSecTimeOriginal=100',
     '-Make=NIKON CORPORATION', '-Model=NIKON D100', '-Software=Adobe Photoshop 7.0',
     "$dir/24-cross-dir-edits/bearbeitet/edit-1.jpg",
 );
-createJpeg("$dir/24-cross-dir-edits/bearbeitet/edit-2.jpg");
-file_put_contents("$dir/24-cross-dir-edits/bearbeitet/edit-2.jpg", file_get_contents("$dir/24-cross-dir-edits/bearbeitet/edit-2.jpg") . 'edit-version-2');
+exec(sprintf('ffmpeg -y -f lavfi -i color=blue:s=64x64 -frames:v 1 %s 2>/dev/null', escapeshellarg("$dir/24-cross-dir-edits/bearbeitet/edit-2.jpg")));
 exiftool(
     '-DateTimeOriginal=2024:07:25 11:27:50', '-SubSecTimeOriginal=100',
     '-Make=NIKON CORPORATION', '-Model=NIKON D100', '-Software=Adobe Photoshop 7.0',
@@ -349,14 +348,14 @@ echo "  25 same-dir semantic dup     → one canonical, other -duplicate-001 (sa
 //      Expected: hash sub-grouping → original keeps name, edit gets -002.
 // ============================================================================
 mkdir("$dir/26-same-dir-diff-software", 0755, true);
-createJpeg("$dir/26-same-dir-diff-software/from-camera.jpg");
+// Use visually DIFFERENT images so perceptual hashing sees them as distinct
+exec(sprintf('ffmpeg -y -f lavfi -i color=yellow:s=64x64 -frames:v 1 %s 2>/dev/null', escapeshellarg("$dir/26-same-dir-diff-software/from-camera.jpg")));
 exiftool(
     '-DateTimeOriginal=2024:11:15 09:30:00', '-SubSecTimeOriginal=450',
     '-Make=Apple', '-Model=iPhone 14 Pro', '-Software=17.2',
     "$dir/26-same-dir-diff-software/from-camera.jpg",
 );
-createJpeg("$dir/26-same-dir-diff-software/photoshopped.jpg");
-file_put_contents("$dir/26-same-dir-diff-software/photoshopped.jpg", file_get_contents("$dir/26-same-dir-diff-software/photoshopped.jpg") . 'photoshop-edit');
+exec(sprintf('ffmpeg -y -f lavfi -i color=purple:s=64x64 -frames:v 1 %s 2>/dev/null', escapeshellarg("$dir/26-same-dir-diff-software/photoshopped.jpg")));
 exiftool(
     '-DateTimeOriginal=2024:11:15 09:30:00', '-SubSecTimeOriginal=450',
     '-Make=Apple', '-Model=iPhone 14 Pro', '-Software=Adobe Photoshop 2024',
