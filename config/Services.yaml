@@ -28,6 +28,9 @@ services:
         arguments:
             $io: '@Symfony\Component\Console\Style\SymfonyStyle'
 
+    MagicSunday\Renamer\Service\SafeHashCalculatorInterface:
+        class: MagicSunday\Renamer\Service\SafeHashCalculator
+
     MagicSunday\Renamer\Service\MediaTypeClassifierInterface:
         class: MagicSunday\Renamer\Service\MediaTypeClassifier
 

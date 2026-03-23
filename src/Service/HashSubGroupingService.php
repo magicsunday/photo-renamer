@@ -46,7 +46,7 @@ use function strtolower;
 final readonly class HashSubGroupingService implements HashSubGroupingServiceInterface
 {
     /**
-     * @param SafeHashCalculator                $hashCalculator           Computes file content hashes for sub-group keying
+     * @param SafeHashCalculatorInterface       $hashCalculator           Computes file content hashes for sub-group keying
      * @param SymfonyStyle                      $io                       Console IO for error output on hash computation failures
      * @param MediaTypeClassifierInterface      $mediaTypeClassifier      Classifies files as still or video
      * @param PerceptualHashCalculatorInterface $perceptualHashCalculator Multi-signal similarity scoring
@@ -54,7 +54,7 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
      * @param ImagickImageLoader                $imageLoader              Image loader for Stage B pixel extraction
      */
     public function __construct(
-        private SafeHashCalculator $hashCalculator,
+        private SafeHashCalculatorInterface $hashCalculator,
         private SymfonyStyle $io,
         private MediaTypeClassifierInterface $mediaTypeClassifier,
         private PerceptualHashCalculatorInterface $perceptualHashCalculator,

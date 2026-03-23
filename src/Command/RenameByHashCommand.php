@@ -13,7 +13,7 @@ namespace MagicSunday\Renamer\Command;
 
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
-use MagicSunday\Renamer\Service\SafeHashCalculator;
+use MagicSunday\Renamer\Service\SafeHashCalculatorInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\ContentHashStrategy;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\InheritFilenameStrategy;
@@ -39,7 +39,7 @@ final class RenameByHashCommand extends AbstractRenameCommand
     public function __construct(
         FileSystemServiceInterface $fileSystemService,
         DuplicateDetectionServiceInterface $duplicateDetectionService,
-        private readonly SafeHashCalculator $hashCalculator,
+        private readonly SafeHashCalculatorInterface $hashCalculator,
     ) {
         parent::__construct($fileSystemService, $duplicateDetectionService);
     }

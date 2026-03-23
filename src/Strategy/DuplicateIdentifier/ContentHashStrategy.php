@@ -11,7 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Strategy\DuplicateIdentifier;
 
-use MagicSunday\Renamer\Service\SafeHashCalculator;
+use MagicSunday\Renamer\Service\SafeHashCalculatorInterface;
 use Override;
 use SplFileInfo;
 
@@ -27,7 +27,7 @@ use SplFileInfo;
 final readonly class ContentHashStrategy implements DuplicateIdentifierStrategyInterface
 {
     public function __construct(
-        private SafeHashCalculator $hashCalculator,
+        private SafeHashCalculatorInterface $hashCalculator,
     ) {
     }
 

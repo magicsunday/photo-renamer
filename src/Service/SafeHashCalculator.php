@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service;
 
 use MagicSunday\Renamer\Exception\HashComputationException;
+use Override;
 use SplFileInfo;
 
 use function hash_file;
@@ -28,7 +29,7 @@ use function sprintf;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-class SafeHashCalculator
+final class SafeHashCalculator implements SafeHashCalculatorInterface
 {
     /**
      * Cache of previously computed hashes keyed by "algorithm:pathname".
@@ -45,6 +46,7 @@ class SafeHashCalculator
      *
      * @return string hexadecimal hash produced by the selected algorithm
      */
+    #[Override]
     public function hashFile(SplFileInfo $file, string $algorithm): string
     {
         $key = $algorithm . ':' . $file->getPathname();
@@ -83,6 +85,7 @@ class SafeHashCalculator
     /**
      * Releases all cached hash results to free memory.
      */
+    #[Override]
     public function clearCache(): void
     {
         $this->cache = [];

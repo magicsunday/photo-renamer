@@ -36,6 +36,7 @@ use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzer;
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityResult;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
+use MagicSunday\Renamer\Service\SafeHashCalculatorInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\LivePhotoAwareRenameStrategyInterface;
@@ -1293,7 +1294,7 @@ final class DuplicateDetectionServiceTest extends TestCase
     #[Test]
     public function createDuplicateFilenamesHandlesHashComputationFailure(): void
     {
-        $hashCalculator = $this->createMock(SafeHashCalculator::class);
+        $hashCalculator = $this->createMock(SafeHashCalculatorInterface::class);
 
         $sourceDirectory = $this->createTempDirectory();
 
@@ -1367,7 +1368,7 @@ final class DuplicateDetectionServiceTest extends TestCase
     #[Test]
     public function createDuplicateFilenamesSkipHashSubGroupingPreservesOldBehavior(): void
     {
-        $hashCalculator = $this->createMock(SafeHashCalculator::class);
+        $hashCalculator = $this->createMock(SafeHashCalculatorInterface::class);
         $hashCalculator
             ->expects(self::never())
             ->method('hashFile');
@@ -1434,7 +1435,7 @@ final class DuplicateDetectionServiceTest extends TestCase
     #[Test]
     public function createDuplicateFilenamesSingleFileGroupSkipsHashing(): void
     {
-        $hashCalculator = $this->createMock(SafeHashCalculator::class);
+        $hashCalculator = $this->createMock(SafeHashCalculatorInterface::class);
         $hashCalculator
             ->expects(self::never())
             ->method('hashFile');
