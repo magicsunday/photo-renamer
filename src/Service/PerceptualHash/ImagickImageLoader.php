@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service\PerceptualHash;
 
 use Imagick;
+use ImagickPixel;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use SplFileInfo;
 use Symfony\Component\Process\Process;
@@ -127,9 +128,55 @@ final readonly class ImagickImageLoader
     }
 
     /**
-     * Extracts a poster frame from a video via ffmpeg, then normalizes it.
+     * Extracts multiple frames from a video at 10%, 30%, 50%, 70%, 90% of duration,
+     * normalizes each, and stitches them horizontally into a single composite image.
+     *
+     * This ensures dHash/wHash/color histogram capture the full video content,
+     * not just a single poster frame whose color may vary by codec. For trimmed
+     * videos, the frames at 50%+ will show completely different content.
+     *
+     * Falls back to a single frame at ~1s if duration probing fails.
      */
     private function loadVideoFrame(SplFileInfo $file): ?Imagick
+    {
+        $duration    = $this->probeVideoDuration($file);
+        $percentages = [0.10, 0.30, 0.50, 0.70, 0.90];
+        $frames      = [];
+
+        if (($duration !== null) && ($duration > 0.5)) {
+            foreach ($percentages as $pct) {
+                $frame = $this->extractSingleFrame($file, $duration * $pct);
+
+                if ($frame instanceof Imagick) {
+                    $frames[] = $frame;
+                }
+            }
+        }
+
+        // Fallback: single frame at ~1s
+        if ($frames === []) {
+            $frame = $this->extractSingleFrame($file, $this->resolveSeekTime($file));
+
+            if ($frame instanceof Imagick) {
+                $frames[] = $frame;
+            }
+        }
+
+        if ($frames === []) {
+            return null;
+        }
+
+        if (count($frames) === 1) {
+            return $frames[0];
+        }
+
+        return $this->stitchFrames($frames);
+    }
+
+    /**
+     * Extracts and normalizes a single frame at the given seek time.
+     */
+    private function extractSingleFrame(SplFileInfo $file, float $seekTime): ?Imagick
     {
         $tempFile = tempnam(sys_get_temp_dir(), 'renamer_poster_');
 
@@ -142,8 +189,6 @@ final readonly class ImagickImageLoader
         if (is_file($tempFile)) {
             @unlink($tempFile);
         }
-
-        $seekTime = $this->resolveSeekTime($file);
 
         $process = new Process([
             $this->ffmpegBinary,
@@ -168,7 +213,7 @@ final readonly class ImagickImageLoader
             return null;
         }
 
-        if (!$process->isSuccessful() || !is_file($posterPath)) {
+        if ((!$process->isSuccessful()) || (!is_file($posterPath))) {
             $this->cleanup($posterPath);
 
             return null;
@@ -178,6 +223,41 @@ final readonly class ImagickImageLoader
             return $this->loadAndNormalize($posterPath);
         } finally {
             $this->cleanup($posterPath);
+        }
+    }
+
+    /**
+     * Stitches multiple frames horizontally into a single composite image.
+     * Each frame is resized to 128px square for consistent hash input.
+     *
+     * @param list<Imagick> $frames
+     */
+    private function stitchFrames(array $frames): ?Imagick
+    {
+        try {
+            foreach ($frames as $frame) {
+                $frame->resizeImage(128, 128, Imagick::FILTER_TRIANGLE, 1.0, false);
+            }
+
+            $composite = new Imagick();
+            $composite->newImage(128 * count($frames), 128, new ImagickPixel('black'));
+            $composite->setImageFormat('png');
+
+            $xOffset = 0;
+
+            foreach ($frames as $frame) {
+                $composite->compositeImage($frame, Imagick::COMPOSITE_OVER, $xOffset, 0);
+                $frame->clear();
+                $xOffset += 128;
+            }
+
+            return $composite;
+        } catch (Throwable) {
+            foreach ($frames as $frame) {
+                $frame->clear();
+            }
+
+            return null;
         }
     }
 

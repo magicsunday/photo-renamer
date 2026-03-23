@@ -478,7 +478,12 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
 
         if ($isVideo && ($durDelta !== null)) {
             $simDur = max(0.0, 1.0 - $durDelta / 30.0);
-            $score  = 0.25 * $simDhash + 0.20 * $simWhash + 0.15 * $simHf + 0.10 * $simColor + 0.30 * $simDur;
+
+            // For videos with matching duration (±1s), suppress unreliable color score.
+            // Video re-encodes produce different pixel values per codec but identical duration.
+            $videoColor = ($durDelta <= 1.0) ? 1.0 : $simColor;
+
+            $score = 0.25 * $simDhash + 0.20 * $simWhash + 0.15 * $simHf + 0.10 * $videoColor + 0.30 * $simDur;
         } else {
             $score = 0.30 * $simDhash + 0.25 * $simWhash + 0.20 * $simHf + 0.25 * $simColor;
         }
