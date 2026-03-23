@@ -42,6 +42,8 @@ use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingCollection;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\MetadataCache;
+use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
+use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzer;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
@@ -609,7 +611,7 @@ final class RenameByExifDateCommandTest extends TestCase
         $style  = new SymfonyStyle(new ArrayInput([]), $output);
 
         $mediaTypeClassifier       = new MediaTypeClassifier();
-        $hashSubGroupingService    = new HashSubGroupingService(new SafeHashCalculator(), $style, $mediaTypeClassifier, new StubPerceptualHashCalculator());
+        $hashSubGroupingService    = new HashSubGroupingService(new SafeHashCalculator(), $style, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader());
         $livePhotoConflictDetector = new LivePhotoConflictDetector($mediaTypeClassifier);
 
         $command = new RenameByExifDateCommand(

@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service;
 
 use Closure;
+use Imagick;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Helper\FileHelper;
@@ -19,6 +20,8 @@ use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
+use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoaderInterface;
+use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzerInterface;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
 use Override;
 use SplFileInfo;
@@ -26,6 +29,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function array_keys;
 use function count;
+use function in_array;
 use function spl_object_id;
 use function sprintf;
 use function strtolower;
@@ -46,13 +50,17 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
      * @param SafeHashCalculator                $hashCalculator           Computes file content hashes for sub-group keying
      * @param SymfonyStyle                      $io                       Console IO for error output on hash computation failures
      * @param MediaTypeClassifierInterface      $mediaTypeClassifier      Classifies files as still or video
-     * @param PerceptualHashCalculatorInterface $perceptualHashCalculator Computes dHash for visual similarity comparison
+     * @param PerceptualHashCalculatorInterface $perceptualHashCalculator Multi-signal similarity scoring
+     * @param LocalDifferenceAnalyzerInterface  $localDiffAnalyzer        Stage B: local blob analysis for score ≥ 95 pairs
+     * @param ImagickImageLoaderInterface       $imageLoader              Image loader for Stage B pixel extraction
      */
     public function __construct(
         private SafeHashCalculator $hashCalculator,
         private SymfonyStyle $io,
         private MediaTypeClassifierInterface $mediaTypeClassifier,
         private PerceptualHashCalculatorInterface $perceptualHashCalculator,
+        private LocalDifferenceAnalyzerInterface $localDiffAnalyzer,
+        private ImagickImageLoaderInterface $imageLoader,
     ) {
     }
 
@@ -448,7 +456,9 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
             $parent[$i] = $i;
         }
 
-        // Pairwise comparison — merge groups with high similarity score.
+        // Pairwise comparison — 2-stage merge decision.
+        // Stage A: multi-signal similarity score.
+        // Stage B: local blob analysis for near-identical pairs (score ≥ 95).
         for ($i = 0; $i < $count; ++$i) {
             for ($j = $i + 1; $j < $count; ++$j) {
                 $result = $this->perceptualHashCalculator->similarityScore(
@@ -458,7 +468,17 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
                     $durationByHash[$hashes[$j]],
                 );
 
+                $shouldMerge = false;
+
                 if ($result->isDuplicateLikely()) {
+                    // Stage B: for near-identical pairs, check for local retouches
+                    $shouldMerge = !$this->hasLocalRetouch(
+                        $representativeByHash[$hashes[$i]],
+                        $representativeByHash[$hashes[$j]],
+                    );
+                }
+
+                if ($shouldMerge) {
                     $rootI = $this->findRoot($parent, $i);
                     $rootJ = $this->findRoot($parent, $j);
 
@@ -501,6 +521,46 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
         }
 
         return $i;
+    }
+
+    /**
+     * Stage B: checks whether two near-identical files have a compact local retouch.
+     * Only called for image pairs — video pairs skip this (they use duration).
+     */
+    private function hasLocalRetouch(SplFileInfo $fileA, SplFileInfo $fileB): bool
+    {
+        // Only analyze still images — videos use duration as the differentiator
+        if ($this->isVideoFile($fileA) || $this->isVideoFile($fileB)) {
+            return false;
+        }
+
+        $imgA = $this->imageLoader->loadNormalized($fileA);
+        $imgB = $this->imageLoader->loadNormalized($fileB);
+
+        if (!$imgA instanceof Imagick || !$imgB instanceof Imagick) {
+            $imgA?->destroy();
+            $imgB?->destroy();
+
+            return false;
+        }
+
+        try {
+            $diffResult = $this->localDiffAnalyzer->analyze($imgA, $imgB);
+
+            return $diffResult->hasCompactRetouch;
+        } finally {
+            $imgA->destroy();
+            $imgB->destroy();
+        }
+    }
+
+    private function isVideoFile(SplFileInfo $file): bool
+    {
+        return in_array(
+            strtolower($file->getExtension()),
+            ['mov', 'mp4', 'avi', 'mkv', 'webm', 'm4v', '3gp'],
+            true,
+        );
     }
 
     /**

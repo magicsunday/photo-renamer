@@ -19,6 +19,8 @@ use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
+use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
+use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzer;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
@@ -693,11 +695,15 @@ final class HashSubGroupingServiceTest extends TestCase
         $output = new BufferedOutput();
         $io     = new SymfonyStyle(new ArrayInput([]), $output);
 
+        $imageLoader = new ImagickImageLoader();
+
         return new HashSubGroupingService(
             new SafeHashCalculator(),
             $io,
             new MediaTypeClassifier(),
             $perceptualHashCalculator,
+            new LocalDifferenceAnalyzer(),
+            $imageLoader,
         );
     }
 
