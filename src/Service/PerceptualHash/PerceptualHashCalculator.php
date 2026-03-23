@@ -468,7 +468,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
 
         try {
             $signals = [
-                'dhash' => $this->computeDhashFromImage($img),
+                'dhash' => $this->dhashCache[$pathname] ?? $this->computeDhashFromImage($img),
                 'whash' => $this->computeWhashFromImage($img),
                 'hf'    => $this->computeHfEnergyFromImage($img),
                 'hist'  => $this->computeColorHistogramFromImage($img),

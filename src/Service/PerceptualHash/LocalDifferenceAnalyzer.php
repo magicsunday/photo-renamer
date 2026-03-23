@@ -39,7 +39,7 @@ final readonly class LocalDifferenceAnalyzer implements LocalDifferenceAnalyzerI
     /**
      * Working resolution: long edge scaled to this many pixels.
      */
-    private const int WORK_SIZE = 1024;
+    private const int WORK_SIZE = 512;
 
     /**
      * Pixel differences below this threshold (0–255) are considered JPEG noise.
@@ -266,33 +266,26 @@ final readonly class LocalDifferenceAnalyzer implements LocalDifferenceAnalyzerI
                 continue;
             }
 
-            // BFS flood-fill from this pixel
-            $queue = [$i];
-            $area  = 0;
+            // BFS flood-fill from this pixel.
+            // Mark visited on enqueue (not dequeue) to prevent duplicate queue entries.
+            $visited[$i] = true;
+            $queue       = [$i];
+            $area        = 0;
 
             while ($queue !== []) {
                 $idx = array_pop($queue);
-
-                if (isset($visited[$idx])) {
-                    continue;
-                }
-
-                if ($mask[$idx] === 0) {
-                    continue;
-                }
-
-                $visited[$idx] = true;
                 ++$area;
 
                 $x = $idx % $width;
                 $y = intdiv($idx, $width);
 
-                // 4-connected neighbors
+                // 4-connected neighbors — only enqueue if not yet visited
                 if ($x > 0) {
                     $n = $idx - 1;
 
                     if (!isset($visited[$n]) && $mask[$n] === 1) {
-                        $queue[] = $n;
+                        $visited[$n] = true;
+                        $queue[]     = $n;
                     }
                 }
 
@@ -300,7 +293,8 @@ final readonly class LocalDifferenceAnalyzer implements LocalDifferenceAnalyzerI
                     $n = $idx + 1;
 
                     if (!isset($visited[$n]) && $mask[$n] === 1) {
-                        $queue[] = $n;
+                        $visited[$n] = true;
+                        $queue[]     = $n;
                     }
                 }
 
@@ -308,7 +302,8 @@ final readonly class LocalDifferenceAnalyzer implements LocalDifferenceAnalyzerI
                     $n = $idx - $width;
 
                     if (!isset($visited[$n]) && $mask[$n] === 1) {
-                        $queue[] = $n;
+                        $visited[$n] = true;
+                        $queue[]     = $n;
                     }
                 }
 
@@ -316,7 +311,8 @@ final readonly class LocalDifferenceAnalyzer implements LocalDifferenceAnalyzerI
                     $n = $idx + $width;
 
                     if (!isset($visited[$n]) && $mask[$n] === 1) {
-                        $queue[] = $n;
+                        $visited[$n] = true;
+                        $queue[]     = $n;
                     }
                 }
             }

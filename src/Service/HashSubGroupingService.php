@@ -534,8 +534,9 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
             return false;
         }
 
-        $imgA = $this->imageLoader->loadNormalized($fileA);
-        $imgB = $this->imageLoader->loadNormalized($fileB);
+        // Stage B needs 1024px max (LocalDifferenceAnalyzer downscales to WORK_SIZE)
+        $imgA = $this->imageLoader->loadNormalized($fileA, 1024);
+        $imgB = $this->imageLoader->loadNormalized($fileB, 1024);
 
         if (!$imgA instanceof Imagick || !$imgB instanceof Imagick) {
             $imgA?->destroy();
