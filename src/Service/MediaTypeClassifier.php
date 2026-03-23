@@ -36,6 +36,13 @@ final class MediaTypeClassifier implements MediaTypeClassifierInterface
     public const array LIVE_PHOTO_STILL_EXTENSIONS = ['heic', 'heif', 'jpg', 'jpeg'];
 
     /**
+     * Extensions that identify video assets.
+     *
+     * @var list<string>
+     */
+    public const array VIDEO_EXTENSIONS = ['mov', 'mp4', 'avi', 'mkv', 'webm', 'm4v', '3gp'];
+
+    /**
      * Checks whether the given file is a still image (HEIC, HEIF, JPG, JPEG) as opposed
      * to a video companion (MOV, MP4). Used to determine media type boundaries during
      * Live Photo companion detection and hash sub-group exclusion.
@@ -54,5 +61,15 @@ final class MediaTypeClassifier implements MediaTypeClassifierInterface
         }
 
         return in_array($extension, self::LIVE_PHOTO_STILL_EXTENSIONS, true);
+    }
+
+    #[Override]
+    public function isVideo(SplFileInfo $fileInfo): bool
+    {
+        return in_array(
+            strtolower($fileInfo->getExtension()),
+            self::VIDEO_EXTENSIONS,
+            true,
+        );
     }
 }

@@ -31,4 +31,9 @@ interface MediaTypeClassifierInterface
      * @return bool True when the file extension matches a known still image format
      */
     public function isLivePhotoStill(SplFileInfo $fileInfo): bool;
+
+    /**
+     * Checks whether the given file is a video (MOV, MP4, AVI, MKV, etc.).
+     */
+    public function isVideo(SplFileInfo $fileInfo): bool;
 }

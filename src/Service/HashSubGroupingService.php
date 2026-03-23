@@ -29,7 +29,6 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function array_keys;
 use function count;
-use function in_array;
 use function spl_object_id;
 use function sprintf;
 use function strtolower;
@@ -530,7 +529,7 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
     private function hasLocalRetouch(SplFileInfo $fileA, SplFileInfo $fileB): bool
     {
         // Only analyze still images — videos use duration as the differentiator
-        if ($this->isVideoFile($fileA) || $this->isVideoFile($fileB)) {
+        if ($this->mediaTypeClassifier->isVideo($fileA) || $this->mediaTypeClassifier->isVideo($fileB)) {
             return false;
         }
 
@@ -553,15 +552,6 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
             $imgA->destroy();
             $imgB->destroy();
         }
-    }
-
-    private function isVideoFile(SplFileInfo $file): bool
-    {
-        return in_array(
-            strtolower($file->getExtension()),
-            ['mov', 'mp4', 'avi', 'mkv', 'webm', 'm4v', '3gp'],
-            true,
-        );
     }
 
     /**

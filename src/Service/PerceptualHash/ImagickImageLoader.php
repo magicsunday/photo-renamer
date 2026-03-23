@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service\PerceptualHash;
 
 use Imagick;
+use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use Override;
 use SplFileInfo;
 use Symfony\Component\Process\Process;
@@ -48,8 +49,6 @@ use function unlink;
  */
 final readonly class ImagickImageLoader implements ImagickImageLoaderInterface
 {
-    private const array VIDEO_EXTENSIONS = ['mov', 'mp4', 'avi', 'mkv', 'webm', 'm4v', '3gp'];
-
     public function __construct(
         private string $ffmpegBinary = 'ffmpeg',
         private string $ffprobeBinary = 'ffprobe',
@@ -89,6 +88,11 @@ final readonly class ImagickImageLoader implements ImagickImageLoaderInterface
             if ($maxResolution !== null) {
                 $img->setOption('jpeg:size', $maxResolution . 'x' . $maxResolution);
             }
+
+            // Defense-in-depth: cap resource usage for maliciously crafted files
+            Imagick::setResourceLimit(Imagick::RESOURCETYPE_MEMORY, 256 * 1024 * 1024);
+            Imagick::setResourceLimit(Imagick::RESOURCETYPE_MAP, 512 * 1024 * 1024);
+            Imagick::setResourceLimit(Imagick::RESOURCETYPE_TIME, 30);
 
             $img->readImage($path);
 
@@ -197,7 +201,7 @@ final readonly class ImagickImageLoader implements ImagickImageLoaderInterface
     {
         return in_array(
             strtolower($file->getExtension()),
-            self::VIDEO_EXTENSIONS,
+            MediaTypeClassifier::VIDEO_EXTENSIONS,
             true,
         );
     }
