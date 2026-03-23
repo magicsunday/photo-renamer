@@ -159,7 +159,7 @@ final class TestImageScenariosTest extends TestCase
      */
     private function testImagesDir(): string
     {
-        return __DIR__ . '/../../test-images';
+        return __DIR__ . '/../Fixtures/Images';
     }
 
     /**
@@ -458,6 +458,19 @@ final class TestImageScenariosTest extends TestCase
                 'backup' . DIRECTORY_SEPARATOR . 'photo.heic' => 'backup' . DIRECTORY_SEPARATOR . '2025-11-15_20-26-50-647-duplicate-001.heic',
             ],
             2,
+        ];
+
+        yield '29-livephoto-edit-duplicate' => [
+            '29-livephoto-edit-duplicate',
+            [
+                '2025-05-03_14-38-16-939.jpg'                => '2025-05-03_14-38-16-939.jpg',
+                '2025-05-03_14-38-16-939.mov'                => '2025-05-03_14-38-16-939.mov',
+                '2025-05-03_14-38-16-939-002.jpg'            => '2025-05-03_14-38-16-939-002.jpg',
+                '2025-05-03_14-38-16-939-002.mov'            => '2025-05-03_14-38-16-939-002.mov',
+                '2025-05-03_14-38-16-939-duplicate-001.heic' => '2025-05-03_14-38-16-939-duplicate-001.heic',
+                '2025-05-03_14-38-16-939-duplicate-001.mov'  => '2025-05-03_14-38-16-939-duplicate-001.mov',
+            ],
+            6,
         ];
     }
 

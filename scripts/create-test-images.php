@@ -7,7 +7,7 @@
 
 declare(strict_types=1);
 
-$dir = __DIR__ . '/../test-images';
+$dir = __DIR__ . '/../tests/Fixtures/Images';
 
 // Backup committed Live Photo test files before wiping — they contain real
 // iPhone ContentIdentifier metadata that cannot be synthesized.
@@ -113,7 +113,7 @@ function exiftool(string ...$args): void
     exec(implode(' ', $cmd) . ' 2>/dev/null');
 }
 
-echo "Creating test images in test-images/...\n\n";
+echo "Creating test images in tests/Fixtures/Images/...\n\n";
 
 // ============================================================================
 // 01 - Basic EXIF rename
@@ -537,6 +537,6 @@ if (is_dir($backupDir)) {
 }
 
 echo "\nDone. Run:\n";
-echo "  make run CMD=\"rename:exif test-images --dry-run --list-all\"\n";
-echo "  make run CMD=\"rename:write-date test-images --dry-run\"\n";
-echo "  make run CMD=\"rename:verify test-images\"\n";
+echo "  make run CMD=\"rename:exif tests/Fixtures/Images --dry-run --list-all\"\n";
+echo "  make run CMD=\"rename:write-date tests/Fixtures/Images --dry-run\"\n";
+echo "  make run CMD=\"rename:verify tests/Fixtures/Images\"\n";
