@@ -440,7 +440,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
 
             // HF-energy and histogram share a single 64×64 clone
             $shared = clone $img;
-            $shared->resizeImage(self::HIST_SIZE, self::HIST_SIZE, Imagick::FILTER_TRIANGLE, 1.0, false);
+            $shared->resizeImage(self::HIST_SIZE, self::HIST_SIZE, Imagick::FILTER_TRIANGLE, 1.0);
 
             // Color histogram from the color clone
             $hist = $this->computeColorHistogramFromResized($shared);
@@ -543,7 +543,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
     private function grayscaleClone(Imagick $source, int $width, int $height): Imagick
     {
         $img = clone $source;
-        $img->resizeImage($width, $height, Imagick::FILTER_TRIANGLE, 1.0, false);
+        $img->resizeImage($width, $height, Imagick::FILTER_TRIANGLE, 1.0);
         $img->transformImageColorspace(Imagick::COLORSPACE_GRAY);
 
         return $img;

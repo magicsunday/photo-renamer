@@ -44,8 +44,6 @@ use function sprintf;
 use function str_contains;
 use function str_ends_with;
 use function str_starts_with;
-use function strtoupper;
-use function trim;
 
 use const DIRECTORY_SEPARATOR;
 

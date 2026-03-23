@@ -39,7 +39,6 @@ use function sort;
 use function sprintf;
 use function strtolower;
 use function strtoupper;
-use function trim;
 
 /**
  * Read-only analysis command that scans photo/video directories and reports

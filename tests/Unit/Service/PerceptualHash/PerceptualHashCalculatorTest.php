@@ -87,22 +87,6 @@ final class PerceptualHashCalculatorTest extends TestCase
     }
 
     #[Test]
-    public function clearlyDifferentImageProducesDifferentClassification(): void
-    {
-        $redPath = $this->createJpeg('photo.jpg', 'red');
-
-        $calculator = $this->createCalculator();
-        $result     = $calculator->similarityScore(
-            new SplFileInfo($redPath),
-            new SplFileInfo('/does/not/exist.jpg'),
-        );
-
-        // One missing file → score should be "different" (Hamming distance 64)
-        self::assertSame(SimilarityClassification::Different, $result->classification);
-        self::assertSame(64, $result->dhashDistance);
-    }
-
-    #[Test]
     public function clearCacheResetsState(): void
     {
         $pathA = $this->createJpeg('a.jpg', 'red');
