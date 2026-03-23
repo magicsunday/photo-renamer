@@ -25,7 +25,7 @@ binary-clean: .logo ## Remove SPC build artifacts to free space.
 	@rm -rf .build/spc/pkgroot/ .build/spc/downloads/ .build/spc/source/
 
 cache-clear: .logo ## Clear all persistent caches (metadata + perceptual signals + DI container).
-	@rm -f $(METADATA_CACHE) $(SIGNAL_CACHE) $(DI_CACHE)
+	$(COMPOSE_BUILD) rm -f $(METADATA_CACHE) $(SIGNAL_CACHE) $(DI_CACHE)
 	@echo "Caches cleared (metadata + perceptual signals + DI container)."
 
 version: .logo ## Create a new version release.
