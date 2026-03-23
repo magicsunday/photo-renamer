@@ -277,10 +277,12 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
                 }
 
                 // In the canonical group, the actual canonical rename gets no suffix.
-                // In other groups, the first file gets no suffix (sub-group canonical).
+                // In other groups, prefer the file whose source name already matches
+                // the sub-group target (idempotent canonical preference). Falls back
+                // to the first file if no name match exists.
                 $isSubGroupCanonical = $isCanonicalGroup
                     ? (($canonicalRename instanceof Rename) && ($rename === $canonicalRename))
-                    : (($duplicateIndex === 1) && ($rename === $groupRenames[0]));
+                    : ($rename === $this->findSubGroupCanonical($groupRenames, $subGroupBasename));
 
                 if ($isSubGroupCanonical) {
                     // Sub-group canonical: no duplicate suffix.
@@ -497,6 +499,27 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
         }
 
         return $merged;
+    }
+
+    /**
+     * Selects the sub-group canonical from a list of renames.
+     * Prefers the file whose source basename already matches the sub-group target
+     * (idempotent: already correctly named files stay canonical). Falls back to
+     * the first file if no match exists.
+     *
+     * @param list<Rename> $renames
+     */
+    private function findSubGroupCanonical(array $renames, string $subGroupBasename): Rename
+    {
+        foreach ($renames as $rename) {
+            $sourceBasename = FileHelper::basenameWithoutExtension($rename->getSource());
+
+            if ($sourceBasename === $subGroupBasename) {
+                return $rename;
+            }
+        }
+
+        return $renames[0];
     }
 
     /**
