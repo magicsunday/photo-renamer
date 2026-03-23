@@ -416,9 +416,9 @@ final class TestImageScenariosTest extends TestCase
         yield '24-cross-dir-edits' => [
             '24-cross-dir-edits',
             [
-                'original.jpg'                                    => '2024-07-25_11-27-50-100.jpg',
-                'bearbeitet' . DIRECTORY_SEPARATOR . 'edit-1.jpg' => 'bearbeitet' . DIRECTORY_SEPARATOR . '2024-07-25_11-27-50-100-002.jpg',
-                'bearbeitet' . DIRECTORY_SEPARATOR . 'edit-2.jpg' => 'bearbeitet' . DIRECTORY_SEPARATOR . '2024-07-25_11-27-50-100-003.jpg',
+                'original.jpg'                                => '2024-07-25_11-27-50-100.jpg',
+                'edited' . DIRECTORY_SEPARATOR . 'edit-1.jpg' => 'edited' . DIRECTORY_SEPARATOR . '2024-07-25_11-27-50-100-002.jpg',
+                'edited' . DIRECTORY_SEPARATOR . 'edit-2.jpg' => 'edited' . DIRECTORY_SEPARATOR . '2024-07-25_11-27-50-100-003.jpg',
             ],
             3,
         ];

@@ -346,7 +346,7 @@ echo "  23 SubSecTime padding        → -500 vs -550 (different targets from 5 
 //      Expected: original keeps name, edits get -002, -003 sub-group numbers.
 // ============================================================================
 mkdir("$dir/24-cross-dir-edits", 0755, true);
-mkdir("$dir/24-cross-dir-edits/bearbeitet", 0755, true);
+mkdir("$dir/24-cross-dir-edits/edited", 0755, true);
 // Use visually DIFFERENT images (different colors) so perceptual hashing sees them as distinct
 exec(sprintf('ffmpeg -y -f lavfi -i color=red:s=64x64 -frames:v 1 %s 2>/dev/null', escapeshellarg("$dir/24-cross-dir-edits/original.jpg")));
 exiftool(
@@ -354,19 +354,19 @@ exiftool(
     '-Make=NIKON CORPORATION', '-Model=NIKON D100', '-Software=Adobe Photoshop 7.0',
     "$dir/24-cross-dir-edits/original.jpg",
 );
-exec(sprintf('ffmpeg -y -f lavfi -i color=green:s=64x64 -frames:v 1 %s 2>/dev/null', escapeshellarg("$dir/24-cross-dir-edits/bearbeitet/edit-1.jpg")));
+exec(sprintf('ffmpeg -y -f lavfi -i color=green:s=64x64 -frames:v 1 %s 2>/dev/null', escapeshellarg("$dir/24-cross-dir-edits/edited/edit-1.jpg")));
 exiftool(
     '-DateTimeOriginal=2024:07:25 11:27:50', '-SubSecTimeOriginal=100',
     '-Make=NIKON CORPORATION', '-Model=NIKON D100', '-Software=Adobe Photoshop 7.0',
-    "$dir/24-cross-dir-edits/bearbeitet/edit-1.jpg",
+    "$dir/24-cross-dir-edits/edited/edit-1.jpg",
 );
-exec(sprintf('ffmpeg -y -f lavfi -i color=blue:s=64x64 -frames:v 1 %s 2>/dev/null', escapeshellarg("$dir/24-cross-dir-edits/bearbeitet/edit-2.jpg")));
+exec(sprintf('ffmpeg -y -f lavfi -i color=blue:s=64x64 -frames:v 1 %s 2>/dev/null', escapeshellarg("$dir/24-cross-dir-edits/edited/edit-2.jpg")));
 exiftool(
     '-DateTimeOriginal=2024:07:25 11:27:50', '-SubSecTimeOriginal=100',
     '-Make=NIKON CORPORATION', '-Model=NIKON D100', '-Software=Adobe Photoshop 7.0',
-    "$dir/24-cross-dir-edits/bearbeitet/edit-2.jpg",
+    "$dir/24-cross-dir-edits/edited/edit-2.jpg",
 );
-echo "  24 cross-dir edits           → root canonical, bearbeitet/ gets -002, -003\n";
+echo "  24 cross-dir edits           → root canonical, edited/ gets -002, -003\n";
 
 // ============================================================================
 // 25 - Same-directory semantic duplicates (same timestamp + software + dir)

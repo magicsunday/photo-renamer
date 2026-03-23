@@ -3,6 +3,7 @@ services:
         build:
             context: .
             target: dev
+        user: "${USERID:-1000}:${GROUPID:-1000}"
         volumes:
             - .:/app
             - ${SSH_AUTH_SOCK:-/dev/null}:/ssh-agent
