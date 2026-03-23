@@ -42,9 +42,6 @@ services:
     MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoaderInterface:
         class: MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader
 
-    MagicSunday\Renamer\Service\PerceptualHash\FfmpegGrayscaleLoaderInterface:
-        class: MagicSunday\Renamer\Service\PerceptualHash\FfmpegGrayscaleLoader
-
     MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface:
         class: MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator
 

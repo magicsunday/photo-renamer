@@ -19,6 +19,7 @@ use Throwable;
 
 use function in_array;
 use function is_file;
+use function is_numeric;
 use function is_string;
 use function max;
 use function min;
@@ -26,6 +27,7 @@ use function sprintf;
 use function strtolower;
 use function sys_get_temp_dir;
 use function tempnam;
+use function trim;
 use function unlink;
 
 /**
@@ -46,8 +48,6 @@ use function unlink;
  */
 final readonly class ImagickImageLoader implements ImagickImageLoaderInterface
 {
-    use VideoDurationProbeTrait;
-
     private const array VIDEO_EXTENSIONS = ['mov', 'mp4', 'avi', 'mkv', 'webm', 'm4v', '3gp'];
 
     public function __construct(
@@ -207,5 +207,45 @@ final readonly class ImagickImageLoader implements ImagickImageLoaderInterface
         if (is_string($path) && $path !== '' && is_file($path)) {
             @unlink($path);
         }
+    }
+
+    /**
+     * Probes the video duration via ffprobe.
+     */
+    private function probeVideoDuration(SplFileInfo $file): ?float
+    {
+        $process = new Process([
+            $this->ffprobeBinary,
+            '-v',
+            'error',
+            '-select_streams',
+            'v:0',
+            '-show_entries',
+            'format=duration',
+            '-of',
+            'default=noprint_wrappers=1:nokey=1',
+            $file->getPathname(),
+        ]);
+        $process->setTimeout(10.0);
+
+        try {
+            $process->run();
+        } catch (Throwable) {
+            return null;
+        }
+
+        if (!$process->isSuccessful()) {
+            return null;
+        }
+
+        $output = trim($process->getOutput());
+
+        if ($output === '' || !is_numeric($output)) {
+            return null;
+        }
+
+        $duration = (float) $output;
+
+        return $duration > 0.0 ? $duration : null;
     }
 }
