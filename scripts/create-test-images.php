@@ -9,7 +9,27 @@ declare(strict_types=1);
 
 $dir = __DIR__ . '/../test-images';
 
+// Backup committed Live Photo test files before wiping — they contain real
+// iPhone ContentIdentifier metadata that cannot be synthesized.
+$backupDir = sys_get_temp_dir() . '/renamer-test-images-backup-' . uniqid();
+$backupFiles = [
+    '04-live-photo-pair/IMG_0001.jpg',
+    '04-live-photo-pair/IMG_0001.mov',
+    '18-live-photo-conflict/2024-08-19_11-09-34-857.jpg',
+    '18-live-photo-conflict/2024-08-19_11-09-34-857.mov',
+];
+
 if (is_dir($dir)) {
+    foreach ($backupFiles as $relPath) {
+        $src = $dir . '/' . $relPath;
+
+        if (is_file($src)) {
+            $dest = $backupDir . '/' . $relPath;
+            @mkdir(dirname($dest), 0755, true);
+            copy($src, $dest);
+        }
+    }
+
     exec('rm -rf ' . escapeshellarg($dir));
 }
 
@@ -115,10 +135,17 @@ echo "  03 burst-1 + burst-2         → different SubSecTime → separate targe
 // ============================================================================
 // 04 - Live Photo pair (JPEG + MOV, matching Content Identifier)
 // ============================================================================
-// Use metadata from real iPhone Live Photo pair for proper ContentIdentifier
-// that imagemeta can read. Source: /volume1/Fotos/2025/
+// Requires real iPhone Live Photo metadata (ContentIdentifier) that cannot be
+// synthesized. On first generation, provide source via PHOTO_SOURCE env var.
+// On subsequent runs, re-uses the already-committed test-images as source.
 mkdir("$dir/04-live-photo-pair", 0755, true);
-$lpSource = '/volume1/Fotos/2025/2025-01-01_00-02-20-016';
+$photoSource = getenv('PHOTO_SOURCE') ?: '';
+
+if ($photoSource !== '') {
+    $lpSource = $photoSource . '/2025/2025-01-01_00-02-20-016';
+} else {
+    $lpSource = $backupDir . '/04-live-photo-pair/IMG_0001';
+}
 stripToMetadataOnly("$lpSource.jpg", "$dir/04-live-photo-pair/IMG_0001.jpg");
 stripToMetadataOnly("$lpSource.mov", "$dir/04-live-photo-pair/IMG_0001.mov", true);
 echo "  04 IMG_0001.jpg + .mov       → Live Photo pair, MOV inherits still's date\n";
@@ -234,13 +261,18 @@ echo "  17 date-only filename        → [W] ambiguous, metadata has time 21:20:
 // ============================================================================
 // 18 - Live Photo conflict (mismatched Content IDs)
 // ============================================================================
-// Use metadata from real iPhone photos (stripped to 1x1 pixel) for proper
-// ContentIdentifier that imagemeta can read. Source: /volume1/Fotos/2020/
-// The ContentIdentifiers differ (F647D858 vs 990E69E9) despite being a pair.
+// Requires real iPhone metadata with mismatched ContentIdentifiers.
+// On first generation, provide source via PHOTO_SOURCE env var.
+// On subsequent runs, re-uses the already-committed test-images as source.
 mkdir("$dir/18-live-photo-conflict", 0755, true);
-$lpConflictSource = '/volume1/Fotos/2020/2020-08-18 - JH Schierke (18.08-22.08.2020)';
-stripToMetadataOnly("$lpConflictSource/2020-08-19_11-09-34-857.jpg", "$dir/18-live-photo-conflict/2024-08-19_11-09-34-857.jpg");
-stripToMetadataOnly("$lpConflictSource/2020-08-19_11-09-34-857.mov", "$dir/18-live-photo-conflict/2024-08-19_11-09-34-857.mov", true);
+if ($photoSource !== '') {
+    $lpConflictSrc = $photoSource . '/2020/2020-08-18 - JH Schierke (18.08-22.08.2020)/2020-08-19_11-09-34-857';
+} else {
+    $lpConflictSrc = $backupDir . '/18-live-photo-conflict/2024-08-19_11-09-34-857';
+}
+
+stripToMetadataOnly("$lpConflictSrc.jpg", "$dir/18-live-photo-conflict/2024-08-19_11-09-34-857.jpg");
+stripToMetadataOnly("$lpConflictSrc.mov", "$dir/18-live-photo-conflict/2024-08-19_11-09-34-857.mov", true);
 echo "  18 LP conflict               → [C] mismatched content IDs from real iPhone photos\n";
 
 // ============================================================================
@@ -410,6 +442,11 @@ exiftool(
     "$dir/28-cross-dir-format-backup/backup/photo.heic",
 );
 echo "  28 cross-dir format backup   → JPG canonical, HEIC gets -duplicate-001 (format backup)\n";
+
+// Clean up backup of committed Live Photo files
+if (is_dir($backupDir)) {
+    exec('rm -rf ' . escapeshellarg($backupDir));
+}
 
 echo "\nDone. Run:\n";
 echo "  make run CMD=\"rename:exif test-images --dry-run --list-all\"\n";
