@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Test\Unit\Service\PerceptualHash;
 
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator;
+use MagicSunday\Renamer\Service\PerceptualHash\SimilarityResult;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
@@ -29,6 +30,7 @@ use function uniqid;
  */
 #[CoversClass(PerceptualHashCalculator::class)]
 #[UsesClass(ImagickImageLoader::class)]
+#[UsesClass(SimilarityResult::class)]
 final class PerceptualHashCalculatorTest extends TestCase
 {
     private string $tempDir;
@@ -50,138 +52,91 @@ final class PerceptualHashCalculatorTest extends TestCase
     }
 
     #[Test]
-    public function computeDhashReturns16CharHexString(): void
-    {
-        $path = $this->createJpeg('test.jpg', 'white');
-
-        $calculator = $this->createCalculator();
-        $hash       = $calculator->computeDhash(new SplFileInfo($path));
-
-        self::assertNotNull($hash);
-        self::assertSame(16, strlen($hash), 'dHash must be 16 hex characters (64 bits)');
-        self::assertMatchesRegularExpression('/^[0-9a-f]{16}$/', $hash);
-    }
-
-    #[Test]
-    public function computeDhashReturnsNullForNonExistentFile(): void
-    {
-        $calculator = $this->createCalculator();
-        $hash       = $calculator->computeDhash(new SplFileInfo('/does/not/exist.jpg'));
-
-        self::assertNull($hash);
-    }
-
-    #[Test]
-    public function identicalImagesProduceSameHash(): void
+    public function similarityScoreReturnsValidResultForIdenticalImages(): void
     {
         $pathA = $this->createJpeg('a.jpg', 'red');
         $pathB = $this->createJpeg('b.jpg', 'red');
 
         $calculator = $this->createCalculator();
-        $hashA      = $calculator->computeDhash(new SplFileInfo($pathA));
-        $hashB      = $calculator->computeDhash(new SplFileInfo($pathB));
+        $result     = $calculator->similarityScore(new SplFileInfo($pathA), new SplFileInfo($pathB));
 
-        self::assertNotNull($hashA);
-        self::assertNotNull($hashB);
-        self::assertSame(0, $calculator->hammingDistance($hashA, $hashB));
+        self::assertSame(100, $result->score);
+        self::assertTrue($result->isDuplicateLikely());
+        self::assertSame(0, $result->dhashDistance);
     }
 
     #[Test]
-    public function visuallyDifferentImagesProduceDistantHashes(): void
+    public function similarityScoreReturnsDifferentForNonExistentFile(): void
     {
-        $whitePath = $this->createJpeg('white.jpg', 'white');
-        $blackPath = $this->createJpeg('black.jpg', 'black');
+        $pathA = $this->createJpeg('exists.jpg', 'white');
 
         $calculator = $this->createCalculator();
-        $whiteHash  = $calculator->computeDhash(new SplFileInfo($whitePath));
-        $blackHash  = $calculator->computeDhash(new SplFileInfo($blackPath));
+        $result     = $calculator->similarityScore(
+            new SplFileInfo($pathA),
+            new SplFileInfo('/does/not/exist.jpg'),
+        );
 
-        self::assertNotNull($whiteHash);
-        self::assertNotNull($blackHash);
-
-        $distance = $calculator->hammingDistance($whiteHash, $blackHash);
-
-        // Uniform white vs uniform black: dHash compares horizontal gradients.
-        // Both uniform images have zero gradients, so distance may be 0.
-        // Use a structured image instead for meaningful difference.
-        // This test verifies the method returns a valid distance >= 0.
-        self::assertGreaterThanOrEqual(0, $distance);
+        self::assertFalse($result->isDuplicateLikely());
+        self::assertSame('different', $result->classification);
     }
 
     #[Test]
-    public function structuredVsUniformImageProducesHighDistance(): void
+    public function structuredVsUniformImageProducesLowScore(): void
     {
         // Split image (left black, right white) has strong horizontal gradients;
-        // uniform white has none → different dHash.
+        // uniform white has none -> different perceptual signature.
         $splitPath   = $this->createSplitImage('split.jpg');
         $uniformPath = $this->createJpeg('uniform.jpg', 'white');
 
-        $calculator  = $this->createCalculator();
-        $splitHash   = $calculator->computeDhash(new SplFileInfo($splitPath));
-        $uniformHash = $calculator->computeDhash(new SplFileInfo($uniformPath));
-
-        self::assertNotNull($splitHash);
-        self::assertNotNull($uniformHash);
-
-        $distance = $calculator->hammingDistance($splitHash, $uniformHash);
-        self::assertGreaterThan(5, $distance, 'Split image vs uniform should have noticeable Hamming distance');
-    }
-
-    #[Test]
-    public function hammingDistanceOfIdenticalHashesIsZero(): void
-    {
         $calculator = $this->createCalculator();
-        self::assertSame(0, $calculator->hammingDistance('0000000000000000', '0000000000000000'));
-        self::assertSame(0, $calculator->hammingDistance('ffffffffffffffff', 'ffffffffffffffff'));
-    }
+        $result     = $calculator->similarityScore(
+            new SplFileInfo($splitPath),
+            new SplFileInfo($uniformPath),
+        );
 
-    #[Test]
-    public function hammingDistanceOfMaximallyDifferentHashesIs64(): void
-    {
-        $calculator = $this->createCalculator();
-        self::assertSame(64, $calculator->hammingDistance('0000000000000000', 'ffffffffffffffff'));
-    }
-
-    #[Test]
-    public function hammingDistanceOfSingleBitDifferenceIs1(): void
-    {
-        $calculator = $this->createCalculator();
-        self::assertSame(1, $calculator->hammingDistance('0000000000000000', '0000000000000001'));
+        self::assertGreaterThan(5, $result->dhashDistance, 'Split image vs uniform should have noticeable dHash distance');
+        self::assertFalse($result->isDuplicateLikely());
     }
 
     #[Test]
     public function clearCacheResetsState(): void
     {
-        $path = $this->createJpeg('cached.jpg', 'red');
+        $pathA = $this->createJpeg('a.jpg', 'red');
+        $pathB = $this->createJpeg('b.jpg', 'red');
 
         $calculator = $this->createCalculator();
-        $hash1      = $calculator->computeDhash(new SplFileInfo($path));
+        $result1    = $calculator->similarityScore(new SplFileInfo($pathA), new SplFileInfo($pathB));
         $calculator->clearCache();
-        $hash2 = $calculator->computeDhash(new SplFileInfo($path));
+        $result2 = $calculator->similarityScore(new SplFileInfo($pathA), new SplFileInfo($pathB));
 
-        self::assertNotNull($hash1);
-        self::assertNotNull($hash2);
-        self::assertSame($hash1, $hash2, 'Same file should produce same hash after cache clear');
+        self::assertSame($result1->score, $result2->score, 'Same files should produce same score after cache clear');
     }
 
     #[Test]
-    public function computeDhashWorksForVideo(): void
+    public function similarityScoreWorksForVideo(): void
     {
-        $path = $this->tempDir . '/video.mov';
+        $pathA = $this->tempDir . '/videoA.mov';
+        $pathB = $this->tempDir . '/videoB.mov';
         exec(sprintf(
             'ffmpeg -y -f lavfi -i color=blue:s=64x64:d=0.5 -c:v libx264 -f mov %s 2>/dev/null',
-            escapeshellarg($path),
+            escapeshellarg($pathA),
         ));
+        copy($pathA, $pathB);
 
         $calculator = $this->createCalculator();
-        $hash       = $calculator->computeDhash(new SplFileInfo($path));
+        $result     = $calculator->similarityScore(
+            new SplFileInfo($pathA),
+            new SplFileInfo($pathB),
+            0.5,
+            0.5,
+        );
 
-        self::assertNotNull($hash);
-        self::assertSame(16, strlen($hash));
+        self::assertSame(100, $result->score);
+        self::assertTrue($result->isDuplicateLikely());
     }
 
     #[Test]
-    public function sameImageWithDifferentExifProducesSimilarHash(): void
+    public function sameImageWithDifferentExifProducesHighScore(): void
     {
         $pathA = $this->createJpeg('original.jpg', 'red');
         copy($pathA, $this->tempDir . '/copy.jpg');
@@ -192,14 +147,10 @@ final class PerceptualHashCalculatorTest extends TestCase
         exec(sprintf('exiftool -overwrite_original -Software="Different 2.0" %s 2>/dev/null', escapeshellarg($pathB)));
 
         $calculator = $this->createCalculator();
-        $hashA      = $calculator->computeDhash(new SplFileInfo($pathA));
-        $hashB      = $calculator->computeDhash(new SplFileInfo($pathB));
+        $result     = $calculator->similarityScore(new SplFileInfo($pathA), new SplFileInfo($pathB));
 
-        self::assertNotNull($hashA);
-        self::assertNotNull($hashB);
-
-        $distance = $calculator->hammingDistance($hashA, $hashB);
-        self::assertLessThanOrEqual(5, $distance, 'Same image with different EXIF should have very close dHash');
+        self::assertLessThanOrEqual(5, $result->dhashDistance, 'Same image with different EXIF should have very close dHash');
+        self::assertTrue($result->isDuplicateLikely());
     }
 
     private function createJpeg(string $filename, string $color): string
@@ -218,7 +169,7 @@ final class PerceptualHashCalculatorTest extends TestCase
     {
         $path = $this->tempDir . '/' . $filename;
 
-        // Left half black, right half white — creates strong horizontal gradient at center
+        // Left half black, right half white -- creates strong horizontal gradient at center
         exec(sprintf(
             'ffmpeg -y -f lavfi -i "color=black:s=32x64" -f lavfi -i "color=white:s=32x64" -filter_complex "[0][1]hstack" -frames:v 1 %s 2>/dev/null',
             escapeshellarg($path),

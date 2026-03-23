@@ -50,7 +50,6 @@ final class StubPerceptualHashCalculator implements PerceptualHashCalculatorInte
         return $this;
     }
 
-    #[Override]
     public function computeDhash(SplFileInfo $file): ?string
     {
         return $this->hashes[$file->getPathname()] ?? null;
@@ -85,7 +84,6 @@ final class StubPerceptualHashCalculator implements PerceptualHashCalculatorInte
         return new SimilarityResult($score, $dd, 0, 0.0, 0.0, null, $classification);
     }
 
-    #[Override]
     public function hammingDistance(string $hashA, string $hashB): int
     {
         $binA = $this->decodeHex($hashA);

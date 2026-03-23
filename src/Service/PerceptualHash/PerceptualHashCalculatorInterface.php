@@ -14,8 +14,7 @@ namespace MagicSunday\Renamer\Service\PerceptualHash;
 use SplFileInfo;
 
 /**
- * Computes perceptual hashes (dHash) and measures their similarity
- * via Hamming distance.
+ * Multi-signal perceptual similarity scoring for visual duplicate detection.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -23,12 +22,6 @@ use SplFileInfo;
  */
 interface PerceptualHashCalculatorInterface
 {
-    /**
-     * Computes a 64-bit difference hash (dHash) of the file's visual content.
-     * Returns a 16-character hex string, or null on failure.
-     */
-    public function computeDhash(SplFileInfo $file): ?string;
-
     /**
      * Computes a multi-signal similarity score between two files.
      * Uses dHash, wHash, HF-energy, color histogram, and optional video duration.
@@ -42,12 +35,6 @@ interface PerceptualHashCalculatorInterface
         ?float $durationA = null,
         ?float $durationB = null,
     ): SimilarityResult;
-
-    /**
-     * Computes the Hamming distance between two hex-encoded hashes.
-     * Returns the number of differing bits (0 = identical, 64 = maximally different).
-     */
-    public function hammingDistance(string $hashA, string $hashB): int;
 
     /**
      * Releases all cached hash results to free memory.

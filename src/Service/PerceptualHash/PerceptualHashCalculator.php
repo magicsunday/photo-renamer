@@ -95,8 +95,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
     ) {
     }
 
-    #[Override]
-    public function computeDhash(SplFileInfo $file): ?string
+    private function computeDhash(SplFileInfo $file): ?string
     {
         $pathname = $file->getPathname();
 
@@ -158,69 +157,6 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
             return strtolower($this->bitsToHex($bits, 64));
         } catch (Throwable) {
             return null;
-        }
-    }
-
-    /**
-     * Computes a 64-bit Haar wavelet hash (wHash).
-     * Sensitive to mid-frequency texture changes (skin smoothing, noise reduction,
-     * color grading) that dHash misses.
-     *
-     * Algorithm: 32×32 grayscale → 2-level Haar transform → 8×8 LL subband →
-     * median threshold → 64-bit hash.
-     */
-    public function computeWhash(SplFileInfo $file): ?string
-    {
-        $img = $this->imageLoader->loadNormalized($file, self::HASH_DECODE_SIZE);
-
-        if (!$img instanceof Imagick) {
-            return null;
-        }
-
-        try {
-            return $this->computeWhashFromImage($img);
-        } finally {
-            $img->destroy();
-        }
-    }
-
-    /**
-     * Computes the high-frequency energy score of an image.
-     * Higher values indicate more texture/noise. Retouched images (skin smoothing,
-     * denoising) have measurably less HF-energy than originals.
-     */
-    public function computeHfEnergy(SplFileInfo $file): ?float
-    {
-        $img = $this->imageLoader->loadNormalized($file, self::HASH_DECODE_SIZE);
-
-        if (!$img instanceof Imagick) {
-            return null;
-        }
-
-        try {
-            return $this->computeHfEnergyFromImage($img);
-        } finally {
-            $img->destroy();
-        }
-    }
-
-    /**
-     * Computes a normalized 3D RGB color histogram.
-     *
-     * @return list<float>|null Normalized histogram (sum = 1.0), or null on failure
-     */
-    public function computeColorHistogram(SplFileInfo $file): ?array
-    {
-        $img = $this->imageLoader->loadNormalized($file, self::HASH_DECODE_SIZE);
-
-        if (!$img instanceof Imagick) {
-            return null;
-        }
-
-        try {
-            return $this->computeColorHistogramFromImage($img);
-        } finally {
-            $img->destroy();
         }
     }
 
@@ -354,7 +290,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
      * @param list<float> $a Normalized histogram A
      * @param list<float> $b Normalized histogram B
      */
-    public function histogramDistance(array $a, array $b): float
+    private function histogramDistance(array $a, array $b): float
     {
         $sum = 0.0;
         $n   = min(count($a), count($b));
@@ -515,8 +451,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         return (int) round($score * 100);
     }
 
-    #[Override]
-    public function hammingDistance(string $hashA, string $hashB): int
+    private function hammingDistance(string $hashA, string $hashB): int
     {
         $binA = $this->decodeHex($hashA);
         $binB = $this->decodeHex($hashB);

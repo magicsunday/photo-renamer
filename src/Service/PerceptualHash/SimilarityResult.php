@@ -45,9 +45,4 @@ final readonly class SimilarityResult
     {
         return $this->classification === 'duplicate_likely';
     }
-
-    public function isEditedVariant(): bool
-    {
-        return $this->classification === 'edited_variant';
-    }
 }
