@@ -9,18 +9,29 @@ This document describes the duplicate detection challenges in a photo/video rena
 
 The tool processes collections of 10,000–70,000+ files across nested directory structures (year → event → subfolder). Files come from iPhones, DSLRs, photo studios, WhatsApp, cloud sync, and manual imports.
 
-## Pipeline Overview
+## Pipeline Overview (2-Stage Architecture)
 
 ```
 1. Group files by EXIF timestamp (target basename)
 2. Compute content hash (xxh128) for each file
 3. If all hashes identical → pure duplicates → -duplicate-NNN
-4. If multiple hash groups → multi-signal perceptual similarity check
-5. Merge visually identical hash groups → -duplicate-NNN
-6. Keep visually distinct groups → -002, -003 (sub-groups)
+4. If multiple hash groups:
+   ┌─ Stage A: Global multi-signal scoring (all pairs) ─────────────┐
+   │  dHash + wHash + HF-energy + color histogram + video duration  │
+   │  → Score 0–100 per pair                                        │
+   │  score < 85 → different content → -002, -003                   │
+   │  score 85–94 → edited variant → -002, -003                     │
+   │  score ≥ 95 → near-identical candidate → proceed to Stage B    │
+   └────────────────────────────────────────────────────────────────┘
+   ┌─ Stage B: Local difference analysis (only score ≥ 95 pairs) ──┐
+   │  Downscale to 1024px, pixel diff, threshold, blob analysis     │
+   │  scattered noise (no blobs) → duplicate → -duplicate-NNN       │
+   │  compact blob(s) → local retouch → -002, -003                 │
+   │  ambiguous → directory context tiebreaker                      │
+   └────────────────────────────────────────────────────────────────┘
 ```
 
-Step 4–6 is where perceptual hashing is needed. It only runs for files that are already in the same timestamp group AND have different content hashes — typically <1% of the collection.
+Stage A runs on all pairs with different content hashes (typically <1% of collection). Stage B is an optional refinement that only triggers for very-high-score pairs — typically <5 per run. This 2-stage design keeps the pipeline fast while addressing the fundamental limit of global perceptual hashes for minimal local retouches.
 
 ## Problem Cases (Categorized)
 
@@ -244,15 +255,122 @@ Final score is `round(score × 100)`, range 0–100.
 | Video ReImport | 5 | 2 | 0.001 | 0.656 | 0.0 | **91** | duplicate | ✓ |
 | Video Edit | 5 | 2 | 0.001 | 0.656 | 19.4 | **54** | edited | ✓ |
 
-### Classification Thresholds
+### Stage A Classification
 
 ```
-Score 85–100 → duplicate_likely
-Score 55–84  → edited_variant
-Score <55    → different
+Score ≥ 95  → near_identical_candidate → proceed to Stage B
+Score 85–94 → edited_variant           → sub-group (-002, -003)
+Score < 85  → different                → sub-group (-002, -003)
 ```
 
-This correctly classifies 5 of 6 cases. The sole failure (Edit002, score 99) is a **fundamental limit** of pixel-based detection — see next section.
+Stage A correctly classifies 5 of 6 cases. Edit002 (score 99) passes to Stage B for local analysis.
+
+## Stage B: Local Difference Analysis
+
+### Why Stage B Is Needed
+
+Global perceptual hashes compress the entire image into 64–1024 bits. Any local change affecting <1% of pixels is absorbed by the averaging. This is a **fundamental limit of the signal class**, not a tuning problem.
+
+Edit002 demonstrates this: a retouched license plate (~0.5% of image area) produces identical dHash, wHash, color histogram, and near-identical HF-energy. No adjustment of weights or thresholds can separate it from true duplicates without also breaking real format-backup detection.
+
+### The Key Insight: Noise Pattern vs Retouch Pattern
+
+When two visually-near-identical images differ at the byte level:
+
+- **JPEG re-encode / format conversion:** Differences are fine-grained, evenly distributed across the image (DCT compression artifacts). No spatial structure to the diff.
+- **Local retouch:** Differences form a **compact, spatially coherent blob** — the retouched region. Surrounding pixels are nearly identical.
+
+This qualitative difference is detectable by analyzing the **spatial structure** of the pixel difference mask.
+
+### Algorithm: LocalDifferenceAnalyzer
+
+Input: Two Imagick images that scored ≥ 95 in Stage A.
+
+```
+1. Normalize both images (autoOrient, sRGB, strip, flatten)
+2. Downscale both to 1024px on the long edge (proportional)
+3. Convert both to grayscale (COLORSPACE_GRAY)
+4. Compute absolute pixel difference: diff[y][x] = |A[y][x] - B[y][x]|
+5. Apply noise threshold: binary[y][x] = (diff[y][x] > 6/255) ? 1 : 0
+   This eliminates JPEG rounding noise (typically ±2-3 levels)
+6. Morphological opening (erode + dilate) to remove isolated pixels
+7. Connected component analysis on the binary mask
+8. Measure:
+   - changedAreaRatio  = count(binary == 1) / totalPixels
+   - largestBlobArea   = area of largest connected component
+   - largestBlobRatio  = largestBlobArea / totalPixels
+   - blobCount         = number of connected components (after morphology)
+```
+
+### Decision Rule
+
+```
+IF changedAreaRatio < 0.002 AND largestBlobRatio < 0.0005:
+    → duplicate (pure re-encode noise, no coherent changes)
+
+IF largestBlobRatio >= 0.001:
+    → edited_variant (compact local retouch detected)
+
+IF changedAreaRatio >= 0.002 AND largestBlobRatio < 0.001:
+    → ambiguous (widespread small changes, no clear blob)
+    → use directory context as tiebreaker:
+      - same directory → duplicate
+      - different directory with edit-semantic name → edited_variant
+      - different directory without edit-semantic name → duplicate
+```
+
+### Edit-Semantic Directory Names
+
+Directory names that suggest post-processing (case-insensitive substring match):
+
+```
+bearbeitet, edited, edit, edits, export, exported, final, retouched,
+retouch, processed, adjusted, corrected, lightroom, photoshop, print
+```
+
+### Expected Results with Stage B
+
+| Pair | Stage A Score | Changed Area | Largest Blob | Classification |
+|------|--------------|-------------|-------------|----------------|
+| HEIC Backup | 100 | <0.001 (JPEG noise) | <0.0001 | duplicate ✓ |
+| iPhone Dup | 100 | 0.000 | 0.000 | duplicate ✓ |
+| Foto Edit002 (plate) | 99 | ~0.005 | **~0.003** (plate blob) | **edited_variant** ✓ |
+| Video ReImport | 91 | — (below threshold) | — | duplicate ✓ (Stage A) |
+
+Edit002 is now detectable: the license plate retouch creates a compact blob (~0.3% of image area) that stands out against the near-zero noise floor of the surrounding pixels.
+
+### Performance Considerations
+
+Stage B is expensive compared to Stage A:
+- Imagick load + resize to 1024px: ~100ms per image
+- Pixel export (1024×683 = 700K pixels): ~50ms
+- Difference computation + morphology + blob analysis: ~20ms
+- Total per pair: ~300ms
+
+But it only runs for pairs with `score ≥ 95` and different content hashes — typically 0–5 pairs per run of 3000+ files. Total overhead: <2 seconds.
+
+### Morphological Operations in Imagick
+
+Imagick provides built-in morphological operations:
+
+```php
+// Erode then dilate (opening) to remove isolated noise pixels
+$kernel = ImagickKernel::fromBuiltIn(Imagick::KERNEL_DISK, '1');
+$diffImg->morphology(Imagick::MORPHOLOGY_OPEN, 1, $kernel);
+```
+
+Connected component analysis can be done via `Imagick::connectedComponentsImage()` (available since ImageMagick 7).
+
+### CLI Flags for Ambiguous Cases
+
+When Stage B produces an ambiguous result, the user can control behavior:
+
+```
+--duplicate-preference=strict   # Only merge when Stage B confirms (default)
+--duplicate-preference=relaxed  # Merge all score ≥ 95, skip Stage B
+```
+
+This avoids hardcoded directory penalties and gives the user control.
 
 ## Fundamental Limit: Minimal Local Retouches (Case B1)
 
@@ -387,21 +505,25 @@ final readonly class SimilarityResult {
 
 ```
 src/Service/PerceptualHash/
-├── PerceptualHashCalculatorInterface.php
-├── PerceptualHashCalculator.php            # All hash computations + scoring
+├── PerceptualHashCalculatorInterface.php   # Public API: hashes, scoring, similarity
+├── PerceptualHashCalculator.php            # All hash computations + Stage A scoring
 ├── ImagickImageLoaderInterface.php         # Imagick normalization contract
-├── ImagickImageLoader.php                  # autoOrient + sRGB + flatten
-├── FfmpegGrayscaleLoaderInterface.php      # Legacy/fallback (ffmpeg-only)
-├── FfmpegGrayscaleLoader.php               # Video poster frame extraction
-└── SimilarityResult.php                    # Value object for multi-signal result
+├── ImagickImageLoader.php                  # autoOrient + sRGB + flatten + video poster
+├── LocalDifferenceAnalyzerInterface.php    # Stage B: local diff contract
+├── LocalDifferenceAnalyzer.php             # Blob analysis for near-identical pairs
+├── SimilarityResult.php                    # Value object: score + all metrics + classification
+├── LocalDiffResult.php                     # Value object: changedAreaRatio, blobRatio, blobCount
+├── FfmpegGrayscaleLoaderInterface.php      # ffmpeg-only fallback (kept for video frames)
+└── FfmpegGrayscaleLoader.php               # Video poster frame extraction via ffmpeg
 
 src/Service/
-├── HashSubGroupingService.php              # mergePerceptuallySimilarGroups()
+├── HashSubGroupingService.php              # mergePerceptuallySimilarGroups() with 2-stage decision
 └── DuplicateDetectionService.php           # Orchestrator
 
 tests/Unit/Service/PerceptualHash/
 ├── PerceptualHashCalculatorTest.php
 ├── ImagickImageLoaderTest.php
+├── LocalDifferenceAnalyzerTest.php
 └── FfmpegGrayscaleLoaderTest.php
 
 tests/Unit/Service/Fixtures/
@@ -418,28 +540,52 @@ tests/Unit/Service/Fixtures/
 - **Process execution:** `Symfony\Component\Process\Process` for ffmpeg
 - **Reference implementation:** Full pHash/dHash/aHash in sister project `photo-memories` (`PerceptualHashExtractor.php`)
 
-## What Needs to Be Done
+## Implementation Phases
 
-### Must-Have
+### Phase 1: ImagickImageLoader (foundation)
 
-1. **ImagickImageLoader** — Normalized pixel extraction with `autoOrient()` + sRGB for stills, ffmpeg for video poster frames. This is the critical foundation — without it, JPG↔HEIC comparison is broken.
+Replace `FfmpegGrayscaleLoader` with Imagick-based pixel extraction for still images. This fixes the critical JPG↔HEIC color space and orientation problems. Keep ffmpeg for video poster frame extraction only.
 
-2. **wHash implementation** — 32×32 input, 2-level Haar wavelet, 8×8 LL subband, median threshold → 64-bit hash. Pure PHP, ~60 lines. Detects color grading and extensive retouches.
+**New files:**
+- `ImagickImageLoaderInterface.php` — `loadNormalized(SplFileInfo): ?Imagick`
+- `ImagickImageLoader.php` — autoOrient + stripImage + sRGB + flatten + video poster via ffmpeg
 
-3. **HF-Energy computation** — Gaussian blur (σ=1.2) difference on 128×128. Detects texture changes (smoothing, sharpening, noise reduction).
+**Modify:**
+- `PerceptualHashCalculator.php` — use `ImagickImageLoader` instead of `FfmpegGrayscaleLoader` for pixel data
+- `Services.yaml` — wire new interfaces
 
-4. **Color histogram computation** — 3D RGB histogram (16 bins/channel) L1 distance. Detects color grading, white balance shifts, LUT application.
+### Phase 2: Stage A multi-signal scoring
 
-5. **Video duration in merge decision** — Compare `TemporalMetadata.videoDurationSeconds`. Definitively separates trimmed videos from re-imports.
+Add wHash, HF-energy, color histogram, and video duration to the hash calculator. Combine into weighted score.
 
-6. **Combined scoring + merge logic** — Multi-signal weighted score in `HashSubGroupingService`. Union-find pairwise merge of hash groups above threshold.
+**New/modify:**
+- `PerceptualHashCalculatorInterface.php` — add `computeWhash()`, `computeHfEnergy()`, `computeColorHistogram()`, `similarityScore()`
+- `PerceptualHashCalculator.php` — implement all signals + scoring formula
+- `SimilarityResult.php` — value object with all metrics + score + classification
+- `HashSubGroupingService.php` — use `similarityScore()` in `mergePerceptuallySimilarGroups()`
+- `StubPerceptualHashCalculator.php` — update with new methods
 
-### Nice-to-Have
+### Phase 3: Stage B local difference analysis
 
-7. **Directory penalty** — When score is 85–99 and files are in different directories, apply -10 penalty. Captures semantic intent of `bearbeitet/` subfolders for the B1 edge case (minimal local retouches that no pixel-based method can detect).
+Add `LocalDifferenceAnalyzer` for near-identical pairs (score ≥ 95). Runs only on the <5 pairs per run that Stage A cannot decide.
 
-8. **Multi-frame video sampling** — Sample at 10%, 50%, 90% of duration instead of single poster frame at 1s. Improves robustness for videos with identical opening scenes.
+**New files:**
+- `LocalDifferenceAnalyzerInterface.php` — `analyze(Imagick, Imagick): LocalDiffResult`
+- `LocalDifferenceAnalyzer.php` — downscale, diff, threshold, morphology, blob analysis
+- `LocalDiffResult.php` — changedAreaRatio, largestBlobRatio, blobCount
 
-9. **Fix test images** — Current test images in `scripts/create-test-images.php` are 1×1 white pixels that all produce identical hashes. Need visually distinct test images for edit scenarios (different colors, patterns, varying textures).
+**Modify:**
+- `HashSubGroupingService.php` — call Stage B for `score ≥ 95` pairs, use blob results + directory context for final decision
 
-10. **Calibration with larger dataset** — Run scoring across 50 known duplicates, 50 known edits, 50 burst photos to validate thresholds empirically.
+### Phase 4: Validation and threshold calibration
+
+- Fix test images (visually distinct images for edit scenarios)
+- Run against real photo library (Fotostudio, iPhone, MobileBackup, video cases)
+- Calibrate thresholds empirically
+- Add `--duplicate-preference` CLI flag for ambiguous cases
+
+### Nice-to-Have (Future)
+
+- **Multi-frame video sampling** — Sample at 10%, 50%, 90% of duration for more robust video comparison
+- **Calibration with larger dataset** — 50 known duplicates, 50 known edits, 50 burst photos
+- **Feature matching (ORB/SIFT)** — For robust local edit detection without resolution dependency. Overkill for current use case but the cleanest theoretical solution.
