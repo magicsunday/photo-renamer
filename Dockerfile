@@ -5,15 +5,20 @@ RUN apk add --no-cache \
     bash \
     ffmpeg \
     git \
+    imagemagick \
     libheif-tools \
     nodejs \
     npm \
     openssh-client \
     perl \
+    php85-gd \
+    php85-pecl-imagick \
     php85-pecl-pcov \
     exiftool && \
     echo "extension=/usr/lib/php85/modules/pcov.so" > /usr/local/etc/php/conf.d/pcov.ini && \
     echo "pcov.enabled=0" >> /usr/local/etc/php/conf.d/pcov.ini && \
+    echo "extension=/usr/lib/php85/modules/imagick.so" > /usr/local/etc/php/conf.d/imagick.ini && \
+    echo "extension=/usr/lib/php85/modules/gd.so" > /usr/local/etc/php/conf.d/gd.ini && \
     git config --global --add safe.directory /app
 
 ENV COMPOSER_ALLOW_SUPERUSER=1 \
