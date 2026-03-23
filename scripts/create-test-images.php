@@ -341,7 +341,7 @@ echo "  23 SubSecTime padding        → -500 vs -550 (different targets from 5 
 
 // ============================================================================
 // 24 - Cross-directory edits (same timestamp + software, different dirs)
-//      Fotostudio scenario: original + retouched versions in subdirectory.
+//      Photo studio scenario: original + retouched versions in subdirectory.
 //      All have same EXIF date and software, but different content.
 //      Expected: original keeps name, edits get -002, -003 sub-group numbers.
 // ============================================================================
