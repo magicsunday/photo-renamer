@@ -155,7 +155,7 @@ final readonly class ImagickImageLoader
 
         // Fallback: single frame at ~1s
         if ($frames === []) {
-            $frame = $this->extractSingleFrame($file, $this->resolveSeekTime($file));
+            $frame = $this->extractSingleFrame($file, $this->resolveSeekTime($file, $duration));
 
             if ($frame instanceof Imagick) {
                 $frames[] = $frame;
@@ -261,7 +261,7 @@ final readonly class ImagickImageLoader
         }
     }
 
-    private function resolveSeekTime(SplFileInfo $file): float
+    private function resolveSeekTime(SplFileInfo $file, ?float $duration = null): float
     {
         $targetTime = max(0.0, min(2.0, $this->posterFrameSecond));
 
@@ -269,7 +269,7 @@ final readonly class ImagickImageLoader
             $targetTime = 1.0;
         }
 
-        $duration = $this->probeVideoDuration($file);
+        $duration ??= $this->probeVideoDuration($file);
 
         if (($duration !== null) && ($duration > 0.0) && ($targetTime > $duration)) {
             return max(0.0, $duration - 0.1);
