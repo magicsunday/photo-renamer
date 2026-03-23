@@ -39,14 +39,8 @@ services:
         arguments:
             $io: '@Symfony\Component\Console\Style\SymfonyStyle'
 
-    MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoaderInterface:
-        class: MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader
-
     MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface:
         class: MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator
-
-    MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzerInterface:
-        class: MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzer
 
     MagicSunday\ImageMeta\MetadataReader:
         factory: ['MagicSunday\ImageMeta\MetadataReader', 'createDefault']

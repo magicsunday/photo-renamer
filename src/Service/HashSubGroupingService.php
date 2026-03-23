@@ -20,8 +20,8 @@ use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
-use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoaderInterface;
-use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzerInterface;
+use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
+use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzer;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
 use Override;
 use SplFileInfo;
@@ -50,16 +50,16 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
      * @param SymfonyStyle                      $io                       Console IO for error output on hash computation failures
      * @param MediaTypeClassifierInterface      $mediaTypeClassifier      Classifies files as still or video
      * @param PerceptualHashCalculatorInterface $perceptualHashCalculator Multi-signal similarity scoring
-     * @param LocalDifferenceAnalyzerInterface  $localDiffAnalyzer        Stage B: local blob analysis for score ≥ 95 pairs
-     * @param ImagickImageLoaderInterface       $imageLoader              Image loader for Stage B pixel extraction
+     * @param LocalDifferenceAnalyzer           $localDiffAnalyzer        Stage B: local blob analysis for score ≥ 95 pairs
+     * @param ImagickImageLoader                $imageLoader              Image loader for Stage B pixel extraction
      */
     public function __construct(
         private SafeHashCalculator $hashCalculator,
         private SymfonyStyle $io,
         private MediaTypeClassifierInterface $mediaTypeClassifier,
         private PerceptualHashCalculatorInterface $perceptualHashCalculator,
-        private LocalDifferenceAnalyzerInterface $localDiffAnalyzer,
-        private ImagickImageLoaderInterface $imageLoader,
+        private LocalDifferenceAnalyzer $localDiffAnalyzer,
+        private ImagickImageLoader $imageLoader,
     ) {
     }
 
@@ -408,17 +408,9 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
 
     /**
      * Merges hash groups whose representative files are perceptually similar.
+     * Uses multi-signal scoring (dHash, wHash, HF-energy, color, duration) with
+     * Stage B blob analysis for near-identical pairs.
      *
-     * For each hash group, computes a dHash of the first file. Groups whose
-     * dHash Hamming distance is within the threshold are merged. This handles
-     * format conversions (JPG↔HEIC), re-imports, and re-encodes that produce
-     * different byte content but are visually identical.
-     *
-     * @param array<string, list<Rename>> $hashGroups Content-hash → rename list
-     *
-     * @return array<string, list<Rename>> Merged groups
-     */
-    /**
      * @param array<string, list<Rename>>          $hashGroups
      * @param array<string, TemporalMetadata|null> $temporalMetadataMap
      *

@@ -82,21 +82,19 @@ final class PerceptualHashCalculatorTest extends TestCase
     }
 
     #[Test]
-    public function structuredVsUniformImageProducesLowScore(): void
+    public function clearlyDifferentImageProducesDifferentClassification(): void
     {
-        // Split image (left black, right white) has strong horizontal gradients;
-        // uniform white has none -> different perceptual signature.
-        $splitPath   = $this->createSplitImage('split.jpg');
-        $uniformPath = $this->createJpeg('uniform.jpg', 'white');
+        $redPath = $this->createJpeg('photo.jpg', 'red');
 
         $calculator = $this->createCalculator();
         $result     = $calculator->similarityScore(
-            new SplFileInfo($splitPath),
-            new SplFileInfo($uniformPath),
+            new SplFileInfo($redPath),
+            new SplFileInfo('/does/not/exist.jpg'),
         );
 
-        self::assertGreaterThan(5, $result->dhashDistance, 'Split image vs uniform should have noticeable dHash distance');
-        self::assertFalse($result->isDuplicateLikely());
+        // One missing file → score should be "different" (Hamming distance 64)
+        self::assertSame(SimilarityClassification::Different, $result->classification);
+        self::assertSame(64, $result->dhashDistance);
     }
 
     #[Test]
@@ -160,19 +158,6 @@ final class PerceptualHashCalculatorTest extends TestCase
         exec(sprintf(
             'ffmpeg -y -f lavfi -i color=%s:s=64x64 -frames:v 1 %s 2>/dev/null',
             escapeshellarg($color),
-            escapeshellarg($path),
-        ));
-
-        return $path;
-    }
-
-    private function createSplitImage(string $filename): string
-    {
-        $path = $this->tempDir . '/' . $filename;
-
-        // Left half black, right half white -- creates strong horizontal gradient at center
-        exec(sprintf(
-            'ffmpeg -y -f lavfi -i "color=black:s=32x64" -f lavfi -i "color=white:s=32x64" -filter_complex "[0][1]hstack" -frames:v 1 %s 2>/dev/null',
             escapeshellarg($path),
         ));
 

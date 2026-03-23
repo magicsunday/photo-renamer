@@ -13,7 +13,6 @@ namespace MagicSunday\Renamer\Service\PerceptualHash;
 
 use Imagick;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
-use Override;
 use SplFileInfo;
 use Symfony\Component\Process\Process;
 use Throwable;
@@ -47,7 +46,7 @@ use function unlink;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-final readonly class ImagickImageLoader implements ImagickImageLoaderInterface
+final readonly class ImagickImageLoader
 {
     public function __construct(
         private string $ffmpegBinary = 'ffmpeg',
@@ -56,7 +55,6 @@ final readonly class ImagickImageLoader implements ImagickImageLoaderInterface
     ) {
     }
 
-    #[Override]
     public function loadNormalized(SplFileInfo $file, ?int $maxResolution = null): ?Imagick
     {
         if (!$file->isFile()) {
@@ -112,14 +110,18 @@ final readonly class ImagickImageLoader implements ImagickImageLoaderInterface
                 // Some builds/formats don't support colorspace conversion
             }
 
-            // Remove alpha channel, flatten layers
+            // Remove alpha channel, flatten multi-layer images
             $img->setImageAlphaChannel(Imagick::ALPHACHANNEL_REMOVE);
-            $img->setBackgroundColor('white');
 
-            $merged = $img->mergeImageLayers(Imagick::LAYERMETHOD_FLATTEN);
-            $img->clear();
+            if ($img->getNumberImages() > 1) {
+                $img->setBackgroundColor('white');
+                $merged = $img->mergeImageLayers(Imagick::LAYERMETHOD_FLATTEN);
+                $img->clear();
 
-            return $merged;
+                return $merged;
+            }
+
+            return $img;
         } catch (Throwable) {
             return null;
         }

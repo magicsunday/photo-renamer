@@ -12,7 +12,6 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service\PerceptualHash;
 
 use Imagick;
-use Override;
 use Throwable;
 
 use function abs;
@@ -34,7 +33,7 @@ use function max;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-final readonly class LocalDifferenceAnalyzer implements LocalDifferenceAnalyzerInterface
+final readonly class LocalDifferenceAnalyzer
 {
     /**
      * Working resolution: long edge scaled to this many pixels.
@@ -51,7 +50,6 @@ final readonly class LocalDifferenceAnalyzer implements LocalDifferenceAnalyzerI
      */
     private const float RETOUCH_BLOB_THRESHOLD = 0.001;
 
-    #[Override]
     public function analyze(Imagick $imageA, Imagick $imageB): LocalDiffResult
     {
         try {
@@ -73,7 +71,7 @@ final readonly class LocalDifferenceAnalyzer implements LocalDifferenceAnalyzerI
 
         // Ensure same dimensions
         if ($width !== $grayB->getImageWidth() || $height !== $grayB->getImageHeight()) {
-            $grayB->resizeImage($width, $height, Imagick::FILTER_LANCZOS, 1.0, false);
+            $grayB->resizeImage($width, $height, Imagick::FILTER_TRIANGLE, 1.0, false);
         }
 
         // Export grayscale pixels
@@ -150,7 +148,7 @@ final readonly class LocalDifferenceAnalyzer implements LocalDifferenceAnalyzerI
             $clone->resizeImage(
                 (int) round($width * $scale),
                 (int) round($height * $scale),
-                Imagick::FILTER_LANCZOS,
+                Imagick::FILTER_TRIANGLE,
                 1.0,
                 false,
             );
@@ -185,7 +183,7 @@ final readonly class LocalDifferenceAnalyzer implements LocalDifferenceAnalyzerI
      */
     private function erode(array $mask, int $width, int $height): array
     {
-        $result = [];
+        $result = array_fill(0, $width * $height, 0);
 
         for ($y = 0; $y < $height; ++$y) {
             for ($x = 0; $x < $width; ++$x) {
@@ -217,7 +215,7 @@ final readonly class LocalDifferenceAnalyzer implements LocalDifferenceAnalyzerI
      */
     private function dilate(array $mask, int $width, int $height): array
     {
-        $result = [];
+        $result = array_fill(0, $width * $height, 0);
 
         for ($y = 0; $y < $height; ++$y) {
             for ($x = 0; $x < $width; ++$x) {
