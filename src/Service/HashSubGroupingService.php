@@ -471,7 +471,7 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
                 $shouldMerge = false;
 
                 if ($result->isDuplicateLikely()) {
-                    // Stage B: for near-identical pairs, check for local retouches
+                    // Stage B: local blob analysis for near-identical pairs
                     $shouldMerge = !$this->hasLocalRetouch(
                         $representativeByHash[$hashes[$i]],
                         $representativeByHash[$hashes[$j]],

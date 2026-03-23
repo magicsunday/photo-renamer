@@ -83,6 +83,13 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
      */
     private array $dhashCache = [];
 
+    /**
+     * In-memory cache: pathname → all computed signals.
+     *
+     * @var array<string, array{dhash: string|null, whash: string|null, hf: float|null, hist: list<float>|null}>
+     */
+    private array $signalsCache = [];
+
     public function __construct(
         private readonly ImagickImageLoaderInterface $imageLoader,
     ) {
@@ -438,25 +445,41 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
      *
      * @return array{dhash: string|null, whash: string|null, hf: float|null, hist: list<float>|null}
      */
+    /**
+     * @return array{dhash: string|null, whash: string|null, hf: float|null, hist: list<float>|null}
+     */
     private function computeAllSignals(SplFileInfo $file): array
     {
+        $pathname = $file->getPathname();
+
+        if (isset($this->signalsCache[$pathname])) {
+            return $this->signalsCache[$pathname];
+        }
+
         $null = ['dhash' => null, 'whash' => null, 'hf' => null, 'hist' => null];
 
-        // Reduced decode resolution — max signal needs 128×128 (HF-energy)
         $img = $this->imageLoader->loadNormalized($file, self::HASH_DECODE_SIZE);
 
         if (!$img instanceof Imagick) {
+            $this->signalsCache[$pathname] = $null;
+
             return $null;
         }
 
         try {
-            return [
+            $signals = [
                 'dhash' => $this->computeDhashFromImage($img),
                 'whash' => $this->computeWhashFromImage($img),
                 'hf'    => $this->computeHfEnergyFromImage($img),
                 'hist'  => $this->computeColorHistogramFromImage($img),
             ];
+
+            $this->signalsCache[$pathname] = $signals;
+
+            return $signals;
         } catch (Throwable) {
+            $this->signalsCache[$pathname] = $null;
+
             return $null;
         } finally {
             $img->destroy();
@@ -515,7 +538,8 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
     #[Override]
     public function clearCache(): void
     {
-        $this->dhashCache = [];
+        $this->dhashCache   = [];
+        $this->signalsCache = [];
     }
 
     /**
