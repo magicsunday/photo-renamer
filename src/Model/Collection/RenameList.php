@@ -42,12 +42,6 @@ final class RenameList extends AbstractCollection
     }
 
     #[Override]
-    public function append(object $value): void
-    {
-        parent::append($value);
-    }
-
-    #[Override]
     public function get(int|string $key): ?Rename
     {
         return parent::get((int) $key);

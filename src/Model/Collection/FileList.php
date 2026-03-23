@@ -39,12 +39,6 @@ final class FileList extends AbstractCollection
     }
 
     #[Override]
-    public function append(object $value): void
-    {
-        parent::append($value);
-    }
-
-    #[Override]
     public function get(int|string $key): ?SplFileInfo
     {
         return parent::get((int) $key);

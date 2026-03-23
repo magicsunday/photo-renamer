@@ -28,12 +28,6 @@ use Override;
 final class FileDuplicateCollection extends AbstractCollection
 {
     #[Override]
-    public function append(object $value): void
-    {
-        parent::append($value);
-    }
-
-    #[Override]
     public function set(int|string $key, object $value): void
     {
         parent::set((string) $key, $value);
