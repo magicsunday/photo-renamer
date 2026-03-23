@@ -201,14 +201,30 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
         // DuplicateDetectionService where it has access to TemporalMetadata software tags.
         $canonicalBasename = FileHelper::basenameWithoutExtension($fileDuplicate->getTarget());
 
-        // Determine which hash group contains the canonical.
+        // Determine which merged hash group contains the canonical.
+        // After perceptual merge, the canonical's original content hash may have been
+        // absorbed into another group (whose root key is a different hash). A direct
+        // lookup via $renameToHash would miss this — search the merged groups instead.
         $canonicalHash = null;
 
         if ($canonicalRename instanceof Rename) {
-            $canonicalHash = $renameToHash[$canonicalRename->getSource()->getPathname()] ?? null;
+            $canonicalSource = $canonicalRename->getSource()->getPathname();
+
+            foreach ($hashGroups as $hash => $groupRenames) {
+                foreach ($groupRenames as $rename) {
+                    if ($rename->getSource()->getPathname() === $canonicalSource) {
+                        $canonicalHash = $hash;
+
+                        break 2;
+                    }
+                }
+            }
         }
 
         // Assign sub-group numbers: canonical's hash gets 0 (no suffix), others get 2, 3, ...
+        // Map each merged group key AND all original hashes within that group to the
+        // same sub-group number. This ensures lookups via $renameToHash find the correct
+        // sub-group even when a perceptual merge absorbed a file's hash into another root.
         $subGroupNumber = 2;
 
         /** @var list<Rename> $newRenames */
@@ -217,18 +233,18 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
         /** @var array<string, int> $hashToSubGroup Map from hash to sub-group number (0 = canonical group) */
         $hashToSubGroup = [];
 
-        // Process canonical's hash group first (no sub-group number).
-        if (($canonicalHash !== null) && isset($hashGroups[$canonicalHash])) {
-            $hashToSubGroup[$canonicalHash] = 0;
-        }
+        foreach ($hashGroups as $mergedKey => $groupRenames) {
+            $groupNum = ($mergedKey === $canonicalHash) ? 0 : $subGroupNumber++;
 
-        foreach (array_keys($hashGroups) as $hash) {
-            if ($hash === $canonicalHash) {
-                continue;
+            $hashToSubGroup[$mergedKey] = $groupNum;
+
+            foreach ($groupRenames as $rename) {
+                $origHash = $renameToHash[$rename->getSource()->getPathname()] ?? null;
+
+                if (($origHash !== null) && ($origHash !== $mergedKey)) {
+                    $hashToSubGroup[$origHash] = $groupNum;
+                }
             }
-
-            $hashToSubGroup[$hash] = $subGroupNumber;
-            ++$subGroupNumber;
         }
 
         // Build a per-directory total file count for cross-directory conflict resolution.
@@ -343,6 +359,42 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
             $sourceBasenameToSubGroup[$stillBasename] = $stillSubGroup;
         }
 
+        // Pre-identify the preferred companion per content ID (idempotent preference).
+        // When multiple excluded files share a content ID, prefer the one whose source
+        // basename already matches the expected target — just like idempotent canonical
+        // selection in the non-companion (stills) path.
+        /** @var array<string, Rename> $preferredExcludedCompanion */
+        $preferredExcludedCompanion = [];
+
+        foreach ($fileDuplicate->getRenames() as $rename) {
+            if (isset($nonCompanionLookup[spl_object_id($rename)])) {
+                continue;
+            }
+
+            $renamePath      = $rename->getSource()->getPathname();
+            $renameContentId = $contentIdentifierMap[$renamePath] ?? null;
+            $contentIdKey    = $renameContentId ?? '__none_' . $renamePath;
+
+            if (isset($preferredExcludedCompanion[$contentIdKey])) {
+                continue;
+            }
+
+            if ($renameContentId !== null) {
+                $preSubGroup = $contentIdToSubGroup[$renameContentId] ?? 0;
+            } else {
+                $preBasename = FileHelper::basenameWithoutExtension($rename->getSource());
+                $preSubGroup = $sourceBasenameToSubGroup[$preBasename] ?? 0;
+            }
+
+            $expectedBasename = $preSubGroup === 0
+                ? $canonicalBasename
+                : sprintf('%s-%03d', $canonicalBasename, $preSubGroup);
+
+            if (FileHelper::basenameWithoutExtension($rename->getSource()) === $expectedBasename) {
+                $preferredExcludedCompanion[$contentIdKey] = $rename;
+            }
+        }
+
         foreach ($fileDuplicate->getRenames() as $rename) {
             // Skip files already processed as non-companion (stills).
             if (isset($nonCompanionLookup[spl_object_id($rename)])) {
@@ -369,10 +421,22 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
 
             $ext = strtolower($rename->getTarget()->getExtension());
 
-            // First file per content ID is the companion (no duplicate suffix).
+            // Assign companion slot: when a preferred companion exists for this content
+            // ID (source basename matches expected target), only that rename gets the
+            // unsuffixed companion name. Others become duplicates regardless of order.
             $contentIdKey = $renameContentId ?? '__none_' . $renamePath;
+            $preferred    = $preferredExcludedCompanion[$contentIdKey] ?? null;
 
-            if (isset($excludedDuplicateCountByContentId[$contentIdKey])) {
+            $isCompanionSlot = ($preferred !== null)
+                ? ($rename === $preferred)
+                : !isset($excludedDuplicateCountByContentId[$contentIdKey]);
+
+            if ($isCompanionSlot) {
+                $excludedDuplicateCountByContentId[$contentIdKey] ??= 1;
+                $newTargetFilename = $fileBasename . '.' . $ext;
+            } else {
+                $excludedDuplicateCountByContentId[$contentIdKey] ??= 1;
+
                 $dupIdx            = $excludedDuplicateCountByContentId[$contentIdKey];
                 $newTargetFilename = sprintf(
                     '%s%s%03d.%s',
@@ -383,9 +447,6 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
                 );
 
                 ++$excludedDuplicateCountByContentId[$contentIdKey];
-            } else {
-                $excludedDuplicateCountByContentId[$contentIdKey] = 1;
-                $newTargetFilename                                = $fileBasename . '.' . $ext;
             }
 
             $targetPathname = $targetPathnameResolver(

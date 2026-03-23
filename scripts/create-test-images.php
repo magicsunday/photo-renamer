@@ -17,6 +17,12 @@ $backupFiles = [
     '04-live-photo-pair/IMG_0001.mov',
     '18-live-photo-conflict/2024-08-19_11-09-34-857.jpg',
     '18-live-photo-conflict/2024-08-19_11-09-34-857.mov',
+    '29-livephoto-edit-duplicate/2025-05-03_14-38-16-939.jpg',
+    '29-livephoto-edit-duplicate/2025-05-03_14-38-16-939.mov',
+    '29-livephoto-edit-duplicate/2025-05-03_14-38-16-939-002.jpg',
+    '29-livephoto-edit-duplicate/2025-05-03_14-38-16-939-002.mov',
+    '29-livephoto-edit-duplicate/2025-05-03_14-38-16-939-duplicate-001.heic',
+    '29-livephoto-edit-duplicate/2025-05-03_14-38-16-939-duplicate-001.mov',
 ];
 
 if (is_dir($dir)) {
@@ -78,9 +84,14 @@ function stripToMetadataOnly(string $source, string $dest, bool $isVideo = false
         return;
     }
 
+    $ext = strtolower(pathinfo($dest, PATHINFO_EXTENSION));
+
     if ($isVideo) {
         // Create minimal MOV, then copy metadata from real file
         createVideo($dest);
+    } elseif (in_array($ext, ['heic', 'heif'], true)) {
+        // Create minimal HEIC via heif-enc, then copy metadata from real file
+        createHeic($dest);
     } else {
         // Create 1x1 JPEG via ffmpeg, then copy metadata from real file
         exec(sprintf('ffmpeg -y -f lavfi -i color=white:s=1x1 -frames:v 1 %s 2>/dev/null', escapeshellarg($dest)));
@@ -442,6 +453,83 @@ exiftool(
     "$dir/28-cross-dir-format-backup/backup/photo.heic",
 );
 echo "  28 cross-dir format backup   → JPG canonical, HEIC gets -duplicate-001 (format backup)\n";
+
+// ============================================================================
+// 29 - Complex Live Photo group: original + edit + duplicate
+//      Real iPhone Live Photo metadata (ContentIdentifier, LivePhotoVideoIndex).
+//      6 files: JPG+MOV (original), JPG+MOV (edited), HEIC+MOV (duplicate).
+//      Expected: .jpg/.mov canonical, -002.jpg/-002.mov edit, -duplicate-001.heic/
+//      -duplicate-001.mov duplicate.
+// ============================================================================
+mkdir("$dir/29-livephoto-edit-duplicate", 0755, true);
+
+if ($photoSource !== '') {
+    $lp29src = $photoSource . '/MobileBackup/Test/2025-05-03_14-38-16-939';
+} else {
+    $lp29src = $backupDir . '/29-livephoto-edit-duplicate/2025-05-03_14-38-16-939';
+}
+
+$lp29files = [
+    ''                  => '.jpg',
+    ''                  => '.mov',
+    '-002'              => '.jpg',
+    '-002'              => '.mov',
+    '-duplicate-001'    => '.heic',
+    '-duplicate-001'    => '.mov',
+];
+
+// Can't use same key twice in PHP array — use list instead
+$lp29pairs = [
+    ['', '.jpg'],
+    ['', '.mov'],
+    ['-002', '.jpg'],
+    ['-002', '.mov'],
+    ['-duplicate-001', '.heic'],
+    ['-duplicate-001', '.mov'],
+];
+
+// Create visually distinct dummy images with real metadata copied on top.
+// Original and duplicate are same color (red) → pHash merge.
+// Edit is different color (blue) → pHash separate.
+$lp29colors = [
+    ['' , '.jpg', 'red'],           // Original JPG
+    ['', '.mov', null],             // Original MOV (video)
+    ['-002', '.jpg', 'blue'],       // Edited JPG (different visual)
+    ['-002', '.mov', null],         // Edited MOV (video)
+    ['-duplicate-001', '.heic', 'red'],  // Duplicate HEIC (same visual as original)
+    ['-duplicate-001', '.mov', null],    // Duplicate MOV (video)
+];
+
+foreach ($lp29colors as [$suffix, $ext, $color]) {
+    $srcFile  = $lp29src . $suffix . $ext;
+    $destFile = $dir . '/29-livephoto-edit-duplicate/2025-05-03_14-38-16-939' . $suffix . $ext;
+
+    if ($ext === '.mov') {
+        // Video: create dummy MOV, copy metadata from real file
+        stripToMetadataOnly($srcFile, $destFile, true);
+    } elseif ($ext === '.heic') {
+        // HEIC: create colored HEIC dummy, copy metadata
+        $tmpJpeg = sys_get_temp_dir() . '/heic-color-' . uniqid() . '.jpg';
+        exec(sprintf('ffmpeg -y -f lavfi -i color=%s:s=64x64 -frames:v 1 %s 2>/dev/null', $color, escapeshellarg($tmpJpeg)));
+        exec(sprintf('heif-enc -o %s %s 2>/dev/null', escapeshellarg($destFile), escapeshellarg($tmpJpeg)));
+        @unlink($tmpJpeg);
+
+        if (file_exists($srcFile)) {
+            exec(sprintf('exiftool -overwrite_original -TagsFromFile %s -all:all %s 2>/dev/null', escapeshellarg($srcFile), escapeshellarg($destFile)));
+            exec(sprintf('exiftool -overwrite_original -GPS*= %s 2>/dev/null', escapeshellarg($destFile)));
+        }
+    } else {
+        // JPG: create colored dummy, copy metadata
+        exec(sprintf('ffmpeg -y -f lavfi -i color=%s:s=64x64 -frames:v 1 %s 2>/dev/null', $color, escapeshellarg($destFile)));
+
+        if (file_exists($srcFile)) {
+            exec(sprintf('exiftool -overwrite_original -TagsFromFile %s -all:all %s 2>/dev/null', escapeshellarg($srcFile), escapeshellarg($destFile)));
+            exec(sprintf('exiftool -overwrite_original -GPS*= %s 2>/dev/null', escapeshellarg($destFile)));
+        }
+    }
+}
+
+echo "  29 LP edit+duplicate         → .jpg/.mov canonical, -002 edit, -duplicate-001 dup\n";
 
 // Clean up backup of committed Live Photo files
 if (is_dir($backupDir)) {
