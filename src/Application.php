@@ -49,7 +49,7 @@ final class Application extends \Symfony\Component\Console\Application
     /**
      * The logo.
      */
-    private static string $logo = ' .____                         .__                                .___               ____.
+    private const string LOGO = ' .____                         .__                                .___               ____.
  |   _|   _____ _____     ____ |__| ____   ________ __  ____    __| _/____  ___.__. |_   |
  |  |    /     \\\\__  \   / ___\|  |/ ___\ /  ___/  |  \/    \  / __ |\__  \\\<   |  |   |  |
  |  |   |  Y Y  \/ __ \_/ /_/  >  \  \___ \___ \|  |  /   |  \/ /_/ | / __ \\\\___  |   |  |
@@ -102,6 +102,6 @@ final class Application extends \Symfony\Component\Console\Application
     #[Override]
     public function getHelp(): string
     {
-        return self::$logo . parent::getHelp();
+        return self::LOGO . parent::getHelp();
     }
 }
