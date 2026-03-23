@@ -399,11 +399,22 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
     {
         $pathname = $file->getPathname();
 
-        // Disk cache hit — return cached signals directly (no Imagick needed)
+        // Disk cache hit with complete signals — return directly
         if (isset($this->diskCacheHits[$pathname])) {
             $cached = $this->diskCacheHits[$pathname];
 
-            return ['whash' => $cached['whash'], 'hf' => $cached['hf'], 'hist' => $cached['hist']];
+            // Only use cache if it has full signals (not just dHash-only entries)
+            if (($cached['whash'] !== null) || ($cached['hf'] !== null)) {
+                return ['whash' => $cached['whash'], 'hf' => $cached['hf'], 'hist' => $cached['hist']];
+            }
+
+            // dHash-only cache entry — need to load image for remaining signals
+            unset($this->diskCacheHits[$pathname]);
+        }
+
+        // Load image if not already available (disk cache had dHash-only entry)
+        if (!$img instanceof Imagick) {
+            $img = $this->imageLoader->loadNormalized($file, self::HASH_DECODE_SIZE);
         }
 
         if (!$img instanceof Imagick) {
