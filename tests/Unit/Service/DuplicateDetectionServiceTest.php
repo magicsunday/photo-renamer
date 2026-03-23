@@ -33,6 +33,7 @@ use MagicSunday\Renamer\Service\HashSubGroupingService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
 use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzer;
+use MagicSunday\Renamer\Service\PerceptualHash\SimilarityResult;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
@@ -100,10 +101,11 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(SkippedFile::class)]
 #[UsesClass(TargetFileResult::class)]
 #[UsesClass(FileSystemService::class)]
+#[UsesClass(ImagickImageLoader::class)]
 #[UsesClass(MediaTypeClassifier::class)]
 #[UsesClass(RenameOutputRenderer::class)]
 #[UsesClass(SafeHashCalculator::class)]
-#[UsesClass(StubPerceptualHashCalculator::class)]
+#[UsesClass(SimilarityResult::class)]
 final class DuplicateDetectionServiceTest extends TestCase
 {
     use WorkspaceTrait;

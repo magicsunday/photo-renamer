@@ -22,6 +22,7 @@ use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
 use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzer;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
+use MagicSunday\Renamer\Service\PerceptualHash\SimilarityResult;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubPerceptualHashCalculator;
@@ -63,9 +64,10 @@ use const DIRECTORY_SEPARATOR;
 #[CoversClass(Rename::class)]
 #[UsesClass(FileHelper::class)]
 #[UsesClass(FileList::class)]
+#[UsesClass(ImagickImageLoader::class)]
 #[UsesClass(MediaTypeClassifier::class)]
 #[UsesClass(SafeHashCalculator::class)]
-#[UsesClass(StubPerceptualHashCalculator::class)]
+#[UsesClass(SimilarityResult::class)]
 final class HashSubGroupingServiceTest extends TestCase
 {
     use WorkspaceTrait;

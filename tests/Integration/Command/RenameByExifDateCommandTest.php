@@ -44,6 +44,8 @@ use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\MetadataCache;
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
 use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzer;
+use MagicSunday\Renamer\Service\PerceptualHash\PerceptualSignalCache;
+use MagicSunday\Renamer\Service\PerceptualHash\SimilarityResult;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
@@ -111,6 +113,7 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(DuplicateDetectionService::class)]
 #[UsesClass(FileSystemService::class)]
 #[UsesClass(HashSubGroupingService::class)]
+#[UsesClass(ImagickImageLoader::class)]
 #[UsesClass(LivePhotoBasenameTargetMap::class)]
 #[UsesClass(LivePhotoConflictDetector::class)]
 #[UsesClass(LivePhotoContentIdentifierTarget::class)]
@@ -120,8 +123,10 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(LivePhotoPairingService::class)]
 #[UsesClass(MediaTypeClassifier::class)]
 #[UsesClass(MetadataCache::class)]
+#[UsesClass(PerceptualSignalCache::class)]
 #[UsesClass(RenameOutputRenderer::class)]
 #[UsesClass(SafeHashCalculator::class)]
+#[UsesClass(SimilarityResult::class)]
 #[UsesClass(TargetBasenameStrategy::class)]
 #[UsesClass(ExifDateFilenameStrategy::class)]
 final class RenameByExifDateCommandTest extends TestCase

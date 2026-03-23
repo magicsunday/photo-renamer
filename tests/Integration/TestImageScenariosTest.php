@@ -51,6 +51,7 @@ use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\MetadataCache;
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
 use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzer;
+use MagicSunday\Renamer\Service\PerceptualHash\LocalDiffResult;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualSignalCache;
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityClassification;
@@ -141,6 +142,7 @@ use const PREG_SET_ORDER;
 #[UsesClass(MetadataCache::class)]
 #[UsesClass(ImagickImageLoader::class)]
 #[UsesClass(LocalDifferenceAnalyzer::class)]
+#[UsesClass(LocalDiffResult::class)]
 #[UsesClass(PerceptualHashCalculator::class)]
 #[UsesClass(PerceptualSignalCache::class)]
 #[UsesClass(SimilarityClassification::class)]
