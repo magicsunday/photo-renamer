@@ -16,6 +16,8 @@ use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
+use function ini_set;
+
 // Remove memory limit — large photo collections need significant memory for
 // file iteration, metadata caching, and duplicate grouping.
 ini_set('memory_limit', '-1');

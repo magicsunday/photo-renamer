@@ -39,6 +39,8 @@ use Symfony\Component\Console\Tester\CommandTester;
 use function file_put_contents;
 use function unlink;
 
+use const DIRECTORY_SEPARATOR;
+
 /**
  * Verifies the VerifyCommand, a read-only analysis command that reports
  * metadata problems in photo/video directories.

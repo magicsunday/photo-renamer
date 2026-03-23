@@ -191,7 +191,7 @@ final readonly class ImagickImageLoader
 
         $duration = $this->probeVideoDuration($file);
 
-        if ($duration !== null && $duration > 0.0 && $targetTime > $duration) {
+        if (($duration !== null) && ($duration > 0.0) && ($targetTime > $duration)) {
             return max(0.0, $duration - 0.1);
         }
 
@@ -209,7 +209,7 @@ final readonly class ImagickImageLoader
 
     private function cleanup(?string $path): void
     {
-        if (is_string($path) && $path !== '' && is_file($path)) {
+        if (is_string($path) && ($path !== '') && is_file($path)) {
             @unlink($path);
         }
     }
@@ -245,7 +245,7 @@ final readonly class ImagickImageLoader
 
         $output = trim($process->getOutput());
 
-        if ($output === '' || !is_numeric($output)) {
+        if (($output === '') || !is_numeric($output)) {
             return null;
         }
 

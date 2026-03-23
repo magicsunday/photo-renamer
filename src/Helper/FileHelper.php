@@ -39,6 +39,8 @@ use function strlen;
 use function strtolower;
 use function substr;
 
+use const DIRECTORY_SEPARATOR;
+
 /**
  * Shared file-related utility methods used across the rename pipeline.
  *
@@ -193,7 +195,7 @@ final class FileHelper
         $sourceDate = self::extractDateFromPath($sourcePath);
         $targetDate = self::extractDateFromPath($targetPath);
 
-        if (!$sourceDate instanceof DateTimeImmutable || !$targetDate instanceof DateTimeImmutable) {
+        if (!($sourceDate instanceof DateTimeImmutable) || !($targetDate instanceof DateTimeImmutable)) {
             return null;
         }
 
@@ -323,11 +325,11 @@ final class FileHelper
         int $minute,
         int $second,
     ): ?DateTimeImmutable {
-        if ($month < 1 || $month > 12 || $day < 1 || $day > 31) {
+        if (($month < 1) || ($month > 12) || ($day < 1) || ($day > 31)) {
             return null;
         }
 
-        if ($hour < 0 || $hour > 23 || $minute < 0 || $minute > 59 || $second < 0 || $second > 59) {
+        if (($hour < 0) || ($hour > 23) || ($minute < 0) || ($minute > 59) || ($second < 0) || ($second > 59)) {
             return null;
         }
 

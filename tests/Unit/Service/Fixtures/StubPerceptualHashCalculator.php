@@ -20,8 +20,10 @@ use SplFileInfo;
 use function abs;
 use function ctype_xdigit;
 use function hex2bin;
+use function max;
 use function min;
 use function ord;
+use function round;
 use function strlen;
 
 /**
@@ -71,7 +73,7 @@ final class StubPerceptualHashCalculator implements PerceptualHashCalculatorInte
         $dhashA = $this->computeDhash($fileA);
         $dhashB = $this->computeDhash($fileB);
 
-        $dd = ($dhashA !== null && $dhashB !== null)
+        $dd = (($dhashA !== null) && ($dhashB !== null))
             ? $this->hammingDistance($dhashA, $dhashB)
             : 64;
 
@@ -90,7 +92,7 @@ final class StubPerceptualHashCalculator implements PerceptualHashCalculatorInte
         $binA = $this->decodeHex($hashA);
         $binB = $this->decodeHex($hashB);
 
-        if ($binA === null || $binB === null) {
+        if (($binA === null) || ($binB === null)) {
             return 64;
         }
 
@@ -116,7 +118,7 @@ final class StubPerceptualHashCalculator implements PerceptualHashCalculatorInte
             return null;
         }
 
-        if ($value !== '' && !ctype_xdigit($value)) {
+        if (($value !== '') && !ctype_xdigit($value)) {
             return null;
         }
 

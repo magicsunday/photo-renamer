@@ -43,6 +43,7 @@ use MagicSunday\Renamer\Service\LivePhoto\LivePhotoExistingFilePathnameIndex;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairing;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingCollection;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingService;
+use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingServiceInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\MetadataCache;
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
@@ -70,6 +71,8 @@ use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Output\NullOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Tester\CommandTester;
+
+use const DIRECTORY_SEPARATOR;
 
 /**
  * Verifies the RenameByExifDateCommand, the primary command for renaming photos
@@ -134,7 +137,7 @@ final class RenameByExifDateCommandTest extends TestCase
             self::createStub(FileSystemServiceInterface::class),
             self::createStub(DuplicateDetectionServiceInterface::class),
             $this->createExifMetadataProvider(),
-            self::createStub(LivePhotoPairingService::class),
+            self::createStub(LivePhotoPairingServiceInterface::class),
             new StubPerceptualHashCalculator(),
         );
 
@@ -158,8 +161,8 @@ final class RenameByExifDateCommandTest extends TestCase
         /** @var DuplicateDetectionServiceInterface&MockObject $duplicateDetectionService */
         $duplicateDetectionService = $this->createMock(DuplicateDetectionServiceInterface::class);
 
-        /** @var LivePhotoPairingService&MockObject $livePhotoPairingService */
-        $livePhotoPairingService = $this->createMock(LivePhotoPairingService::class);
+        /** @var LivePhotoPairingServiceInterface&MockObject $livePhotoPairingService */
+        $livePhotoPairingService = $this->createMock(LivePhotoPairingServiceInterface::class);
 
         $iterator = new RecursiveIteratorIterator(new RecursiveArrayIterator([]));
 
@@ -321,8 +324,8 @@ final class RenameByExifDateCommandTest extends TestCase
             ->method('getLastScannedFileCount')
             ->willReturn(2);
 
-        /** @var LivePhotoPairingService&MockObject $livePhotoPairingService */
-        $livePhotoPairingService = $this->createMock(LivePhotoPairingService::class);
+        /** @var LivePhotoPairingServiceInterface&MockObject $livePhotoPairingService */
+        $livePhotoPairingService = $this->createMock(LivePhotoPairingServiceInterface::class);
         $livePhotoPairingService
             ->expects(self::once())
             ->method('pairByContentIdentifier')
@@ -478,8 +481,8 @@ final class RenameByExifDateCommandTest extends TestCase
             )
             ->willReturnCallback(static fn (FileDuplicateCollection $collection): FileDuplicateCollection => $collection);
 
-        /** @var LivePhotoPairingService&MockObject $livePhotoPairingService */
-        $livePhotoPairingService = $this->createMock(LivePhotoPairingService::class);
+        /** @var LivePhotoPairingServiceInterface&MockObject $livePhotoPairingService */
+        $livePhotoPairingService = $this->createMock(LivePhotoPairingServiceInterface::class);
         $livePhotoPairingService
             ->expects(self::once())
             ->method('pairByContentIdentifier')
@@ -646,8 +649,8 @@ final class RenameByExifDateCommandTest extends TestCase
             ->method('getLastScannedFileCount')
             ->willReturn(0);
 
-        /** @var LivePhotoPairingService&MockObject $livePhotoPairingService */
-        $livePhotoPairingService = $this->createMock(LivePhotoPairingService::class);
+        /** @var LivePhotoPairingServiceInterface&MockObject $livePhotoPairingService */
+        $livePhotoPairingService = $this->createMock(LivePhotoPairingServiceInterface::class);
         $livePhotoPairingService
             ->expects(self::once())
             ->method('pairByContentIdentifier')
@@ -751,8 +754,8 @@ final class RenameByExifDateCommandTest extends TestCase
 
         $capturedPairings = null;
 
-        /** @var LivePhotoPairingService&MockObject $livePhotoPairingService */
-        $livePhotoPairingService = $this->createMock(LivePhotoPairingService::class);
+        /** @var LivePhotoPairingServiceInterface&MockObject $livePhotoPairingService */
+        $livePhotoPairingService = $this->createMock(LivePhotoPairingServiceInterface::class);
         $livePhotoPairingService
             ->expects(self::once())
             ->method('pairByContentIdentifier')

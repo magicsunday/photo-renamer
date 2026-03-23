@@ -47,6 +47,8 @@ use function str_starts_with;
 use function strtoupper;
 use function trim;
 
+use const DIRECTORY_SEPARATOR;
+
 /**
  * Base class for all rename commands. Provides shared CLI option parsing,
  * directory path normalization, dry-run confirmation, and the template-method

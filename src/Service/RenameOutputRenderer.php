@@ -90,9 +90,10 @@ final readonly class RenameOutputRenderer
                 // no-op duplicates (already correctly named) fall through to [O].
                 $isDuplicateTarget = ($renameBasename !== $canonicalBasename)
                     && str_contains($renameBasename, Constants::DUPLICATE_IDENTIFIER);
+
                 $isNoOp           = $rename->getSource()->getPathname() === $rename->getTarget()->getPathname();
                 $isCanonicalEntry = ($renameBasename === $canonicalBasename)
-                    && ($isNoOp || ($options->listAll && $rename->getSource()->getPathname() === $canonicalTargetPath));
+                    && ($isNoOp || ($options->listAll && ($rename->getSource()->getPathname() === $canonicalTargetPath)));
 
                 $sourcePath = FileHelper::relativizePath($rename->getSource()->getPathname(), $sourceBaseDirectory);
                 $targetPath = FileHelper::relativizePath($rename->getTarget()->getPathname(), $sourceBaseDirectory);
@@ -101,7 +102,7 @@ final readonly class RenameOutputRenderer
 
                 if (isset($result->livePhotoConflictFiles[$sourcePathname])) {
                     $tag = OutputEntryTag::Candidate;
-                } elseif ($isDuplicateTarget && !$isNoOp) {
+                } elseif ($isDuplicateTarget && (!$isNoOp)) {
                     $tag = OutputEntryTag::Duplicate;
                 } elseif ($isCanonicalEntry || $isNoOp) {
                     $tag = OutputEntryTag::Original;
@@ -114,13 +115,13 @@ final readonly class RenameOutputRenderer
                 }
 
                 if (
-                    ($tag === OutputEntryTag::Rename || $tag === OutputEntryTag::Fallback)
+                    (($tag === OutputEntryTag::Rename) || ($tag === OutputEntryTag::Fallback))
                     && ($options->maxDateDrift !== null)
                     && ($options->maxDateDrift > 0)
                 ) {
                     $driftDays = FileHelper::computeDateDrift($sourcePath, $targetPath);
 
-                    if ($driftDays !== null && $driftDays > $options->maxDateDrift) {
+                    if (($driftDays !== null) && ($driftDays > $options->maxDateDrift)) {
                         $tag = OutputEntryTag::Warning;
                     }
                 }
@@ -132,7 +133,7 @@ final readonly class RenameOutputRenderer
                     || $isCandidate
                     || ($options->skipFallback && $isFallbackEntry)
                     || $isWarning;
-                $shouldPerformOperation = ($shouldSkip === false) && !$isNoOp;
+                $shouldPerformOperation = ($shouldSkip === false) && (!$isNoOp);
 
                 $outputEntries[] = [
                     'sortKey'                => $rename->getSource()->getPathname(),

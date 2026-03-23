@@ -35,7 +35,9 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use function array_map;
 use function count;
 use function dirname;
+use function exec;
 use function explode;
+use function function_exists;
 use function in_array;
 use function is_file;
 use function is_string;
@@ -269,7 +271,7 @@ final class WriteDateCommand extends Command
             }
 
             // Apply reason filter
-            if (($reasonFilter !== null) && !in_array($reasonKey, $reasonFilter, true)) {
+            if (($reasonFilter !== null) && (!in_array($reasonKey, $reasonFilter, true))) {
                 ++$alreadyCorrect;
 
                 continue;

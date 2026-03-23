@@ -13,11 +13,14 @@ namespace MagicSunday\Renamer\Service\LivePhoto;
 
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
+use Override;
 use RecursiveIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
 
 use function is_callable;
+
+use const DIRECTORY_SEPARATOR;
 
 /**
  * Discovers companion files (typically MOV videos) that belong to existing Live Photo
@@ -29,7 +32,7 @@ use function is_callable;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-class LivePhotoPairingService
+final class LivePhotoPairingService implements LivePhotoPairingServiceInterface
 {
     /**
      * Finds additional files that belong to existing Live Photo groups.
@@ -41,6 +44,7 @@ class LivePhotoPairingService
      * @param callable(SplFileInfo): ?string    $contentIdentifierResolver callback resolving the Live Photo content identifier
      * @param callable(): void|null             $onFileInspected           optional callback invoked after each inspected file
      */
+    #[Override]
     public function pairByContentIdentifier(
         RecursiveIteratorIterator $iterator,
         FileDuplicateCollection $fileDuplicateCollection,

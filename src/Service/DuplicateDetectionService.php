@@ -50,6 +50,8 @@ use function substr_count;
 use function trim;
 use function usort;
 
+use const DIRECTORY_SEPARATOR;
+
 /**
  * Central orchestrator of the rename pipeline's grouping and suffix-assignment phases.
  *
@@ -616,7 +618,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
                 }
 
                 // Priority 1: source already has the canonical base name (idempotency).
-                if ($exactName && !$canonicalExactName) {
+                if ($exactName && (!$canonicalExactName)) {
                     $canonicalRename    = $rename;
                     $canonicalExactName = true;
 
@@ -624,7 +626,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
                 }
 
                 // Priority 2: file has a Live Photo content ID (original capture).
-                if ($hasLivePhotoId && !$canonicalHasLivePhotoId && !$canonicalExactName) {
+                if ($hasLivePhotoId && (!$canonicalHasLivePhotoId) && (!$canonicalExactName)) {
                     $canonicalRename         = $rename;
                     $canonicalHasLivePhotoId = true;
                 }
@@ -635,7 +637,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
             // base name is already taken by a different extension variant.
             $canonicalNeedsPromotion = true;
 
-            if (($canonicalRename instanceof Rename) && !$canonicalExactName) {
+            if (($canonicalRename instanceof Rename) && (!$canonicalExactName)) {
                 foreach ($renames as $rename) {
                     if ($rename === $canonicalRename) {
                         continue;
@@ -973,7 +975,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
         // File already at its target path — no rename needed (idempotency).
         // Exception: cross-directory duplicates must still get a suffix even if
         // their local source == target, because the canonical lives in another directory.
-        if (($target->getPathname() === $source->getPathname()) && !$requiresCanonicalDisambiguation) {
+        if (($target->getPathname() === $source->getPathname()) && (!$requiresCanonicalDisambiguation)) {
             return $target;
         }
 
@@ -1316,7 +1318,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
 
         // Fast path: target is known from the scan index → exists.
         // Fallback: stat() for paths outside the scanned directories.
-        if (!isset($this->diskIndex[$targetPath]) && !$target->isFile()) {
+        if (!isset($this->diskIndex[$targetPath]) && (!$target->isFile())) {
             return false;
         }
 

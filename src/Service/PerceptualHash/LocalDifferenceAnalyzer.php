@@ -15,7 +15,11 @@ use Imagick;
 use Throwable;
 
 use function abs;
+use function array_fill;
+use function array_pop;
+use function intdiv;
 use function max;
+use function round;
 
 /**
  * Pixel-level local difference analysis for near-identical image pairs.
@@ -70,7 +74,7 @@ final readonly class LocalDifferenceAnalyzer
         $height = $grayA->getImageHeight();
 
         // Ensure same dimensions
-        if ($width !== $grayB->getImageWidth() || $height !== $grayB->getImageHeight()) {
+        if (($width !== $grayB->getImageWidth()) || ($height !== $grayB->getImageHeight())) {
             $grayB->resizeImage($width, $height, Imagick::FILTER_TRIANGLE, 1.0, false);
         }
 
@@ -143,7 +147,7 @@ final readonly class LocalDifferenceAnalyzer
         $width  = $clone->getImageWidth();
         $height = $clone->getImageHeight();
 
-        if ($width > self::WORK_SIZE || $height > self::WORK_SIZE) {
+        if (($width > self::WORK_SIZE) || ($height > self::WORK_SIZE)) {
             $scale = self::WORK_SIZE / max($width, $height);
             $clone->resizeImage(
                 (int) round($width * $scale),
@@ -196,10 +200,10 @@ final readonly class LocalDifferenceAnalyzer
                 }
 
                 // Keep pixel only if it has at least one 4-connected neighbor
-                $hasNeighbor = ($x > 0 && $mask[$idx - 1] === 1)
-                    || ($x < $width - 1 && $mask[$idx + 1] === 1)
-                    || ($y > 0 && $mask[$idx - $width] === 1)
-                    || ($y < $height - 1 && $mask[$idx + $width] === 1);
+                $hasNeighbor = (($x > 0) && ($mask[$idx - 1] === 1))
+                    || (($x < $width - 1) && ($mask[$idx + 1] === 1))
+                    || (($y > 0) && ($mask[$idx - $width] === 1))
+                    || (($y < $height - 1) && ($mask[$idx + $width] === 1));
 
                 $result[$idx] = $hasNeighbor ? 1 : 0;
             }
@@ -228,10 +232,10 @@ final readonly class LocalDifferenceAnalyzer
                 }
 
                 // Set pixel if any 4-connected neighbor is set
-                $hasNeighbor = ($x > 0 && $mask[$idx - 1] === 1)
-                    || ($x < $width - 1 && $mask[$idx + 1] === 1)
-                    || ($y > 0 && $mask[$idx - $width] === 1)
-                    || ($y < $height - 1 && $mask[$idx + $width] === 1);
+                $hasNeighbor = (($x > 0) && ($mask[$idx - 1] === 1))
+                    || (($x < $width - 1) && ($mask[$idx + 1] === 1))
+                    || (($y > 0) && ($mask[$idx - $width] === 1))
+                    || (($y < $height - 1) && ($mask[$idx + $width] === 1));
 
                 $result[$idx] = $hasNeighbor ? 1 : 0;
             }
@@ -281,7 +285,7 @@ final readonly class LocalDifferenceAnalyzer
                 if ($x > 0) {
                     $n = $idx - 1;
 
-                    if (!isset($visited[$n]) && $mask[$n] === 1) {
+                    if (!isset($visited[$n]) && ($mask[$n] === 1)) {
                         $visited[$n] = true;
                         $queue[]     = $n;
                     }
@@ -290,7 +294,7 @@ final readonly class LocalDifferenceAnalyzer
                 if ($x < $width - 1) {
                     $n = $idx + 1;
 
-                    if (!isset($visited[$n]) && $mask[$n] === 1) {
+                    if (!isset($visited[$n]) && ($mask[$n] === 1)) {
                         $visited[$n] = true;
                         $queue[]     = $n;
                     }
@@ -299,7 +303,7 @@ final readonly class LocalDifferenceAnalyzer
                 if ($y > 0) {
                     $n = $idx - $width;
 
-                    if (!isset($visited[$n]) && $mask[$n] === 1) {
+                    if (!isset($visited[$n]) && ($mask[$n] === 1)) {
                         $visited[$n] = true;
                         $queue[]     = $n;
                     }
@@ -308,7 +312,7 @@ final readonly class LocalDifferenceAnalyzer
                 if ($y < $height - 1) {
                     $n = $idx + $width;
 
-                    if (!isset($visited[$n]) && $mask[$n] === 1) {
+                    if (!isset($visited[$n]) && ($mask[$n] === 1)) {
                         $visited[$n] = true;
                         $queue[]     = $n;
                     }

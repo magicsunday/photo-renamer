@@ -61,7 +61,7 @@ trait ConfiguresMetadataProvider
             $timezone = FileHelper::env('TIMEZONE');
         }
 
-        if (!is_string($timezone) || !in_array($timezone, DateTimeZone::listIdentifiers(), true)) {
+        if ((!is_string($timezone)) || (!in_array($timezone, DateTimeZone::listIdentifiers(), true))) {
             return null;
         }
 

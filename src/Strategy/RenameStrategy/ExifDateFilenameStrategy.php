@@ -86,7 +86,7 @@ final readonly class ExifDateFilenameStrategy implements LivePhotoAwareRenameStr
             $commonLen = 0;
             $minLen    = min(mb_strlen($withTime), mb_strlen($withoutTime));
 
-            while ($commonLen < $minLen && mb_substr($withTime, $commonLen, 1) === mb_substr($withoutTime, $commonLen, 1)) {
+            while (($commonLen < $minLen) && (mb_substr($withTime, $commonLen, 1) === mb_substr($withoutTime, $commonLen, 1))) {
                 ++$commonLen;
             }
 

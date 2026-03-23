@@ -172,7 +172,7 @@ final class ExifMetadataProvider
         }
 
         // No issues → reliable
-        if (!$metadata->isFallbackDateTime() && !$metadata->isAmbiguousTimezone()) {
+        if ((!$metadata->isFallbackDateTime()) && (!$metadata->isAmbiguousTimezone())) {
             return true;
         }
 

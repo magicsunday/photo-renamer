@@ -353,7 +353,7 @@ final class VerifyCommand extends Command
     private function renderCategories(SymfonyStyle $io, array $categories, ?array $showFilter): void
     {
         foreach (self::CATEGORY_LABELS as $categoryId => $label) {
-            if ($showFilter !== null && !in_array($categoryId, $showFilter, true)) {
+            if (($showFilter !== null) && (!in_array($categoryId, $showFilter, true))) {
                 continue;
             }
 

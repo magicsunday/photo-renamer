@@ -21,6 +21,11 @@ use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
 
+use function copy;
+use function escapeshellarg;
+use function exec;
+use function mkdir;
+use function sprintf;
 use function sys_get_temp_dir;
 use function uniqid;
 

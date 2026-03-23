@@ -94,7 +94,7 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
         // (e.g., all MOVs when the companion is a MOV), not just the single
         // detected companion. This prevents video hashes from triggering
         // false naming conflicts with still image hashes.
-        $excludeStills = $companionRename instanceof Rename
+        $excludeStills = ($companionRename instanceof Rename)
             && $this->mediaTypeClassifier->isLivePhotoStill($companionRename->getSource());
 
         foreach ($fileDuplicate->getRenames() as $rename) {
@@ -263,7 +263,7 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
                 // the canonical that is the only file from this group in its directory
                 // has no naming conflict — it keeps the unsuffixed canonical basename.
                 $isCrossDirNoConflict = ($renameDir !== $canonicalDir)
-                    && !$isCanonicalGroup
+                    && (!$isCanonicalGroup)
                     && (($dirFileCounts[$renameDir] ?? 0) <= 1);
 
                 if ($isCrossDirNoConflict) {
@@ -279,8 +279,8 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
                 // In the canonical group, the actual canonical rename gets no suffix.
                 // In other groups, the first file gets no suffix (sub-group canonical).
                 $isSubGroupCanonical = $isCanonicalGroup
-                    ? ($canonicalRename instanceof Rename && $rename === $canonicalRename)
-                    : ($duplicateIndex === 1 && $rename === $groupRenames[0]);
+                    ? (($canonicalRename instanceof Rename) && ($rename === $canonicalRename))
+                    : (($duplicateIndex === 1) && ($rename === $groupRenames[0]));
 
                 if ($isSubGroupCanonical) {
                     // Sub-group canonical: no duplicate suffix.
@@ -328,7 +328,7 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
         foreach ($nonCompanionRenames as $stillRename) {
             $stillPath     = $stillRename->getSource()->getPathname();
             $stillHash     = $renameToHash[$stillPath] ?? null;
-            $stillSubGroup = ($stillHash !== null && isset($hashToSubGroup[$stillHash]))
+            $stillSubGroup = (($stillHash !== null) && isset($hashToSubGroup[$stillHash]))
                 ? $hashToSubGroup[$stillHash]
                 : 0;
             $stillContentId = $contentIdentifierMap[$stillPath] ?? null;
@@ -529,7 +529,7 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
         $imgA = $this->imageLoader->loadNormalized($fileA, 1024);
         $imgB = $this->imageLoader->loadNormalized($fileB, 1024);
 
-        if (!$imgA instanceof Imagick || !$imgB instanceof Imagick) {
+        if ((!$imgA instanceof Imagick) || (!$imgB instanceof Imagick)) {
             $imgA?->clear();
             $imgB?->clear();
 

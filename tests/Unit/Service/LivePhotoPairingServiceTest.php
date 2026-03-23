@@ -37,6 +37,8 @@ use RecursiveArrayIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
 
+use const DIRECTORY_SEPARATOR;
+
 /**
  * Verifies the LivePhotoPairingService, which scans the file iterator a second
  * time to discover MOV/video companions for already-grouped still images based

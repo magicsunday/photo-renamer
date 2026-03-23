@@ -85,7 +85,7 @@ final readonly class RegexMatchCollection
      */
     public function hasGroup(int $index): bool
     {
-        return isset($this->groups[$index]) && !$this->groups[$index]->isEmpty();
+        return isset($this->groups[$index]) && (!$this->groups[$index]->isEmpty());
     }
 
     /**

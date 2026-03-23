@@ -147,8 +147,8 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         // from DateTimeOriginal or CreateDate.
         // Note: $temporal->original uses dateTimeOriginalBestEffort() which itself
         // falls back to 0x0132, so we must check the EXIF document directly.
-        $isFallback = !$hasExifDateTimeOriginal
-            && !($create instanceof DateTimeInterface)
+        $isFallback = (!$hasExifDateTimeOriginal)
+            && (!$create instanceof DateTimeInterface)
             && ($modify instanceof DateTimeInterface)
             && ($dateTime->getTimestamp() === $modify->getTimestamp());
 
@@ -162,8 +162,8 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         // DateTimeOriginal tag (from the EXIF document, not from QuickTime atoms),
         // the timezone is NOT ambiguous.
         $isAmbiguousTimezone = $isQuickTimeContainer
-            && !$hasExifDateTimeOriginal
-            && !($temporal->tz instanceof DateTimeZone)
+            && (!$hasExifDateTimeOriginal)
+            && (!$temporal->tz instanceof DateTimeZone)
             && ($temporal->offsetTimeOriginal === null)
             && ($temporal->offsetTimeDigitized === null)
             && ($temporal->offsetTime === null);

@@ -29,6 +29,7 @@ use function intdiv;
 use function max;
 use function min;
 use function ord;
+use function round;
 use function sort;
 use function str_repeat;
 use function strlen;
@@ -336,7 +337,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         // Phase 1: Load + dHash, cached per pathname for pairwise reuse
         [$imgA, $dhashA] = $this->loadAndComputeDhash($fileA);
         [$imgB, $dhashB] = $this->loadAndComputeDhash($fileB);
-        $dd              = ($dhashA !== null && $dhashB !== null)
+        $dd              = (($dhashA !== null) && ($dhashB !== null))
             ? $this->hammingDistance($dhashA, $dhashB)
             : 64;
 
@@ -349,9 +350,9 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         }
 
         // Early exit: dHash = 0 AND not video → visually identical.
-        $isVideo = ($durationA !== null && $durationB !== null);
+        $isVideo = (($durationA !== null) && ($durationB !== null));
 
-        if ($dd === 0 && !$isVideo) {
+        if (($dd === 0) && (!$isVideo)) {
             return new SimilarityResult(100, 0, 0, 0.0, 0.0, null, SimilarityClassification::DuplicateLikely);
         }
 
@@ -359,15 +360,15 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         $signalsA = $this->getOrComputeRemainingSignals($fileA, $imgA);
         $signalsB = $this->getOrComputeRemainingSignals($fileB, $imgB);
 
-        $wd = ($signalsA !== null && $signalsB !== null)
+        $wd = (($signalsA !== null) && ($signalsB !== null))
             ? $this->hammingDistance($signalsA['whash'] ?? '', $signalsB['whash'] ?? '')
             : 64;
 
-        $hfd = ($signalsA !== null && $signalsB !== null && $signalsA['hf'] !== null && $signalsB['hf'] !== null)
+        $hfd = (($signalsA !== null) && ($signalsB !== null) && ($signalsA['hf'] !== null) && ($signalsB['hf'] !== null))
             ? abs($signalsA['hf'] - $signalsB['hf'])
             : 1.0;
 
-        $cd = ($signalsA !== null && $signalsB !== null && $signalsA['hist'] !== null && $signalsB['hist'] !== null)
+        $cd = (($signalsA !== null) && ($signalsB !== null) && ($signalsA['hist'] !== null) && ($signalsB['hist'] !== null))
             ? $this->histogramDistance($signalsA['hist'], $signalsB['hist'])
             : 1.0;
 
@@ -412,7 +413,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         $signals = $this->computeRemainingSignals($img);
 
         // Persist to disk cache for future runs
-        if ($signals !== null && $this->signalCache instanceof PerceptualSignalCache) {
+        if (($signals !== null) && ($this->signalCache instanceof PerceptualSignalCache)) {
             $this->signalCache->set($file, [
                 'dhash' => $this->loadCache[$pathname]['dhash'] ?? null,
                 'whash' => $signals['whash'],
@@ -475,7 +476,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         $simHf    = 1.0 - min(1.0, $hfd / 0.15);
         $simColor = 1.0 - min(1.0, $cd);
 
-        if ($isVideo && $durDelta !== null) {
+        if ($isVideo && ($durDelta !== null)) {
             $simDur = max(0.0, 1.0 - $durDelta / 30.0);
             $score  = 0.25 * $simDhash + 0.20 * $simWhash + 0.15 * $simHf + 0.10 * $simColor + 0.30 * $simDur;
         } else {
@@ -490,7 +491,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         $binA = $this->decodeHex($hashA);
         $binB = $this->decodeHex($hashB);
 
-        if ($binA === null || $binB === null) {
+        if (($binA === null) || ($binB === null)) {
             return 64;
         }
 
@@ -511,7 +512,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         // (these never reach Phase 2 so getOrComputeRemainingSignals doesn't cache them)
         if ($this->signalCache instanceof PerceptualSignalCache) {
             foreach ($this->loadCache as $pathname => $entry) {
-                if (!isset($this->diskCacheHits[$pathname]) && $entry['dhash'] !== null) {
+                if (!isset($this->diskCacheHits[$pathname]) && ($entry['dhash'] !== null)) {
                     $this->signalCache->set(
                         new SplFileInfo($pathname),
                         ['dhash' => $entry['dhash'], 'whash' => null, 'hf' => null, 'hist' => null],
@@ -666,7 +667,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
     {
         $len = strlen($bits);
 
-        if ($targetBits !== null && $targetBits > $len) {
+        if (($targetBits !== null) && ($targetBits > $len)) {
             $bits = str_repeat('0', $targetBits - $len) . $bits;
             $len  = $targetBits;
         }
@@ -694,7 +695,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
             return null;
         }
 
-        if ($value !== '' && !ctype_xdigit($value)) {
+        if (($value !== '') && !ctype_xdigit($value)) {
             return null;
         }
 

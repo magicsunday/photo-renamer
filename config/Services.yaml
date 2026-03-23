@@ -34,6 +34,9 @@ services:
     MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetectorInterface:
         class: MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetector
 
+    MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingServiceInterface:
+        class: MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingService
+
     MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface:
         class: MagicSunday\Renamer\Service\DuplicateDetectionService
         arguments:

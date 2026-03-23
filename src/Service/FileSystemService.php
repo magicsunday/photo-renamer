@@ -36,6 +36,8 @@ use function rtrim;
 use function sprintf;
 use function str_repeat;
 
+use const DIRECTORY_SEPARATOR;
+
 /**
  * Handles all direct file system interactions: creating file iterators, counting files,
  * executing the actual rename operations, and resolving runtime target collisions
@@ -199,7 +201,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
             /** @var OutputEntryTag $entryTag */
             $entryTag = $entry['tag'];
 
-            if ($showFilter !== null && !in_array($entryTag->letter(), $showFilter, true)) {
+            if (($showFilter !== null) && !in_array($entryTag->letter(), $showFilter, true)) {
                 continue;
             }
 
@@ -229,7 +231,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
                 /** @var string $reason */
                 $reason = $entry['reason'];
 
-                if ($showFilter === null || in_array($entryTag->letter(), $showFilter, true)) {
+                if (($showFilter === null) || in_array($entryTag->letter(), $showFilter, true)) {
                     $this->io->text(sprintf(
                         ' %s %s' . $padding . ' <fg=cyan>→</> <fg=%s>%s</>',
                         $entryTag->formattedTag(),
@@ -257,7 +259,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
             /** @var Rename $rename */
             $rename = $entry['rename'];
 
-            if ($showFilter === null || in_array($entryTag->letter(), $showFilter, true)) {
+            if (($showFilter === null) || in_array($entryTag->letter(), $showFilter, true)) {
                 $this->io->text(sprintf(
                     ' %s %s' . $padding . ' <fg=cyan>→</> %s',
                     $entryTag->formattedTag(),
@@ -360,7 +362,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
         // Target already occupied by a different file (moved there earlier in the same batch).
         // Fall back to the next available duplicate suffix to prevent data loss.
         if (
-            $targetPath !== $sourcePath
+            ($targetPath !== $sourcePath)
             && isset($occupiedPaths[$targetPath])
         ) {
             $targetFileInfo = $this->findAvailableDuplicateTarget($targetFileInfo, $occupiedPaths);

@@ -30,6 +30,8 @@ use function is_string;
 use function sprintf;
 use function str_contains;
 
+use const DIRECTORY_SEPARATOR;
+
 /**
  * Finds files with "-duplicate-" in their name and either moves them to
  * a configurable target directory or deletes them. Purely filename-based,

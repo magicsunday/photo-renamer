@@ -20,7 +20,7 @@ use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairing;
-use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingService;
+use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingServiceInterface;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
@@ -61,7 +61,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
         FileSystemServiceInterface $fileSystemService,
         DuplicateDetectionServiceInterface $duplicateDetectionService,
         private readonly ExifMetadataProvider $exifMetadataProvider,
-        private readonly LivePhotoPairingService $livePhotoPairingService,
+        private readonly LivePhotoPairingServiceInterface $livePhotoPairingService,
         private readonly PerceptualHashCalculatorInterface $perceptualHashCalculator,
     ) {
         parent::__construct($fileSystemService, $duplicateDetectionService);

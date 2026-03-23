@@ -18,6 +18,8 @@ use Symfony\Component\Filesystem\Filesystem;
 
 use function trim;
 
+use const PHP_EOL;
+
 /**
  * Symfony Console application entry point. Registers all rename commands
  * injected via the DI container, reads the application version from the

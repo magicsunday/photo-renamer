@@ -44,10 +44,6 @@ use function trim;
 
 use const DIRECTORY_SEPARATOR;
 
-#[CoversClass(HashSubGroupingService::class)]
-#[CoversClass(FileDuplicate::class)]
-#[CoversClass(RenameList::class)]
-#[CoversClass(Rename::class)]
 /**
  * Verifies the HashSubGroupingService, which splits a FileDuplicate group into
  * sub-groups based on content hashes and assigns sequential -NNN suffixes.
@@ -61,6 +57,10 @@ use const DIRECTORY_SEPARATOR;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
+#[CoversClass(HashSubGroupingService::class)]
+#[CoversClass(FileDuplicate::class)]
+#[CoversClass(RenameList::class)]
+#[CoversClass(Rename::class)]
 #[UsesClass(FileHelper::class)]
 #[UsesClass(FileList::class)]
 #[UsesClass(MediaTypeClassifier::class)]

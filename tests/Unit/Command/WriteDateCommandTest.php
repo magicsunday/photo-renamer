@@ -42,6 +42,8 @@ use Symfony\Component\Console\Tester\CommandTester;
 use function file_put_contents;
 use function unlink;
 
+use const DIRECTORY_SEPARATOR;
+
 /**
  * Tests for the WriteDateCommand.
  *
