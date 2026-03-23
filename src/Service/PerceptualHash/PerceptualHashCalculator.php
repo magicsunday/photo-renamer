@@ -382,6 +382,14 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
             return new SimilarityResult($score, $dd, 64, 1.0, 1.0, null, 'different');
         }
 
+        // Early exit: dHash = 0 AND not video → visually identical.
+        // Skip wHash/HF/color — they can only confirm what dHash already shows.
+        $isVideo = ($durationA !== null && $durationB !== null);
+
+        if ($dd === 0 && !$isVideo) {
+            return new SimilarityResult(100, 0, 0, 0.0, 0.0, null, 'duplicate_likely');
+        }
+
         // Phase 2: Full signal computation (single Imagick load per file)
         $signalsA = $this->computeAllSignals($fileA);
         $signalsB = $this->computeAllSignals($fileB);
@@ -400,7 +408,6 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
             : 1.0;
 
         $durDelta = null;
-        $isVideo  = ($durationA !== null && $durationB !== null);
 
         if ($isVideo) {
             $durDelta = abs($durationA - $durationB);
