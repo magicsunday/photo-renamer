@@ -99,6 +99,25 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         }
 
         try {
+            $hash                        = $this->computeDhashFromImage($img);
+            $this->dhashCache[$pathname] = $hash;
+
+            return $hash;
+        } catch (Throwable) {
+            $this->dhashCache[$pathname] = null;
+
+            return null;
+        } finally {
+            $img->destroy();
+        }
+    }
+
+    /**
+     * Computes dHash from an already-loaded normalized Imagick instance.
+     */
+    private function computeDhashFromImage(Imagick $img): ?string
+    {
+        try {
             $gray = $this->grayscaleClone($img, self::DHASH_WIDTH, self::DHASH_HEIGHT);
             /** @var list<int> $pixels */
             $pixels = $gray->exportImagePixels(
@@ -121,16 +140,9 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
                 }
             }
 
-            $hash                        = strtolower($this->bitsToHex($bits, 64));
-            $this->dhashCache[$pathname] = $hash;
-
-            return $hash;
+            return strtolower($this->bitsToHex($bits, 64));
         } catch (Throwable) {
-            $this->dhashCache[$pathname] = null;
-
             return null;
-        } finally {
-            $img->destroy();
         }
     }
 
@@ -151,27 +163,70 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         }
 
         try {
+            return $this->computeWhashFromImage($img);
+        } finally {
+            $img->destroy();
+        }
+    }
+
+    /**
+     * Computes the high-frequency energy score of an image.
+     * Higher values indicate more texture/noise. Retouched images (skin smoothing,
+     * denoising) have measurably less HF-energy than originals.
+     */
+    public function computeHfEnergy(SplFileInfo $file): ?float
+    {
+        $img = $this->imageLoader->loadNormalized($file);
+
+        if (!$img instanceof Imagick) {
+            return null;
+        }
+
+        try {
+            return $this->computeHfEnergyFromImage($img);
+        } finally {
+            $img->destroy();
+        }
+    }
+
+    /**
+     * Computes a normalized 3D RGB color histogram.
+     *
+     * @return list<float>|null Normalized histogram (sum = 1.0), or null on failure
+     */
+    public function computeColorHistogram(SplFileInfo $file): ?array
+    {
+        $img = $this->imageLoader->loadNormalized($file);
+
+        if (!$img instanceof Imagick) {
+            return null;
+        }
+
+        try {
+            return $this->computeColorHistogramFromImage($img);
+        } finally {
+            $img->destroy();
+        }
+    }
+
+    /**
+     * Computes wHash from an already-loaded normalized Imagick instance.
+     */
+    private function computeWhashFromImage(Imagick $img): ?string
+    {
+        try {
             $gray   = $this->grayscaleClone($img, self::WHASH_SIZE, self::WHASH_SIZE);
-            $pixels = $gray->exportImagePixels(
-                0,
-                0,
-                self::WHASH_SIZE,
-                self::WHASH_SIZE,
-                'I',
-                Imagick::PIXEL_DOUBLE,
-            );
+            $pixels = $gray->exportImagePixels(0, 0, self::WHASH_SIZE, self::WHASH_SIZE, 'I', Imagick::PIXEL_DOUBLE);
             $gray->destroy();
 
             $matrix = $this->pixelsToMatrix($pixels, self::WHASH_SIZE, self::WHASH_SIZE);
 
-            // 2-level Haar wavelet decomposition
             $level1 = $this->haar2D($matrix);
             $ll1    = $this->topLeft($level1, self::WHASH_SIZE / 2);
 
             $level2 = $this->haar2D($ll1);
             $ll2    = $this->topLeft($level2, self::WHASH_SIZE / 4);
 
-            // Flatten LL2 (8×8) and threshold against median
             $flat = [];
 
             foreach ($ll2 as $row) {
@@ -193,47 +248,21 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
             return strtolower($this->bitsToHex($bits, 64));
         } catch (Throwable) {
             return null;
-        } finally {
-            $img->destroy();
         }
     }
 
     /**
-     * Computes the high-frequency energy score of an image.
-     * Higher values indicate more texture/noise. Retouched images (skin smoothing,
-     * denoising) have measurably less HF-energy than originals.
+     * Computes HF-energy from an already-loaded normalized Imagick instance.
      */
-    public function computeHfEnergy(SplFileInfo $file): ?float
+    private function computeHfEnergyFromImage(Imagick $img): ?float
     {
-        $img = $this->imageLoader->loadNormalized($file);
-
-        if (!$img instanceof Imagick) {
-            return null;
-        }
-
         try {
-            $gray = $this->grayscaleClone($img, self::HF_SIZE, self::HF_SIZE);
-
-            $original = $gray->exportImagePixels(
-                0,
-                0,
-                self::HF_SIZE,
-                self::HF_SIZE,
-                'I',
-                Imagick::PIXEL_DOUBLE,
-            );
+            $gray     = $this->grayscaleClone($img, self::HF_SIZE, self::HF_SIZE);
+            $original = $gray->exportImagePixels(0, 0, self::HF_SIZE, self::HF_SIZE, 'I', Imagick::PIXEL_DOUBLE);
 
             $blurred = clone $gray;
             $blurred->gaussianBlurImage(0.0, self::HF_BLUR_SIGMA);
-
-            $smooth = $blurred->exportImagePixels(
-                0,
-                0,
-                self::HF_SIZE,
-                self::HF_SIZE,
-                'I',
-                Imagick::PIXEL_DOUBLE,
-            );
+            $smooth = $blurred->exportImagePixels(0, 0, self::HF_SIZE, self::HF_SIZE, 'I', Imagick::PIXEL_DOUBLE);
 
             $gray->destroy();
             $blurred->destroy();
@@ -245,7 +274,6 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
                 $v = $original[$i] + 0.0;
                 $s = $smooth[$i] + 0.0;
 
-                // Normalize Imagick PIXEL_DOUBLE (may be 0–65535 instead of 0–1)
                 if ($v > 1.0) {
                     $v /= 65535.0;
                 }
@@ -260,38 +288,22 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
             return $sum / $count;
         } catch (Throwable) {
             return null;
-        } finally {
-            $img->destroy();
         }
     }
 
     /**
-     * Computes a normalized 3D RGB color histogram.
+     * Computes color histogram from an already-loaded normalized Imagick instance.
      *
-     * @return list<float>|null Normalized histogram (sum = 1.0), or null on failure
+     * @return list<float>|null
      */
-    public function computeColorHistogram(SplFileInfo $file): ?array
+    private function computeColorHistogramFromImage(Imagick $img): ?array
     {
-        $img = $this->imageLoader->loadNormalized($file);
-
-        if (!$img instanceof Imagick) {
-            return null;
-        }
-
         try {
             $resized = clone $img;
             $resized->resizeImage(self::HIST_SIZE, self::HIST_SIZE, Imagick::FILTER_LANCZOS, 1.0, false);
 
             /** @var list<int> $pixels */
-            $pixels = $resized->exportImagePixels(
-                0,
-                0,
-                self::HIST_SIZE,
-                self::HIST_SIZE,
-                'RGB',
-                Imagick::PIXEL_CHAR,
-            );
-
+            $pixels = $resized->exportImagePixels(0, 0, self::HIST_SIZE, self::HIST_SIZE, 'RGB', Imagick::PIXEL_CHAR);
             $resized->destroy();
 
             $bins   = self::HIST_BINS;
@@ -318,8 +330,6 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
             return array_values($hist);
         } catch (Throwable) {
             return null;
-        } finally {
-            $img->destroy();
         }
     }
 
@@ -341,6 +351,10 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         return $sum / 2.0;
     }
 
+    /**
+     * Computes all signals from a single loadNormalized() call per file,
+     * avoiding redundant Imagick open/decode/normalize cycles.
+     */
     #[Override]
     public function similarityScore(
         SplFileInfo $fileA,
@@ -348,30 +362,27 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         ?float $durationA = null,
         ?float $durationB = null,
     ): SimilarityResult {
+        $signalsA = $this->computeAllSignals($fileA);
+        $signalsB = $this->computeAllSignals($fileB);
+
         // dHash
-        $dhashA = $this->computeDhash($fileA);
-        $dhashB = $this->computeDhash($fileB);
-        $dd     = ($dhashA !== null && $dhashB !== null)
-            ? $this->hammingDistance($dhashA, $dhashB)
+        $dd = ($signalsA['dhash'] !== null && $signalsB['dhash'] !== null)
+            ? $this->hammingDistance($signalsA['dhash'], $signalsB['dhash'])
             : 64;
 
         // wHash
-        $whashA = $this->computeWhash($fileA);
-        $whashB = $this->computeWhash($fileB);
-        $wd     = ($whashA !== null && $whashB !== null)
-            ? $this->hammingDistance($whashA, $whashB)
+        $wd = ($signalsA['whash'] !== null && $signalsB['whash'] !== null)
+            ? $this->hammingDistance($signalsA['whash'], $signalsB['whash'])
             : 64;
 
         // HF-energy
-        $hfA = $this->computeHfEnergy($fileA);
-        $hfB = $this->computeHfEnergy($fileB);
-        $hfd = ($hfA !== null && $hfB !== null) ? abs($hfA - $hfB) : 1.0;
+        $hfd = ($signalsA['hf'] !== null && $signalsB['hf'] !== null)
+            ? abs($signalsA['hf'] - $signalsB['hf'])
+            : 1.0;
 
         // Color histogram
-        $histA = $this->computeColorHistogram($fileA);
-        $histB = $this->computeColorHistogram($fileB);
-        $cd    = ($histA !== null && $histB !== null)
-            ? $this->histogramDistance($histA, $histB)
+        $cd = ($signalsA['hist'] !== null && $signalsB['hist'] !== null)
+            ? $this->histogramDistance($signalsA['hist'], $signalsB['hist'])
             : 1.0;
 
         // Duration
@@ -391,6 +402,36 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         };
 
         return new SimilarityResult($score, $dd, $wd, $hfd, $cd, $durDelta, $classification);
+    }
+
+    /**
+     * Computes all perceptual signals from a single Imagick load.
+     * One loadNormalized() call → dHash + wHash + HF-energy + color histogram.
+     *
+     * @return array{dhash: string|null, whash: string|null, hf: float|null, hist: list<float>|null}
+     */
+    private function computeAllSignals(SplFileInfo $file): array
+    {
+        $null = ['dhash' => null, 'whash' => null, 'hf' => null, 'hist' => null];
+
+        $img = $this->imageLoader->loadNormalized($file);
+
+        if (!$img instanceof Imagick) {
+            return $null;
+        }
+
+        try {
+            return [
+                'dhash' => $this->computeDhashFromImage($img),
+                'whash' => $this->computeWhashFromImage($img),
+                'hf'    => $this->computeHfEnergyFromImage($img),
+                'hist'  => $this->computeColorHistogramFromImage($img),
+            ];
+        } catch (Throwable) {
+            return $null;
+        } finally {
+            $img->destroy();
+        }
     }
 
     /**
