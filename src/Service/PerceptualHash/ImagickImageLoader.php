@@ -53,6 +53,10 @@ final readonly class ImagickImageLoader
         private string $ffprobeBinary = 'ffprobe',
         private float $posterFrameSecond = 1.0,
     ) {
+        // Set once per process — caps resource usage for maliciously crafted files
+        Imagick::setResourceLimit(Imagick::RESOURCETYPE_MEMORY, 256 * 1024 * 1024);
+        Imagick::setResourceLimit(Imagick::RESOURCETYPE_MAP, 512 * 1024 * 1024);
+        Imagick::setResourceLimit(Imagick::RESOURCETYPE_TIME, 30);
     }
 
     public function loadNormalized(SplFileInfo $file, ?int $maxResolution = null): ?Imagick
@@ -86,11 +90,6 @@ final readonly class ImagickImageLoader
             if ($maxResolution !== null) {
                 $img->setOption('jpeg:size', $maxResolution . 'x' . $maxResolution);
             }
-
-            // Defense-in-depth: cap resource usage for maliciously crafted files
-            Imagick::setResourceLimit(Imagick::RESOURCETYPE_MEMORY, 256 * 1024 * 1024);
-            Imagick::setResourceLimit(Imagick::RESOURCETYPE_MAP, 512 * 1024 * 1024);
-            Imagick::setResourceLimit(Imagick::RESOURCETYPE_TIME, 30);
 
             $img->readImage($path);
 

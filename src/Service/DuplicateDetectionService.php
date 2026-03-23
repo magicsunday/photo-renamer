@@ -666,8 +666,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
             // numbers per unique content hash. Hash groups that score ≥95 on the
             // combined similarity metric (dHash + wHash + HF + color + duration)
             // are merged as semantic duplicates.
-            if (
-                !$skipHashSubGrouping
+            $subGroupApplied = !$skipHashSubGrouping
                 && $this->hashSubGroupingService->apply(
                     $fileDuplicate,
                     $canonicalRename,
@@ -675,8 +674,12 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
                     $this->contentIdentifierMap,
                     $this->getTargetPathname(...),
                     $this->temporalMetadataMap,
-                )
-            ) {
+                );
+
+            // Release per-group Imagick instances cached during perceptual scoring
+            $this->hashSubGroupingService->clearCache();
+
+            if ($subGroupApplied) {
                 ++$this->namingCollisions;
                 $progressBar->advance();
 
