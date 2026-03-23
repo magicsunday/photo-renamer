@@ -38,6 +38,12 @@ use const JSON_THROW_ON_ERROR;
 final class PerceptualSignalCache
 {
     /**
+     * Bump this when the signal computation changes (e.g. Imagick normalization,
+     * multi-frame video, scoring weights). Mismatched versions discard the cache.
+     */
+    private const int CACHE_VERSION = 2;
+
+    /**
      * @var array<string, array{
      *     mtime: int,
      *     size: int,
@@ -118,7 +124,10 @@ final class PerceptualSignalCache
 
         $this->filesystem->dumpFile(
             $this->cacheFile,
-            json_encode($this->entries, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_INVALID_UTF8_SUBSTITUTE),
+            json_encode(
+                ['_version' => self::CACHE_VERSION, 'entries' => $this->entries],
+                JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_INVALID_UTF8_SUBSTITUTE,
+            ),
         );
 
         $this->dirty = false;
@@ -138,9 +147,21 @@ final class PerceptualSignalCache
 
         $data = json_decode($contents, true);
 
-        if (is_array($data)) {
-            /** @var array<string, array{mtime: int, size: int, dhash: string|null, whash: string|null, hf: float|null, hist: list<float>|null}> $data */
-            $this->entries = $data;
+        if (!is_array($data)) {
+            return;
+        }
+
+        // Discard cache if version mismatch (signal computation changed)
+        if (($data['_version'] ?? 0) !== self::CACHE_VERSION) {
+            $this->dirty = true;
+
+            return;
+        }
+
+        if (is_array($data['entries'] ?? null)) {
+            /** @var array<string, array{mtime: int, size: int, dhash: string|null, whash: string|null, hf: float|null, hist: list<float>|null}> $entries */
+            $entries       = $data['entries'];
+            $this->entries = $entries;
         }
     }
 }
