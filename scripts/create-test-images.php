@@ -71,6 +71,9 @@ function stripToMetadataOnly(string $source, string $dest, bool $isVideo = false
         escapeshellarg($source),
         escapeshellarg($dest),
     ));
+
+    // Remove GPS data — real coordinates must not be committed to the repo
+    exec(sprintf('exiftool -overwrite_original -GPS*= %s 2>/dev/null', escapeshellarg($dest)));
 }
 
 function exiftool(string ...$args): void
