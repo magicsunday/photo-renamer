@@ -30,6 +30,20 @@ interface PerceptualHashCalculatorInterface
     public function computeDhash(SplFileInfo $file): ?string;
 
     /**
+     * Computes a multi-signal similarity score between two files.
+     * Uses dHash, wHash, HF-energy, color histogram, and optional video duration.
+     *
+     * @param float|null $durationA Video duration of file A in seconds (null for images)
+     * @param float|null $durationB Video duration of file B in seconds (null for images)
+     */
+    public function similarityScore(
+        SplFileInfo $fileA,
+        SplFileInfo $fileB,
+        ?float $durationA = null,
+        ?float $durationB = null,
+    ): SimilarityResult;
+
+    /**
      * Computes the Hamming distance between two hex-encoded hashes.
      * Returns the number of differing bits (0 = identical, 64 = maximally different).
      */

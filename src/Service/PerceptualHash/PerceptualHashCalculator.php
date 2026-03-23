@@ -342,6 +342,87 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
     }
 
     #[Override]
+    public function similarityScore(
+        SplFileInfo $fileA,
+        SplFileInfo $fileB,
+        ?float $durationA = null,
+        ?float $durationB = null,
+    ): SimilarityResult {
+        // dHash
+        $dhashA = $this->computeDhash($fileA);
+        $dhashB = $this->computeDhash($fileB);
+        $dd     = ($dhashA !== null && $dhashB !== null)
+            ? $this->hammingDistance($dhashA, $dhashB)
+            : 64;
+
+        // wHash
+        $whashA = $this->computeWhash($fileA);
+        $whashB = $this->computeWhash($fileB);
+        $wd     = ($whashA !== null && $whashB !== null)
+            ? $this->hammingDistance($whashA, $whashB)
+            : 64;
+
+        // HF-energy
+        $hfA = $this->computeHfEnergy($fileA);
+        $hfB = $this->computeHfEnergy($fileB);
+        $hfd = ($hfA !== null && $hfB !== null) ? abs($hfA - $hfB) : 1.0;
+
+        // Color histogram
+        $histA = $this->computeColorHistogram($fileA);
+        $histB = $this->computeColorHistogram($fileB);
+        $cd    = ($histA !== null && $histB !== null)
+            ? $this->histogramDistance($histA, $histB)
+            : 1.0;
+
+        // Duration
+        $durDelta = null;
+        $isVideo  = ($durationA !== null && $durationB !== null);
+
+        if ($isVideo) {
+            $durDelta = abs($durationA - $durationB);
+        }
+
+        $score = $this->computeWeightedScore($dd, $wd, $hfd, $cd, $durDelta, $isVideo);
+
+        $classification = match (true) {
+            $score >= 95 => 'duplicate_likely',
+            $score >= 85 => 'edited_variant',
+            default      => 'different',
+        };
+
+        return new SimilarityResult($score, $dd, $wd, $hfd, $cd, $durDelta, $classification);
+    }
+
+    /**
+     * Computes the weighted multi-signal score (0–100).
+     *
+     * For images: dHash 30%, wHash 25%, HF-energy 20%, color 25%.
+     * For videos: dHash 25%, wHash 20%, HF-energy 15%, color 10%, duration 30%.
+     */
+    private function computeWeightedScore(
+        int $dd,
+        int $wd,
+        float $hfd,
+        float $cd,
+        ?float $durDelta,
+        bool $isVideo,
+    ): int {
+        $simDhash = max(0.0, 1.0 - ($dd / 64.0));
+        $simWhash = max(0.0, 1.0 - ($wd / 64.0));
+        $simHf    = 1.0 - min(1.0, $hfd / 0.15);
+        $simColor = 1.0 - min(1.0, $cd);
+
+        if ($isVideo && $durDelta !== null) {
+            $simDur = max(0.0, 1.0 - $durDelta / 30.0);
+            $score  = 0.25 * $simDhash + 0.20 * $simWhash + 0.15 * $simHf + 0.10 * $simColor + 0.30 * $simDur;
+        } else {
+            $score = 0.30 * $simDhash + 0.25 * $simWhash + 0.20 * $simHf + 0.25 * $simColor;
+        }
+
+        return (int) round($score * 100);
+    }
+
+    #[Override]
     public function hammingDistance(string $hashA, string $hashB): int
     {
         $binA = $this->decodeHex($hashA);

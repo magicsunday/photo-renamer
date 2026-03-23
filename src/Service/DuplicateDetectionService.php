@@ -661,10 +661,11 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
                 $fileDuplicate,
             );
 
-            // Content-hash sub-grouping with perceptual hash merge: when multiple
-            // distinct files share the same target name, assign sequential numbers
-            // per unique content hash. Hash groups that are visually identical
-            // (dHash Hamming distance ≤ threshold) are merged as semantic duplicates.
+            // Content-hash sub-grouping with multi-signal perceptual merge: when
+            // multiple distinct files share the same target name, assign sequential
+            // numbers per unique content hash. Hash groups that score ≥95 on the
+            // combined similarity metric (dHash + wHash + HF + color + duration)
+            // are merged as semantic duplicates.
             if (
                 !$skipHashSubGrouping
                 && $this->hashSubGroupingService->apply(
@@ -673,6 +674,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
                     $companionRename,
                     $this->contentIdentifierMap,
                     $this->getTargetPathname(...),
+                    $this->temporalMetadataMap,
                 )
             ) {
                 ++$this->namingCollisions;

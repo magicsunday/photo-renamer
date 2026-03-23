@@ -15,6 +15,7 @@ use Closure;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
@@ -42,12 +43,6 @@ use function strtolower;
 final readonly class HashSubGroupingService implements HashSubGroupingServiceInterface
 {
     /**
-     * Maximum Hamming distance (out of 64 bits) for two dHash values
-     * to be considered perceptually similar (near-duplicates).
-     */
-    private const int DHASH_SIMILARITY_THRESHOLD = 10;
-
-    /**
      * @param SafeHashCalculator                $hashCalculator           Computes file content hashes for sub-group keying
      * @param SymfonyStyle                      $io                       Console IO for error output on hash computation failures
      * @param MediaTypeClassifierInterface      $mediaTypeClassifier      Classifies files as still or video
@@ -74,6 +69,7 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
      * @param Rename|null                          $companionRename        the Live Photo companion rename entry
      * @param array<string, string>                $contentIdentifierMap   map from source pathname to content identifier
      * @param Closure(SplFileInfo, string): string $targetPathnameResolver resolves (sourceFileInfo, targetFilename) to absolute target path
+     * @param array<string, TemporalMetadata|null> $temporalMetadataMap    map from source pathname to temporal metadata (for video duration)
      */
     #[Override]
     public function apply(
@@ -82,6 +78,7 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
         ?Rename $companionRename,
         array $contentIdentifierMap,
         Closure $targetPathnameResolver,
+        array $temporalMetadataMap = [],
     ): bool {
         /** @var list<Rename> $nonCompanionRenames */
         $nonCompanionRenames = [];
@@ -149,9 +146,10 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
         }
 
         // Merge hash groups that are perceptually similar (near-duplicates).
-        // Files with different content hashes but visually identical dHash
-        // (e.g. re-imports, format conversions) are merged into one group.
-        $hashGroups = $this->mergePerceptuallySimilarGroups($hashGroups);
+        // Uses multi-signal scoring (dHash, wHash, HF-energy, color histogram,
+        // video duration) to determine if files with different content hashes
+        // are visually identical (format conversions, re-imports).
+        $hashGroups = $this->mergePerceptuallySimilarGroups($hashGroups, $temporalMetadataMap);
 
         if (count($hashGroups) <= 1) {
             return false;
@@ -413,7 +411,13 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
      *
      * @return array<string, list<Rename>> Merged groups
      */
-    private function mergePerceptuallySimilarGroups(array $hashGroups): array
+    /**
+     * @param array<string, list<Rename>>          $hashGroups
+     * @param array<string, TemporalMetadata|null> $temporalMetadataMap
+     *
+     * @return array<string, list<Rename>>
+     */
+    private function mergePerceptuallySimilarGroups(array $hashGroups, array $temporalMetadataMap): array
     {
         $hashes = array_keys($hashGroups);
         $count  = count($hashes);
@@ -422,14 +426,18 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
             return $hashGroups;
         }
 
-        // Compute dHash for one representative file per hash group.
-        /** @var array<string, string|null> $dhashByHash content-hash → dHash hex */
-        $dhashByHash = [];
+        // Pick one representative file per hash group and resolve video duration.
+        /** @var array<string, SplFileInfo> $representativeByHash */
+        $representativeByHash = [];
+
+        /** @var array<string, float|null> $durationByHash */
+        $durationByHash = [];
 
         foreach ($hashGroups as $hash => $renames) {
-            $dhashByHash[$hash] = $this->perceptualHashCalculator->computeDhash(
-                $renames[0]->getSource(),
-            );
+            $source                      = $renames[0]->getSource();
+            $representativeByHash[$hash] = $source;
+            $metadata                    = $temporalMetadataMap[$source->getPathname()] ?? null;
+            $durationByHash[$hash]       = $metadata?->getVideoDurationSeconds();
         }
 
         // Union-find: parent[i] = index of parent in $hashes array.
@@ -440,25 +448,17 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
             $parent[$i] = $i;
         }
 
-        // Pairwise comparison — merge groups with similar dHash.
+        // Pairwise comparison — merge groups with high similarity score.
         for ($i = 0; $i < $count; ++$i) {
-            $dhashI = $dhashByHash[$hashes[$i]];
-
-            if ($dhashI === null) {
-                continue;
-            }
-
             for ($j = $i + 1; $j < $count; ++$j) {
-                $dhashJ = $dhashByHash[$hashes[$j]];
+                $result = $this->perceptualHashCalculator->similarityScore(
+                    $representativeByHash[$hashes[$i]],
+                    $representativeByHash[$hashes[$j]],
+                    $durationByHash[$hashes[$i]],
+                    $durationByHash[$hashes[$j]],
+                );
 
-                if ($dhashJ === null) {
-                    continue;
-                }
-
-                $distance = $this->perceptualHashCalculator->hammingDistance($dhashI, $dhashJ);
-
-                if ($distance <= self::DHASH_SIMILARITY_THRESHOLD) {
-                    // Merge: set j's root to i's root.
+                if ($result->isDuplicateLikely()) {
                     $rootI = $this->findRoot($parent, $i);
                     $rootJ = $this->findRoot($parent, $j);
 

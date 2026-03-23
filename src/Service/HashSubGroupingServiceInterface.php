@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service;
 
 use Closure;
+use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
 use SplFileInfo;
@@ -37,6 +38,7 @@ interface HashSubGroupingServiceInterface
      * @param Rename|null                          $companionRename        the Live Photo companion rename entry
      * @param array<string, string>                $contentIdentifierMap   map from source pathname to content identifier
      * @param Closure(SplFileInfo, string): string $targetPathnameResolver resolves (sourceFileInfo, targetFilename) to absolute target path
+     * @param array<string, TemporalMetadata|null> $temporalMetadataMap    map from source pathname to temporal metadata (for video duration)
      */
     public function apply(
         FileDuplicate $fileDuplicate,
@@ -44,6 +46,7 @@ interface HashSubGroupingServiceInterface
         ?Rename $companionRename,
         array $contentIdentifierMap,
         Closure $targetPathnameResolver,
+        array $temporalMetadataMap = [],
     ): bool;
 
     /**

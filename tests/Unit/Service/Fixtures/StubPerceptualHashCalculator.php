@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service\Fixtures;
 
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
+use MagicSunday\Renamer\Service\PerceptualHash\SimilarityResult;
 use Override;
 use SplFileInfo;
 
@@ -53,6 +54,35 @@ final class StubPerceptualHashCalculator implements PerceptualHashCalculatorInte
     public function computeDhash(SplFileInfo $file): ?string
     {
         return $this->hashes[$file->getPathname()] ?? null;
+    }
+
+    /**
+     * Computes similarity based on dHash Hamming distance only.
+     * Uses simple threshold: distance ≤ 10 → score 95 (duplicate_likely),
+     * otherwise proportional score.
+     */
+    #[Override]
+    public function similarityScore(
+        SplFileInfo $fileA,
+        SplFileInfo $fileB,
+        ?float $durationA = null,
+        ?float $durationB = null,
+    ): SimilarityResult {
+        $dhashA = $this->computeDhash($fileA);
+        $dhashB = $this->computeDhash($fileB);
+
+        $dd = ($dhashA !== null && $dhashB !== null)
+            ? $this->hammingDistance($dhashA, $dhashB)
+            : 64;
+
+        $score          = (int) round(max(0.0, 1.0 - ($dd / 64.0)) * 100);
+        $classification = match (true) {
+            $score >= 95 => 'duplicate_likely',
+            $score >= 85 => 'edited_variant',
+            default      => 'different',
+        };
+
+        return new SimilarityResult($score, $dd, 0, 0.0, 0.0, null, $classification);
     }
 
     #[Override]
