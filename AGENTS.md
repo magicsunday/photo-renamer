@@ -109,7 +109,8 @@ Duplicate detection is **cross-directory**: files with the same EXIF date in dif
 | `MetadataExtractor` | Extract EXIF/QuickTime data via imagemeta library |
 | `LivePhotoPairingService` | Pair still + MOV by Apple Content Identifier |
 | `LivePhotoConflictDetector` | Heuristic detection of mismatched content ID pairs |
-| `MetadataCache` | Persistent JSON disk cache keyed by pathname, mtime+size |
+| `PerceptualSignalCache` | Persistent JSON disk cache for dHash/wHash/HF/color signals (cross-run reuse) |
+| `MetadataCache` | Persistent JSON disk cache for EXIF metadata, keyed by pathname+mtime+size |
 
 ### Strategy Pattern
 
