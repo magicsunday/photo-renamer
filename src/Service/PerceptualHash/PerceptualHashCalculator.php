@@ -55,6 +55,13 @@ use const SORT_NUMERIC;
  */
 final class PerceptualHashCalculator implements PerceptualHashCalculatorInterface
 {
+    /**
+     * Maximum decode resolution hint for hash computation.
+     * JPEG decoder loads at nearest 1/2/4/8 that covers this size
+     * instead of full resolution — ~10× faster for 3000+ px originals.
+     */
+    private const int HASH_DECODE_SIZE = 256;
+
     private const int DHASH_WIDTH = 9;
 
     private const int DHASH_HEIGHT = 8;
@@ -90,7 +97,8 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
             return $this->dhashCache[$pathname];
         }
 
-        $img = $this->imageLoader->loadNormalized($file);
+        // Use reduced decode resolution — only need 9×8 pixels
+        $img = $this->imageLoader->loadNormalized($file, self::HASH_DECODE_SIZE);
 
         if (!$img instanceof Imagick) {
             $this->dhashCache[$pathname] = null;
@@ -156,7 +164,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
      */
     public function computeWhash(SplFileInfo $file): ?string
     {
-        $img = $this->imageLoader->loadNormalized($file);
+        $img = $this->imageLoader->loadNormalized($file, self::HASH_DECODE_SIZE);
 
         if (!$img instanceof Imagick) {
             return null;
@@ -176,7 +184,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
      */
     public function computeHfEnergy(SplFileInfo $file): ?float
     {
-        $img = $this->imageLoader->loadNormalized($file);
+        $img = $this->imageLoader->loadNormalized($file, self::HASH_DECODE_SIZE);
 
         if (!$img instanceof Imagick) {
             return null;
@@ -196,7 +204,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
      */
     public function computeColorHistogram(SplFileInfo $file): ?array
     {
-        $img = $this->imageLoader->loadNormalized($file);
+        $img = $this->imageLoader->loadNormalized($file, self::HASH_DECODE_SIZE);
 
         if (!$img instanceof Imagick) {
             return null;
@@ -434,7 +442,8 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
     {
         $null = ['dhash' => null, 'whash' => null, 'hf' => null, 'hist' => null];
 
-        $img = $this->imageLoader->loadNormalized($file);
+        // Reduced decode resolution — max signal needs 128×128 (HF-energy)
+        $img = $this->imageLoader->loadNormalized($file, self::HASH_DECODE_SIZE);
 
         if (!$img instanceof Imagick) {
             return $null;

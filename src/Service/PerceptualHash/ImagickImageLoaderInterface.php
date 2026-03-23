@@ -35,7 +35,12 @@ interface ImagickImageLoaderInterface
      *
      * The caller is responsible for destroying the returned Imagick instance.
      *
+     * @param int|null $maxResolution Maximum pixel dimension hint for the decoder.
+     *                                When set, the JPEG decoder loads at reduced resolution
+     *                                (nearest 1/2/4/8 that covers this size) instead of full res.
+     *                                Use 256 for hash computation, null for Stage B full analysis.
+     *
      * @return Imagick|null Normalized image, or null on failure
      */
-    public function loadNormalized(SplFileInfo $file): ?Imagick;
+    public function loadNormalized(SplFileInfo $file, ?int $maxResolution = null): ?Imagick;
 }

@@ -58,7 +58,7 @@ final readonly class ImagickImageLoader implements ImagickImageLoaderInterface
     }
 
     #[Override]
-    public function loadNormalized(SplFileInfo $file): ?Imagick
+    public function loadNormalized(SplFileInfo $file, ?int $maxResolution = null): ?Imagick
     {
         if (!$file->isFile()) {
             return null;
@@ -68,13 +68,13 @@ final readonly class ImagickImageLoader implements ImagickImageLoaderInterface
             return $this->loadVideoFrame($file);
         }
 
-        return $this->loadAndNormalize($file->getPathname());
+        return $this->loadAndNormalize($file->getPathname(), $maxResolution);
     }
 
     /**
      * Loads an image file and applies the full normalization pipeline.
      */
-    private function loadAndNormalize(string $path): ?Imagick
+    private function loadAndNormalize(string $path, ?int $maxResolution = null): ?Imagick
     {
         if (!is_file($path)) {
             return null;
@@ -82,6 +82,14 @@ final readonly class ImagickImageLoader implements ImagickImageLoaderInterface
 
         try {
             $img = new Imagick();
+
+            // Hint the JPEG decoder to load at reduced resolution.
+            // For a 3008×2000 image with maxResolution=256, libjpeg decodes
+            // at 1/8 (376×250) instead of full res — ~10× faster.
+            if ($maxResolution !== null) {
+                $img->setOption('jpeg:size', $maxResolution . 'x' . $maxResolution);
+            }
+
             $img->readImage($path);
 
             // Use only the first frame (animated GIF, multi-page HEIC)
