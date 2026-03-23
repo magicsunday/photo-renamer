@@ -7,7 +7,7 @@
 .PHONY: docker-build bash
 
 docker-build: .logo ## Builds the Docker image.
-	@rm -f $(METADATA_CACHE) $(DI_CACHE)
+	@rm -f $(METADATA_CACHE) $(SIGNAL_CACHE) $(DI_CACHE)
 	$(COMPOSE_BIN) build
 
 bash: .logo ## Opens a bash within the buildbox container.
