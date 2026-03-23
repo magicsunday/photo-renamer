@@ -352,8 +352,13 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
     }
 
     /**
-     * Computes all signals from a single loadNormalized() call per file,
-     * avoiding redundant Imagick open/decode/normalize cycles.
+     * Computes multi-signal similarity with early-exit optimization.
+     *
+     * Phase 1: Cheap dHash pre-filter (only 9×8 grayscale per file).
+     * If dHash distance > 20 → clearly different → skip expensive signals.
+     *
+     * Phase 2: Full signal computation (wHash, HF-energy, color histogram)
+     * only for pairs that pass the dHash pre-filter.
      */
     #[Override]
     public function similarityScore(
@@ -362,30 +367,38 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         ?float $durationA = null,
         ?float $durationB = null,
     ): SimilarityResult {
+        // Phase 1: Cheap dHash pre-filter
+        $dhashA = $this->computeDhash($fileA);
+        $dhashB = $this->computeDhash($fileB);
+        $dd     = ($dhashA !== null && $dhashB !== null)
+            ? $this->hammingDistance($dhashA, $dhashB)
+            : 64;
+
+        // Early exit: dHash distance > 20 → clearly different content.
+        // No need for expensive wHash/HF/color computation.
+        if ($dd > 20) {
+            $score = (int) round(max(0.0, 1.0 - ($dd / 64.0)) * 100);
+
+            return new SimilarityResult($score, $dd, 64, 1.0, 1.0, null, 'different');
+        }
+
+        // Phase 2: Full signal computation (single Imagick load per file)
         $signalsA = $this->computeAllSignals($fileA);
         $signalsB = $this->computeAllSignals($fileB);
 
-        // dHash
-        $dd = ($signalsA['dhash'] !== null && $signalsB['dhash'] !== null)
-            ? $this->hammingDistance($signalsA['dhash'], $signalsB['dhash'])
-            : 64;
-
-        // wHash
+        // Use cached dHash from Phase 1 instead of recomputing
         $wd = ($signalsA['whash'] !== null && $signalsB['whash'] !== null)
             ? $this->hammingDistance($signalsA['whash'], $signalsB['whash'])
             : 64;
 
-        // HF-energy
         $hfd = ($signalsA['hf'] !== null && $signalsB['hf'] !== null)
             ? abs($signalsA['hf'] - $signalsB['hf'])
             : 1.0;
 
-        // Color histogram
         $cd = ($signalsA['hist'] !== null && $signalsB['hist'] !== null)
             ? $this->histogramDistance($signalsA['hist'], $signalsB['hist'])
             : 1.0;
 
-        // Duration
         $durDelta = null;
         $isVideo  = ($durationA !== null && $durationB !== null);
 
