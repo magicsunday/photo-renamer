@@ -21,6 +21,8 @@ use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairing;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingService;
+use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator;
+use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
@@ -60,6 +62,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
         DuplicateDetectionServiceInterface $duplicateDetectionService,
         private readonly ExifMetadataProvider $exifMetadataProvider,
         private readonly LivePhotoPairingService $livePhotoPairingService,
+        private readonly PerceptualHashCalculatorInterface $perceptualHashCalculator,
     ) {
         parent::__construct($fileSystemService, $duplicateDetectionService);
     }
@@ -122,9 +125,17 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
 
         $cache = $this->configureProviderCache($this->exifMetadataProvider);
 
+        // Inject persistent signal cache for cross-run perceptual hash reuse
+        $signalCache = $this->createPerceptualSignalCache();
+
+        if ($this->perceptualHashCalculator instanceof PerceptualHashCalculator) {
+            $this->perceptualHashCalculator->setSignalCache($signalCache);
+        }
+
         $result = parent::executeCommand();
 
         $cache->flush();
+        $signalCache->flush();
 
         return $result;
     }

@@ -135,6 +135,7 @@ final class RenameByExifDateCommandTest extends TestCase
             self::createStub(DuplicateDetectionServiceInterface::class),
             $this->createExifMetadataProvider(),
             self::createStub(LivePhotoPairingService::class),
+            new StubPerceptualHashCalculator(),
         );
 
         self::assertSame('rename:exif', $command->getName());
@@ -251,6 +252,7 @@ final class RenameByExifDateCommandTest extends TestCase
             $duplicateDetectionService,
             $this->createExifMetadataProvider(),
             $livePhotoPairingService,
+            new StubPerceptualHashCalculator(),
         );
 
         $tester   = new CommandTester($command);
@@ -353,6 +355,7 @@ final class RenameByExifDateCommandTest extends TestCase
             $duplicateDetectionService,
             $this->createExifMetadataProvider(),
             $livePhotoPairingService,
+            new StubPerceptualHashCalculator(),
         );
 
         $capturedProgressBar = null;
@@ -494,6 +497,7 @@ final class RenameByExifDateCommandTest extends TestCase
             $duplicateDetectionService,
             $this->createExifMetadataProvider(),
             $livePhotoPairingService,
+            new StubPerceptualHashCalculator(),
         );
 
         $tester   = new CommandTester($command);
@@ -566,6 +570,7 @@ final class RenameByExifDateCommandTest extends TestCase
                 $duplicateDetectionService,
                 $metadataProvider,
                 $livePhotoPairingService,
+                new StubPerceptualHashCalculator(),
             );
 
             $tester   = new CommandTester($command);
@@ -672,6 +677,7 @@ final class RenameByExifDateCommandTest extends TestCase
             $duplicateDetectionService,
             $this->createExifMetadataProvider(),
             $livePhotoPairingService,
+            new StubPerceptualHashCalculator(),
         );
 
         $io = $this->createMock(SymfonyStyle::class);
@@ -787,6 +793,7 @@ final class RenameByExifDateCommandTest extends TestCase
             $duplicateDetectionService,
             $this->createExifMetadataProvider(),
             $livePhotoPairingService,
+            new StubPerceptualHashCalculator(),
         );
 
         $capturedProgressBar = null;

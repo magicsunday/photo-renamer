@@ -75,17 +75,32 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
     private const int HIST_BINS = 8;
 
     /**
-     * Cache: pathname → [dHash, Imagick] to avoid redundant loads in pairwise comparisons.
-     * When the same file appears in multiple pairs (e.g., canonical vs each other group),
-     * the Imagick instance is loaded once and reused.
+     * In-memory cache: pathname → [dHash, Imagick] for pairwise reuse within a group.
      *
      * @var array<string, array{dhash: string|null, img: Imagick|null}>
      */
     private array $loadCache = [];
 
+    /**
+     * In-memory cache: pathname → all signals from disk cache (avoids Imagick load entirely).
+     *
+     * @var array<string, array{dhash: string|null, whash: string|null, hf: float|null, hist: list<float>|null}>
+     */
+    private array $diskCacheHits = [];
+
+    private ?PerceptualSignalCache $signalCache = null;
+
     public function __construct(
         private readonly ImagickImageLoader $imageLoader,
     ) {
+    }
+
+    /**
+     * Injects the persistent disk cache for cross-run signal reuse.
+     */
+    public function setSignalCache(PerceptualSignalCache $signalCache): void
+    {
+        $this->signalCache = $signalCache;
     }
 
     /**
@@ -99,10 +114,24 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
     {
         $pathname = $file->getPathname();
 
+        // In-memory cache hit (pairwise reuse within group)
         if (isset($this->loadCache[$pathname])) {
             return [$this->loadCache[$pathname]['img'], $this->loadCache[$pathname]['dhash']];
         }
 
+        // Disk cache hit — all signals available, no Imagick load needed
+        if ($this->signalCache instanceof PerceptualSignalCache) {
+            $cached = $this->signalCache->get($file);
+
+            if ($cached !== null) {
+                $this->diskCacheHits[$pathname] = $cached;
+                $this->loadCache[$pathname]     = ['dhash' => $cached['dhash'], 'img' => null];
+
+                return [null, $cached['dhash']];
+            }
+        }
+
+        // Cache miss — load via Imagick
         $img   = $this->imageLoader->loadNormalized($file, self::HASH_DECODE_SIZE);
         $dhash = ($img instanceof Imagick) ? $this->computeDhashFromImage($img) : null;
 
@@ -326,9 +355,9 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
             return new SimilarityResult(100, 0, 0, 0.0, 0.0, null, SimilarityClassification::DuplicateLikely);
         }
 
-        // Phase 2: Compute remaining signals from the ALREADY-LOADED images (no reload)
-        $signalsA = ($imgA instanceof Imagick) ? $this->computeRemainingSignals($imgA) : null;
-        $signalsB = ($imgB instanceof Imagick) ? $this->computeRemainingSignals($imgB) : null;
+        // Phase 2: Use disk-cached signals if available, otherwise compute from Imagick
+        $signalsA = $this->getOrComputeRemainingSignals($fileA, $imgA);
+        $signalsB = $this->getOrComputeRemainingSignals($fileB, $imgB);
 
         $wd = ($signalsA !== null && $signalsB !== null)
             ? $this->hammingDistance($signalsA['whash'] ?? '', $signalsB['whash'] ?? '')
@@ -357,6 +386,42 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         };
 
         return new SimilarityResult($score, $dd, $wd, $hfd, $cd, $durDelta, $classification);
+    }
+
+    /**
+     * Returns cached signals from disk or computes them from the Imagick instance.
+     * Also persists newly computed signals to the disk cache for future runs.
+     *
+     * @return array{whash: string|null, hf: float|null, hist: list<float>|null}|null
+     */
+    private function getOrComputeRemainingSignals(SplFileInfo $file, ?Imagick $img): ?array
+    {
+        $pathname = $file->getPathname();
+
+        // Disk cache hit — return cached signals directly (no Imagick needed)
+        if (isset($this->diskCacheHits[$pathname])) {
+            $cached = $this->diskCacheHits[$pathname];
+
+            return ['whash' => $cached['whash'], 'hf' => $cached['hf'], 'hist' => $cached['hist']];
+        }
+
+        if (!$img instanceof Imagick) {
+            return null;
+        }
+
+        $signals = $this->computeRemainingSignals($img);
+
+        // Persist to disk cache for future runs
+        if ($signals !== null && $this->signalCache instanceof PerceptualSignalCache) {
+            $this->signalCache->set($file, [
+                'dhash' => $this->loadCache[$pathname]['dhash'] ?? null,
+                'whash' => $signals['whash'],
+                'hf'    => $signals['hf'],
+                'hist'  => $signals['hist'],
+            ]);
+        }
+
+        return $signals;
     }
 
     /**
@@ -442,11 +507,33 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
     #[Override]
     public function clearCache(): void
     {
+        // Cache dHash-only results to disk for files that hit the dHash=0 early exit
+        // (these never reach Phase 2 so getOrComputeRemainingSignals doesn't cache them)
+        if ($this->signalCache instanceof PerceptualSignalCache) {
+            foreach ($this->loadCache as $pathname => $entry) {
+                if (!isset($this->diskCacheHits[$pathname]) && $entry['dhash'] !== null) {
+                    $this->signalCache->set(
+                        new SplFileInfo($pathname),
+                        ['dhash' => $entry['dhash'], 'whash' => null, 'hf' => null, 'hist' => null],
+                    );
+                }
+            }
+        }
+
         foreach ($this->loadCache as $entry) {
             $entry['img']?->clear();
         }
 
-        $this->loadCache = [];
+        $this->loadCache     = [];
+        $this->diskCacheHits = [];
+    }
+
+    /**
+     * Flushes the disk cache to persist all newly computed signals.
+     */
+    public function flushDiskCache(): void
+    {
+        $this->signalCache?->flush();
     }
 
     /**

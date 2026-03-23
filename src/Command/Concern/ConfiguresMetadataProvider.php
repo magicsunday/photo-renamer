@@ -15,6 +15,7 @@ use DateTimeZone;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Service\MetadataCache;
+use MagicSunday\Renamer\Service\PerceptualHash\PerceptualSignalCache;
 use Symfony\Component\Console\Input\InputInterface;
 
 use function in_array;
@@ -81,6 +82,16 @@ trait ConfiguresMetadataProvider
         $provider->setCache($cache);
 
         return $cache;
+    }
+
+    /**
+     * Creates a persistent perceptual signal cache for hash computation results.
+     */
+    protected function createPerceptualSignalCache(): PerceptualSignalCache
+    {
+        $cacheDir = FileHelper::env('CACHE_DIR') ?? __DIR__ . '/../../../.build/cache';
+
+        return new PerceptualSignalCache($cacheDir . '/perceptual-signal-cache.json');
     }
 
     /**

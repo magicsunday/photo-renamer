@@ -624,6 +624,7 @@ final class RenameByExifDateCommandTest extends TestCase
             ),
             new ExifMetadataProvider($metadataExtractor),
             new LivePhotoPairingService(),
+            new StubPerceptualHashCalculator(),
         );
 
         $tester   = new CommandTester($command);
