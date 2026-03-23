@@ -546,14 +546,6 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
     }
 
     /**
-     * Flushes the disk cache to persist all newly computed signals.
-     */
-    public function flushDiskCache(): void
-    {
-        $this->signalCache?->flush();
-    }
-
-    /**
      * Creates a grayscale, resized clone of the given Imagick instance.
      */
     private function grayscaleClone(Imagick $source, int $width, int $height): Imagick
