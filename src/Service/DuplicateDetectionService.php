@@ -589,9 +589,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
             $renames = $fileDuplicate->getRenames();
 
             $canonicalTargetPath     = $fileDuplicate->getTarget()->getPathname();
-            $canonicalTargetBasename = $fileDuplicate->getTarget()->getBasename(
-                '.' . $fileDuplicate->getTarget()->getExtension()
-            );
+            $canonicalTargetBasename = FileHelper::basenameWithoutExtension($fileDuplicate->getTarget());
 
             /** @var Rename|null $canonicalRename */
             $canonicalRename         = null;
@@ -604,9 +602,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
                 }
 
                 $sourcePath     = $rename->getSource()->getPathname();
-                $sourceBasename = $rename->getSource()->getBasename(
-                    '.' . $rename->getSource()->getExtension()
-                );
+                $sourceBasename = FileHelper::basenameWithoutExtension($rename->getSource());
 
                 $hasLivePhotoId = isset($this->contentIdentifierMap[$sourcePath]);
                 $exactName      = $sourceBasename === $canonicalTargetBasename;

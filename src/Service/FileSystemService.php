@@ -201,7 +201,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
             /** @var OutputEntryTag $entryTag */
             $entryTag = $entry['tag'];
 
-            if (($showFilter !== null) && !in_array($entryTag->letter(), $showFilter, true)) {
+            if (!$this->isTagVisible($entryTag, $showFilter)) {
                 continue;
             }
 
@@ -231,7 +231,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
                 /** @var string $reason */
                 $reason = $entry['reason'];
 
-                if (($showFilter === null) || in_array($entryTag->letter(), $showFilter, true)) {
+                if ($this->isTagVisible($entryTag, $showFilter)) {
                     $this->io->text(sprintf(
                         ' %s %s' . $padding . ' <fg=cyan>→</> <fg=%s>%s</>',
                         $entryTag->formattedTag(),
@@ -259,7 +259,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
             /** @var Rename $rename */
             $rename = $entry['rename'];
 
-            if (($showFilter === null) || in_array($entryTag->letter(), $showFilter, true)) {
+            if ($this->isTagVisible($entryTag, $showFilter)) {
                 $this->io->text(sprintf(
                     ' %s %s' . $padding . ' <fg=cyan>→</> %s',
                     $entryTag->formattedTag(),
@@ -375,6 +375,17 @@ final readonly class FileSystemService implements FileSystemServiceInterface
         unset($occupiedPaths[$sourcePath]);
 
         $occupiedPaths[$targetPath] = true;
+    }
+
+    /**
+     * Returns true when the given tag should be shown based on the active filter.
+     * When no filter is set, all tags are visible.
+     *
+     * @param list<string>|null $showFilter When set, only tags whose letter appears in this list are shown
+     */
+    private function isTagVisible(OutputEntryTag $tag, ?array $showFilter): bool
+    {
+        return ($showFilter === null) || in_array($tag->letter(), $showFilter, true);
     }
 
     /**

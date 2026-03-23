@@ -146,6 +146,30 @@ final readonly class TemporalMetadata
         return $this->hasQuickTimeLivePhotoMarker;
     }
 
+    /**
+     * Returns a copy of this metadata with a different capture date/time.
+     * Preserves all other fields unchanged.
+     *
+     * @param DateTimeInterface $captureDateTime The new capture timestamp to use
+     */
+    public function withCaptureDateTime(DateTimeInterface $captureDateTime): self
+    {
+        return new self(
+            $captureDateTime,
+            $this->livePhotoId,
+            $this->isFallbackDateTime,
+            $this->isAmbiguousTimezone,
+            $this->livePhotoVideoIndex,
+            $this->cameraMake,
+            $this->cameraModel,
+            $this->software,
+            $this->latitude,
+            $this->longitude,
+            $this->videoDurationSeconds,
+            $this->hasQuickTimeLivePhotoMarker,
+        );
+    }
+
     public function hasStillLivePhotoMarker(): bool
     {
         if ($this->normalizeString($this->livePhotoId) !== null) {
