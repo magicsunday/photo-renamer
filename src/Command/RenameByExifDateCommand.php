@@ -123,10 +123,8 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
 
         $this->configureProviderTimezone($this->exifMetadataProvider, $this->input);
 
-        $cache = $this->configureProviderCache($this->exifMetadataProvider);
-
-        // Inject persistent signal cache for cross-run perceptual hash reuse
-        $signalCache = $this->createPerceptualSignalCache();
+        $metadataCache = $this->configureProviderCache($this->exifMetadataProvider);
+        $signalCache   = $this->createPerceptualSignalCache();
 
         if ($this->perceptualHashCalculator instanceof PerceptualHashCalculator) {
             $this->perceptualHashCalculator->setSignalCache($signalCache);
@@ -134,7 +132,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
 
         $result = parent::executeCommand();
 
-        $cache->flush();
+        $metadataCache->flush();
         $signalCache->flush();
 
         return $result;
