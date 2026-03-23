@@ -201,7 +201,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
             /** @var OutputEntryTag $entryTag */
             $entryTag = $entry['tag'];
 
-            if (($showFilter !== null) && !in_array($entryTag->letter(), $showFilter, true)) {
+            if (!$this->isTagVisible($entryTag, $showFilter)) {
                 continue;
             }
 
@@ -231,7 +231,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
                 /** @var string $reason */
                 $reason = $entry['reason'];
 
-                if (($showFilter === null) || in_array($entryTag->letter(), $showFilter, true)) {
+                if ($this->isTagVisible($entryTag, $showFilter)) {
                     $this->io->text(sprintf(
                         ' %s %s' . $padding . ' <fg=cyan>→</> <fg=%s>%s</>',
                         $entryTag->formattedTag(),
@@ -259,7 +259,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
             /** @var Rename $rename */
             $rename = $entry['rename'];
 
-            if (($showFilter === null) || in_array($entryTag->letter(), $showFilter, true)) {
+            if ($this->isTagVisible($entryTag, $showFilter)) {
                 $this->io->text(sprintf(
                     ' %s %s' . $padding . ' <fg=cyan>→</> %s',
                     $entryTag->formattedTag(),
@@ -414,5 +414,16 @@ final readonly class FileSystemService implements FileSystemServiceInterface
         } while (isset($occupiedPaths[$candidatePath]));
 
         return new SplFileInfo($candidatePath);
+    }
+
+    /**
+     * Checks whether the given tag passes the optional display filter.
+     *
+     * @param OutputEntryTag    $tag        Tag to check
+     * @param list<string>|null $showFilter Allowed tag letters, or null to show all
+     */
+    private function isTagVisible(OutputEntryTag $tag, ?array $showFilter): bool
+    {
+        return ($showFilter === null) || in_array($tag->letter(), $showFilter, true);
     }
 }

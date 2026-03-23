@@ -22,8 +22,6 @@ use SplFileInfo;
 
 use function array_key_exists;
 use function is_string;
-use function strtolower;
-use function trim;
 
 /**
  * Thin caching layer over the MetadataExtractor that provides direct access to
@@ -201,13 +199,7 @@ final class ExifMetadataProvider
      */
     public function getContentIdentifier(SplFileInfo $splFileInfo): ?string
     {
-        $metadata = $this->resolveMetadata($splFileInfo);
-
-        if (!$metadata instanceof TemporalMetadata) {
-            return null;
-        }
-
-        return $this->normalizeContentIdentifier($metadata->getLivePhotoId());
+        return $this->resolveMetadata($splFileInfo)?->getNormalizedLivePhotoId();
     }
 
     /**
@@ -335,25 +327,6 @@ final class ExifMetadataProvider
         );
     }
 
-    /**
-     * Lowercases and trims a Live Photo content identifier string. Returns null
-     * for null, empty, or whitespace-only inputs.
-     *
-     * @param string|null $contentIdentifier Raw content identifier from TemporalMetadata
-     *
-     * @return string|null Normalized identifier, or null when not present
-     */
-    private function normalizeContentIdentifier(?string $contentIdentifier): ?string
-    {
-        if (($contentIdentifier === null) || ($contentIdentifier === '')) {
-            return null;
-        }
-
-        $normalized = strtolower(trim($contentIdentifier));
-
-        return $normalized !== '' ? $normalized : null;
-    }
-
     private function applyConfiguredTimezone(TemporalMetadata $metadata, SplFileInfo $splFileInfo): TemporalMetadata
     {
         $dateTime = $metadata->getCaptureDateTime();
@@ -367,20 +340,9 @@ final class ExifMetadataProvider
             return $metadata;
         }
 
-        return new TemporalMetadata(
+        return $metadata->withCaptureDateTime(
             DateTimeImmutable::createFromInterface($dateTime)
                 ->setTimezone($this->defaultTimezone),
-            $metadata->getLivePhotoId(),
-            $metadata->isFallbackDateTime(),
-            $metadata->isAmbiguousTimezone(),
-            $metadata->getLivePhotoVideoIndex(),
-            $metadata->getCameraMake(),
-            $metadata->getCameraModel(),
-            $metadata->getSoftware(),
-            $metadata->getLatitude(),
-            $metadata->getLongitude(),
-            $metadata->getVideoDurationSeconds(),
-            $metadata->hasQuickTimeLivePhotoMarker(),
         );
     }
 }

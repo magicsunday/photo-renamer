@@ -77,14 +77,10 @@ final readonly class RenameOutputRenderer
         /** @var FileDuplicate $fileDuplicate */
         foreach ($fileDuplicateCollection as $fileDuplicate) {
             $canonicalTargetPath = $fileDuplicate->getTarget()->getPathname();
-            $canonicalBasename   = $fileDuplicate->getTarget()->getBasename(
-                '.' . $fileDuplicate->getTarget()->getExtension()
-            );
+            $canonicalBasename   = FileHelper::basenameWithoutExtension($fileDuplicate->getTarget());
 
             foreach ($fileDuplicate->getRenames() as $rename) {
-                $renameBasename = $rename->getTarget()->getBasename(
-                    '.' . $rename->getTarget()->getExtension()
-                );
+                $renameBasename = FileHelper::basenameWithoutExtension($rename->getTarget());
                 // A file is a duplicate if its target basename differs from the canonical
                 // and contains the duplicate identifier. Only actual renames are tagged [D];
                 // no-op duplicates (already correctly named) fall through to [O].
