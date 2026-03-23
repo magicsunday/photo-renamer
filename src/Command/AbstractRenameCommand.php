@@ -37,15 +37,11 @@ use function getcwd;
 use function is_dir;
 use function is_string;
 use function ltrim;
-use function preg_match;
 use function realpath;
 use function rtrim;
 use function sprintf;
 use function str_contains;
-use function str_ends_with;
 use function str_starts_with;
-
-use const DIRECTORY_SEPARATOR;
 
 /**
  * Base class for all rename commands. Provides shared CLI option parsing,
@@ -291,7 +287,7 @@ abstract class AbstractRenameCommand extends Command
             return $directory;
         }
 
-        if (!$this->isAbsolutePath($directory)) {
+        if (!str_starts_with($directory, '/')) {
             $baseDirectory = getcwd();
 
             if (!is_string($baseDirectory)) {
@@ -299,16 +295,22 @@ abstract class AbstractRenameCommand extends Command
             }
 
             if (is_string($baseDirectory) && ($baseDirectory !== '')) {
-                $baseDirectory = $this->trimTrailingDirectorySeparator($baseDirectory);
+                $baseDirectory = rtrim($baseDirectory, '/');
 
-                $directory = $this->combinePath($baseDirectory, $directory);
+                if ($baseDirectory === '') {
+                    $baseDirectory = '/';
+                }
+
+                $directory = $baseDirectory . '/' . ltrim($directory, '/');
             }
         }
 
         $resolved = realpath($directory);
 
         if ($resolved !== false) {
-            return $this->trimTrailingDirectorySeparator($resolved);
+            $trimmed = rtrim($resolved, '/');
+
+            return $trimmed === '' ? '/' : $trimmed;
         }
 
         if (str_contains($directory, '..')) {
@@ -317,85 +319,9 @@ abstract class AbstractRenameCommand extends Command
             );
         }
 
-        return $this->trimTrailingDirectorySeparator($directory);
-    }
+        $trimmed = rtrim($directory, '/');
 
-    /**
-     * Determines if the provided path is absolute (supports Unix, Windows drive letters, and UNC paths).
-     */
-    private function isAbsolutePath(string $path): bool
-    {
-        if ($path === '') {
-            return false;
-        }
-
-        if (str_starts_with($path, '/')) {
-            return true;
-        }
-
-        if (str_starts_with($path, '\\')) {
-            return true;
-        }
-
-        if (preg_match('#^[A-Za-z]:[\\/]#', $path) === 1) {
-            return true;
-        }
-
-        return preg_match('#^[A-Za-z]:$#', $path) === 1;
-    }
-
-    /**
-     * Removes trailing directory separators while keeping root semantics intact.
-     */
-    private function trimTrailingDirectorySeparator(string $path): string
-    {
-        if ($path === '') {
-            return $path;
-        }
-
-        if ($this->isWindowsDriveRoot($path)) {
-            if (str_contains($path, '\\')) {
-                $separator = '\\';
-            } elseif (str_contains($path, '/')) {
-                $separator = '/';
-            } else {
-                $separator = DIRECTORY_SEPARATOR;
-            }
-
-            return rtrim($path, '/\\') . $separator;
-        }
-
-        $trimmed = rtrim($path, '/\\');
-
-        return $trimmed === '' ? DIRECTORY_SEPARATOR : $trimmed;
-    }
-
-    /**
-     * Combines a base directory with a relative path segment.
-     */
-    private function combinePath(string $baseDirectory, string $relativePath): string
-    {
-        $relativePath = ltrim($relativePath, '/\\');
-
-        if ($relativePath === '') {
-            return $baseDirectory;
-        }
-
-        if (str_ends_with($baseDirectory, '/') || str_ends_with($baseDirectory, '\\')) {
-            return $baseDirectory . $relativePath;
-        }
-
-        $separator = str_contains($baseDirectory, '\\') ? '\\' : DIRECTORY_SEPARATOR;
-
-        return $baseDirectory . $separator . $relativePath;
-    }
-
-    /**
-     * Detects whether the given path points to a Windows drive root (e.g. "C:\").
-     */
-    private function isWindowsDriveRoot(string $path): bool
-    {
-        return preg_match('#^[A-Za-z]:[\\/]?$#', $path) === 1;
+        return $trimmed === '' ? '/' : $trimmed;
     }
 
     /**
