@@ -75,9 +75,7 @@ trait ConfiguresMetadataProvider
      */
     protected function configureProviderCache(ExifMetadataProvider $provider): MetadataCache
     {
-        $cacheDir = FileHelper::env('CACHE_DIR') ?? __DIR__ . '/../../../.build/cache';
-
-        $cache = new MetadataCache($cacheDir . '/metadata-cache.json');
+        $cache = new MetadataCache($this->resolveCacheDir() . '/metadata-cache.json');
 
         $provider->setCache($cache);
 
@@ -89,9 +87,16 @@ trait ConfiguresMetadataProvider
      */
     protected function createPerceptualSignalCache(): PerceptualSignalCache
     {
-        $cacheDir = FileHelper::env('CACHE_DIR') ?? __DIR__ . '/../../../.build/cache';
+        return new PerceptualSignalCache($this->resolveCacheDir() . '/perceptual-signal-cache.json');
+    }
 
-        return new PerceptualSignalCache($cacheDir . '/perceptual-signal-cache.json');
+    /**
+     * Resolves the cache directory from the CACHE_DIR env var, defaulting to
+     * .build/cache relative to the project root.
+     */
+    private function resolveCacheDir(): string
+    {
+        return FileHelper::env('CACHE_DIR') ?? __DIR__ . '/../../../.build/cache';
     }
 
     /**
