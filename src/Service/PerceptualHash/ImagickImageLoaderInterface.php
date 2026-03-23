@@ -33,7 +33,7 @@ interface ImagickImageLoaderInterface
      * This ensures consistent pixel values regardless of source format,
      * color profile, or EXIF orientation.
      *
-     * The caller is responsible for destroying the returned Imagick instance.
+     * The caller is responsible for clearing the returned Imagick instance via clear().
      *
      * @param int|null $maxResolution Maximum pixel dimension hint for the decoder.
      *                                When set, the JPEG decoder loads at reduced resolution

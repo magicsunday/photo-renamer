@@ -122,7 +122,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
 
             return null;
         } finally {
-            $img->destroy();
+            $img->clear();
         }
     }
 
@@ -142,7 +142,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
                 'I',
                 Imagick::PIXEL_CHAR,
             );
-            $gray->destroy();
+            $gray->clear();
 
             $bits = '';
 
@@ -168,7 +168,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         try {
             $gray   = $this->grayscaleClone($img, self::WHASH_SIZE, self::WHASH_SIZE);
             $pixels = $gray->exportImagePixels(0, 0, self::WHASH_SIZE, self::WHASH_SIZE, 'I', Imagick::PIXEL_DOUBLE);
-            $gray->destroy();
+            $gray->clear();
 
             $matrix = $this->pixelsToMatrix($pixels, self::WHASH_SIZE, self::WHASH_SIZE);
 
@@ -215,8 +215,8 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
             $blurred->gaussianBlurImage(0.0, self::HF_BLUR_SIGMA);
             $smooth = $blurred->exportImagePixels(0, 0, self::HF_SIZE, self::HF_SIZE, 'I', Imagick::PIXEL_DOUBLE);
 
-            $gray->destroy();
-            $blurred->destroy();
+            $gray->clear();
+            $blurred->clear();
 
             $sum   = 0.0;
             $count = count($original);
@@ -255,7 +255,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
 
             /** @var list<int> $pixels */
             $pixels = $resized->exportImagePixels(0, 0, self::HIST_SIZE, self::HIST_SIZE, 'RGB', Imagick::PIXEL_CHAR);
-            $resized->destroy();
+            $resized->clear();
 
             $bins   = self::HIST_BINS;
             $binDiv = intdiv(256, $bins);
@@ -415,7 +415,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
 
             return $null;
         } finally {
-            $img->destroy();
+            $img->clear();
         }
     }
 

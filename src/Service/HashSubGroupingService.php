@@ -538,8 +538,8 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
         $imgB = $this->imageLoader->loadNormalized($fileB, 1024);
 
         if (!$imgA instanceof Imagick || !$imgB instanceof Imagick) {
-            $imgA?->destroy();
-            $imgB?->destroy();
+            $imgA?->clear();
+            $imgB?->clear();
 
             return false;
         }
@@ -549,8 +549,8 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
 
             return $diffResult->hasCompactRetouch;
         } finally {
-            $imgA->destroy();
-            $imgB->destroy();
+            $imgA->clear();
+            $imgB->clear();
         }
     }
 

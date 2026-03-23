@@ -117,7 +117,7 @@ final readonly class ImagickImageLoader implements ImagickImageLoaderInterface
             $img->setBackgroundColor('white');
 
             $merged = $img->mergeImageLayers(Imagick::LAYERMETHOD_FLATTEN);
-            $img->destroy();
+            $img->clear();
 
             return $merged;
         } catch (Throwable) {

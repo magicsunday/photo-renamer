@@ -83,8 +83,8 @@ final readonly class LocalDifferenceAnalyzer implements LocalDifferenceAnalyzerI
         /** @var list<int> $pixelsB */
         $pixelsB = $grayB->exportImagePixels(0, 0, $width, $height, 'I', Imagick::PIXEL_CHAR);
 
-        $grayA->destroy();
-        $grayB->destroy();
+        $grayA->clear();
+        $grayB->clear();
 
         $totalPixels = $width * $height;
 
