@@ -11,28 +11,43 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\PerceptualHash;
 
+use Imagick;
 use Override;
 use SplFileInfo;
+use Throwable;
 
 use function abs;
+use function array_fill;
+use function array_slice;
+use function array_sum;
 use function bindec;
+use function count;
 use function ctype_xdigit;
 use function dechex;
 use function hex2bin;
+use function intdiv;
+use function max;
 use function min;
 use function ord;
+use function sort;
 use function str_repeat;
 use function strlen;
 use function strtolower;
 use function substr;
 
+use const SORT_NUMERIC;
+
 /**
- * Computes 64-bit difference hashes (dHash) for visual near-duplicate detection.
- * The dHash algorithm compares horizontal brightness gradients in a 9×8 downsampled
- * grayscale image, producing a compact fingerprint that is robust against resizing,
- * compression artifacts, and format conversions.
+ * Multi-signal perceptual hash calculator for visual near-duplicate detection.
  *
- * Ported from magicsunday/photo-memories PerceptualHashExtractor.
+ * Computes four visual signals from a single normalized Imagick instance:
+ * - dHash (64-bit): horizontal brightness gradients on 9×8 grid
+ * - wHash (64-bit): Haar wavelet texture hash on 32×32 grid
+ * - HF-energy: high-frequency texture score (Gaussian blur difference)
+ * - Color histogram: 3D RGB histogram L1 distance
+ *
+ * All signals use Imagick for pixel extraction with proper color space
+ * normalization (autoOrient + sRGB), which is critical for JPG↔HEIC comparison.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -40,22 +55,29 @@ use function substr;
  */
 final class PerceptualHashCalculator implements PerceptualHashCalculatorInterface
 {
-    /**
-     * dHash uses a 9×8 sample (9 columns for 8 horizontal differences per row).
-     */
     private const int DHASH_WIDTH = 9;
 
     private const int DHASH_HEIGHT = 8;
+
+    private const int WHASH_SIZE = 32;
+
+    private const int HF_SIZE = 128;
+
+    private const float HF_BLUR_SIGMA = 1.2;
+
+    private const int HIST_SIZE = 128;
+
+    private const int HIST_BINS = 16;
 
     /**
      * In-memory cache: pathname → dHash hex string (or null on failure).
      *
      * @var array<string, string|null>
      */
-    private array $cache = [];
+    private array $dhashCache = [];
 
     public function __construct(
-        private readonly FfmpegGrayscaleLoaderInterface $loader,
+        private readonly ImagickImageLoaderInterface $imageLoader,
     ) {
     }
 
@@ -64,22 +86,259 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
     {
         $pathname = $file->getPathname();
 
-        if (isset($this->cache[$pathname])) {
-            return $this->cache[$pathname];
+        if (isset($this->dhashCache[$pathname])) {
+            return $this->dhashCache[$pathname];
         }
 
-        $matrix = $this->loader->loadGrayscaleMatrix($file, self::DHASH_WIDTH, self::DHASH_HEIGHT);
+        $img = $this->imageLoader->loadNormalized($file);
 
-        if ($matrix === null) {
-            $this->cache[$pathname] = null;
+        if (!$img instanceof Imagick) {
+            $this->dhashCache[$pathname] = null;
 
             return null;
         }
 
-        $hash                   = $this->computeDhash64($matrix);
-        $this->cache[$pathname] = $hash;
+        try {
+            $gray = $this->grayscaleClone($img, self::DHASH_WIDTH, self::DHASH_HEIGHT);
+            /** @var list<int> $pixels */
+            $pixels = $gray->exportImagePixels(
+                0,
+                0,
+                self::DHASH_WIDTH,
+                self::DHASH_HEIGHT,
+                'I',
+                Imagick::PIXEL_CHAR,
+            );
+            $gray->destroy();
 
-        return $hash;
+            $bits = '';
+
+            for ($y = 0; $y < self::DHASH_HEIGHT; ++$y) {
+                for ($x = 0; $x < self::DHASH_HEIGHT; ++$x) {
+                    $bits .= ($pixels[$y * self::DHASH_WIDTH + $x] > $pixels[$y * self::DHASH_WIDTH + $x + 1])
+                        ? '1'
+                        : '0';
+                }
+            }
+
+            $hash                        = strtolower($this->bitsToHex($bits, 64));
+            $this->dhashCache[$pathname] = $hash;
+
+            return $hash;
+        } catch (Throwable) {
+            $this->dhashCache[$pathname] = null;
+
+            return null;
+        } finally {
+            $img->destroy();
+        }
+    }
+
+    /**
+     * Computes a 64-bit Haar wavelet hash (wHash).
+     * Sensitive to mid-frequency texture changes (skin smoothing, noise reduction,
+     * color grading) that dHash misses.
+     *
+     * Algorithm: 32×32 grayscale → 2-level Haar transform → 8×8 LL subband →
+     * median threshold → 64-bit hash.
+     */
+    public function computeWhash(SplFileInfo $file): ?string
+    {
+        $img = $this->imageLoader->loadNormalized($file);
+
+        if (!$img instanceof Imagick) {
+            return null;
+        }
+
+        try {
+            $gray   = $this->grayscaleClone($img, self::WHASH_SIZE, self::WHASH_SIZE);
+            $pixels = $gray->exportImagePixels(
+                0,
+                0,
+                self::WHASH_SIZE,
+                self::WHASH_SIZE,
+                'I',
+                Imagick::PIXEL_DOUBLE,
+            );
+            $gray->destroy();
+
+            $matrix = $this->pixelsToMatrix($pixels, self::WHASH_SIZE, self::WHASH_SIZE);
+
+            // 2-level Haar wavelet decomposition
+            $level1 = $this->haar2D($matrix);
+            $ll1    = $this->topLeft($level1, self::WHASH_SIZE / 2);
+
+            $level2 = $this->haar2D($ll1);
+            $ll2    = $this->topLeft($level2, self::WHASH_SIZE / 4);
+
+            // Flatten LL2 (8×8) and threshold against median
+            $flat = [];
+
+            foreach ($ll2 as $row) {
+                foreach ($row as $value) {
+                    $flat[] = $value;
+                }
+            }
+
+            $sorted = $flat;
+            sort($sorted, SORT_NUMERIC);
+            $median = $sorted[count($sorted) >> 1];
+
+            $bits = '';
+
+            foreach ($flat as $value) {
+                $bits .= ($value > $median) ? '1' : '0';
+            }
+
+            return strtolower($this->bitsToHex($bits, 64));
+        } catch (Throwable) {
+            return null;
+        } finally {
+            $img->destroy();
+        }
+    }
+
+    /**
+     * Computes the high-frequency energy score of an image.
+     * Higher values indicate more texture/noise. Retouched images (skin smoothing,
+     * denoising) have measurably less HF-energy than originals.
+     */
+    public function computeHfEnergy(SplFileInfo $file): ?float
+    {
+        $img = $this->imageLoader->loadNormalized($file);
+
+        if (!$img instanceof Imagick) {
+            return null;
+        }
+
+        try {
+            $gray = $this->grayscaleClone($img, self::HF_SIZE, self::HF_SIZE);
+
+            $original = $gray->exportImagePixels(
+                0,
+                0,
+                self::HF_SIZE,
+                self::HF_SIZE,
+                'I',
+                Imagick::PIXEL_DOUBLE,
+            );
+
+            $blurred = clone $gray;
+            $blurred->gaussianBlurImage(0.0, self::HF_BLUR_SIGMA);
+
+            $smooth = $blurred->exportImagePixels(
+                0,
+                0,
+                self::HF_SIZE,
+                self::HF_SIZE,
+                'I',
+                Imagick::PIXEL_DOUBLE,
+            );
+
+            $gray->destroy();
+            $blurred->destroy();
+
+            $sum   = 0.0;
+            $count = count($original);
+
+            for ($i = 0; $i < $count; ++$i) {
+                $v = $original[$i] + 0.0;
+                $s = $smooth[$i] + 0.0;
+
+                // Normalize Imagick PIXEL_DOUBLE (may be 0–65535 instead of 0–1)
+                if ($v > 1.0) {
+                    $v /= 65535.0;
+                }
+
+                if ($s > 1.0) {
+                    $s /= 65535.0;
+                }
+
+                $sum += abs($v - $s);
+            }
+
+            return $sum / $count;
+        } catch (Throwable) {
+            return null;
+        } finally {
+            $img->destroy();
+        }
+    }
+
+    /**
+     * Computes a normalized 3D RGB color histogram.
+     *
+     * @return list<float>|null Normalized histogram (sum = 1.0), or null on failure
+     */
+    public function computeColorHistogram(SplFileInfo $file): ?array
+    {
+        $img = $this->imageLoader->loadNormalized($file);
+
+        if (!$img instanceof Imagick) {
+            return null;
+        }
+
+        try {
+            $resized = clone $img;
+            $resized->resizeImage(self::HIST_SIZE, self::HIST_SIZE, Imagick::FILTER_LANCZOS, 1.0, false);
+
+            /** @var list<int> $pixels */
+            $pixels = $resized->exportImagePixels(
+                0,
+                0,
+                self::HIST_SIZE,
+                self::HIST_SIZE,
+                'RGB',
+                Imagick::PIXEL_CHAR,
+            );
+
+            $resized->destroy();
+
+            $bins   = self::HIST_BINS;
+            $binDiv = intdiv(256, $bins);
+            $hist   = array_fill(0, $bins * $bins * $bins, 0.0);
+            $count  = intdiv(count($pixels), 3);
+
+            for ($i = 0; $i < $count; ++$i) {
+                $rb = min($bins - 1, intdiv($pixels[$i * 3], $binDiv));
+                $gb = min($bins - 1, intdiv($pixels[$i * 3 + 1], $binDiv));
+                $bb = min($bins - 1, intdiv($pixels[$i * 3 + 2], $binDiv));
+
+                $hist[($rb * $bins * $bins) + ($gb * $bins) + $bb] += 1.0;
+            }
+
+            $sum = array_sum($hist);
+
+            if ($sum > 0.0) {
+                foreach ($hist as $k => $v) {
+                    $hist[$k] = $v / $sum;
+                }
+            }
+
+            return array_values($hist);
+        } catch (Throwable) {
+            return null;
+        } finally {
+            $img->destroy();
+        }
+    }
+
+    /**
+     * Computes the L1 distance between two normalized histograms (0.0–1.0).
+     *
+     * @param list<float> $a Normalized histogram A
+     * @param list<float> $b Normalized histogram B
+     */
+    public function histogramDistance(array $a, array $b): float
+    {
+        $sum = 0.0;
+        $n   = min(count($a), count($b));
+
+        for ($i = 0; $i < $n; ++$i) {
+            $sum += abs($a[$i] - $b[$i]);
+        }
+
+        return $sum / 2.0;
     }
 
     #[Override]
@@ -105,25 +364,130 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
     #[Override]
     public function clearCache(): void
     {
-        $this->cache = [];
+        $this->dhashCache = [];
     }
 
     /**
-     * dHash 64-bit (horizontal): compare adjacent pixels in each row.
-     *
-     * @param array<int, array<int, float>> $matrix 9×8 grayscale matrix
+     * Creates a grayscale, resized clone of the given Imagick instance.
      */
-    private function computeDhash64(array $matrix): string
+    private function grayscaleClone(Imagick $source, int $width, int $height): Imagick
     {
-        $bits = '';
+        $img = clone $source;
+        $img->resizeImage($width, $height, Imagick::FILTER_LANCZOS, 1.0, false);
+        $img->transformImageColorspace(Imagick::COLORSPACE_GRAY);
 
-        for ($y = 0; $y < self::DHASH_HEIGHT; ++$y) {
-            for ($x = 0; $x < self::DHASH_HEIGHT; ++$x) {
-                $bits .= ($matrix[$y][$x] > $matrix[$y][$x + 1]) ? '1' : '0';
+        return $img;
+    }
+
+    /**
+     * Converts a flat pixel array to a 2D matrix, normalizing values to 0.0–1.0.
+     *
+     * @param list<int> $pixels Flat pixel values from Imagick::exportImagePixels()
+     *
+     * @return array<int, array<int, float>>
+     */
+    private function pixelsToMatrix(array $pixels, int $width, int $height): array
+    {
+        $matrix = [];
+
+        for ($y = 0; $y < $height; ++$y) {
+            $row = [];
+
+            for ($x = 0; $x < $width; ++$x) {
+                $v = $pixels[$y * $width + $x] + 0.0;
+
+                if ($v > 1.0) {
+                    $v /= 65535.0;
+                }
+
+                $row[] = max(0.0, min(1.0, $v));
+            }
+
+            $matrix[] = $row;
+        }
+
+        return $matrix;
+    }
+
+    /**
+     * 2D Haar wavelet transform (one level).
+     *
+     * @param array<int, array<int, float>> $matrix
+     *
+     * @return array<int, array<int, float>>
+     */
+    private function haar2D(array $matrix): array
+    {
+        $height = count($matrix);
+        $width  = count($matrix[0]);
+
+        // Transform rows
+        $tmp = [];
+
+        for ($y = 0; $y < $height; ++$y) {
+            $tmp[$y] = $this->haar1D($matrix[$y]);
+        }
+
+        // Transform columns
+        $out = array_fill(0, $height, array_fill(0, $width, 0.0));
+
+        for ($x = 0; $x < $width; ++$x) {
+            $col = [];
+
+            for ($y = 0; $y < $height; ++$y) {
+                $col[] = $tmp[$y][$x];
+            }
+
+            $colTransformed = $this->haar1D($col);
+
+            for ($y = 0; $y < $height; ++$y) {
+                $out[$y][$x] = $colTransformed[$y];
             }
         }
 
-        return strtolower($this->bitsToHex($bits, 64));
+        return $out;
+    }
+
+    /**
+     * 1D Haar wavelet transform: pairs → average + difference.
+     *
+     * @param array<int, float> $values
+     *
+     * @return array<int, float>
+     */
+    private function haar1D(array $values): array
+    {
+        $n    = count($values);
+        $half = intdiv($n, 2);
+        $out  = array_fill(0, $n, 0.0);
+
+        for ($i = 0; $i < $half; ++$i) {
+            $a = $values[2 * $i];
+            $b = $values[2 * $i + 1];
+
+            $out[$i]         = ($a + $b) / 2.0;
+            $out[$half + $i] = ($a - $b) / 2.0;
+        }
+
+        return $out;
+    }
+
+    /**
+     * Extracts the top-left square submatrix.
+     *
+     * @param array<int, array<int, float>> $matrix
+     *
+     * @return array<int, array<int, float>>
+     */
+    private function topLeft(array $matrix, int $size): array
+    {
+        $out = [];
+
+        for ($y = 0; $y < $size; ++$y) {
+            $out[] = array_slice($matrix[$y], 0, $size);
+        }
+
+        return $out;
     }
 
     /**
@@ -155,9 +519,6 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         return $hex;
     }
 
-    /**
-     * Decodes a hexadecimal string to binary representation.
-     */
     private function decodeHex(string $value): ?string
     {
         if ((strlen($value) & 1) === 1) {
@@ -173,9 +534,6 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         return $decoded !== false ? $decoded : null;
     }
 
-    /**
-     * Counts the number of set bits in a byte.
-     */
     private function bitcount(int $v): int
     {
         $c = 0;

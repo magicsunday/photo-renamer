@@ -39,6 +39,9 @@ services:
         arguments:
             $io: '@Symfony\Component\Console\Style\SymfonyStyle'
 
+    MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoaderInterface:
+        class: MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader
+
     MagicSunday\Renamer\Service\PerceptualHash\FfmpegGrayscaleLoaderInterface:
         class: MagicSunday\Renamer\Service\PerceptualHash\FfmpegGrayscaleLoader
 

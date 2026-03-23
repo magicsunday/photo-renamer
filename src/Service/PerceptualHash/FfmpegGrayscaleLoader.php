@@ -17,13 +17,11 @@ use Symfony\Component\Process\Process;
 use Throwable;
 
 use function array_fill;
-use function is_numeric;
 use function max;
 use function min;
 use function ord;
 use function sprintf;
 use function strlen;
-use function trim;
 
 /**
  * Loads grayscale pixel matrices from images and videos using ffmpeg.
@@ -36,6 +34,8 @@ use function trim;
  */
 final readonly class FfmpegGrayscaleLoader implements FfmpegGrayscaleLoaderInterface
 {
+    use VideoDurationProbeTrait;
+
     private const array VIDEO_EXTENSIONS = ['mov', 'mp4', 'avi', 'mkv', 'webm', 'm4v', '3gp'];
 
     public function __construct(
@@ -152,45 +152,5 @@ final readonly class FfmpegGrayscaleLoader implements FfmpegGrayscaleLoaderInter
         }
 
         return $targetTime;
-    }
-
-    /**
-     * Probes the video duration via ffprobe.
-     */
-    private function probeVideoDuration(SplFileInfo $file): ?float
-    {
-        $process = new Process([
-            $this->ffprobeBinary,
-            '-v',
-            'error',
-            '-select_streams',
-            'v:0',
-            '-show_entries',
-            'format=duration',
-            '-of',
-            'default=noprint_wrappers=1:nokey=1',
-            $file->getPathname(),
-        ]);
-        $process->setTimeout(10.0);
-
-        try {
-            $process->run();
-        } catch (Throwable) {
-            return null;
-        }
-
-        if (!$process->isSuccessful()) {
-            return null;
-        }
-
-        $output = trim($process->getOutput());
-
-        if ($output === '' || !is_numeric($output)) {
-            return null;
-        }
-
-        $duration = (float) $output;
-
-        return $duration > 0.0 ? $duration : null;
     }
 }

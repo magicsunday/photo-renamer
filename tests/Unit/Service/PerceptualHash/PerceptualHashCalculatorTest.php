@@ -11,7 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service\PerceptualHash;
 
-use MagicSunday\Renamer\Service\PerceptualHash\FfmpegGrayscaleLoader;
+use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -28,7 +28,7 @@ use function uniqid;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(PerceptualHashCalculator::class)]
-#[UsesClass(FfmpegGrayscaleLoader::class)]
+#[UsesClass(ImagickImageLoader::class)]
 final class PerceptualHashCalculatorTest extends TestCase
 {
     private string $tempDir;
@@ -46,7 +46,7 @@ final class PerceptualHashCalculatorTest extends TestCase
 
     private function createCalculator(): PerceptualHashCalculator
     {
-        return new PerceptualHashCalculator(new FfmpegGrayscaleLoader());
+        return new PerceptualHashCalculator(new ImagickImageLoader());
     }
 
     #[Test]
