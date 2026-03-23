@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Test\Unit\Service\PerceptualHash;
 
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator;
+use MagicSunday\Renamer\Service\PerceptualHash\SimilarityClassification;
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityResult;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -77,7 +78,7 @@ final class PerceptualHashCalculatorTest extends TestCase
         );
 
         self::assertFalse($result->isDuplicateLikely());
-        self::assertSame('different', $result->classification);
+        self::assertSame(SimilarityClassification::Different, $result->classification);
     }
 
     #[Test]

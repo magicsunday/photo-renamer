@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service\Fixtures;
 
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
+use MagicSunday\Renamer\Service\PerceptualHash\SimilarityClassification;
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityResult;
 use Override;
 use SplFileInfo;
@@ -76,9 +77,9 @@ final class StubPerceptualHashCalculator implements PerceptualHashCalculatorInte
 
         $score          = (int) round(max(0.0, 1.0 - ($dd / 64.0)) * 100);
         $classification = match (true) {
-            $score >= 95 => 'duplicate_likely',
-            $score >= 85 => 'edited_variant',
-            default      => 'different',
+            $score >= 95 => SimilarityClassification::DuplicateLikely,
+            $score >= 85 => SimilarityClassification::EditedVariant,
+            default      => SimilarityClassification::Different,
         };
 
         return new SimilarityResult($score, $dd, 0, 0.0, 0.0, null, $classification);

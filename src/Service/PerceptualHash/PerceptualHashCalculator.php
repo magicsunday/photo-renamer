@@ -330,7 +330,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         if ($dd > 20) {
             $score = (int) round(max(0.0, 1.0 - ($dd / 64.0)) * 100);
 
-            return new SimilarityResult($score, $dd, 64, 1.0, 1.0, null, 'different');
+            return new SimilarityResult($score, $dd, 64, 1.0, 1.0, null, SimilarityClassification::Different);
         }
 
         // Early exit: dHash = 0 AND not video → visually identical.
@@ -338,7 +338,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         $isVideo = ($durationA !== null && $durationB !== null);
 
         if ($dd === 0 && !$isVideo) {
-            return new SimilarityResult(100, 0, 0, 0.0, 0.0, null, 'duplicate_likely');
+            return new SimilarityResult(100, 0, 0, 0.0, 0.0, null, SimilarityClassification::DuplicateLikely);
         }
 
         // Phase 2: Full signal computation (single Imagick load per file)
@@ -367,9 +367,9 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         $score = $this->computeWeightedScore($dd, $wd, $hfd, $cd, $durDelta, $isVideo);
 
         $classification = match (true) {
-            $score >= 95 => 'duplicate_likely',
-            $score >= 85 => 'edited_variant',
-            default      => 'different',
+            $score >= 95 => SimilarityClassification::DuplicateLikely,
+            $score >= 85 => SimilarityClassification::EditedVariant,
+            default      => SimilarityClassification::Different,
         };
 
         return new SimilarityResult($score, $dd, $wd, $hfd, $cd, $durDelta, $classification);
@@ -379,9 +379,6 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
      * Computes all perceptual signals from a single Imagick load.
      * One loadNormalized() call → dHash + wHash + HF-energy + color histogram.
      *
-     * @return array{dhash: string|null, whash: string|null, hf: float|null, hist: list<float>|null}
-     */
-    /**
      * @return array{dhash: string|null, whash: string|null, hf: float|null, hist: list<float>|null}
      */
     private function computeAllSignals(SplFileInfo $file): array

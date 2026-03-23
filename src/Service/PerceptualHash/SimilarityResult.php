@@ -22,13 +22,13 @@ namespace MagicSunday\Renamer\Service\PerceptualHash;
 final readonly class SimilarityResult
 {
     /**
-     * @param int        $score          Combined similarity score 0–100 (100 = identical)
-     * @param int        $dhashDistance  dHash Hamming distance (0–64)
-     * @param int        $whashDistance  wHash Hamming distance (0–64)
-     * @param float      $hfEnergyDelta  High-frequency energy difference (0.0+)
-     * @param float      $colorDistance  Color histogram L1 distance (0.0–1.0)
-     * @param float|null $durationDelta  Video duration difference in seconds (null for images)
-     * @param string     $classification One of: duplicate_likely, edited_variant, different
+     * @param int                      $score          Combined similarity score 0–100 (100 = identical)
+     * @param int                      $dhashDistance  dHash Hamming distance (0–64)
+     * @param int                      $whashDistance  wHash Hamming distance (0–64)
+     * @param float                    $hfEnergyDelta  High-frequency energy difference (0.0+)
+     * @param float                    $colorDistance  Color histogram L1 distance (0.0–1.0)
+     * @param float|null               $durationDelta  Video duration difference in seconds (null for images)
+     * @param SimilarityClassification $classification Semantic classification of the similarity
      */
     public function __construct(
         public int $score,
@@ -37,12 +37,12 @@ final readonly class SimilarityResult
         public float $hfEnergyDelta,
         public float $colorDistance,
         public ?float $durationDelta,
-        public string $classification,
+        public SimilarityClassification $classification,
     ) {
     }
 
     public function isDuplicateLikely(): bool
     {
-        return $this->classification === 'duplicate_likely';
+        return $this->classification === SimilarityClassification::DuplicateLikely;
     }
 }
