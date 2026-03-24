@@ -1322,7 +1322,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         $io     = new SymfonyStyle(new ArrayInput([]), $output);
 
         $mediaTypeClassifier    = new MediaTypeClassifier();
-        $hashSubGroupingService = new HashSubGroupingService($hashCalculator, $io, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader());
+        $hashSubGroupingService = new HashSubGroupingService($hashCalculator, $io, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier()));
         $service                = new DuplicateDetectionService($io, $hashSubGroupingService, $mediaTypeClassifier);
 
         $targetFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'target.jpg';
@@ -1377,7 +1377,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         $io     = new SymfonyStyle(new ArrayInput([]), $output);
 
         $mediaTypeClassifier    = new MediaTypeClassifier();
-        $hashSubGroupingService = new HashSubGroupingService($hashCalculator, $io, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader());
+        $hashSubGroupingService = new HashSubGroupingService($hashCalculator, $io, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier()));
         $service                = new DuplicateDetectionService($io, $hashSubGroupingService, $mediaTypeClassifier);
 
         $sourceDirectory = $this->createTempDirectory();
@@ -1444,7 +1444,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         $io     = new SymfonyStyle(new ArrayInput([]), $output);
 
         $mediaTypeClassifier    = new MediaTypeClassifier();
-        $hashSubGroupingService = new HashSubGroupingService($hashCalculator, $io, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader());
+        $hashSubGroupingService = new HashSubGroupingService($hashCalculator, $io, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier()));
         $service                = new DuplicateDetectionService($io, $hashSubGroupingService, $mediaTypeClassifier);
 
         $sourceDirectory = $this->createTempDirectory();
@@ -2842,7 +2842,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         $fileSystemService      = new FileSystemService($io, new RenameOutputRenderer($io));
         $hashCalculator         = new SafeHashCalculator();
         $mediaTypeClassifier    = new MediaTypeClassifier();
-        $hashSubGroupingService = new HashSubGroupingService($hashCalculator, $io, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader());
+        $hashSubGroupingService = new HashSubGroupingService($hashCalculator, $io, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier()));
         $service                = new DuplicateDetectionService($io, $hashSubGroupingService, $mediaTypeClassifier);
 
         return [$service, $output, $fileSystemService];

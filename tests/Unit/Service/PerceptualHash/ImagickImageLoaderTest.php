@@ -52,7 +52,7 @@ final class ImagickImageLoaderTest extends TestCase
 
     private function createLoader(): ImagickImageLoader
     {
-        return new ImagickImageLoader();
+        return new ImagickImageLoader(new MediaTypeClassifier());
     }
 
     #[Test]

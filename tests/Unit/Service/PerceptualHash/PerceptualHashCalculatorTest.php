@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service\PerceptualHash;
 
+use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator;
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityClassification;
@@ -54,7 +55,7 @@ final class PerceptualHashCalculatorTest extends TestCase
 
     private function createCalculator(): PerceptualHashCalculator
     {
-        return new PerceptualHashCalculator(new ImagickImageLoader());
+        return new PerceptualHashCalculator(new ImagickImageLoader(new MediaTypeClassifier()));
     }
 
     #[Test]

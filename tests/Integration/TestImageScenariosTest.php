@@ -493,7 +493,7 @@ final class TestImageScenariosTest extends TestCase
         $metadataExtractor   = new MetadataExtractor(MetadataReader::createDefault());
         $metadataProvider    = new ExifMetadataProvider($metadataExtractor);
         $mediaTypeClassifier = new MediaTypeClassifier();
-        $imageLoader         = new ImagickImageLoader();
+        $imageLoader         = new ImagickImageLoader(new MediaTypeClassifier());
 
         $perceptualHashCalculator = new PerceptualHashCalculator($imageLoader);
 

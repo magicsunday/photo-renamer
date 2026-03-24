@@ -697,7 +697,7 @@ final class HashSubGroupingServiceTest extends TestCase
         $output = new BufferedOutput();
         $io     = new SymfonyStyle(new ArrayInput([]), $output);
 
-        $imageLoader = new ImagickImageLoader();
+        $imageLoader = new ImagickImageLoader(new MediaTypeClassifier());
 
         return new HashSubGroupingService(
             new SafeHashCalculator(),

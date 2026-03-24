@@ -562,7 +562,7 @@ final class RenameByExifDateCommandTest extends TestCase
 
             $hashCalculator            = new SafeHashCalculator();
             $mediaTypeClassifier       = new MediaTypeClassifier();
-            $hashSubGroupingService    = new HashSubGroupingService($hashCalculator, $style, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader());
+            $hashSubGroupingService    = new HashSubGroupingService($hashCalculator, $style, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier()));
             $duplicateDetectionService = new DuplicateDetectionService(
                 $style,
                 $hashSubGroupingService,

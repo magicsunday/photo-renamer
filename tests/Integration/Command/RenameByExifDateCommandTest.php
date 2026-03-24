@@ -616,7 +616,7 @@ final class RenameByExifDateCommandTest extends TestCase
         $style  = new SymfonyStyle(new ArrayInput([]), $output);
 
         $mediaTypeClassifier       = new MediaTypeClassifier();
-        $hashSubGroupingService    = new HashSubGroupingService(new SafeHashCalculator(), $style, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader());
+        $hashSubGroupingService    = new HashSubGroupingService(new SafeHashCalculator(), $style, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier()));
         $livePhotoConflictDetector = new LivePhotoConflictDetector($mediaTypeClassifier);
 
         $command = new RenameByExifDateCommand(
