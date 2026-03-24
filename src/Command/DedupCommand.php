@@ -163,7 +163,7 @@ final class DedupCommand extends Command
                 ++$orphanedCount;
 
                 $io->text(sprintf(
-                    '<fg=yellow>[!]</> %s <fg=cyan>-></> Original not found (skipped)',
+                    '<fg=yellow>[!]</> %s <fg=cyan>→</> Original not found (skipped)',
                     $relativePath,
                 ));
 
@@ -176,14 +176,14 @@ final class DedupCommand extends Command
             if ($dryRun) {
                 if ($delete) {
                     $io->text(sprintf(
-                        '<fg=cyan>[D]</> %s <fg=cyan>-></> Would delete',
+                        '<fg=cyan>[D]</> %s <fg=cyan>→</> Would delete',
                         $relativePath,
                     ));
                 } else {
                     $targetRelativePath = $target . DIRECTORY_SEPARATOR . $relativePath;
 
                     $io->text(sprintf(
-                        '<fg=cyan>[D]</> %s <fg=cyan>-></> Would move to %s',
+                        '<fg=cyan>[D]</> %s <fg=cyan>→</> Would move to %s',
                         $relativePath,
                         $targetRelativePath,
                     ));
@@ -215,7 +215,7 @@ final class DedupCommand extends Command
                 $targetRelativePath = $target . DIRECTORY_SEPARATOR . $relativePath;
 
                 $io->text(sprintf(
-                    '<fg=green>[D]</> %s <fg=cyan>-></> %s',
+                    '<fg=green>[D]</> %s <fg=cyan>→</> %s',
                     $relativePath,
                     $targetRelativePath,
                 ));
