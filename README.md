@@ -169,7 +169,7 @@ renamer rename:exif --dry-run ~/Photos
 renamer rename:exif ~/Photos
 ```
 
-Renames all photos and videos to `YYYY-MM-DD_HH-MM-SS-mmm.ext`. Extensions are normalised automatically (e.g. `JPEG` → `jpg`). Live Photo pairs (JPG + MOV) receive the same base name. Duplicates get `-duplicate-NNN` suffixes.
+Renames all photos and videos to `YYYY-MM-DD_HH-MM-SS-mmm.ext`. Extensions are normalised automatically (e.g. `JPEG` → `jpg`). Live Photo pairs (still + video) receive the same base name. Files with distinct content sharing the same timestamp get sequential sub-group numbers (`-002`, `-003`, ...), while visually identical files (format conversions, re-imports) are merged via perceptual hashing. True duplicates get `-duplicate-NNN` suffixes.
 
 ### Step 4: Review warnings
 
