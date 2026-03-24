@@ -569,6 +569,231 @@ final class RenameOutputRendererTest extends TestCase
     }
 
     /**
+     * Verifies highlightDiff for completely different strings.
+     */
+    #[Test]
+    public function highlightDiffHighlightsEntireStringWhenCompletelyDifferent(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $result = $renderer->highlightDiff('abc.jpg', 'xyz.mov', 'green');
+
+        self::assertStringContainsString('<fg=bright-green;options=bold>', $result);
+        self::assertStringContainsString('xyz.mov', $result);
+    }
+
+    /**
+     * Verifies that highlightDiff handles empty target string.
+     */
+    #[Test]
+    public function highlightDiffHandlesEmptyTarget(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $result = $renderer->highlightDiff('photo.jpg', '', 'green');
+
+        self::assertSame('<fg=green></>', $result);
+    }
+
+    /**
+     * Verifies that highlightDiff correctly highlights directory prefix changes.
+     */
+    #[Test]
+    public function highlightDiffHighlightsDirectoryChange(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $result = $renderer->highlightDiff(
+            'original.jpg',
+            'backup/2024-12-01_09-00-00-000-duplicate-001.jpg',
+            'green',
+        );
+
+        self::assertStringContainsString('<fg=bright-green;options=bold>', $result);
+    }
+
+    /**
+     * Verifies that highlightDiff handles single-character differences.
+     */
+    #[Test]
+    public function highlightDiffHighlightsSingleCharDifference(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $result = $renderer->highlightDiff(
+            '2024-01-01_10-00-00-000.jpg',
+            '2024-01-01_10-00-00-001.jpg',
+            'cyan',
+        );
+
+        self::assertStringContainsString('<fg=bright-cyan;options=bold>', $result);
+        self::assertStringContainsString('<fg=cyan>', $result);
+    }
+
+    /**
+     * Verifies that ambiguous timezone files with duplicate status get [W] tag.
+     */
+    #[Test]
+    public function buildOutputEntriesTagsWarningForDuplicateWithAmbiguousTimezone(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $sourceDir = '/tmp/source';
+
+        $canonical       = $sourceDir . '/clip-a.mp4';
+        $duplicate       = $sourceDir . '/clip-b.mp4';
+        $canonicalTarget = $sourceDir . '/2025-06-10_16-30-00-000.mp4';
+        $duplicateTarget = $sourceDir . '/2025-06-10_16-30-00-000' . Constants::DUPLICATE_IDENTIFIER . '001.mp4';
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate->setTarget(new SplFileInfo($canonicalTarget));
+        $fileDuplicate->addRename(new Rename(new SplFileInfo($canonical), new SplFileInfo($canonicalTarget)));
+        $fileDuplicate->addRename(new Rename(new SplFileInfo($duplicate), new SplFileInfo($duplicateTarget)));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('test', $fileDuplicate);
+
+        [$entries] = $renderer->buildOutputEntries(
+            $collection,
+            new RenameOptions(),
+            new RenameResult(
+                ambiguousTimezoneFiles: [$canonical => true, $duplicate => true],
+            ),
+            $sourceDir,
+        );
+
+        self::assertCount(2, $entries);
+        // Both should be [W], not [D]
+        self::assertSame(OutputEntryTag::Warning, $entries[0]['tag']);
+        self::assertSame(OutputEntryTag::Warning, $entries[1]['tag']);
+        self::assertTrue($entries[0]['shouldSkip']);
+        self::assertTrue($entries[1]['shouldSkip']);
+    }
+
+    /**
+     * Verifies that the warningReason field contains the date drift details.
+     */
+    #[Test]
+    public function buildOutputEntriesIncludesDriftDetailsInWarningReason(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $sourceDir = '/tmp/source';
+
+        $source = $sourceDir . '/2024-01-15_10-00-00.jpg';
+        $target = $sourceDir . '/2024-06-20_10-00-00-000.jpg';
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate->setTarget(new SplFileInfo($target));
+        $fileDuplicate->addRename(new Rename(new SplFileInfo($source), new SplFileInfo($target)));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('test', $fileDuplicate);
+
+        [$entries] = $renderer->buildOutputEntries(
+            $collection,
+            new RenameOptions(maxDateDrift: 7),
+            new RenameResult(),
+            $sourceDir,
+        );
+
+        self::assertCount(1, $entries);
+        self::assertSame(OutputEntryTag::Warning, $entries[0]['tag']);
+
+        /** @var string $warningReason */
+        $warningReason = $entries[0]['warningReason'];
+        self::assertStringContainsString('Date drift:', $warningReason);
+        self::assertStringContainsString('max 7', $warningReason);
+    }
+
+    /**
+     * Verifies renderSummarySection produces aligned output.
+     */
+    #[Test]
+    public function renderSummarySectionAlignedOutput(): void
+    {
+        [$renderer, $output] = $this->createRenderer();
+
+        $rows = [
+            ['Short', '10'],
+            ['Much longer label', '200'],
+        ];
+
+        $renderer->renderSummarySection($rows, new SymfonyStyle(new ArrayInput([]), $output));
+
+        $buffer = $output->fetch();
+
+        self::assertStringContainsString('Short', $buffer);
+        self::assertStringContainsString('Much longer label', $buffer);
+        self::assertStringContainsString('10', $buffer);
+        self::assertStringContainsString('200', $buffer);
+    }
+
+    /**
+     * Verifies that fallback date files are tagged as Fallback.
+     */
+    #[Test]
+    public function buildOutputEntriesTagsFallbackDateFiles(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $sourceDir = '/tmp/source';
+        $source    = $sourceDir . '/scan.jpg';
+        $target    = $sourceDir . '/2024-01-01_00-00-00-000.jpg';
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate->setTarget(new SplFileInfo($target));
+        $fileDuplicate->addRename(new Rename(new SplFileInfo($source), new SplFileInfo($target)));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('test', $fileDuplicate);
+
+        [$entries] = $renderer->buildOutputEntries(
+            $collection,
+            new RenameOptions(),
+            new RenameResult(
+                fallbackDateFiles: [$source => true],
+            ),
+            $sourceDir,
+        );
+
+        self::assertCount(1, $entries);
+        self::assertSame(OutputEntryTag::Fallback, $entries[0]['tag']);
+    }
+
+    /**
+     * Verifies that skipFallback option marks fallback entries as shouldSkip.
+     */
+    #[Test]
+    public function buildOutputEntriesSkipsFallbackWhenOptionSet(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $sourceDir = '/tmp/source';
+        $source    = $sourceDir . '/scan.jpg';
+        $target    = $sourceDir . '/2024-01-01_00-00-00-000.jpg';
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate->setTarget(new SplFileInfo($target));
+        $fileDuplicate->addRename(new Rename(new SplFileInfo($source), new SplFileInfo($target)));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('test', $fileDuplicate);
+
+        [$entries] = $renderer->buildOutputEntries(
+            $collection,
+            new RenameOptions(skipFallback: true),
+            new RenameResult(
+                fallbackDateFiles: [$source => true],
+            ),
+            $sourceDir,
+        );
+
+        self::assertCount(1, $entries);
+        self::assertTrue($entries[0]['shouldSkip']);
+    }
+
+    /**
      * @return array{RenameOutputRenderer, BufferedOutput}
      */
     private function createRenderer(): array
