@@ -24,6 +24,13 @@ COMPOSE_BIN := $(shell \
 		echo "echo 'Error: Docker not found' && exit 1"; \
 	fi)
 
+# Auto-detect GitHub token for Composer API authentication (avoids rate limiting)
+GITHUB_TOKEN ?= $(shell command -v gh >/dev/null 2>&1 && gh auth token 2>/dev/null)
+
+ifdef GITHUB_TOKEN
+    export COMPOSER_AUTH := {"github-oauth":{"github.com":"$(GITHUB_TOKEN)"}}
+endif
+
 COMPOSE_BUILD := $(COMPOSE_BIN) run --rm buildbox
 
 # Includes
