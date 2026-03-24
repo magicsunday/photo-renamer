@@ -4,7 +4,7 @@
 
 #### CI
 
-.PHONY: test lint cgl-check rector-check stan unit coverage cpd
+.PHONY: test lint cgl-check rector-check stan unit coverage cpd audit mutation
 
 test: .logo ## Runs the full CI pipeline (lint, cgl, rector, phpstan, phpunit, cpd).
 	$(COMPOSE_BUILD) composer ci:test
@@ -29,6 +29,12 @@ coverage: .logo ## Runs PHPUnit tests with HTML + Clover coverage report (.build
 
 cpd: .logo ## Runs copy-paste detection (jscpd).
 	$(COMPOSE_BUILD) composer ci:test:php:cpd
+
+audit: .logo ## Checks for known security vulnerabilities in dependencies.
+	$(COMPOSE_BUILD) composer ci:test:php:audit
+
+mutation: .logo ## Runs mutation testing with Infection.
+	-COMPOSER_PROCESS_TIMEOUT=0 $(COMPOSE_BUILD) composer ci:test:php:mutation
 
 
 #### Fix

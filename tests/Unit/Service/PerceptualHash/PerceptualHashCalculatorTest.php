@@ -37,6 +37,7 @@ use function uniqid;
  */
 #[CoversClass(PerceptualHashCalculator::class)]
 #[UsesClass(ImagickImageLoader::class)]
+#[UsesClass(MediaTypeClassifier::class)]
 #[UsesClass(SimilarityResult::class)]
 final class PerceptualHashCalculatorTest extends TestCase
 {

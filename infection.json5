@@ -1,0 +1,25 @@
+{
+    "$schema": ".build/vendor/infection/infection/resources/schema.json",
+    "source": {
+        "directories": [
+            "src"
+        ]
+    },
+    "timeout": 30,
+    "logs": {
+        "text": ".build/infection/infection.log",
+        "summary": ".build/infection/summary.log",
+        "perMutator": ".build/infection/per-mutator.md"
+    },
+    "tmpDir": ".build/cache/.infection",
+    "phpUnit": {
+        "configDir": ".",
+        "customPath": ".build/bin/phpunit"
+    },
+    "mutators": {
+        "@default": true
+    },
+    "minMsi": 0,
+    "minCoveredMsi": 0,
+    "testFramework": "phpunit"
+}

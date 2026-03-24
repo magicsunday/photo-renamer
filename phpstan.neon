@@ -3,6 +3,7 @@ includes:
     - %currentWorkingDirectory%/.build/vendor/phpstan/phpstan-deprecation-rules/rules.neon
     - %currentWorkingDirectory%/.build/vendor/phpstan/phpstan-phpunit/extension.neon
     - %currentWorkingDirectory%/.build/vendor/phpstan/phpstan-phpunit/rules.neon
+    - %currentWorkingDirectory%/.build/vendor/phpat/phpat/extension.neon
     - %currentWorkingDirectory%/phpstan-baseline.neon
 
 parameters:
@@ -21,3 +22,12 @@ parameters:
     excludePaths:
         - %currentWorkingDirectory%/src/Renamer.php
         - %currentWorkingDirectory%/src/Dependencies.php
+
+    phpat:
+        show_rule_names: true
+
+services:
+    -
+        class: MagicSunday\Renamer\Test\Architecture\ArchitectureTest
+        tags:
+            - phpat.test
