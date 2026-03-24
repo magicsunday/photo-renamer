@@ -33,7 +33,6 @@ use function preg_replace;
 use function realpath;
 use function rtrim;
 use function sprintf;
-use function str_replace;
 use function str_starts_with;
 use function strlen;
 use function strtolower;
@@ -141,11 +140,7 @@ final class FileHelper
             return $pathname;
         }
 
-        if (
-            !str_starts_with($normalizedBase, DIRECTORY_SEPARATOR)
-            && !str_starts_with($normalizedBase, '\\')
-            && (preg_match('/^[A-Za-z]:(?:[\\\\\\/]|$)/', $normalizedBase) !== 1)
-        ) {
+        if (!str_starts_with($normalizedBase, DIRECTORY_SEPARATOR)) {
             return $pathname;
         }
 
@@ -354,33 +349,17 @@ final class FileHelper
     }
 
     /**
-     * Converts a native file path to a file:// URL suitable for terminal hyperlinks.
-     * Handles Windows drive letters (F:\), UNC paths (\\server\share), and Unix paths.
+     * Converts a Unix file path to a file:// URL suitable for terminal hyperlinks.
      *
-     * @param string $nativePath Full path in the host's native format
+     * @param string $nativePath Absolute Unix file path
      *
      * @return string file:// URL
      */
     public static function pathToFileUrl(string $nativePath): string
     {
-        $path = str_replace('\\', '/', $nativePath);
-
         // Encode each path segment (preserving / separators)
-        $parts   = explode('/', $path);
+        $parts   = explode('/', $nativePath);
         $encoded = implode('/', array_map(rawurlencode(...), $parts));
-
-        // UNC path: //server/share → file://///server/share
-        if (str_starts_with($encoded, '//')) {
-            return 'file:///' . $encoded;
-        }
-
-        // Drive letter: F:/... → file:///F:/...
-        if (preg_match('/^[A-Za-z]%3A/', $encoded) === 1) {
-            // Restore the colon after drive letter (rawurlencode encodes : to %3A)
-            $encoded = $encoded[0] . ':' . substr($encoded, 4);
-
-            return 'file:///' . $encoded;
-        }
 
         // Unix absolute: /srv/photos → file:///srv/photos
         return 'file://' . $encoded;
@@ -415,8 +394,8 @@ final class FileHelper
         }
 
         // Compute subdirectory offset: sourceDirectory minus linkRoot
-        $normalizedRoot   = rtrim(str_replace('\\', '/', $linkConfig->root ?? ''), '/');
-        $normalizedSource = rtrim(str_replace('\\', '/', $sourceDirectory ?? ''), '/');
+        $normalizedRoot   = rtrim($linkConfig->root ?? '', '/');
+        $normalizedSource = rtrim($sourceDirectory ?? '', '/');
         $offset           = '';
 
         if (($normalizedSource !== '') && str_starts_with($normalizedSource, $normalizedRoot)) {
@@ -424,7 +403,7 @@ final class FileHelper
             $offset = ltrim($offset, '/');
         }
 
-        $normalizedBase = rtrim(str_replace('\\', '/', $linkConfig->base ?? ''), '/');
+        $normalizedBase = rtrim($linkConfig->base ?? '', '/');
         $fullFilePath   = $normalizedBase . '/' . ($offset !== '' ? $offset . '/' : '') . $relativePath;
 
         if (!in_array($linkConfig->protocol, [null, '', 'file'], true)) {
