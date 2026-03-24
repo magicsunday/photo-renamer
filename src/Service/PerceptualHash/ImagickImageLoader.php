@@ -18,6 +18,7 @@ use SplFileInfo;
 use Symfony\Component\Process\Process;
 use Throwable;
 
+use function extension_loaded;
 use function is_file;
 use function is_numeric;
 use function is_string;
@@ -53,15 +54,17 @@ final readonly class ImagickImageLoader
         private string $ffprobeBinary = 'ffprobe',
         private float $posterFrameSecond = 1.0,
     ) {
-        // Set once per process — caps resource usage for maliciously crafted files
-        Imagick::setResourceLimit(Imagick::RESOURCETYPE_MEMORY, 256 * 1024 * 1024);
-        Imagick::setResourceLimit(Imagick::RESOURCETYPE_MAP, 512 * 1024 * 1024);
-        Imagick::setResourceLimit(Imagick::RESOURCETYPE_TIME, 30);
+        if (extension_loaded('imagick')) {
+            // Set once per process — caps resource usage for maliciously crafted files
+            Imagick::setResourceLimit(Imagick::RESOURCETYPE_MEMORY, 256 * 1024 * 1024);
+            Imagick::setResourceLimit(Imagick::RESOURCETYPE_MAP, 512 * 1024 * 1024);
+            Imagick::setResourceLimit(Imagick::RESOURCETYPE_TIME, 30);
+        }
     }
 
     public function loadNormalized(SplFileInfo $file, ?int $maxResolution = null): ?Imagick
     {
-        if (!$file->isFile()) {
+        if (!extension_loaded('imagick') || !$file->isFile()) {
             return null;
         }
 
