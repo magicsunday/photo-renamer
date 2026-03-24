@@ -345,7 +345,7 @@ make test
 Test the CLI:
 
 ```bash
-make run CMD="rename:exif images --dry-run --list-all"
+make run CMD="rename:exif ~/Photos --dry-run --list-all"
 ```
 
 ### Individual CI targets
