@@ -11,7 +11,7 @@ This is a single-scope project. All guidance is in this root file.
 
 ## What is this?
 
-PHP CLI tool for batch-renaming photos and videos using EXIF/QuickTime metadata. Runs exclusively inside Docker. Processes JPEG, HEIC, HEIF, MOV, MP4, and M4V files with Apple Live Photo pairing, duplicate detection, and metadata quality analysis.
+PHP CLI tool for batch-renaming photos and videos using EXIF/QuickTime metadata. Runs exclusively inside Docker. Processes JPEG, HEIC, HEIF, AVI, MOV, MP4, and M4V files with Apple Live Photo pairing, duplicate detection, and metadata quality analysis.
 
 - **Namespace:** `MagicSunday\Renamer`
 - **PHP:** `^8.5`

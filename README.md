@@ -93,7 +93,7 @@ Large photo collections accumulated from multiple devices and backup sources ten
 | `--target-filename-pattern` | `-fp` | `Y-m-d_H-i-s-v`  | PHP [date format](https://www.php.net/manual/en/datetime.format.php) pattern for the target filename (without extension).      |
 | `--timezone`                |       |                   | Timezone for video files without timezone metadata (e.g. `Europe/Berlin`). Overrides `TIMEZONE` env var.                        |
 
-Supported file types: `jpg`, `jpeg`, `heic`, `heif`, `mov`, `mp4`, `m4v`.
+Supported file types: `jpg`, `jpeg`, `heic`, `heif`, `avi`, `mov`, `mp4`, `m4v`.
 
 > **Timezone conversion:** QuickTime video files (MOV, MP4, M4V) store timestamps in UTC. When no explicit
 > timezone info is found in the file metadata, the `--timezone` option (or the `TIMEZONE`

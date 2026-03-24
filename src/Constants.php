@@ -46,5 +46,5 @@ final class Constants
      *
      * @var list<string>
      */
-    public const array SUPPORTED_MEDIA_EXTENSIONS = ['jpg', 'jpeg', 'heic', 'heif', 'mov', 'mp4', 'm4v'];
+    public const array SUPPORTED_MEDIA_EXTENSIONS = ['jpg', 'jpeg', 'heic', 'heif', 'avi', 'mov', 'mp4', 'm4v'];
 }
