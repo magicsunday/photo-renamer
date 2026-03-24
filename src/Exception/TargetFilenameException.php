@@ -11,7 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Exception;
 
-use Exception;
+use RuntimeException;
 
 /**
  * Base exception for errors that prevent generating a valid target filename.
@@ -22,6 +22,6 @@ use Exception;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-class TargetFilenameException extends Exception
+class TargetFilenameException extends RuntimeException
 {
 }
