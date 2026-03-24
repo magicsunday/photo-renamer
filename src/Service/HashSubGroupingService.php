@@ -27,6 +27,7 @@ use Override;
 use SplFileInfo;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
+use function array_key_exists;
 use function array_keys;
 use function count;
 use function spl_object_id;
@@ -510,11 +511,21 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
             $parent[$i] = $i;
         }
 
+        // Stage B image cache: avoids redundant Imagick loads across pairwise comparisons.
+        // When comparing pairs (i,j) and (i,k), file i is loaded once instead of twice.
+        /** @var array<string, Imagick|null> $stageBImageCache */
+        $stageBImageCache = [];
+
         // Pairwise comparison — 2-stage merge decision.
         // Stage A: multi-signal similarity score.
         // Stage B: local blob analysis for near-identical pairs (score ≥ 95).
         for ($i = 0; $i < $count; ++$i) {
             for ($j = $i + 1; $j < $count; ++$j) {
+                // Skip pairs already in the same union-find group
+                if ($this->findRoot($parent, $i) === $this->findRoot($parent, $j)) {
+                    continue;
+                }
+
                 $result = $this->perceptualHashCalculator->similarityScore(
                     $representativeByHash[$hashes[$i]],
                     $representativeByHash[$hashes[$j]],
@@ -526,9 +537,10 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
 
                 if ($result->isDuplicateLikely()) {
                     // Stage B: local blob analysis for near-identical pairs
-                    $shouldMerge = !$this->hasLocalRetouch(
+                    $shouldMerge = !$this->hasLocalRetouchCached(
                         $representativeByHash[$hashes[$i]],
                         $representativeByHash[$hashes[$j]],
+                        $stageBImageCache,
                     );
                 }
 
@@ -541,6 +553,11 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
                     }
                 }
             }
+        }
+
+        // Release Stage B image cache
+        foreach ($stageBImageCache as $img) {
+            $img?->clear();
         }
 
         // Build merged groups keyed by root's content hash.
@@ -599,35 +616,42 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
     }
 
     /**
-     * Stage B: checks whether two near-identical files have a compact local retouch.
-     * Only called for image pairs — video pairs skip this (they use duration).
+     * Stage B with per-merge image cache: avoids redundant Imagick loads when the
+     * same file appears in multiple pairwise comparisons (O(K) loads instead of O(K^2)).
+     *
+     * @param array<string, Imagick|null> $imageCache shared cache, populated on first access
      */
-    private function hasLocalRetouch(SplFileInfo $fileA, SplFileInfo $fileB): bool
-    {
+    private function hasLocalRetouchCached(
+        SplFileInfo $fileA,
+        SplFileInfo $fileB,
+        array &$imageCache,
+    ): bool {
         // Only analyze still images — videos use duration as the differentiator
         if ($this->mediaTypeClassifier->isVideo($fileA) || $this->mediaTypeClassifier->isVideo($fileB)) {
             return false;
         }
 
-        // Stage B needs 1024px max (LocalDifferenceAnalyzer downscales to WORK_SIZE)
-        $imgA = $this->imageLoader->loadNormalized($fileA, 1024);
-        $imgB = $this->imageLoader->loadNormalized($fileB, 1024);
+        $keyA = $fileA->getPathname();
+        $keyB = $fileB->getPathname();
+
+        if (!isset($imageCache[$keyA]) && !array_key_exists($keyA, $imageCache)) {
+            $imageCache[$keyA] = $this->imageLoader->loadNormalized($fileA, 1024);
+        }
+
+        if (!isset($imageCache[$keyB]) && !array_key_exists($keyB, $imageCache)) {
+            $imageCache[$keyB] = $this->imageLoader->loadNormalized($fileB, 1024);
+        }
+
+        $imgA = $imageCache[$keyA];
+        $imgB = $imageCache[$keyB];
 
         if ((!$imgA instanceof Imagick) || (!$imgB instanceof Imagick)) {
-            $imgA?->clear();
-            $imgB?->clear();
-
             return false;
         }
 
-        try {
-            $diffResult = $this->localDiffAnalyzer->analyze($imgA, $imgB);
+        $diffResult = $this->localDiffAnalyzer->analyze($imgA, $imgB);
 
-            return $diffResult->hasCompactRetouch;
-        } finally {
-            $imgA->clear();
-            $imgB->clear();
-        }
+        return $diffResult->hasCompactRetouch;
     }
 
     /**
