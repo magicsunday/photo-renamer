@@ -10,6 +10,16 @@ BIN_DIR="${ROOT_DIR}/.build/bin"
 SPC_DIR="${ROOT_DIR}/.build/spc"
 BIN_NAME="renamer"
 
+# Non-essential vendor directories removed before PHAR creation
+STRIP_DIRS=(docs doc tests test test-images scripts Make .github examples)
+
+# Non-essential vendor files removed before PHAR creation
+STRIP_FILES=(
+    'README*' 'LICENSE*' 'CHANGELOG*' 'CONTRIBUTING*' 'AGENTS.md' 'CLAUDE.md'
+    '.gitignore' '.gitattributes' 'phpunit.xml*' 'phpstan*' 'rector*'
+    '.php-cs-fixer*' 'Makefile' 'composer.json' 'composer.lock'
+)
+
 echo "Compiling ${BIN_NAME}"
 
 # Auto-initialize SPC build environment if needed
@@ -33,18 +43,22 @@ cp version "${BUILD_DIR}"
 echo "Installing composer dependencies"
 "${BIN_DIR}/composer" -d "${BUILD_DIR}" install --no-dev --no-ansi --no-interaction --no-progress --no-scripts --classmap-authoritative
 
-# Strip non-essential directories from vendor packages
+echo "Stripping non-essential vendor files"
+
+dir_args=()
+for dir in "${STRIP_DIRS[@]}"; do
+    dir_args+=(-o -name "$dir")
+done
+# Remove leading -o
 find "${BUILD_DIR}/.build/vendor" -mindepth 3 -maxdepth 3 -type d \
-    \( -name docs -o -name doc -o -name tests -o -name test -o -name test-images \
-    -o -name scripts -o -name Make -o -name .github -o -name examples \) \
-    -exec rm -rf {} + || :
+    \( "${dir_args[@]:1}" \) -exec rm -rf {} + || :
+
+file_args=()
+for file in "${STRIP_FILES[@]}"; do
+    file_args+=(-o -iname "$file")
+done
 find "${BUILD_DIR}/.build/vendor" -mindepth 3 -maxdepth 3 -type f \
-    \( -iname 'README*' -o -iname 'LICENSE*' -o -iname 'CHANGELOG*' \
-    -o -iname 'CONTRIBUTING*' -o -iname 'AGENTS.md' -o -iname 'CLAUDE.md' \
-    -o -name '.gitignore' -o -name '.gitattributes' -o -name 'phpunit.xml*' \
-    -o -name 'phpstan*' -o -name 'rector*' -o -name '.php-cs-fixer*' \
-    -o -name 'Makefile' -o -name 'composer.json' -o -name 'composer.lock' \) \
-    -delete || :
+    \( "${file_args[@]:1}" \) -delete || :
 
 echo "Creating phar archive"
 "${BIN_DIR}/php" scripts/build.php
