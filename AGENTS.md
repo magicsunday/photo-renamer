@@ -178,6 +178,6 @@ scripts/               # Build and utility scripts
 | Variable | Purpose | Default |
 |----------|---------|---------|
 | `USERID` / `GROUPID` | Docker container UID/GID mapping | `1000` |
-| `TIMEZONE` | Convert UTC video timestamps to local time | *(unset)* |
+| `TIMEZONE` | Convert UTC video timestamps to local time | `Europe/Berlin` |
 | `MAX_DATE_DRIFT` | Max days drift between filename and metadata date | `7` |
 | `CACHE_DIR` | Persistent cache directory | `.build/cache` |
