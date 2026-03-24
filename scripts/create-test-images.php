@@ -539,16 +539,16 @@ echo "  29 LP edit+duplicate         → .jpg/.mov canonical, -002 edit, -duplic
 //      Bug scenario: root file processed first → wrongly "wins" canonical.
 // ============================================================================
 mkdir("$dir/30-cross-dir-canonical-idempotent", 0755, true);
-mkdir("$dir/30-cross-dir-canonical-idempotent/Dresden", 0755, true);
-createJpeg("$dir/30-cross-dir-canonical-idempotent/2024-03-24_17-41-51-519-duplicate-001.jpg");
+mkdir("$dir/30-cross-dir-canonical-idempotent/album", 0755, true);
+createJpeg("$dir/30-cross-dir-canonical-idempotent/2024-08-10_13-22-05-300-duplicate-001.jpg");
 exiftool(
-    '-DateTimeOriginal=2024:03:24 17:41:51', '-SubSecTimeOriginal=519',
+    '-DateTimeOriginal=2024:08:10 13:22:05', '-SubSecTimeOriginal=300',
     '-Make=Apple', '-Model=iPhone 14 Pro', '-Software=17.0',
-    "$dir/30-cross-dir-canonical-idempotent/2024-03-24_17-41-51-519-duplicate-001.jpg",
+    "$dir/30-cross-dir-canonical-idempotent/2024-08-10_13-22-05-300-duplicate-001.jpg",
 );
 copy(
-    "$dir/30-cross-dir-canonical-idempotent/2024-03-24_17-41-51-519-duplicate-001.jpg",
-    "$dir/30-cross-dir-canonical-idempotent/Dresden/2024-03-24_17-41-51-519.jpg",
+    "$dir/30-cross-dir-canonical-idempotent/2024-08-10_13-22-05-300-duplicate-001.jpg",
+    "$dir/30-cross-dir-canonical-idempotent/album/2024-08-10_13-22-05-300.jpg",
 );
 echo "  30 cross-dir canonical idem. → subdir keeps canonical, root keeps -duplicate-001\n";
 

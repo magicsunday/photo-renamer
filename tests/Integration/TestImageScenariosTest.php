@@ -481,8 +481,8 @@ final class TestImageScenariosTest extends TestCase
         yield '30-cross-dir-canonical-idempotent' => [
             '30-cross-dir-canonical-idempotent',
             [
-                '2024-03-24_17-41-51-519-duplicate-001.jpg'                     => '2024-03-24_17-41-51-519-duplicate-001.jpg',
-                'Dresden' . DIRECTORY_SEPARATOR . '2024-03-24_17-41-51-519.jpg' => 'Dresden' . DIRECTORY_SEPARATOR . '2024-03-24_17-41-51-519.jpg',
+                '2024-08-10_13-22-05-300-duplicate-001.jpg'                   => '2024-08-10_13-22-05-300-duplicate-001.jpg',
+                'album' . DIRECTORY_SEPARATOR . '2024-08-10_13-22-05-300.jpg' => 'album' . DIRECTORY_SEPARATOR . '2024-08-10_13-22-05-300.jpg',
             ],
             2,
         ];
