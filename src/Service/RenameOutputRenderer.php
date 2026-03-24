@@ -96,14 +96,17 @@ final readonly class RenameOutputRenderer
 
                 $sourcePathname = $rename->getSource()->getPathname();
 
+                // Warning conditions take priority over Duplicate/Original because
+                // files with unreliable metadata must be skipped regardless of
+                // their duplicate status.
                 if (isset($result->livePhotoConflictFiles[$sourcePathname])) {
                     $tag = OutputEntryTag::Candidate;
+                } elseif (isset($result->ambiguousTimezoneFiles[$sourcePathname])) {
+                    $tag = OutputEntryTag::Warning;
                 } elseif ($isDuplicateTarget && (!$isNoOp)) {
                     $tag = OutputEntryTag::Duplicate;
                 } elseif ($isCanonicalEntry || $isNoOp) {
                     $tag = OutputEntryTag::Original;
-                } elseif (isset($result->ambiguousTimezoneFiles[$sourcePathname])) {
-                    $tag = OutputEntryTag::Warning;
                 } elseif (isset($result->fallbackDateFiles[$sourcePathname])) {
                     $tag = OutputEntryTag::Fallback;
                 } else {
