@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Define and implement a complete, testable specification for how every type of media file is handled — from metadata extraction through renaming, deduplication, and Live Photo pairing — including implementation fixes, performance optimizations, and comprehensive test coverage.
+**Goal:** Define and implement a complete, testable specification for how every type of media file is handled — from metadata extraction through renaming, deduplication, and Live Photo pairing — including implementation fixes, performance optimizations, and comprehensive test coverage for ALL possible file relationship types.
 
 **Architecture:** Decision matrix approach — every combination of (format x metadata state x timezone state x duplicate state x LP state) maps to exactly one deterministic outcome. Codified as test fixtures and integration scenarios.
 
@@ -10,342 +10,304 @@
 
 ---
 
-## Part A: Complete Decision Matrix
+## Core Design Principles
+
+1. **Directory structure is irrelevant for classification.** Whether files are in the same directory or different directories must NOT affect whether they are classified as duplicate, edit, or independent. The pipeline must produce the same classification regardless of directory layout.
+
+2. **Deterministic outcomes.** Given the same set of files with the same metadata, the pipeline always produces the same result — regardless of processing order, directory nesting, or previous runs.
+
+3. **Idempotency.** Running `rename:exif` twice produces identical results. No file changes name on the second run.
+
+4. **Conservative merging.** When in doubt, prefer sub-grouping (`-002`) over duplicate merging (`-duplicate-001`). False duplicate classification risks data loss at the dedup step; false sub-grouping only produces an extra suffix.
+
+5. **Metadata is the source of truth.** File content determines duplicates, metadata determines names. Never assume content from metadata or vice versa.
+
+---
+
+## Part A: Decision Matrices
 
 ### A1. File Format Classification
 
-| Format | Container | Metadata Source | Timezone Model | LP Capable | pHash Capable | write-date Support |
-|--------|-----------|-----------------|----------------|------------|---------------|-------------------|
-| JPG/JPEG | JFIF | EXIF (0x9003, 0x9004, 0x0132) | Local time (no TZ concept) | Yes (still) | Yes (Imagick) | Yes (EXIF tags) |
-| HEIC/HEIF | ISO BMFF | EXIF embedded in BMFF | Local time (like JPEG) | Yes (still) | Yes (Imagick) | Yes (EXIF tags) |
-| MOV | QuickTime | QuickTime atoms + Keys:CreationDate | **UTC** (ambiguous without Keys:CreationDate) | Yes (video companion) | Yes (ffmpeg frame extraction) | Yes (QuickTime + Keys tags) |
-| MP4 | ISO BMFF | QuickTime atoms + Keys:CreationDate | **UTC** (ambiguous without Keys:CreationDate) | Rare | Yes (ffmpeg) | Yes (QuickTime + Keys tags) |
-| M4V | ISO BMFF | QuickTime atoms + Keys:CreationDate | **UTC** (ambiguous) | No | Yes (ffmpeg) | Yes (QuickTime + Keys tags) |
-| AVI | RIFF | RIFF INFO IDIT field | **Local time** (no TZ concept) | No | Yes (ffmpeg) | **No** (see Caveat) |
+| Format | Container | Metadata Source | Timezone Model | LP Capable | pHash Capable | write-date |
+|--------|-----------|-----------------|----------------|------------|---------------|------------|
+| JPG/JPEG | JFIF | EXIF (0x9003, 0x9004, 0x0132) | Local time | Yes (still) | Yes (Imagick) | Yes |
+| HEIC/HEIF | ISO BMFF | EXIF embedded in BMFF | Local time (like JPEG) | Yes (still) | Yes (Imagick) | Yes |
+| MOV | QuickTime | QuickTime atoms + Keys:CreationDate | **UTC** (ambiguous without offset) | Yes (video) | Yes (ffmpeg) | Yes |
+| MP4 | ISO BMFF | QuickTime atoms + Keys:CreationDate | **UTC** (ambiguous without offset) | Rare | Yes (ffmpeg) | Yes |
+| M4V | ISO BMFF | QuickTime atoms + Keys:CreationDate | **UTC** (ambiguous) | No | Yes (ffmpeg) | Yes |
+| AVI | RIFF | RIFF INFO IDIT | **Local time** | No | Yes (ffmpeg) | **No** |
 
-**Key insights:**
-- HEIC is ISO BMFF but stores EXIF local time — it behaves like JPEG, not like MOV.
-- **AVI Caveat:** `rename:exif` reads AVI dates correctly (IDIT → `temporal->original`), but `rename:write-date` cannot write metadata to AVI. `ExiftoolWriter` writes QuickTime atoms that don't exist in RIFF containers. AVI files needing metadata fixes must use exiftool directly.
-- **AVI IDIT depends on imagemeta support.** Generic RIFF IDIT parsing works. Nikon cameras storing dates in proprietary `ncdt` MakerNotes are NOT supported (imagemeta#2289).
+**AVI Caveat:** `rename:exif` reads AVI dates (IDIT). `rename:write-date` cannot write — ExiftoolWriter has no RIFF support.
 
-### A2. Date Extraction Priority Chain
-
-The implementation in `MetadataExtractor` uses imagemeta's `StructuredMetadata`:
+### A2. Date Extraction Chain
 
 ```
-Implemented (imagemeta → temporal fields):
 1. temporal->original  → EXIF DateTimeOriginal (0x9003) or RIFF IDIT
 2. temporal->create    → EXIF CreateDate (0x9004) or Keys:CreationDate
-3. capture->dateTime   → QuickTime CreateDate (atom, UTC)
-
-Fallback detection (MetadataExtractor flags):
-4. EXIF DateTime/ModifyDate (0x0132) → isFallbackDateTime=true, triggers [F]
-
-Not in extraction chain (used by write-date only):
-5. Filename date pattern → FileHelper::extractDateTimeFromPath()
+3. capture->dateTime   → QuickTime CreateDate (UTC atom)
+4. EXIF 0x0132         → Fallback (isFallbackDateTime=true → [F])
+5. Filename pattern    → write-date only (last resort)
 ```
 
 ### A3. Timezone Decision Matrix
 
 | Has EXIF 0x9003? | Has Keys:CreationDate + offset? | QuickTime container? | Result |
 |---|---|---|---|
-| Yes | * | * | **Reliable** — EXIF date is local time, no conversion |
-| No | Yes (offset present) | Yes | **Reliable** — Keys:CreationDate has timezone info |
-| No | No | Yes (MOV/MP4/M4V) | **Ambiguous** — UTC without offset → [W] skip |
-| No | No | No (JPG/AVI) | **Reliable** — Not QuickTime, local time assumed |
-| * | * | HEIC/HEIF + has EXIF | **Reliable** — HEIC with EXIF = local time (BMFF exception) |
+| Yes | * | * | **Reliable** — local time |
+| No | Yes | Yes | **Reliable** — has TZ info |
+| No | No | Yes (MOV/MP4/M4V) | **Ambiguous** → [W] |
+| No | No | No (JPG/AVI) | **Reliable** — local time assumed |
+| * | * | HEIC/HEIF + has EXIF | **Reliable** — BMFF exception |
 
-**When ambiguous + `--timezone` configured:**
-- `rename:exif`: Converts UTC → local time for filename, but still flags [W]
-- `rename:write-date --reason=timezone`: Converts CreateDate UTC → Keys:CreationDate with offset
+**`--reason=timezone` caveat:** Uses `setTimezone()` (real UTC conversion). Correct for Apple/DJI. Wrong for cameras storing local-as-UTC (Panasonic, Canon). No auto-detection — user must know their camera.
 
-**After `write-date --reason=timezone`:**
-- File now has Keys:CreationDate with offset → no longer ambiguous → [O] on next run
+### A4. File Relationship Taxonomy
 
-**Important caveat for `--reason=timezone`:**
-`setTimezone()` treats CreateDate as **real UTC** and converts it. Correct for Apple/DJI. For cameras storing **local time as "UTC"** (some Panasonic, Canon), the conversion produces a wrong result. Users with mixed collections must process cameras separately. No automatic camera-type detection.
+**Every possible relationship between two media files and the expected pipeline behavior:**
 
-### A4. Automatic vs Manual Actions
+#### Category A: Byte-Identical (same content hash)
 
-| Scenario | Automatic? | Tool | Notes |
-|----------|-----------|------|-------|
-| JPEG/HEIC with DateTimeOriginal | **100% auto** | `rename:exif` | Standard case |
-| MOV/MP4/M4V with Keys:CreationDate | **100% auto** | `rename:exif` | Has timezone info |
-| AVI with IDIT | **100% auto** | `rename:exif` | Local time, no TZ issue |
-| True byte-identical duplicates | **100% auto** | `rename:exif` | Content hash match |
-| Perceptual duplicates (JPG↔HEIC) | **Auto, review recommended** | `rename:exif` | Review first run for false positives |
-| Live Photo pairs (Content ID) | **100% auto** | `rename:exif` | Content ID match |
-| Live Photo pairs (basename fallback) | **100% auto** | `rename:exif` | When Content ID missing |
-| LP MOV with ambiguous TZ | **100% auto** | `rename:exif` | Video inherits still's date via LP pairing |
-| MOV/MP4/M4V without Keys:CreationDate | **Manual: `--timezone`** | `rename:write-date --reason=timezone` | Then re-run `rename:exif` |
-| Fallback date (only 0x0132) | **Semi-auto: verify first** | `rename:verify` → `rename:write-date` | User reviews, then writes |
-| No metadata at all | **Manual** | `rename:write-date --reason=nodata` | Writes filename date |
-| Date drift >7 days | **Manual: investigate** | `rename:verify` | May be re-export |
-| Corrupted metadata | **Manual: exiftool** | External | Beyond tool scope |
-| AVI needs metadata fix | **Manual: exiftool** | External | No write-date for AVI |
-| Unsupported format (PNG, RAW, MKV) | **Not possible** | N/A | `rename:verify` reports them |
+| Type | Example | Naming | Tests |
+|------|---------|--------|-------|
+| Backup copy | Same file in different dir | `-duplicate-NNN` | #02, #22 |
+| Re-import | Same file imported again | `-duplicate-NNN` | #02 |
+| Cloud sync (no conversion) | Dropbox/Syncthing | `-duplicate-NNN` | #02 |
+| Renamed file | Different name, same bytes | `-duplicate-NNN` | #02 |
 
-### A5. Duplicate Detection Decision Matrix
+#### Category B: Format Conversions (different hash, same visual content)
 
-| Same content hash? | pHash score ≥ 95? | Same video duration (±1s abs)? | Same date? | Result |
-|---|---|---|---|---|
-| Yes | N/A | N/A | Yes | **Duplicate** → `-duplicate-NNN` |
-| No | Yes | Yes (or both stills) | Yes | **Semantic Duplicate** → merge groups |
-| No | Yes | No (videos) | Yes | **Edit/Trim** → sub-group `-002`, `-003` |
-| No | 85-95 | * | Yes | **Similar** → sub-group (distinct content) |
-| No | < 85 | * | Yes | **Different** → sub-group |
-| * | * | * | No | **Different date** → separate groups entirely |
+| Type | dHash | Score | Expected | Stage B | Tests |
+|------|-------|-------|----------|---------|-------|
+| HEIC↔JPG (same photo) | 0-3 | 96-100 | `-duplicate-NNN` | **Must skip when dHash=0** | #28, NEW #42 |
+| MOV↔MP4 (container swap) | 0 | 98-100 | `-duplicate-NNN` | N/A (video) | NEW #43 |
+| JPEG quality re-save | 0-2 | 95-100 | `-duplicate-NNN` | Skip when dHash=0 | #25 |
+| Video re-encode (same duration) | 1-8 | 90-98 | `-duplicate-NNN` | N/A (video) | NEW #44 |
+| Cloud re-compress (metadata kept) | 0-5 | 80-99 | `-duplicate-NNN` or `-002` | Varies | Not testable (needs real cloud export) |
+| Metadata-only edit (GPS strip) | 0 | 100 | `-duplicate-NNN` | Skip when dHash=0 | Partial #25 |
 
-### A6. Live Photo Pairing Decision Matrix
+**BUG FOUND:** HEIC↔JPG in same directory gets `-002` instead of `-duplicate-001` because Stage B detects compression artifacts as "compact retouch" (0.14% changed area > 0.1% threshold). **Fix: Skip Stage B when dHash distance = 0.**
 
-| Still has Content ID? | Video has Content ID? | IDs match? | Same basename? | Result |
-|---|---|---|---|---|
-| Yes | Yes | Yes | * | **Paired** — Content ID match |
-| Yes | Yes | No | * | **Not paired** — Different Live Photos |
-| Yes | No | N/A | Yes | **Paired** — Basename fallback (implemented) |
-| No | Yes | N/A | Yes | **Paired** — Basename fallback (implemented) |
-| No | No | N/A | Yes | **Paired** — Basename fallback (implemented) |
-| * | * | * | No | **Not paired** — Independent files |
+#### Category C: Intentional Edits (different content, same capture moment)
 
-**Basename fallback is fully implemented** in `LivePhotoPairingService` with ambiguity detection. When 2+ groups share the same basename (e.g. `IMG_0001.jpg` in group A and `IMG_0001.heic` in group B), the match is conservatively rejected to prevent false pairing.
+| Type | dHash | Score | Expected | Stage B | Tests |
+|------|-------|-------|----------|---------|-------|
+| Color/filter edit | 0-8 | 70-98 | `-002` | No blob → **incorrectly merges subtle filters** | #24, #26 |
+| Local retouch (spot, red-eye) | 0-3 | 95-100 | `-002` | **Detects** compact blob | Mock only |
+| Crop | 5-30 | 50-85 | `-002` | No blob | Not tested |
+| Composite (watermark, text) | 1-15 | 80-97 | `-002` | Detects if score≥95 | Not tested |
+| Manual rotation (not EXIF) | 30-64 | 0-40 | `-002` | N/A (score<85) | Not tested |
 
-**Critical rule:** A LP video with ambiguous timezone is still paired using the still's date. [W] does NOT prevent LP pairing.
+#### Category D: Video Transformations
 
-**Conflict detection** (both [C] tagged):
-- Still and video have same Content ID but different camera make/model
-- Still and video dates differ by >1 hour
-- GPS coordinates differ significantly
+| Type | dHash | Score | Expected | Tests |
+|------|-------|-------|----------|-------|
+| Trimmed (temporal subset) | 5-40 | 50-80 | `-002` (duration mismatch) | Not tested |
+| Slow-motion export | 5-30 | 60-85 | `-002` | Not tested |
+| Different audio track | 0 | 98-100 | `-duplicate-NNN` **incorrectly** (no audio analysis) | Not tested |
 
-### A7. Recommended Processing Order
+#### Category E: Live Photo Pairs
+
+| Type | Pairing | Naming | Tests |
+|------|---------|--------|-------|
+| Still + MOV (Content ID match) | Content ID | Same basename | #04 |
+| Still + MOV (basename fallback) | Basename | Same basename | LP unit tests |
+| Still + MOV (video has ambiguous TZ) | Content ID | Same basename (video inherits still's date) | NEW #40 |
+| LP + edited still + duplicate | Content ID + pHash | Original + `-002` + `-duplicate-001` | #29 |
+
+#### Category F: Independent Files (same timestamp by coincidence)
+
+| Type | dHash | Outcome | Tests |
+|------|-------|---------|-------|
+| Burst photos (different SubSecond) | 5-30 | Different basenames | #03 |
+| HDR bracketed exposures | 5-20 | `-002`, `-003` | Not tested |
+| Same scene from 2 cameras | 3-25 | Different timestamps usually | N/A |
+
+#### Category G: Files Outside Pipeline Scope
+
+| Type | Pipeline Behavior | Tests |
+|------|------------------|-------|
+| No EXIF metadata | [S] Skipped | #07 |
+| Unsupported format (PNG, RAW, MKV) | Filtered by file iterator | NEW #39 |
+| Social media re-download (metadata stripped) | [S] Skipped | #07 |
+| Corrupted metadata | [E] Error | Not tested |
+
+### A5. Automatic vs Manual Actions
+
+| Scenario | Auto? | Tool |
+|----------|-------|------|
+| JPEG/HEIC with DateTimeOriginal | 100% auto | `rename:exif` |
+| MOV/MP4/M4V with Keys:CreationDate | 100% auto | `rename:exif` |
+| AVI with IDIT | 100% auto | `rename:exif` |
+| Byte-identical duplicates | 100% auto | `rename:exif` |
+| Format conversions (HEIC↔JPG) | 100% auto | `rename:exif` (after Stage B fix) |
+| Live Photo pairs (Content ID or basename) | 100% auto | `rename:exif` |
+| LP MOV with ambiguous TZ | 100% auto | `rename:exif` (inherits still's date) |
+| Ambiguous timezone videos | Manual: `--timezone` | `rename:write-date --reason=timezone` |
+| Fallback date (0x0132 only) | Semi-auto: verify first | `rename:write-date --reason=fallback` |
+| Fallback date + `--skip-fallback` | Semi-auto | `rename:exif --skip-fallback` (skips [F] files) |
+| No metadata | Manual | `rename:write-date --reason=nodata` |
+| Date drift >7 days | Manual: investigate | `rename:verify` |
+| AVI metadata fix | Manual: exiftool | External |
+| Unsupported format | Not possible | `rename:verify` reports |
+
+### A6. Processing Order (11 Steps)
 
 ```
 Step 1:  rename:verify ~/Photos
-         → Understand the collection: format issues, timezone problems, metadata gaps
-
 Step 2:  rename:write-date --reason=nodata ~/Photos
-         → Fix files with NO metadata (writes filename date to EXIF)
-
 Step 3:  rename:write-date --reason=fallback ~/Photos
-         → Fix files using only ModifyDate (write proper DateTimeOriginal)
-
 Step 4:  rename:write-date --reason=timezone --timezone=<tz> ~/Photos
-         → Fix QuickTime videos with ambiguous UTC (writes Keys:CreationDate)
-
 Step 5:  rename:write-date --reason=drift ~/Photos
-         → Fix files where metadata date disagrees with filename date
-         ⚠ Only detects drift for files whose filenames already contain dates.
-           On a fresh collection (IMG_1234.jpg), the drift check is a no-op.
-           Run again after Step 7 if needed.
-
+         ⚠ No-op for files without date in filename. Re-run after Step 7.
 Step 6:  rename:exif --dry-run ~/Photos
-         → Preview all renames, check for remaining [W] warnings
-
 Step 7:  rename:exif ~/Photos
-         → Execute renames
-
-Step 8:  rename:verify ~/Photos
-         → Verify all metadata issues are resolved after Steps 2-7
-
-Step 9:  rename:exif --dry-run ~/Photos
-         → Verify idempotency (should show 0 changes)
-
+Step 8:  rename:verify ~/Photos  (confirm all issues resolved)
+Step 9:  rename:exif --dry-run ~/Photos  (verify idempotency: 0 changes)
 Step 10: rename:dedup --dry-run ~/Photos
-         → Preview duplicate cleanup
-         ⚠ Dedup checks same directory only for originals.
-
+         ⚠ Same-directory original search only.
 Step 11: rename:dedup ~/Photos
-         → Move duplicates to _duplicates/ folder
 ```
 
-**Cache note:** After Steps 2-4, metadata cache auto-invalidates (keys by mtime+size).
-
 ---
 
-## Part B: Missing Test Scenarios
+## Part B: Implementation Fixes
 
-| # | Scenario | Test Type | Notes |
-|---|----------|-----------|-------|
-| 32 | HEIC without EXIF DateTimeOriginal (only QuickTime CreateDate) | Integration | Should be [W] (ambiguous, no EXIF to short-circuit) |
-| 33 | MOV with Keys:CreationDate + offset | Integration | Should be [R] not [W] |
-| 34 | AVI with RIFF IDIT date | Integration | Depends on imagemeta IDIT support |
-| 35 | Fallback date with --skip-fallback | Unit | Separate test method |
-| 36 | Mixed [W] and [R] in same timestamp group | Integration | [W] must not infect [R] |
-| 37 | write-date --reason=timezone → rename:exif (2-step) | WriteDateFlowTest | End-to-end fix-then-rename |
-| 38 | write-date --reason=nodata (filename → metadata) | WriteDateFlowTest | Verify metadata written correctly |
-| 39 | Unsupported format alongside supported files | Integration | PNG silently skipped |
-| 40 | LP MOV with ambiguous TZ paired via Content ID | Integration | Most common iPhone LP case |
-| 41 | Metadata cache invalidation after write-date | WriteDateFlowTest | Cache miss on mtime/size change |
+### Fix 1: Skip Stage B when dHash distance = 0
 
----
+**Bug:** HEIC↔JPG format backup in same directory gets `-002` instead of `-duplicate-001`. Stage B detects JPEG/HEIC compression artifacts (0.14% changed area) as "compact retouch".
 
-## Part C: Implementation Tasks
+**Root cause:** `hasLocalRetouchCached()` runs for all `isDuplicateLikely()` pairs (score ≥ 95). At dHash=0, the images are pixel-identical on the 9×8 gradient grid — any Stage B differences are compression noise, not retouches.
 
-**Execution order:** Task 1 (Fixes) → Task 2 (Tests) → Task 3 (Performance) → Task 4 (Doku) → Task 5 (README)
+**Fix:** In `HashSubGroupingService::mergePerceptuallySimilarGroups()`, skip Stage B when dHash distance = 0:
 
-### Task 1: Implementation Fixes
-
-#### 1a: Guard AVI in WriteDateCommand
-
-**Files:** `src/Command/WriteDateCommand.php`, `tests/Unit/Command/WriteDateCommandTest.php`
-
-AVI passes `isVideo=true` to ExiftoolWriter which writes QuickTime atoms into RIFF — silently fails.
-
-- [ ] Write failing test: WriteDateCommand skips AVI with warning message
-- [ ] Implement guard: check extension, skip AVI with descriptive warning
-- [ ] Commit
-
-#### 1b: Fix hasReliableDateTime minute-precision comparison
-
-**Files:** `src/Metadata/ExifMetadataProvider.php`, `tests/Unit/Metadata/ExifMetadataProviderTest.php`
-
-`hasReliableDateTime()` compares `Y-m-d H:i` (minutes only). A file renamed to `..._14-30-22` would match raw metadata `14:30:00` — the 22-second difference is ignored. This masks real mismatches.
-
-- [ ] Write failing test: raw `14:30:00` vs filename `14:30:22` should return false
-- [ ] Change comparison from `Y-m-d H:i` to `Y-m-d H:i:s`
-- [ ] Verify existing tests still pass (some may rely on minute precision)
-- [ ] Commit
-
-#### 1c: Dedup cross-directory original search
-
-**Files:** `src/Command/DedupCommand.php`, `tests/Unit/Command/DedupCommandTest.php`
-
-Currently dedup looks for originals in the same directory only. After rename:exif, cross-directory duplicates like `backup/2024-01-01_12-00-00-000-duplicate-001.jpg` have their original in the parent directory.
-
-- [ ] Write failing test: duplicate in subdir, original in root → NOT orphaned
-- [ ] Implement: search source root for original (strip duplicate suffix, check all extensions)
-- [ ] Commit
-
-### Task 2: Add Missing Test Scenarios (32-41)
-
-**Files:**
-- `scripts/create-test-images.php`
-- `tests/Integration/TestImageScenariosTest.php`
-- Create: `tests/Integration/WriteDateFlowTest.php`
-- Create: `tests/Fixtures/Images/32-*` through `41-*`
-
-**Sub-task 2a: scenarioProvider scenarios (32, 33, 34, 36, 39, 40)**
-
-For each: TDD — add fixture, add yield, generate, run test, fix if needed, commit separately.
-
-- [ ] **Scenario 32** — HEIC without EXIF DateTimeOriginal → [W]
-- [ ] **Scenario 33** — MOV with Keys:CreationDate + offset → [R]
-- [ ] **Scenario 34** — AVI with RIFF IDIT → [R] (or known limitation if imagemeta fails)
-- [ ] **Scenario 36** — JPG [R] + MOV [W] same date → warning doesn't spread
-- [ ] **Scenario 39** — JPG + PNG → only JPG processed
-- [ ] **Scenario 40** — LP JPG + MOV (no Keys:CreationDate), same Content ID → both [R]
-
-**Sub-task 2b: WriteDateFlowTest (37, 38, 41)**
-
-- [ ] Create `tests/Integration/WriteDateFlowTest.php`
-- [ ] **Scenario 37** — write-date timezone → rename:exif
-- [ ] **Scenario 38** — write-date nodata → rename:exif
-- [ ] **Scenario 41** — cache invalidation across commands
-
-**Sub-task 2c: Skip-fallback option test (35)**
-
-- [ ] Separate test method with `--skip-fallback=true`
-
-### Task 3: Performance Optimizations
-
-#### 3a: Reduce video frame extraction from 5 to 3 frames
-
-**Files:** `src/Service/PerceptualHash/ImagickImageLoader.php`
-
-5 ffmpeg processes per video is the #1 bottleneck. 3 frames at [25%, 50%, 75%] provide sufficient coverage for duplicate detection.
-
-- [ ] Write test: video comparison still works with 3 frames
-- [ ] Change frame positions: `[0.25, 0.50, 0.75]` instead of `[0.10, 0.30, 0.50, 0.70, 0.90]`
-- [ ] Reduce ffmpeg timeout from 20s to 5s (with retry)
-- [ ] Benchmark: measure time for 10 video comparisons before/after
-- [ ] Commit
-
-**Expected impact:** ~40% reduction in video processing time.
-
-#### 3b: Tighten dHash early-exit threshold
-
-**Files:** `src/Service/PerceptualHash/PerceptualHashCalculator.php`
-
-Current threshold `dd > 20` (68.75% dissimilar) still loads Imagick and computes wHash/HF/color for clearly different images. Threshold `dd > 16` (75% dissimilar) is sufficient to classify as "different".
-
-- [ ] Write test: verify pairs with dd=17,18,19,20 are still classified correctly
-- [ ] Change threshold from 20 to 16
-- [ ] Verify no regression in TestImageScenariosTest
-- [ ] Commit
-
-**Expected impact:** ~15% fewer full-signal comparisons for non-duplicate groups.
-
-#### 3c: Reduce Stage B resolution from 1024 to 512
+```php
+if ($result->isDuplicateLikely()) {
+    $shouldMerge = ($result->dhashDistance === 0)
+        || !$this->hasLocalRetouchCached(...);
+}
+```
 
 **Files:** `src/Service/HashSubGroupingService.php`
+**Tests:** New scenario #42 (same-dir HEIC+JPG format backup)
 
-`LocalDifferenceAnalyzer` downscales to `WORK_SIZE=512` internally. Passing 1024px wastes the extra resolution.
+### Fix 2: Guard AVI in WriteDateCommand
 
-- [ ] Change `loadNormalized($file, 1024)` to `loadNormalized($file, 512)` in `hasLocalRetouchCached`
-- [ ] Verify LocalDifferenceAnalyzer tests still pass
-- [ ] Commit
+**Bug:** ExiftoolWriter writes QuickTime atoms to AVI RIFF container — silently fails.
 
-**Expected impact:** ~50% reduction in Imagick memory for Stage B, faster resize.
+**Fix:** Check extension before calling ExiftoolWriter, skip AVI with warning.
 
-### Task 4: Create Decision Matrix Documentation
+**Files:** `src/Command/WriteDateCommand.php`
 
-**Files:** Create `docs/decision-matrix.md`
+### Fix 3: hasReliableDateTime second-precision
 
-- [ ] Refine Part A into user-facing document
-- [ ] Add to README as reference link
-- [ ] Commit
+**Bug:** Comparison uses `Y-m-d H:i` (minutes). File `14:30:22` matches metadata `14:30:00`.
 
-### Task 5: Update README Workflow
+**Fix:** Change to `Y-m-d H:i:s`. Verify that `FileHelper::extractDateTimeFromPath()` returns seconds (it does — pattern `(\d{2})[-_.](\d{2})[-_.](\d{2})` captures H:i:s).
 
-**Files:** `README.md`
+**Files:** `src/Metadata/ExifMetadataProvider.php`
 
-- [ ] Update "Recommended Workflow" to 11 steps with caveats
-- [ ] Add AVI write-date limitation note
-- [ ] Add non-Apple timezone caveat
-- [ ] Add link to decision matrix
-- [ ] Commit
+### Fix 4: Dedup cross-directory original search
 
-### Task 6: Validate Idempotency Across All Formats
+**Bug:** Dedup checks same directory only. Cross-dir duplicates show as "orphaned".
 
-**Files:** `tests/Integration/TestImageScenariosTest.php`
+**Fix:** Search source root for original file.
 
-- [ ] Add `testIdempotencyAcrossFormats()`: real rename then dry-run → 0 changes
-- [ ] Test with: JPG, HEIC, MOV (with TZ), AVI (with IDIT)
-- [ ] Commit
+**Files:** `src/Command/DedupCommand.php`
 
 ---
 
-## Part D: Known Limitations
+## Part C: Test Scenarios
 
-| Limitation | Reason | Workaround |
-|------------|--------|------------|
-| PNG/WebP not supported | No EXIF metadata; imagemeta doesn't parse | Convert to JPEG first |
-| MKV/WebM containers | imagemeta doesn't parse Matroska | Convert to MP4 |
-| Nikon AVI MakerNotes | imagemeta#2289: `ncdt` chunk not parsed | Wait for upstream fix |
-| AVI metadata writing | ExiftoolWriter writes QuickTime tags only | Use exiftool directly |
-| GPS → Timezone | Requires timezone database dependency | User supplies `--timezone` |
-| Non-Apple camera TZ | `--reason=timezone` treats as real UTC | User verifies per camera |
-| Non-UTF-8 filenames | Assumed UTF-8 throughout | Rename first |
-| DNG/TIFF | Untested — imagemeta may support TIFF-based EXIF | Test and add to extensions |
-| Large file pHash (>1GB) | Imagick memory limits | pHash skipped on failure |
-| LP multi-extension ambiguity | Basename fallback rejects when 2+ groups share basename | Rare; requires manual pairing |
+### Existing (31 scenarios, all passing)
+
+Scenarios 01-31 cover: basic rename, duplicates, hash subgroups, LP pairs, fallback dates, ambiguous TZ, no metadata, date drift, extension normalize, already correct, write-date flows, MP4/HEIC/AVI, LP conflicts, cross-dir duplicates, subsecond, cross-dir edits, semantic duplicates, canonical idempotency, duplicate+ambiguous TZ.
+
+### New Scenarios (32-50)
+
+| # | Scenario | Category | Expected | Dir Layout |
+|---|----------|----------|----------|------------|
+| 32 | HEIC without EXIF DateTimeOriginal | A3 | [W] (ambiguous) | Single file |
+| 33 | MOV with Keys:CreationDate + offset | A3 | [R] (not [W]) | Single file |
+| 34 | AVI with RIFF IDIT | A2 | [R] or known limitation | Single file |
+| 35 | Fallback date + --skip-fallback | A5 | [F] skipped | Single file |
+| 36 | JPG [R] + MOV [W] same timestamp | A3 | [W] doesn't infect [R] | Same dir |
+| 37 | write-date timezone → rename:exif | A6 | Fix then rename works | WriteDateFlowTest |
+| 38 | write-date nodata → rename:exif | A6 | Fix then rename works | WriteDateFlowTest |
+| 39 | JPG + PNG in same dir | G | PNG ignored | Same dir |
+| 40 | LP MOV with ambiguous TZ + Content ID | E | Both [R], MOV inherits still's date | Same dir |
+| 41 | Metadata cache invalidation after write-date | A6 | New metadata used | WriteDateFlowTest |
+| **42** | **HEIC + JPG same-dir format backup** | **B** | **`-duplicate-001` (after Stage B fix)** | **Same dir** |
+| **43** | **HEIC + JPG cross-dir format backup** | **B** | **`-duplicate-001`** | **Cross dir** |
+| **44** | **Same-dir edits (original + edit)** | **C** | **`-002`** | **Same dir** |
+| **45** | **Same-dir edit + cross-dir backup** | **C+A** | **Original + `-002` + `-duplicate-001`** | **Mixed** |
+| **46** | **Video trimmed (different duration)** | **D** | **`-002` (duration mismatch)** | **Same dir** |
+| **47** | **Dedup cross-directory originals** | **A6** | **Original found in root** | **Cross dir** |
+| **48** | **HDR bracketed exposures (same second)** | **F** | **`-002`, `-003`** | **Same dir** |
+| **49** | **HEIF extension variant** | **A1** | **Same as HEIC** | **Single file** |
+| **50** | **Idempotency multi-format** | **Principle 3** | **0 changes on 2nd run** | **Mixed** |
+
+### Test Infrastructure
+
+**Existing:** `TestImageScenariosTest::scenarioProvider()` — single dry-run, output mapping.
+
+**New:** `WriteDateFlowTest` — multi-step workflows (write-date → rename:exif). Uses real exiftool.
+
+**New test method in TestImageScenariosTest:** `testSkipFallbackOption()` for scenario 35. `testIdempotencyAcrossFormats()` for scenario 50.
 
 ---
 
-## Part E: Summary
+## Part D: Performance Optimizations
 
-**What this plan delivers:**
+### Perf 1: Video frame extraction 5 → 3 frames
 
-1. **3 implementation fixes** — AVI write-date guard, hasReliableDateTime second-precision, dedup cross-directory search
-2. **10 new test scenarios** (32-41) with new WriteDateFlowTest class
-3. **3 performance optimizations** — video frame reduction, dHash threshold, Stage B resolution
-4. **Idempotency validation** across all formats
-5. **User-facing decision matrix** documentation
-6. **Updated README workflow** (11 steps with caveats)
-7. **Corrected known limitations** table
+**Files:** `src/Service/PerceptualHash/ImagickImageLoader.php`
+**Change:** Frames at [25%, 50%, 75%] instead of [10%, 30%, 50%, 70%, 90%]. Timeout 20s → 5s.
+**Impact:** ~40% reduction in video processing time.
 
-**What was wrong in previous plan versions:**
-- ~~"No Live Photo basename fallback"~~ → Already implemented with ambiguity detection
-- ~~"No performance optimizations"~~ → 3 concrete, measurable optimizations added
-- ~~"No implementation changes"~~ → 3 real bugs/gaps that need fixing
+### Perf 2: dHash early-exit threshold 20 → 16
 
-**Execution order:** Task 1 (Fixes) → Task 2 (Tests) → Task 3 (Perf) → Task 4 (Doku) → Task 5 (README) → Task 6 (Idempotenz)
+**Files:** `src/Service/PerceptualHash/PerceptualHashCalculator.php`
+**Change:** Exit at dd>16 instead of dd>20.
+**Impact:** ~15% fewer full-signal comparisons.
+
+### Perf 3: Stage B resolution 1024 → 512
+
+**Files:** `src/Service/HashSubGroupingService.php`
+**Change:** `loadNormalized($file, 512)` — matches `LocalDifferenceAnalyzer::WORK_SIZE`.
+**Impact:** ~50% less Imagick memory for Stage B.
+
+---
+
+## Part E: Known Limitations
+
+| Limitation | Can't Fix Because | Workaround |
+|------------|------------------|------------|
+| PNG/WebP | No EXIF metadata | Convert to JPEG |
+| MKV/WebM | imagemeta doesn't parse | Convert to MP4 |
+| Nikon AVI MakerNotes | imagemeta#2289 | Wait for upstream |
+| AVI metadata writing | RIFF ≠ QuickTime atoms | Use exiftool directly |
+| Non-Apple camera TZ | Can't detect camera type | User verifies per camera |
+| Videos with different audio | No audio analysis | Incorrectly merged as duplicate |
+| Subtle global color filters | Stage B finds no blob, score≥95 → merged | May produce false duplicates |
+| HEIC↔JPG with dHash 1-2 | Fix 1 only skips Stage B at dHash=0; dHash 1-2 still triggers Stage B | Rare; conservative sub-grouping per Principle 4 |
+| Cloud re-compress + metadata strip | No EXIF = can't group | `rename:write-date --reason=nodata` after manual naming |
+| GPS → Timezone | Requires TZ database | User supplies `--timezone` |
+| DNG/TIFF | Untested in imagemeta | Test and add to extensions |
+
+---
+
+## Part F: Execution Order
+
+```
+Task 1: Fix 1 — Stage B skip when dHash=0 (blocks scenario 42/43)
+Task 2: Fix 2 — AVI guard in WriteDateCommand
+Task 3: Fix 3 — hasReliableDateTime second-precision
+Task 4: Fix 4 — Dedup cross-directory search
+Task 5: Test scenarios 32-50 (TDD: test first, then verify/fix)
+Task 6: Performance optimizations (3a, 3b, 3c)
+Task 7: Decision matrix documentation
+Task 8: README workflow update
+Task 9: Idempotency validation (scenario 50)
+```
+
+All tasks use TDD: failing test first, then implementation, then commit.
