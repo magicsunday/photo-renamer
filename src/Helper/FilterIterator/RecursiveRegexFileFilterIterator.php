@@ -9,7 +9,7 @@
 
 declare(strict_types=1);
 
-namespace MagicSunday\Renamer\Command\FilterIterator;
+namespace MagicSunday\Renamer\Helper\FilterIterator;
 
 use MagicSunday\Renamer\Regex\SafeRegex;
 use Override;

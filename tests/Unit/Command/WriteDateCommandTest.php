@@ -13,9 +13,9 @@ namespace MagicSunday\Renamer\Test\Unit\Command;
 
 use DateTimeImmutable;
 use DateTimeZone;
-use MagicSunday\Renamer\Command\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Command\WriteDateCommand;
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\LinkConfig;

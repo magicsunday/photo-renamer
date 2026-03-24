@@ -12,7 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Command;
 
 use FilesystemIterator;
-use MagicSunday\Renamer\Command\FilterIterator\RecursiveRegexFileFilterIterator;
+use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;

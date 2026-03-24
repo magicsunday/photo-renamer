@@ -13,13 +13,13 @@ namespace MagicSunday\Renamer\Test\Integration;
 
 use FilesystemIterator;
 use MagicSunday\ImageMeta\MetadataReader;
-use MagicSunday\Renamer\Command\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Command\RenameByExifDateCommand;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\MetadataExtractor;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;

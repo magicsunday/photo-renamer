@@ -9,9 +9,9 @@
 
 declare(strict_types=1);
 
-namespace MagicSunday\Renamer\Test\Unit\Command\FilterIterator;
+namespace MagicSunday\Renamer\Test\Unit\Helper\FilterIterator;
 
-use MagicSunday\Renamer\Command\FilterIterator\RecursiveRegexFileFilterIterator;
+use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Regex\RegexMatchResult;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use PHPUnit\Framework\Attributes\CoversClass;
