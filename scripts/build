@@ -33,7 +33,18 @@ cp version "${BUILD_DIR}"
 echo "Installing composer dependencies"
 "${BIN_DIR}/composer" -d "${BUILD_DIR}" install --no-dev --no-ansi --no-interaction --no-progress --no-scripts --classmap-authoritative
 
-find "${BUILD_DIR}" -type f \( -iname 'README.*' -o -iname 'LICENSE' -o -iname 'CHANGELOG*' \) -delete || :
+# Strip non-essential directories from vendor packages
+find "${BUILD_DIR}/.build/vendor" -mindepth 3 -maxdepth 3 -type d \
+    \( -name docs -o -name doc -o -name tests -o -name test -o -name test-images \
+    -o -name scripts -o -name Make -o -name .github -o -name examples \) \
+    -exec rm -rf {} + || :
+find "${BUILD_DIR}/.build/vendor" -mindepth 3 -maxdepth 3 -type f \
+    \( -iname 'README*' -o -iname 'LICENSE*' -o -iname 'CHANGELOG*' \
+    -o -iname 'CONTRIBUTING*' -o -iname 'AGENTS.md' -o -iname 'CLAUDE.md' \
+    -o -name '.gitignore' -o -name '.gitattributes' -o -name 'phpunit.xml*' \
+    -o -name 'phpstan*' -o -name 'rector*' -o -name '.php-cs-fixer*' \
+    -o -name 'Makefile' -o -name 'composer.json' -o -name 'composer.lock' \) \
+    -delete || :
 
 echo "Creating phar archive"
 "${BIN_DIR}/php" scripts/build.php
