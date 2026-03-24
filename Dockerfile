@@ -22,6 +22,8 @@ RUN apk add --no-cache \
     git config --global --add safe.directory /app
 
 ENV COMPOSER_ALLOW_SUPERUSER=1 \
+    COMPOSER_HOME=/tmp/.composer \
+    NPM_CONFIG_CACHE=/tmp/.npm \
     PATH="${PATH}:/app/.build/bin"
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
