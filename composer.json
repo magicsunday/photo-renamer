@@ -110,7 +110,7 @@
         ],
         "ci:test:php:mutation": [
             "@putenv COMPOSER_PROCESS_TIMEOUT=0",
-            "@php -d pcov.enabled=1 .build/bin/infection --configuration=infection.json5 --threads=4 --initial-tests-php-options=\"-d pcov.enabled=1\" --only-covered --only-covering-test-cases"
+            "@php -d pcov.enabled=1 .build/bin/infection --configuration=infection.json5 --threads=4 --initial-tests-php-options=\"-d pcov.enabled=1\" --only-covering-test-cases"
         ],
         "ci:test": [
             "@ci:test:php:lint",
