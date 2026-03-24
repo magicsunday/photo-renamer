@@ -552,6 +552,18 @@ copy(
 );
 echo "  30 cross-dir canonical idem. → subdir keeps canonical, root keeps -duplicate-001\n";
 
+// ============================================================================
+// 31 - Duplicate with ambiguous timezone (Warning takes priority over Duplicate)
+//      Two identical MP4 videos with UTC timestamps and no timezone offset.
+//      Both should be flagged [W], even the one that would get a -duplicate suffix.
+//      Expected: canonical [W] (skipped), duplicate [W] (skipped, not [D]).
+// ============================================================================
+mkdir("$dir/31-duplicate-ambiguous-tz", 0755, true);
+createVideo("$dir/31-duplicate-ambiguous-tz/clip-a.mp4", 'mp4');
+exiftool('-QuickTime:CreateDate=2025:06:10 14:30:00', "$dir/31-duplicate-ambiguous-tz/clip-a.mp4");
+copy("$dir/31-duplicate-ambiguous-tz/clip-a.mp4", "$dir/31-duplicate-ambiguous-tz/clip-b.mp4");
+echo "  31 duplicate + ambiguous tz  → both [W] skipped (not [D])\n";
+
 // Clean up backup of committed Live Photo files
 if (is_dir($backupDir)) {
     exec('rm -rf ' . escapeshellarg($backupDir));

@@ -486,6 +486,18 @@ final class TestImageScenariosTest extends TestCase
             ],
             2,
         ];
+
+        // Scenario 31: duplicate with ambiguous timezone.
+        // Both videos have UTC timestamps without timezone offset.
+        // Warning must take priority over Duplicate — both should be [W] (skipped).
+        yield '31-duplicate-ambiguous-tz' => [
+            '31-duplicate-ambiguous-tz',
+            [
+                'clip-a.mp4' => '2025-06-10_16-30-00-000.mp4',
+                'clip-b.mp4' => '2025-06-10_16-30-00-000-duplicate-001.mp4',
+            ],
+            2,
+        ];
     }
 
     /**
