@@ -216,43 +216,80 @@ if ($result->isDuplicateLikely()) {
 
 ---
 
-## Part C: Test Scenarios
+## Part C: Complete Test Scenario Registry
 
-### Existing (31 scenarios, all passing)
+**Single source of truth for all scenarios.** Every scenario maps to a taxonomy category and expected behavior.
 
-Scenarios 01-31 cover: basic rename, duplicates, hash subgroups, LP pairs, fallback dates, ambiguous TZ, no metadata, date drift, extension normalize, already correct, write-date flows, MP4/HEIC/AVI, LP conflicts, cross-dir duplicates, subsecond, cross-dir edits, semantic duplicates, canonical idempotency, duplicate+ambiguous TZ.
+### Existing Scenarios (01-31, all passing)
 
-### New Scenarios (32-50)
+| # | Name | Taxonomy Cat. | What it tests | Expected |
+|---|------|--------------|---------------|----------|
+| 01 | basic-rename | — | Single JPEG with EXIF → rename | [R] |
+| 02 | duplicates | A (byte-identical) | Two files, same date, same hash | `-duplicate-001` |
+| 03 | hash-subgroups | F (burst) | Two files, same date, different hash | Different basenames |
+| 04 | live-photo-pair | E (LP Content ID) | JPG+MOV with Content ID | Same basename |
+| 05 | fallback-date | A2 (fallback) | File with only 0x0132 tag | [F] |
+| 06 | ambiguous-timezone | A3 (ambiguous) | MOV without timezone → skipped | [W] |
+| 07 | no-metadata | G (no data) | No EXIF at all | [S] |
+| 08 | date-drift | A3 (drift) | Metadata >7 days from filename | [W] |
+| 09 | extension-normalize | — | .JPEG → .jpg | [R] |
+| 10 | already-correct | Principle 3 | File already named correctly | [O] |
+| 11 | write-date-nodata | G (no data) | write-date: no metadata to read | [S] |
+| 12 | write-date-timezone | A3 (ambiguous) | Video with ambiguous TZ → [W] | [W] |
+| 13 | mp4-with-tz | A3 (reliable) | MP4 with explicit timezone | [R] |
+| 14 | heic-image | A1 (HEIC+EXIF) | HEIC with EXIF DateTimeOriginal | [R] |
+| 15 | epoch-zero | G (invalid) | Zero/invalid timestamp | [S] |
+| 16 | reexport-drift | A3 (ambiguous) | Video re-export, ambiguous TZ | [W] |
+| 17 | date-only-filename | A3 (ambiguous) | Video with date-only name, ambiguous TZ | [W] |
+| 18 | live-photo-conflict | E (LP conflict) | Incompatible still/video pair | [C]+[W] |
+| 19 | write-date-fallback | A2 (fallback) | Write date from filename to 0x0132 file | [F] |
+| 20 | write-date-drift | A3 (drift) | Filename >7 days from metadata | [W] |
+| 21 | non-apple-camera | A3 (ambiguous) | Android camera MOV, ambiguous TZ | [W] |
+| 22 | cross-dir-duplicates | A (byte-identical) | Backup copy in subdirectory | `-duplicate-001` |
+| 23 | subsec-padding | — | Files with millisecond precision | Correct padding |
+| 24 | cross-dir-edits | C (color edit) | Original + 2 edits in subdir | `-002`, `-003` |
+| 25 | same-dir-semantic-dup | B (re-save) | Same date, different encoding | `-duplicate-001` |
+| 26 | same-dir-diff-software | C (edit) | Same date, different software | `-002` |
+| 27 | semantic-dup-plus-crossdir | B+A | Semantic dup + cross-dir backup | `-duplicate-001`, `-002` |
+| 28 | cross-dir-format-backup | B (HEIC↔JPG) | JPG root + HEIC subdir | `-duplicate-001` |
+| 29 | livephoto-edit-duplicate | E+C+A | LP original + edit + backup (6 files) | Complex |
+| 30 | cross-dir-canonical-idempotent | Principle 1+3 | Root has `-duplicate-001`, subdir has canonical | Both [O] |
+| 31 | duplicate-ambiguous-tz | A3+A (duplicate) | Two videos, ambiguous TZ → both [W] | Both [W] |
 
-| # | Scenario | Category | Expected | Dir Layout |
-|---|----------|----------|----------|------------|
-| 32 | HEIC without EXIF DateTimeOriginal | A3 | [W] (ambiguous) | Single file |
-| 33 | MOV with Keys:CreationDate + offset | A3 | [R] (not [W]) | Single file |
-| 34 | AVI with RIFF IDIT | A2 | [R] or known limitation | Single file |
-| 35 | Fallback date + --skip-fallback | A5 | [F] skipped | Single file |
-| 36 | JPG [R] + MOV [W] same timestamp | A3 | [W] doesn't infect [R] | Same dir |
-| 37 | write-date timezone → rename:exif | A6 | Fix then rename works | WriteDateFlowTest |
-| 38 | write-date nodata → rename:exif | A6 | Fix then rename works | WriteDateFlowTest |
-| 39 | JPG + PNG in same dir | G | PNG ignored | Same dir |
-| 40 | LP MOV with ambiguous TZ + Content ID | E | Both [R], MOV inherits still's date | Same dir |
-| 41 | Metadata cache invalidation after write-date | A6 | New metadata used | WriteDateFlowTest |
-| **42** | **HEIC + JPG same-dir format backup** | **B** | **`-duplicate-001` (after Stage B fix)** | **Same dir** |
-| **43** | **HEIC + JPG cross-dir format backup** | **B** | **`-duplicate-001`** | **Cross dir** |
-| **44** | **Same-dir edits (original + edit)** | **C** | **`-002`** | **Same dir** |
-| **45** | **Same-dir edit + cross-dir backup** | **C+A** | **Original + `-002` + `-duplicate-001`** | **Mixed** |
-| **46** | **Video trimmed (different duration)** | **D** | **`-002` (duration mismatch)** | **Same dir** |
-| **47** | **Dedup cross-directory originals** | **A6** | **Original found in root** | **Cross dir** |
-| **48** | **HDR bracketed exposures (same second)** | **F** | **`-002`, `-003`** | **Same dir** |
-| **49** | **HEIF extension variant** | **A1** | **Same as HEIC** | **Single file** |
-| **50** | **Idempotency multi-format** | **Principle 3** | **0 changes on 2nd run** | **Mixed** |
+### New Scenarios (32-49)
+
+| # | Name | Taxonomy Cat. | What it tests | Expected | Dir Layout |
+|---|------|--------------|---------------|----------|------------|
+| 32 | heic-without-exif | A3 | HEIC with only QuickTime CreateDate, no EXIF | [W] (ambiguous) | Single |
+| 33 | mov-with-timezone | A3 | MOV with Keys:CreationDate + offset | [R] not [W] | Single |
+| 34 | avi-with-idit | A2 | AVI with RIFF IDIT date | [R] or limitation | Single |
+| 35 | skip-fallback-option | A5 | `--skip-fallback` skips [F] files | Separate test method | Single |
+| 36 | mixed-warning-normal | A3 | JPG [R] + MOV [W] same timestamp | [W] doesn't infect [R] | Same dir |
+| 37 | write-date-timezone-flow | A6 | write-date TZ → rename:exif (2-step) | WriteDateFlowTest | Single |
+| 38 | write-date-nodata-flow | A6 | write-date nodata → rename:exif | WriteDateFlowTest | Single |
+| 39 | unsupported-format-skipped | G | JPG + PNG in same dir | PNG ignored | Same dir |
+| 40 | lp-mov-ambiguous-tz | E | LP MOV ambiguous TZ + Content ID | Both [R] | Same dir |
+| 41 | cache-invalidation | A6 | Cache miss after write-date | WriteDateFlowTest | Single |
+| **42** | **same-dir-format-backup** | **B (HEIC↔JPG)** | **HEIC+JPG same dir, same photo** | **`-duplicate-001` (Fix 1)** | **Same dir** |
+| 43 | ~~cross-dir-format-backup~~ | ~~B~~ | **DUPLICATE OF #28 — REMOVED** | — | — |
+| 44 | same-dir-edit | C (edit) | Original + edit in same dir | `-002` | Same dir |
+| 45 | edit-plus-backup | C+A | Original + edit + backup copy | `-002` + `-duplicate-001` | Mixed |
+| 46 | video-trimmed | D (trim) | Same video, different duration | `-002` | Same dir |
+| 47 | dedup-cross-dir | Fix 4 | Dedup finds original in root | Not orphaned | Cross dir |
+| 48 | hdr-bracketed | F (HDR) | 3 exposures, same second | `-002`, `-003` | Same dir |
+| 49 | idempotency-multi-format | Principle 3 | JPG+HEIC+MOV+AVI, 2nd run = 0 changes | All [O] | Mixed |
+
+**Removed:** #43 (duplicate of existing #28), #49-HEIF (HEIF is functionally identical to HEIC and shares code path — a separate scenario adds no value), renumbered #50→#49.
 
 ### Test Infrastructure
 
-**Existing:** `TestImageScenariosTest::scenarioProvider()` — single dry-run, output mapping.
-
-**New:** `WriteDateFlowTest` — multi-step workflows (write-date → rename:exif). Uses real exiftool.
-
-**New test method in TestImageScenariosTest:** `testSkipFallbackOption()` for scenario 35. `testIdempotencyAcrossFormats()` for scenario 50.
+| Infrastructure | Scenarios | Pattern |
+|---------------|-----------|---------|
+| `scenarioProvider()` | 01-34, 36, 39-42, 44-46, 48 | Single dry-run, output mapping |
+| `WriteDateFlowTest` (new class) | 37, 38, 41 | Multi-step: write-date → rename:exif |
+| `testSkipFallbackOption()` | 35 | Custom method with `--skip-fallback` |
+| `testIdempotencyAcrossFormats()` | 49 | Real rename → dry-run → 0 changes |
+| `testDedupCrossDirectory()` | 47 | Test rename:dedup command |
 
 ---
 
@@ -299,15 +336,15 @@ Scenarios 01-31 cover: basic rename, duplicates, hash subgroups, LP pairs, fallb
 ## Part F: Execution Order
 
 ```
-Task 1: Fix 1 — Stage B skip when dHash=0 (blocks scenario 42/43)
+Task 1: Fix 1 — Stage B skip when dHash=0 (blocks scenario 42)
 Task 2: Fix 2 — AVI guard in WriteDateCommand
 Task 3: Fix 3 — hasReliableDateTime second-precision
 Task 4: Fix 4 — Dedup cross-directory search
-Task 5: Test scenarios 32-50 (TDD: test first, then verify/fix)
+Task 5: Test scenarios 32-49 (TDD: test first, then verify/fix)
 Task 6: Performance optimizations (3a, 3b, 3c)
 Task 7: Decision matrix documentation
 Task 8: README workflow update
-Task 9: Idempotency validation (scenario 50)
+Task 9: Idempotency validation (scenario 49)
 ```
 
 All tasks use TDD: failing test first, then implementation, then commit.
