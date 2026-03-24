@@ -197,7 +197,7 @@ final class WriteDateCommand extends Command
         }
 
         $dryRun       = (bool) $input->getOption('dry-run');
-        $maxDateDrift = $this->resolveMaxDateDrift($input, 7);
+        $maxDateDrift = $this->resolveMaxDateDrift($input);
         $reasonFilter = $this->resolveReasonFilter($input);
 
         $this->configureProviderTimezone($this->exifMetadataProvider, $input);

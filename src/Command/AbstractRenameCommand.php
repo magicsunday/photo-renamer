@@ -172,7 +172,7 @@ abstract class AbstractRenameCommand extends Command
                 'max-date-drift',
                 null,
                 InputOption::VALUE_REQUIRED,
-                'Maximum allowed date drift in days between source filename and target date. Files exceeding this are skipped. Default: 30.',
+                'Maximum allowed date drift in days between source filename and target date. Files exceeding this are skipped. Default: 7.',
             );
     }
 

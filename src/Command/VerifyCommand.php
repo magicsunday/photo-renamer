@@ -108,7 +108,7 @@ final class VerifyCommand extends Command
                 'max-date-drift',
                 null,
                 InputOption::VALUE_REQUIRED,
-                'Maximum allowed date drift in days between filename date and metadata date. Default: 30.',
+                'Maximum allowed date drift in days between filename date and metadata date. Default: 7.',
             )
             ->addOption(
                 'timezone',

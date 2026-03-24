@@ -117,7 +117,7 @@ trait ConfiguresMetadataProvider
      *
      * @param int $default Default drift in days when neither option nor env var is set
      */
-    protected function resolveMaxDateDrift(InputInterface $input, int $default = 30): int
+    protected function resolveMaxDateDrift(InputInterface $input, int $default = 7): int
     {
         $driftOption = $input->getOption('max-date-drift');
 
