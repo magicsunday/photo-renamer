@@ -260,24 +260,31 @@ final readonly class FileSystemService implements FileSystemServiceInterface
             $rename = $entry['rename'];
 
             if ($this->isTagVisible($entryTag, $showFilter)) {
-                $this->io->text(sprintf(
-                    ' %s %s' . $padding . ' <fg=cyan>→</> %s',
-                    $entryTag->formattedTag(),
-                    $linkedPath,
-                    $this->renderer->highlightDiff($sourcePath, $targetPath, 'green'),
-                ));
-
                 if ($shouldSkip) {
                     /** @var string|null $warningReason */
                     $warningReason = $entry['warningReason'] ?? null;
 
                     $skipReason = match ($entryTag) {
-                        OutputEntryTag::Candidate => 'conflicting content ID',
-                        OutputEntryTag::Warning   => $warningReason ?? 'ambiguous timezone',
-                        OutputEntryTag::Fallback  => 'fallback date',
-                        default                   => 'duplicate',
+                        OutputEntryTag::Candidate => 'Conflicting Live Photo content ID across groups',
+                        OutputEntryTag::Warning   => $warningReason ?? 'Ambiguous timezone: QuickTime UTC without offset — use --timezone or rename:write-date --reason=timezone',
+                        OutputEntryTag::Fallback  => 'Fallback date: DateTime (0x0132) used instead of DateTimeOriginal',
+                        default                   => 'Duplicate (--skip-duplicates)',
                     };
-                    $this->io->text(sprintf('       <fg=red>⏭  Skipped (%s)</>', $skipReason));
+
+                    $this->io->text(sprintf(
+                        ' %s %s' . $padding . ' <fg=cyan>→</> <fg=%s>%s</>',
+                        $entryTag->formattedTag(),
+                        $linkedPath,
+                        $entryTag->color(),
+                        $skipReason,
+                    ));
+                } else {
+                    $this->io->text(sprintf(
+                        ' %s %s' . $padding . ' <fg=cyan>→</> %s',
+                        $entryTag->formattedTag(),
+                        $linkedPath,
+                        $this->renderer->highlightDiff($sourcePath, $targetPath, 'green'),
+                    ));
                 }
             }
 

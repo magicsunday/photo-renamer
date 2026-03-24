@@ -118,7 +118,7 @@ final readonly class RenameOutputRenderer
                 $warningReason = null;
 
                 if ($tag === OutputEntryTag::Warning) {
-                    $warningReason = 'ambiguous timezone';
+                    $warningReason = 'Ambiguous timezone: QuickTime UTC without offset — use --timezone or rename:write-date --reason=timezone';
                 }
 
                 if (
@@ -130,7 +130,11 @@ final readonly class RenameOutputRenderer
 
                     if (($driftDays !== null) && ($driftDays > $options->maxDateDrift)) {
                         $tag           = OutputEntryTag::Warning;
-                        $warningReason = sprintf('date drift %d days (max %d)', $driftDays, $options->maxDateDrift);
+                        $warningReason = sprintf(
+                            'Date drift: %d days between filename and metadata (max %d) — verify EXIF date or use rename:write-date',
+                            $driftDays,
+                            $options->maxDateDrift,
+                        );
                     }
                 }
 
