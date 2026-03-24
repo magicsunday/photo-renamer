@@ -220,10 +220,10 @@ Each file in the output is prefixed with a status indicator:
 
 | Tag   | Meaning                                                                              |
 |-------|--------------------------------------------------------------------------------------|
-| `[R]` | **Rename** -- file will be moved to a new name.                                      |
-| `[F]` | **Fallback** -- date derived from DateTime (0x0132) instead of DateTimeOriginal.     |
-| `[D]` | **Duplicate** -- file is a duplicate and receives a suffix.                          |
 | `[O]` | **Original** -- file already has the correct name; no action taken.                  |
+| `[R]` | **Rename** -- file will be moved to a new name.                                      |
+| `[D]` | **Duplicate** -- file is a duplicate and receives a suffix.                          |
+| `[F]` | **Fallback** -- date derived from DateTime (0x0132) instead of DateTimeOriginal.     |
 | `[W]` | **Warning** -- date drift between source filename and target exceeds `--max-date-drift` (default 7 days); file is skipped. |
 | `[S]` | **Skipped** -- file has no usable metadata (no capture date found).                   |
 | `[E]` | **Error** -- metadata could not be read (parser error).                               |
