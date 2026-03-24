@@ -162,17 +162,23 @@ Review the report to understand what problems exist: missing metadata, ambiguous
 # Preview what would be written
 renamer rename:write-date --dry-run ~/Photos
 
-# Fix only files with no metadata
+# Fix only files with no metadata (writes date from filename)
 renamer rename:write-date --reason=nodata --dry-run ~/Photos
 
-# Fix only ambiguous timezone files
-renamer rename:write-date --reason=timezone --dry-run ~/Photos
+# Fix ambiguous timezone on videos (converts CreateDate UTC → local time)
+renamer rename:write-date --reason=timezone --timezone=Europe/Berlin --dry-run ~/Photos
 
 # Fix multiple categories at once
 renamer rename:write-date --reason=nodata,fallback ~/Photos
 ```
 
 Fixes files flagged as `[W]` (ambiguous timezone), `[F]` (fallback date), or with date drift. Only touches files where the metadata is missing or unreliable. The `--reason` filter allows working through categories separately: `nodata`, `fallback`, `timezone`, `drift`.
+
+> **Timezone fix:** QuickTime videos (MOV, MP4, M4V) store timestamps in UTC without timezone info.
+> `--reason=timezone` converts the UTC `CreateDate` to the given timezone and writes
+> `Keys:CreationDate` with the local time + offset (e.g. `18:50:50+02:00`). The original
+> `CreateDate` stays untouched. After this fix, `rename:exif` uses the correct local time
+> and no longer shows `[W]`.
 
 ### Step 3: Rename by EXIF date
 
