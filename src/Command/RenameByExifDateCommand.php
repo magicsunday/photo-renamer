@@ -251,11 +251,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
     #[Override]
     protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
     {
-        if (!$this->duplicateIdentifierStrategy instanceof DuplicateIdentifierStrategyInterface) {
-            $this->duplicateIdentifierStrategy = new TargetBasenameStrategy();
-        }
-
-        return $this->duplicateIdentifierStrategy;
+        return $this->duplicateIdentifierStrategy ??= new TargetBasenameStrategy();
     }
 
     /**
@@ -263,13 +259,9 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
      */
     private function getExifDateFilenameStrategy(): ExifDateFilenameStrategy
     {
-        if (!$this->exifDateFilenameStrategy instanceof ExifDateFilenameStrategy) {
-            $this->exifDateFilenameStrategy = new ExifDateFilenameStrategy(
-                $this->targetFilenamePattern,
-                $this->exifMetadataProvider,
-            );
-        }
-
-        return $this->exifDateFilenameStrategy;
+        return $this->exifDateFilenameStrategy ??= new ExifDateFilenameStrategy(
+            $this->targetFilenamePattern,
+            $this->exifMetadataProvider,
+        );
     }
 }
