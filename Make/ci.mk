@@ -34,7 +34,7 @@ audit: .logo ## Checks for known security vulnerabilities in dependencies.
 	$(COMPOSE_BUILD) composer ci:test:php:audit
 
 mutation: .logo ## Runs mutation testing with Infection.
-	-COMPOSER_PROCESS_TIMEOUT=0 $(COMPOSE_BUILD) composer ci:test:php:mutation
+	-$(COMPOSE_BUILD) composer ci:test:php:mutation
 
 
 #### Fix
