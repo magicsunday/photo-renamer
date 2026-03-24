@@ -1,14 +1,16 @@
 {
     "name": "magicsunday/photo-renamer",
-    "description": "Renames photos using EXIF date, patterns, filesize, ...",
+    "description": "Batch-rename and deduplicate photos and videos using EXIF/QuickTime metadata, perceptual hashing, and Apple Live Photo pairing.",
     "license": "MIT",
     "keywords": [
         "rename",
-        "live",
         "photo",
+        "video",
+        "exif",
         "live photos",
-        "Apple",
-        "videos"
+        "duplicate detection",
+        "perceptual hash",
+        "Apple"
     ],
     "authors": [
         {
