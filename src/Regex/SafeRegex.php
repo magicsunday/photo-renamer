@@ -33,7 +33,7 @@ use function sprintf;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-final class SafeRegex
+final readonly class SafeRegex
 {
     /**
      * Executes a regular expression operation while converting PHP warnings into exceptions.

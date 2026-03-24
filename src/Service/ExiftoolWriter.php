@@ -25,7 +25,7 @@ use Symfony\Component\Process\Process;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-final class ExiftoolWriter
+final readonly class ExiftoolWriter
 {
     /**
      * Writes the given date/time into the metadata of the specified file.

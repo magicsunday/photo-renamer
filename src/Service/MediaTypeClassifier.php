@@ -26,7 +26,7 @@ use function strtolower;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-final class MediaTypeClassifier implements MediaTypeClassifierInterface
+final readonly class MediaTypeClassifier implements MediaTypeClassifierInterface
 {
     /**
      * Extensions that identify still image assets within Live Photo groups.
