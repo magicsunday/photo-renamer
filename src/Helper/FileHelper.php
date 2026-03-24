@@ -33,6 +33,7 @@ use function preg_replace;
 use function realpath;
 use function rtrim;
 use function sprintf;
+use function str_replace;
 use function str_starts_with;
 use function strlen;
 use function strtolower;
@@ -357,9 +358,19 @@ final class FileHelper
      */
     public static function pathToFileUrl(string $nativePath): string
     {
+        // Normalize backslashes for Windows paths passed via FILE_LINK_BASE
+        $path = str_replace('\\', '/', $nativePath);
+
         // Encode each path segment (preserving / separators)
-        $parts   = explode('/', $nativePath);
+        $parts   = explode('/', $path);
         $encoded = implode('/', array_map(rawurlencode(...), $parts));
+
+        // Drive letter: F:/... → file:///F:/...
+        if (preg_match('/^[A-Za-z]%3A/', $encoded) === 1) {
+            $encoded = $encoded[0] . ':' . substr($encoded, 4);
+
+            return 'file:///' . $encoded;
+        }
 
         // Unix absolute: /srv/photos → file:///srv/photos
         return 'file://' . $encoded;
@@ -393,8 +404,10 @@ final class FileHelper
                 : $displayPath;
         }
 
-        // Compute subdirectory offset: sourceDirectory minus linkRoot
-        $normalizedRoot   = rtrim($linkConfig->root ?? '', '/');
+        // Normalize backslashes in link config values — these may contain
+        // Windows paths (e.g. FILE_LINK_BASE=Z:\Photos) provided by the user
+        // even though the application itself runs on Linux.
+        $normalizedRoot   = rtrim(str_replace('\\', '/', $linkConfig->root ?? ''), '/');
         $normalizedSource = rtrim($sourceDirectory ?? '', '/');
         $offset           = '';
 
@@ -403,7 +416,7 @@ final class FileHelper
             $offset = ltrim($offset, '/');
         }
 
-        $normalizedBase = rtrim($linkConfig->base ?? '', '/');
+        $normalizedBase = rtrim(str_replace('\\', '/', $linkConfig->base ?? ''), '/');
         $fullFilePath   = $normalizedBase . '/' . ($offset !== '' ? $offset . '/' : '') . $relativePath;
 
         if (!in_array($linkConfig->protocol, [null, '', 'file'], true)) {
