@@ -77,6 +77,16 @@ final class ArchitectureTest
     }
 
     #[TestRule]
+    public function serviceDoesNotDependOnCommand(): Rule
+    {
+        return PHPat::rule()
+            ->classes(Selector::inNamespace('MagicSunday\Renamer\Service'))
+            ->shouldNot()->dependOn()
+            ->classes(Selector::inNamespace('MagicSunday\Renamer\Command'))
+            ->because('Services are command-agnostic; Commands orchestrate Services, not vice versa');
+    }
+
+    #[TestRule]
     public function exceptionDoesNotDependOnService(): Rule
     {
         return PHPat::rule()
@@ -84,5 +94,45 @@ final class ArchitectureTest
             ->shouldNot()->dependOn()
             ->classes(Selector::inNamespace('MagicSunday\Renamer\Service'))
             ->because('Exceptions are leaf classes with no dependencies');
+    }
+
+    #[TestRule]
+    public function exceptionDoesNotDependOnCommand(): Rule
+    {
+        return PHPat::rule()
+            ->classes(Selector::inNamespace('MagicSunday\Renamer\Exception'))
+            ->shouldNot()->dependOn()
+            ->classes(Selector::inNamespace('MagicSunday\Renamer\Command'))
+            ->because('Exceptions are leaf classes with no dependencies');
+    }
+
+    #[TestRule]
+    public function exceptionDoesNotDependOnModel(): Rule
+    {
+        return PHPat::rule()
+            ->classes(Selector::inNamespace('MagicSunday\Renamer\Exception'))
+            ->shouldNot()->dependOn()
+            ->classes(Selector::inNamespace('MagicSunday\Renamer\Model'))
+            ->because('Exceptions are leaf classes with no dependencies');
+    }
+
+    #[TestRule]
+    public function regexDoesNotDependOnService(): Rule
+    {
+        return PHPat::rule()
+            ->classes(Selector::inNamespace('MagicSunday\Renamer\Regex'))
+            ->shouldNot()->dependOn()
+            ->classes(Selector::inNamespace('MagicSunday\Renamer\Service'))
+            ->because('Regex utilities are leaf-level tools with no service dependencies');
+    }
+
+    #[TestRule]
+    public function regexDoesNotDependOnCommand(): Rule
+    {
+        return PHPat::rule()
+            ->classes(Selector::inNamespace('MagicSunday\Renamer\Regex'))
+            ->shouldNot()->dependOn()
+            ->classes(Selector::inNamespace('MagicSunday\Renamer\Command'))
+            ->because('Regex utilities are leaf-level tools with no command dependencies');
     }
 }
