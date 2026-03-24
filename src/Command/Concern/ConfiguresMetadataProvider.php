@@ -16,10 +16,15 @@ use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Service\MetadataCache;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualSignalCache;
+use Phar;
 use Symfony\Component\Console\Input\InputInterface;
 
+use function getenv;
 use function in_array;
 use function is_string;
+use function sys_get_temp_dir;
+
+use const DIRECTORY_SEPARATOR;
 
 /**
  * Shared configuration logic for commands that use the ExifMetadataProvider:
@@ -92,11 +97,27 @@ trait ConfiguresMetadataProvider
 
     /**
      * Resolves the cache directory from the CACHE_DIR env var, defaulting to
-     * .build/cache relative to the project root.
+     * .build/cache relative to the project root. When running as a PHAR binary,
+     * falls back to ~/.cache/renamer since the PHAR filesystem is read-only.
      */
     private function resolveCacheDir(): string
     {
-        return FileHelper::env('CACHE_DIR') ?? __DIR__ . '/../../../.build/cache';
+        $envDir = FileHelper::env('CACHE_DIR');
+
+        if ($envDir !== null) {
+            return $envDir;
+        }
+
+        // Inside a PHAR, __DIR__ points into the archive — use home directory instead
+        if (Phar::running() !== '') {
+            $home = getenv('HOME');
+
+            return is_string($home) && ($home !== '')
+                ? $home . DIRECTORY_SEPARATOR . '.cache' . DIRECTORY_SEPARATOR . 'renamer'
+                : sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'renamer-cache';
+        }
+
+        return __DIR__ . '/../../../.build/cache';
     }
 
     /**
