@@ -531,6 +531,27 @@ foreach ($lp29colors as [$suffix, $ext, $color]) {
 
 echo "  29 LP edit+duplicate         → .jpg/.mov canonical, -002 edit, -duplicate-001 dup\n";
 
+// ============================================================================
+// 30 - Cross-directory canonical idempotency
+//      Root has a file with -duplicate-001 suffix, subdirectory has the
+//      canonical (unsuffixed) name. Both are identical content.
+//      Expected: subdirectory file keeps canonical name, root keeps suffix.
+//      Bug scenario: root file processed first → wrongly "wins" canonical.
+// ============================================================================
+mkdir("$dir/30-cross-dir-canonical-idempotent", 0755, true);
+mkdir("$dir/30-cross-dir-canonical-idempotent/Dresden", 0755, true);
+createJpeg("$dir/30-cross-dir-canonical-idempotent/2024-03-24_17-41-51-519-duplicate-001.jpg");
+exiftool(
+    '-DateTimeOriginal=2024:03:24 17:41:51', '-SubSecTimeOriginal=519',
+    '-Make=Apple', '-Model=iPhone 14 Pro', '-Software=17.0',
+    "$dir/30-cross-dir-canonical-idempotent/2024-03-24_17-41-51-519-duplicate-001.jpg",
+);
+copy(
+    "$dir/30-cross-dir-canonical-idempotent/2024-03-24_17-41-51-519-duplicate-001.jpg",
+    "$dir/30-cross-dir-canonical-idempotent/Dresden/2024-03-24_17-41-51-519.jpg",
+);
+echo "  30 cross-dir canonical idem. → subdir keeps canonical, root keeps -duplicate-001\n";
+
 // Clean up backup of committed Live Photo files
 if (is_dir($backupDir)) {
     exec('rm -rf ' . escapeshellarg($backupDir));

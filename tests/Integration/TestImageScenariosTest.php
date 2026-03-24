@@ -474,6 +474,18 @@ final class TestImageScenariosTest extends TestCase
             ],
             6,
         ];
+
+        // Scenario 30: cross-directory canonical idempotency.
+        // Root has -duplicate-001 suffix, subdirectory has the canonical name.
+        // The file with the canonical name must win regardless of directory order.
+        yield '30-cross-dir-canonical-idempotent' => [
+            '30-cross-dir-canonical-idempotent',
+            [
+                '2024-03-24_17-41-51-519-duplicate-001.jpg'                     => '2024-03-24_17-41-51-519-duplicate-001.jpg',
+                'Dresden' . DIRECTORY_SEPARATOR . '2024-03-24_17-41-51-519.jpg' => 'Dresden' . DIRECTORY_SEPARATOR . '2024-03-24_17-41-51-519.jpg',
+            ],
+            2,
+        ];
     }
 
     /**
