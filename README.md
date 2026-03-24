@@ -111,19 +111,32 @@ Supported file types: `jpg`, `jpeg`, `heic`, `heif`, `mov`, `mp4`, `m4v`.
 
 ## 🚀 Installation
 
-### Build from source
-
 Prerequisites: Docker.
 
 ```bash
 git clone git@github.com:magicsunday/photo-renamer.git
 cd photo-renamer
-make binary
+make install
 ```
 
-This compiles a self-contained binary via [static-php-cli](https://github.com/crazywhalecc/static-php-cli) with all dependencies (including PHP, Imagick, and ImageMagick) statically linked. The first build takes several minutes; subsequent builds reuse the cached SPC environment.
+### Run via Docker (recommended)
+
+No build step required — all commands run inside a Docker container:
 
 ```bash
+make run CMD="rename:exif ~/Photos --dry-run --list-all"
+make run CMD="rename:verify ~/Photos"
+make run CMD="rename:dedup --dry-run ~/Photos"
+```
+
+Configure environment variables (timezone, cache directory, etc.) in `.env` — see [Configuration](#-configuration).
+
+### Build a standalone binary (optional)
+
+Compiles a self-contained binary via [static-php-cli](https://github.com/crazywhalecc/static-php-cli) with all dependencies (including PHP, Imagick, and ImageMagick) statically linked. The first build takes several minutes; subsequent builds reuse the cached SPC environment.
+
+```bash
+make binary
 chmod +x renamer
 sudo mv renamer /usr/local/bin/
 renamer --version
