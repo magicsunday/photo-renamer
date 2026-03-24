@@ -30,7 +30,7 @@
 ---
 
 ## 📌 Overview
-Photo Renamer is a self-contained CLI tool that tidies large photo and video collections. It reads EXIF metadata via [ImageMeta](https://github.com/magicsunday/imagemeta), understands Apple Live Photos (image + video pairs sharing a Content Identifier), spots duplicates by content hash, and standardises file names without breaking existing folder structures. The tool compiles to a single binary with no runtime dependencies.
+Photo Renamer is a self-contained CLI tool for batch-renaming and deduplicating large photo and video collections. It reads EXIF/QuickTime metadata via [ImageMeta](https://github.com/magicsunday/imagemeta), pairs Apple Live Photos (still + video sharing a Content Identifier), detects duplicates through content hashing and perceptual similarity analysis, and standardises filenames — all without breaking existing folder structures. The tool compiles to a single binary with no runtime dependencies.
 
 | Key     | Value                                                                                          |
 |---------|------------------------------------------------------------------------------------------------|
@@ -39,24 +39,26 @@ Photo Renamer is a self-contained CLI tool that tidies large photo and video col
 | Binary  | Self-contained via [static-php-cli](https://github.com/crazywhalecc/static-php-cli)           |
 
 ## ❓ What is this?
-Photo Renamer processes directories of photos and videos, generating consistent filenames based on EXIF dates, content hashes, or custom patterns. Apple Live Photo pairs (JPEG/HEIC + MOV sharing the same Content Identifier) are automatically detected and renamed together.
+Photo Renamer processes directories of photos and videos, generating consistent filenames based on EXIF/QuickTime dates, content hashes, or custom patterns. It automatically detects Apple Live Photo pairs (JPEG/HEIC + MOV sharing the same Content Identifier), identifies duplicates across directories using content hashing and a 2-stage perceptual hash pipeline (visual similarity scoring + local blob analysis), and provides metadata quality analysis to find and fix broken timestamps.
 
 ## 🎯 Why does this exist?
-Large photo collections accumulated from multiple devices and backup sources tend to have inconsistent naming, duplicate files, and broken Live Photo pairings. This tool exists to bring order to such collections in a safe, preview-first workflow (`--dry-run`).
+Large photo collections accumulated from multiple devices and backup sources tend to have inconsistent naming, duplicate files across directories, broken Live Photo pairings, and unreliable metadata. Format conversions (JPG↔HEIC), re-imports, and re-saves produce files that are visually identical but have different content hashes. This tool exists to bring order to such collections in a safe, preview-first workflow (`--dry-run`), with perceptual duplicate detection that goes beyond simple hash comparison.
 
 ## 🧭 Scope & Non-Goals
 
 **In scope:**
 
-- Recursive directory scanning with EXIF-based, hash-based, pattern-based, and lowercase renaming.
+- Recursive cross-directory scanning with EXIF-based, hash-based, pattern-based, and lowercase renaming.
 - Apple Live Photo detection and pairing via Content Identifier metadata.
 - Duplicate detection via content hash with per-file-type numbering and idempotent re-runs.
+- Perceptual duplicate detection: visually identical files with different content hashes (format conversions, re-imports) are merged using multi-signal similarity scoring (dHash, wHash, HF-energy, color histogram, video duration) and local blob analysis.
 - Hash sub-grouping: different files sharing the same EXIF date receive sequential group numbers (`-002`, `-003`, ...).
-- Dry-run preview and skip-duplicates mode.
+- Metadata quality analysis (`rename:verify`) and timestamp repair (`rename:write-date`).
+- Dry-run preview, skip-duplicates mode, and dedup cleanup (`rename:dedup`).
 
 **Out of scope:**
 
-- Image editing, transcoding, or metadata modification (except `rename:write-date` which writes date tags to fix broken metadata).
+- Image editing, transcoding, or lossy metadata modification (except `rename:write-date` which writes date tags to fix broken metadata).
 - Cloud storage or network-based file access.
 - GUI or interactive mode.
 
