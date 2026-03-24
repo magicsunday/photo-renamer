@@ -307,4 +307,228 @@ final class FileHelperTest extends TestCase
 
         self::assertSame('<fg=yellow>photo.jpg</>', $result);
     }
+
+    /**
+     * linkifyPath computes the subdirectory offset between root and source.
+     */
+    #[Test]
+    public function linkifyPathComputesSubdirectoryOffset(): void
+    {
+        $config = new LinkConfig('/srv/photos', '/mnt/nas/photos', null);
+
+        $result = FileHelper::linkifyPath(
+            'IMG_001.jpg',
+            'IMG_001.jpg',
+            '/srv/photos/2024/vacation',
+            $config,
+        );
+
+        // The offset is 2024/vacation, so the full path is /mnt/nas/photos/2024/vacation/
+        self::assertStringContainsString('2024/vacation', $result);
+    }
+
+    /**
+     * linkifyPath with Windows-style backslashes in FILE_LINK_BASE.
+     */
+    #[Test]
+    public function linkifyPathNormalizesBackslashesInBase(): void
+    {
+        $config = new LinkConfig('/srv/photos', 'Z:\\Photos\\Archive', 'photo-select');
+
+        $result = FileHelper::linkifyPath(
+            'photo.jpg',
+            'photo.jpg',
+            '/srv/photos',
+            $config,
+        );
+
+        self::assertStringContainsString('photo-select://', $result);
+        self::assertStringNotContainsString('\\', $result);
+    }
+
+    // =========================================================================
+    // pathToFileUrl
+    // =========================================================================
+
+    /**
+     * @param string $path     Input path
+     * @param string $expected Expected file:// URL
+     */
+    #[Test]
+    #[DataProvider('pathToFileUrlProvider')]
+    public function pathToFileUrl(string $path, string $expected): void
+    {
+        self::assertSame($expected, FileHelper::pathToFileUrl($path));
+    }
+
+    /**
+     * @return array<string, array{path: string, expected: string}>
+     */
+    public static function pathToFileUrlProvider(): array
+    {
+        return [
+            'unix absolute' => [
+                'path'     => '/srv/photos/test.jpg',
+                'expected' => 'file:///srv/photos/test.jpg',
+            ],
+            'unix root' => [
+                'path'     => '/',
+                'expected' => 'file:///',
+            ],
+            'spaces in path' => [
+                'path'     => '/srv/my photos/test file.jpg',
+                'expected' => 'file:///srv/my%20photos/test%20file.jpg',
+            ],
+            'windows drive letter' => [
+                'path'     => 'F:\\Photos\\test.jpg',
+                'expected' => 'file:///F:/Photos/test.jpg',
+            ],
+            'windows drive with forward slashes' => [
+                'path'     => 'F:/Photos/test.jpg',
+                'expected' => 'file:///F:/Photos/test.jpg',
+            ],
+        ];
+    }
+
+    // =========================================================================
+    // relativizePath
+    // =========================================================================
+
+    /**
+     * @param string      $pathname Input pathname
+     * @param string|null $base     Base directory
+     * @param string      $expected Expected relative path
+     */
+    #[Test]
+    #[DataProvider('relativizePathProvider')]
+    public function relativizePath(string $pathname, ?string $base, string $expected): void
+    {
+        self::assertSame($expected, FileHelper::relativizePath($pathname, $base));
+    }
+
+    /**
+     * @return array<string, array{pathname: string, base: string|null, expected: string}>
+     */
+    public static function relativizePathProvider(): array
+    {
+        return [
+            'strips base' => [
+                'pathname' => '/srv/photos/2024/test.jpg',
+                'base'     => '/srv/photos',
+                'expected' => '2024/test.jpg',
+            ],
+            'null base returns pathname' => [
+                'pathname' => '/srv/photos/test.jpg',
+                'base'     => null,
+                'expected' => '/srv/photos/test.jpg',
+            ],
+            'empty base returns pathname' => [
+                'pathname' => '/srv/photos/test.jpg',
+                'base'     => '',
+                'expected' => '/srv/photos/test.jpg',
+            ],
+            'relative base returns pathname' => [
+                'pathname' => '/srv/photos/test.jpg',
+                'base'     => 'relative/path',
+                'expected' => '/srv/photos/test.jpg',
+            ],
+            'no match returns pathname' => [
+                'pathname' => '/srv/photos/test.jpg',
+                'base'     => '/other/base',
+                'expected' => '/srv/photos/test.jpg',
+            ],
+            'trailing separator stripped' => [
+                'pathname' => '/srv/photos/test.jpg',
+                'base'     => '/srv/photos/',
+                'expected' => 'test.jpg',
+            ],
+        ];
+    }
+
+    // =========================================================================
+    // normalizeExtension
+    // =========================================================================
+
+    #[Test]
+    public function normalizeExtensionMapsJpeg(): void
+    {
+        self::assertSame('jpg', FileHelper::normalizeExtension('jpeg'));
+        self::assertSame('jpg', FileHelper::normalizeExtension('JPEG'));
+    }
+
+    #[Test]
+    public function normalizeExtensionPreservesOthers(): void
+    {
+        self::assertSame('heic', FileHelper::normalizeExtension('HEIC'));
+        self::assertSame('mov', FileHelper::normalizeExtension('mov'));
+        self::assertSame('', FileHelper::normalizeExtension(''));
+    }
+
+    // =========================================================================
+    // computeDateDrift
+    // =========================================================================
+
+    #[Test]
+    public function computeDateDriftReturnsDaysBetweenFilenameDates(): void
+    {
+        self::assertSame(0, FileHelper::computeDateDrift('2024-01-15_photo.jpg', '2024-01-15_10-00-00.jpg'));
+        self::assertSame(65, FileHelper::computeDateDrift('2024-01-15_photo.jpg', '2024-03-20_10-00-00.jpg'));
+    }
+
+    #[Test]
+    public function computeDateDriftReturnsNullWithoutDateInFilename(): void
+    {
+        self::assertNull(FileHelper::computeDateDrift('IMG_1234.jpg', '2024-03-20_10-00-00.jpg'));
+        self::assertNull(FileHelper::computeDateDrift('2024-01-15_photo.jpg', 'IMG_1234.jpg'));
+    }
+
+    #[Test]
+    public function computeDateDriftFromDateTimeReturnsDays(): void
+    {
+        $metadataDate = new DateTimeImmutable('2024-03-20 10:00:00');
+
+        self::assertSame(65, FileHelper::computeDateDriftFromDateTime('2024-01-15_photo.jpg', $metadataDate));
+        self::assertSame(0, FileHelper::computeDateDriftFromDateTime('2024-03-20_photo.jpg', $metadataDate));
+        self::assertNull(FileHelper::computeDateDriftFromDateTime('IMG_1234.jpg', $metadataDate));
+    }
+
+    // =========================================================================
+    // extractDateTimeFromPath — boundary cases for tryCreateDateTime
+    // =========================================================================
+
+    #[Test]
+    public function extractDateTimeRejectsInvalidMonth(): void
+    {
+        self::assertNull(FileHelper::extractDateTimeFromPath('2024-13-01.jpg'));
+        self::assertNull(FileHelper::extractDateTimeFromPath('2024-00-01.jpg'));
+    }
+
+    #[Test]
+    public function extractDateTimeRejectsInvalidDay(): void
+    {
+        self::assertNull(FileHelper::extractDateTimeFromPath('2024-02-30.jpg'));
+        self::assertNull(FileHelper::extractDateTimeFromPath('2024-01-32.jpg'));
+    }
+
+    #[Test]
+    public function extractDateTimeRejectsInvalidTime(): void
+    {
+        self::assertNull(FileHelper::extractDateTimeFromPath('2024-01-15_25-00-00.jpg'));
+        self::assertNull(FileHelper::extractDateTimeFromPath('2024-01-15_12-60-00.jpg'));
+        self::assertNull(FileHelper::extractDateTimeFromPath('2024-01-15_12-00-60.jpg'));
+    }
+
+    #[Test]
+    public function extractDateTimeAcceptsBoundaryValues(): void
+    {
+        // Minimum valid
+        $min = FileHelper::extractDateTimeFromPath('2024-01-01_00-00-00.jpg');
+        self::assertNotNull($min);
+        self::assertSame('2024-01-01 00:00:00', $min->format('Y-m-d H:i:s'));
+
+        // Maximum valid
+        $max = FileHelper::extractDateTimeFromPath('2024-12-31_23-59-59.jpg');
+        self::assertNotNull($max);
+        self::assertSame('2024-12-31 23:59:59', $max->format('Y-m-d H:i:s'));
+    }
 }
