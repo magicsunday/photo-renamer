@@ -268,10 +268,13 @@ final readonly class FileSystemService implements FileSystemServiceInterface
                 ));
 
                 if ($shouldSkip) {
+                    /** @var string|null $warningReason */
+                    $warningReason = $entry['warningReason'] ?? null;
+
                     $skipReason = match ($entryTag) {
                         OutputEntryTag::Candidate => 'conflicting content ID',
+                        OutputEntryTag::Warning   => $warningReason ?? 'ambiguous timezone',
                         OutputEntryTag::Fallback  => 'fallback date',
-                        OutputEntryTag::Warning   => 'suspicious date',
                         default                   => 'duplicate',
                     };
                     $this->io->text(sprintf('       <fg=red>⏭  Skipped (%s)</>', $skipReason));

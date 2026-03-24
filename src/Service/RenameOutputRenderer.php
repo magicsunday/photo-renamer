@@ -96,21 +96,29 @@ final readonly class RenameOutputRenderer
 
                 $sourcePathname = $rename->getSource()->getPathname();
 
-                // Warning conditions take priority over Duplicate/Original because
-                // files with unreliable metadata must be skipped regardless of
-                // their duplicate status.
+                // Conflict and warning tags take priority over duplicate status
+                // because files with unreliable metadata must be skipped
+                // regardless of their position in the duplicate group.
                 if (isset($result->livePhotoConflictFiles[$sourcePathname])) {
                     $tag = OutputEntryTag::Candidate;
-                } elseif (isset($result->ambiguousTimezoneFiles[$sourcePathname])) {
+                } elseif (($isDuplicateTarget && (!$isNoOp)) && isset($result->ambiguousTimezoneFiles[$sourcePathname])) {
                     $tag = OutputEntryTag::Warning;
                 } elseif ($isDuplicateTarget && (!$isNoOp)) {
                     $tag = OutputEntryTag::Duplicate;
                 } elseif ($isCanonicalEntry || $isNoOp) {
                     $tag = OutputEntryTag::Original;
+                } elseif (isset($result->ambiguousTimezoneFiles[$sourcePathname])) {
+                    $tag = OutputEntryTag::Warning;
                 } elseif (isset($result->fallbackDateFiles[$sourcePathname])) {
                     $tag = OutputEntryTag::Fallback;
                 } else {
                     $tag = OutputEntryTag::Rename;
+                }
+
+                $warningReason = null;
+
+                if ($tag === OutputEntryTag::Warning) {
+                    $warningReason = 'ambiguous timezone';
                 }
 
                 if (
@@ -121,7 +129,8 @@ final readonly class RenameOutputRenderer
                     $driftDays = FileHelper::computeDateDrift($sourcePath, $targetPath);
 
                     if (($driftDays !== null) && ($driftDays > $options->maxDateDrift)) {
-                        $tag = OutputEntryTag::Warning;
+                        $tag           = OutputEntryTag::Warning;
+                        $warningReason = sprintf('date drift %d days (max %d)', $driftDays, $options->maxDateDrift);
                     }
                 }
 
@@ -144,6 +153,7 @@ final readonly class RenameOutputRenderer
                     'shouldSkip'             => $shouldSkip,
                     'shouldPerformOperation' => $shouldPerformOperation,
                     'rename'                 => $rename,
+                    'warningReason'          => $warningReason,
                 ];
             }
         }
