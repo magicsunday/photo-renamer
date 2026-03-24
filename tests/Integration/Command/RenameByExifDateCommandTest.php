@@ -592,7 +592,7 @@ final class RenameByExifDateCommandTest extends TestCase
             );
             self::assertStringContainsString('IMG_0001.jpg', $clean);
             self::assertStringContainsString('IMG_0001.mov', $clean);
-            self::assertStringContainsString('Skipped (conflicting content ID)', $clean);
+            self::assertStringContainsString('Conflicting Live Photo content ID across groups', $clean);
         } finally {
             $this->removeWorkspace($workspace);
         }

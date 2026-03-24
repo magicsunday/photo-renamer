@@ -271,12 +271,11 @@ final class TestImageScenariosTest extends TestCase
             1,
         ];
 
+        // Scenario 06: ambiguous timezone — [W] skipped, no mapping
         yield '06-ambiguous-timezone' => [
             '06-ambiguous-timezone',
-            [
-                'MVI_1234.mov' => '2024-02-14_20-30-00-000.mov',
-            ],
-            1,
+            [],
+            0,
         ];
 
         // Scenario 07: file has no metadata, skipped entirely (not in rename mapping)
@@ -286,12 +285,11 @@ final class TestImageScenariosTest extends TestCase
             0,
         ];
 
+        // Scenario 08: date drift — [W] skipped, no mapping
         yield '08-date-drift' => [
             '08-date-drift',
-            [
-                '2024-01-15_photo.jpg' => '2024-03-20_10-00-00-000.jpg',
-            ],
-            1,
+            [],
+            0,
         ];
 
         yield '09-extension-normalize' => [
@@ -317,12 +315,11 @@ final class TestImageScenariosTest extends TestCase
             0,
         ];
 
+        // Scenario 12: video with ambiguous timezone — [W] skipped, no mapping
         yield '12-write-date-timezone' => [
             '12-write-date-timezone',
-            [
-                '2024-04-20-video.mov' => '2024-04-20_17-45-00-000.mov',
-            ],
-            1,
+            [],
+            0,
         ];
 
         yield '13-mp4-with-tz' => [
@@ -348,29 +345,25 @@ final class TestImageScenariosTest extends TestCase
             0,
         ];
 
+        // Scenario 16: video re-export with ambiguous timezone — [W] skipped, no mapping
         yield '16-reexport-drift' => [
             '16-reexport-drift',
-            [
-                '2022-12-10_14-19-08.mov' => '2024-09-19_02-06-04-000.mov',
-            ],
-            1,
+            [],
+            0,
         ];
 
+        // Scenario 17: video with date-only filename and ambiguous timezone — [W] skipped, no mapping
         yield '17-date-only-filename' => [
             '17-date-only-filename',
-            [
-                '2020-02-07-3483.mov' => '2020-02-07_22-20-25-000.mov',
-            ],
-            1,
+            [],
+            0,
         ];
 
+        // Scenario 18: Live Photo conflict — [C] + [W] both skipped, no mapping
         yield '18-live-photo-conflict' => [
             '18-live-photo-conflict',
-            [
-                '2024-08-19_11-09-34-857.jpg' => '2020-08-19_11-09-34-857.jpg',
-                '2024-08-19_11-09-34-857.mov' => '2020-08-19_11-09-34-000.mov',
-            ],
-            2,
+            [],
+            0,
         ];
 
         yield '19-write-date-fallback' => [
@@ -381,20 +374,18 @@ final class TestImageScenariosTest extends TestCase
             1,
         ];
 
+        // Scenario 20: date drift >7 days — [W] skipped, no mapping
         yield '20-write-date-drift' => [
             '20-write-date-drift',
-            [
-                '2024-01-15_10-00-00.jpg' => '2024-06-20_10-00-00-000.jpg',
-            ],
-            1,
+            [],
+            0,
         ];
 
+        // Scenario 21: non-Apple camera video with ambiguous timezone — [W] skipped, no mapping
         yield '21-non-apple-camera' => [
             '21-non-apple-camera',
-            [
-                'MVI_0511.mov' => '2024-09-15_16-30-00-000.mov',
-            ],
-            1,
+            [],
+            0,
         ];
 
         yield '22-cross-dir-duplicates' => [
@@ -490,13 +481,11 @@ final class TestImageScenariosTest extends TestCase
         // Scenario 31: duplicate with ambiguous timezone.
         // Both videos have UTC timestamps without timezone offset.
         // Warning must take priority over Duplicate — both should be [W] (skipped).
+        // Scenario 31: both [W] skipped (ambiguous timezone), no mapping
         yield '31-duplicate-ambiguous-tz' => [
             '31-duplicate-ambiguous-tz',
-            [
-                'clip-a.mp4' => '2025-06-10_16-30-00-000.mp4',
-                'clip-b.mp4' => '2025-06-10_16-30-00-000-duplicate-001.mp4',
-            ],
-            2,
+            [],
+            0,
         ];
     }
 
@@ -564,8 +553,8 @@ final class TestImageScenariosTest extends TestCase
      * Parses console output into an ordered map of relative source to relative target paths.
      *
      * Matches entry tags with a target path: [O] Original, [R] Rename, [D] Duplicate,
-     * [W] Warning, [F] Fallback. Skipped [S] and error [E] entries use a different
-     * output format and are excluded.
+     * [F] Fallback. Skipped entries ([W] Warning, [C] Candidate, [S] Skipped, [E] Error)
+     * show a reason instead of a target path and are excluded.
      *
      * @return array<string, string>
      */
@@ -577,7 +566,7 @@ final class TestImageScenariosTest extends TestCase
         $absolutePrefix = rtrim($workspace, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
         $relativePrefix = basename(rtrim($workspace, DIRECTORY_SEPARATOR)) . DIRECTORY_SEPARATOR;
 
-        if (preg_match_all('/\[(?:O|D|R|W|F)]\s+(\S+)\s+.{1,3}\s+(\S+)/', $clean, $matches, PREG_SET_ORDER) > 0) {
+        if (preg_match_all('/\[(?:O|D|R|F)]\s+(\S+)\s+.{1,3}\s+(\S+)/', $clean, $matches, PREG_SET_ORDER) > 0) {
             foreach ($matches as $match) {
                 $source = $this->stripPrefix($match[1], $absolutePrefix, $relativePrefix);
                 $target = $this->stripPrefix($match[2], $absolutePrefix, $relativePrefix);

@@ -177,7 +177,7 @@ final class FileSystemServiceTest extends TestCase
 
     /**
      * Verifies that --skip-duplicates leaves source files with -duplicate-NNN
-     * targets untouched, marks them as "Skipped (duplicate)" in the output,
+     * targets untouched, marks them as "Duplicate (--skip-duplicates)" in the output,
      * and shows "Duplicates found" and "Planned skips" in the summary.
      */
     #[Test]
@@ -214,7 +214,7 @@ final class FileSystemServiceTest extends TestCase
 
         $buffer = $output->fetch();
 
-        self::assertStringContainsString('Skipped (duplicate)', $buffer);
+        self::assertStringContainsString('Duplicate (--skip-duplicates)', $buffer);
         self::assertStringContainsString('Duplicates found', $buffer);
         self::assertStringContainsString('Planned skips', $buffer);
     }
@@ -265,7 +265,7 @@ final class FileSystemServiceTest extends TestCase
 
         $buffer = $output->fetch();
 
-        self::assertStringNotContainsString('Skipped (duplicate)', $buffer);
+        self::assertStringNotContainsString('Duplicate (--skip-duplicates)', $buffer);
         self::assertStringContainsString('[R]', $buffer);
 
         $relativeSource = FileHelper::relativizePath($sourceFile, $directory);
