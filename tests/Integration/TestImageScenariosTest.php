@@ -563,9 +563,9 @@ final class TestImageScenariosTest extends TestCase
     /**
      * Parses console output into an ordered map of relative source to relative target paths.
      *
-     * Matches all rename entry tags: [O] Original, [R] Rename, [D] Duplicate,
-     * [W] Warning, [F] Fallback, [C] Candidate. Skipped [S] and error [E] entries
-     * use a different output format and are excluded.
+     * Matches entry tags with a target path: [O] Original, [R] Rename, [D] Duplicate,
+     * [W] Warning, [F] Fallback. Skipped [S] and error [E] entries use a different
+     * output format and are excluded.
      *
      * @return array<string, string>
      */
@@ -577,7 +577,7 @@ final class TestImageScenariosTest extends TestCase
         $absolutePrefix = rtrim($workspace, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
         $relativePrefix = basename(rtrim($workspace, DIRECTORY_SEPARATOR)) . DIRECTORY_SEPARATOR;
 
-        if (preg_match_all('/\[(?:O|D|R|W|F|C)]\s+(\S+)\s+.{1,3}\s+(\S+)/', $clean, $matches, PREG_SET_ORDER) > 0) {
+        if (preg_match_all('/\[(?:O|D|R|W|F)]\s+(\S+)\s+.{1,3}\s+(\S+)/', $clean, $matches, PREG_SET_ORDER) > 0) {
             foreach ($matches as $match) {
                 $source = $this->stripPrefix($match[1], $absolutePrefix, $relativePrefix);
                 $target = $this->stripPrefix($match[2], $absolutePrefix, $relativePrefix);
