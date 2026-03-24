@@ -40,7 +40,7 @@ final class MediaTypeClassifier implements MediaTypeClassifierInterface
      *
      * @var list<string>
      */
-    public const array VIDEO_EXTENSIONS = ['mov', 'mp4', 'avi', 'mkv', 'webm', 'm4v', '3gp'];
+    public const array VIDEO_EXTENSIONS = ['mov', 'mp4'];
 
     /**
      * Checks whether the given file is a still image (HEIC, HEIF, JPG, JPEG) as opposed
