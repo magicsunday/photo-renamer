@@ -286,17 +286,21 @@ final readonly class FileSystemService implements FileSystemServiceInterface
                 ++$plannedSkips;
             }
 
-            if ($shouldPerformOperation) {
+            if ($shouldSkip) {
+                // Skipped file stays at its source path — keep it occupied so
+                // other files do not try to rename into it. Also mark the
+                // source path as occupied in case it was freed by a prior move.
+                $occupiedPaths[$rename->getSource()->getPathname()] = true;
+            } elseif ($shouldPerformOperation) {
                 ++$plannedMoves;
                 ++$fileCount;
 
-                if ($options->dryRun === false) {
-                    $this->moveFile(
-                        $rename->getSource(),
-                        $rename->getTarget(),
-                        $occupiedPaths,
-                    );
-                }
+                $this->moveFile(
+                    $rename->getSource(),
+                    $rename->getTarget(),
+                    $occupiedPaths,
+                    $options->dryRun,
+                );
             }
         }
 
@@ -347,19 +351,13 @@ final readonly class FileSystemService implements FileSystemServiceInterface
         SplFileInfo $sourceFileInfo,
         SplFileInfo $targetFileInfo,
         array &$occupiedPaths = [],
+        bool $dryRun = false,
     ): void {
-        $this->filesystem->mkdir($targetFileInfo->getPath());
-
         $sourcePath = $sourceFileInfo->getPathname();
         $targetPath = $targetFileInfo->getPathname();
 
-        if (!$sourceFileInfo->isFile()) {
-            throw new RuntimeException(
-                sprintf('Source file "%s" does not exist', $sourcePath),
-            );
-        }
-
-        // Target already occupied by a different file (moved there earlier in the same batch).
+        // Target already occupied by a different file (moved there earlier in
+        // the same batch, or a skipped file that stays at its source path).
         // Fall back to the next available duplicate suffix to prevent data loss.
         if (
             ($targetPath !== $sourcePath)
@@ -369,9 +367,18 @@ final readonly class FileSystemService implements FileSystemServiceInterface
             $targetPath     = $targetFileInfo->getPathname();
         }
 
-        $this->filesystem->rename($sourcePath, $targetPath);
+        if (!$dryRun) {
+            if (!$sourceFileInfo->isFile()) {
+                throw new RuntimeException(
+                    sprintf('Source file "%s" does not exist', $sourcePath),
+                );
+            }
 
-        // Move: source freed.
+            $this->filesystem->mkdir($targetFileInfo->getPath());
+            $this->filesystem->rename($sourcePath, $targetPath);
+        }
+
+        // Track path changes even in dry-run to keep occupiedPaths consistent.
         unset($occupiedPaths[$sourcePath]);
 
         $occupiedPaths[$targetPath] = true;
