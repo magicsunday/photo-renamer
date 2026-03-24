@@ -11,7 +11,7 @@ This is a single-scope project. All guidance is in this root file.
 
 ## What is this?
 
-PHP CLI tool for batch-renaming photos and videos using EXIF/QuickTime metadata. Runs exclusively inside Docker on a UGREEN DXP4800+ NAS. Processes JPEG, HEIC, HEIF, MOV, MP4, and M4V files with Apple Live Photo pairing, duplicate detection, and metadata quality analysis.
+PHP CLI tool for batch-renaming photos and videos using EXIF/QuickTime metadata. Runs exclusively inside Docker. Processes JPEG, HEIC, HEIF, MOV, MP4, and M4V files with Apple Live Photo pairing, duplicate detection, and metadata quality analysis.
 
 - **Namespace:** `MagicSunday\Renamer`
 - **PHP:** `^8.5`
@@ -178,6 +178,6 @@ scripts/               # Build and utility scripts
 | Variable | Purpose | Default |
 |----------|---------|---------|
 | `USERID` / `GROUPID` | Docker container UID/GID mapping | `1000` |
-| `TIMEZONE` | Convert UTC video timestamps to local time | `Europe/Berlin` |
+| `TIMEZONE` | Convert UTC video timestamps to local time | *(unset)* |
 | `MAX_DATE_DRIFT` | Max days drift between filename and metadata date | `7` |
 | `CACHE_DIR` | Persistent cache directory | `.build/cache` |
