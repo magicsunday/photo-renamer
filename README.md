@@ -121,13 +121,15 @@ make install
 
 ### Run via Docker (recommended)
 
-No build step required — all commands run inside a Docker container:
+No build step required — all commands run inside a Docker container via the wrapper script:
 
 ```bash
-make run CMD="rename:exif ~/Photos --dry-run --list-all"
-make run CMD="rename:verify ~/Photos"
-make run CMD="rename:dedup --dry-run ~/Photos"
+./renamer.sh rename:exif --dry-run --list-all ~/Photos
+./renamer.sh rename:verify ~/Photos
+./renamer.sh rename:dedup --dry-run ~/Photos
 ```
+
+Alternatively, use `make run CMD="..."` directly.
 
 Configure environment variables (timezone, cache directory, etc.) in `.env` — see [Configuration](#-configuration).
 
