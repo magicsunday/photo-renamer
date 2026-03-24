@@ -360,7 +360,7 @@ make test
 Test the CLI:
 
 ```bash
-make run CMD="rename:exif ~/Photos --dry-run --list-all"
+./renamer.sh rename:exif --dry-run --list-all ~/Photos
 ```
 
 ### Individual CI targets
@@ -381,7 +381,7 @@ Generate synthetic test files covering all 29 renamer scenarios (duplicates, Liv
 
 ```bash
 docker compose run --rm buildbox php scripts/create-test-images.php
-make run CMD="rename:exif tests/Fixtures/Images --dry-run --list-all"
+./renamer.sh rename:exif --dry-run --list-all tests/Fixtures/Images
 ```
 
 ### Fix targets
