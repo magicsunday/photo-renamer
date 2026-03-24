@@ -83,7 +83,7 @@ Large photo collections accumulated from multiple devices and backup sources ten
 | `--skip-duplicates` | `-s`  | Leave duplicates untouched.                                                               |
 | `--skip-fallback`   |       | Skip files whose date comes from the fallback DateTime tag (0x0132) instead of DateTimeOriginal. |
 | `--list-all`        |       | Show all files including originals and duplicates.                                        |
-| `--show=TAGS`       |       | Filter output by entry type (comma-separated: `R`=renamed, `F`=fallback, `D`=duplicate, `O`=original, `W`=warning, `S`=skipped, `E`=error). |
+| `--show=TAGS`       |       | Filter output by entry type (comma-separated: `R`=renamed, `F`=fallback, `D`=duplicate, `O`=original, `W`=warning, `S`=skipped, `E`=error, `C`=content ID conflict). |
 | `--max-date-drift=N`|       | Maximum allowed date drift in days between source filename date and target date. Files exceeding this are skipped with `[W]`. Default: 7. Set to 0 to disable. |
 
 ### `rename:exif` options
@@ -95,7 +95,7 @@ Large photo collections accumulated from multiple devices and backup sources ten
 
 Supported file types: `jpg`, `jpeg`, `heic`, `heif`, `mov`, `mp4`, `m4v`.
 
-> **Timezone conversion:** QuickTime/MP4 files store timestamps in UTC. When no explicit
+> **Timezone conversion:** QuickTime video files (MOV, MP4, M4V) store timestamps in UTC. When no explicit
 > timezone info is found in the file metadata, the `--timezone` option (or the `TIMEZONE`
 > environment variable / `.env` setting) converts the UTC timestamp to local time. EXIF
 > dates in images are not affected (those are already in local camera time).
@@ -217,6 +217,7 @@ Each file in the output is prefixed with a status indicator:
 | `[W]` | **Warning** -- date drift between source filename and target exceeds `--max-date-drift` (default 7 days); file is skipped. |
 | `[S]` | **Skipped** -- file has no usable metadata (no capture date found).                   |
 | `[E]` | **Error** -- metadata could not be read (parser error).                               |
+| `[C]` | **Candidate** -- conflicting Live Photo Content Identifier detected across groups.    |
 
 After processing, a summary table shows scanned files, skipped files (no metadata), read errors, planned moves/skips, Live Photo groups, duplicates found, naming collisions, and total files to process.
 
