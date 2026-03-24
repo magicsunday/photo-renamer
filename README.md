@@ -82,7 +82,7 @@ Large photo collections accumulated from multiple devices and backup sources ten
 | `--skip-fallback`   |       | Skip files whose date comes from the fallback DateTime tag (0x0132) instead of DateTimeOriginal. |
 | `--list-all`        |       | Show all files including originals and duplicates.                                        |
 | `--show=TAGS`       |       | Filter output by entry type (comma-separated: `R`=renamed, `F`=fallback, `D`=duplicate, `O`=original, `W`=warning, `S`=skipped, `E`=error). |
-| `--max-date-drift=N`|       | Maximum allowed date drift in days between source filename date and target date. Files exceeding this are skipped with `[W]`. Default: 30. Set to 0 to disable. |
+| `--max-date-drift=N`|       | Maximum allowed date drift in days between source filename date and target date. Files exceeding this are skipped with `[W]`. Default: 7. Set to 0 to disable. |
 
 ### `rename:exif` options
 
@@ -91,7 +91,7 @@ Large photo collections accumulated from multiple devices and backup sources ten
 | `--target-filename-pattern` | `-fp` | `Y-m-d_H-i-s-v`  | PHP [date format](https://www.php.net/manual/en/datetime.format.php) pattern for the target filename (without extension).      |
 | `--timezone`                |       |                   | Timezone for video files without timezone metadata (e.g. `Europe/Berlin`). Overrides `TIMEZONE` env var.                        |
 
-Supported file types: `jpg`, `jpeg`, `heic`, `mov`, `mp4`.
+Supported file types: `jpg`, `jpeg`, `heic`, `heif`, `mov`, `mp4`, `m4v`.
 
 > **Timezone conversion:** QuickTime/MP4 files store timestamps in UTC. When no explicit
 > timezone info is found in the file metadata, the `--timezone` option (or the `TIMEZONE`
@@ -212,7 +212,7 @@ Each file in the output is prefixed with a status indicator:
 | `[F]` | **Fallback** -- date derived from DateTime (0x0132) instead of DateTimeOriginal.     |
 | `[D]` | **Duplicate** -- file is a duplicate and receives a suffix.                          |
 | `[O]` | **Original** -- file already has the correct name; no action taken.                  |
-| `[W]` | **Warning** -- date drift between source filename and target exceeds `--max-date-drift` (default 30 days); file is skipped. |
+| `[W]` | **Warning** -- date drift between source filename and target exceeds `--max-date-drift` (default 7 days); file is skipped. |
 | `[S]` | **Skipped** -- file has no usable metadata (no capture date found).                   |
 | `[E]` | **Error** -- metadata could not be read (parser error).                               |
 
@@ -244,7 +244,7 @@ cp .env.dist .env
 | `USERID`   | `1000`          | User ID for the Docker container.                                           |
 | `GROUPID`  | `1000`          | Group ID for the Docker container.                                          |
 | `TIMEZONE` | `Europe/Berlin` | Default timezone for video files without timezone metadata (see above).      |
-| `MAX_DATE_DRIFT` | `30`    | Maximum date drift in days between source filename date and target date. Set to `0` to disable. |
+| `MAX_DATE_DRIFT` | `7`     | Maximum date drift in days between source filename date and target date. Set to `0` to disable. |
 | `CACHE_DIR` | `.build/cache` | Directory for the persistent metadata cache. Speeds up subsequent runs by skipping unchanged files. |
 | `FILE_LINK_ROOT` | *(empty)* | Source path as seen inside Docker/NAS (e.g. `/srv/photos`). |
 | `FILE_LINK_BASE` | *(empty)* | Same path as seen from the terminal host (e.g. `Z:\Photos`). |
@@ -349,11 +349,11 @@ make run CMD="rename:exif images --dry-run --list-all"
 
 ### Test images
 
-Generate synthetic test files covering all 23 renamer scenarios (duplicates, Live Photos, timezone, drift, HEIC, cross-directory, etc.):
+Generate synthetic test files covering all 29 renamer scenarios (duplicates, Live Photos, timezone, drift, HEIC, cross-directory, perceptual hashing, etc.):
 
 ```bash
 docker compose run --rm buildbox php scripts/create-test-images.php
-make run CMD="rename:exif test-images --dry-run --list-all"
+make run CMD="rename:exif tests/Fixtures/Images --dry-run --list-all"
 ```
 
 ### Fix targets
