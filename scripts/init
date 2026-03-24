@@ -2,7 +2,7 @@
 
 set -e
 
-PHP_EXTENSIONS="curl,dom,exif,fileinfo,filter,iconv,imagick,mbstring,openssl,pcntl,phar,posix,tokenizer,yaml,xml,xmlreader,xmlwriter,zlib"
+PHP_EXTENSIONS="ctype,curl,dom,exif,fileinfo,filter,iconv,imagick,mbstring,openssl,pcntl,phar,posix,xml,xmlreader,xmlwriter,zlib"
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
