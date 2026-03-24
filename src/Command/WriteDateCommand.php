@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Command;
 
 use DateTimeImmutable;
 use DateTimeInterface;
+use DateTimeZone;
 use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
@@ -277,20 +278,19 @@ final class WriteDateCommand extends Command
                 continue;
             }
 
-            // For timezone reason: use the raw (unconverted) metadata time and stamp
-            // it with the configured timezone. Non-Apple cameras store local time as
-            // "UTC" in QuickTime containers, so the raw value IS the local time.
+            // For timezone reason: treat CreateDate as real UTC and convert to
+            // the configured timezone. The user explicitly declares which timezone
+            // applies — no camera manufacturer detection needed. This works for
+            // any camera: if CreateDate is 16:50 UTC and --timezone=Europe/Berlin,
+            // the result is 18:50+02:00 (CEST).
+            // For all other reasons: use the filename date as the write value.
             if ($reasonKey === self::REASON_TIMEZONE) {
                 $rawDateTime = $this->exifMetadataProvider->getRawCaptureDateTime($file);
+                $timezone    = $this->resolveTimezone($input);
 
-                if ($rawDateTime instanceof DateTimeInterface) {
-                    $parsed = DateTimeImmutable::createFromFormat(
-                        'Y-m-d H:i:s',
-                        $rawDateTime->format('Y-m-d H:i:s'),
-                        $this->resolveTimezone($input),
-                    );
-
-                    $writeDateTime = $parsed instanceof DateTimeImmutable ? $parsed : $filenameDateTime;
+                if (($rawDateTime instanceof DateTimeInterface) && ($timezone instanceof DateTimeZone)) {
+                    $writeDateTime = DateTimeImmutable::createFromInterface($rawDateTime)
+                        ->setTimezone($timezone);
                 } else {
                     $writeDateTime = $filenameDateTime;
                 }
