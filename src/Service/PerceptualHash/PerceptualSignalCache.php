@@ -20,7 +20,6 @@ use function json_decode;
 use function json_encode;
 
 use const JSON_INVALID_UTF8_SUBSTITUTE;
-use const JSON_PRETTY_PRINT;
 use const JSON_THROW_ON_ERROR;
 
 /**
@@ -126,7 +125,7 @@ final class PerceptualSignalCache
             $this->cacheFile,
             json_encode(
                 ['_version' => self::CACHE_VERSION, 'entries' => $this->entries],
-                JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_INVALID_UTF8_SUBSTITUTE,
+                JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE,
             ),
         );
 
