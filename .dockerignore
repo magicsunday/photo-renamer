@@ -6,5 +6,7 @@ coverage-report-xdebug/
 images/
 images2/
 spc/
+test-validation/
+tests/Fixtures/Images/
 var/
 vendor/
