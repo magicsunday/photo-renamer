@@ -26,9 +26,6 @@ use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
 
-use function array_map;
-use function implode;
-
 /**
  * Unit tests for DatePatternFilenameStrategy class.
  *
@@ -72,192 +69,130 @@ final class DatePatternFilenameStrategyTest extends TestCase
     #[Test]
     public function generateFilenameThrowsExceptionOnInvalidPattern(): void
     {
-        // Create a file info object for testing
-        $file = new SplFileInfo('test.txt');
+        $file     = new SplFileInfo('test.txt');
+        $strategy = $this->createStrategy('/[', '{Y}-{m}-{d}');
 
-        // Initialize the strategy with an invalid regex pattern
-        $strategy = new DatePatternFilenameStrategy(
-            '/[',  // Invalid regex - unclosed bracket
-            '{Y}-{m}-{d}',
-            $this->createPatternMatchSet(['Y']),
-            new SafeRegex()
-        );
-
-        // Expect a TargetFilenameException to be thrown
         $this->expectException(TargetFilenameException::class);
         $this->expectExceptionMessageMatches('/Date pattern error:/');
 
-        // Attempt to generate a filename, which should trigger the exception
         $strategy->generateFilename($file);
     }
 
-    /**
-     * Tests basic functionality with a simple date pattern.
-     *
-     * This test validates that the strategy can extract and reformat date components
-     * from a filename. Due to the complex nature of how the strategy processes
-     * the replacement pattern, this test focuses on verifying the basic operation
-     * without making assumptions about the exact output format.
-     */
     #[Test]
     public function generateFilenameProcessesDatePattern(): void
     {
-        // Create a file with date in YYYYMMDD format
-        $file = new SplFileInfo('IMG_20240315.jpg');
+        $file     = new SplFileInfo('IMG_20240315.jpg');
+        $strategy = $this->createStrategy('/^IMG_(\d{4})(\d{2})(\d{2})(\..*)?$/', '{Y}-{m}-{d}');
 
-        // Configure the strategy to extract the date components
-        $strategy = new DatePatternFilenameStrategy(
-            '/IMG_(\d{4})(\d{2})(\d{2})/',
-            '{Y}-{m}-{d}',
-            $this->createPatternMatchSet(['Y', 'm', 'd']),
-            new SafeRegex()
-        );
-
-        // Get the result
-        $result = $strategy->generateFilename($file);
-
-        // Assert that the result contains the expected date components
-        self::assertStringContainsString('2024', $result);
-        self::assertStringContainsString('03', $result);
-        self::assertStringContainsString('15', $result);
-        self::assertStringEndsWith('.jpg', $result);
+        self::assertSame('2024-03-15.jpg', $strategy->generateFilename($file));
     }
 
-    /**
-     * Tests that duplicate identifiers are removed before processing.
-     *
-     * This test verifies that the strategy correctly inherits the behavior
-     * from InheritFilenameStrategy, removing "-duplicate-XXX" suffixes.
-     */
     #[Test]
     public function generateFilenameRemovesDuplicateIdentifier(): void
     {
-        // Create a file with duplicate identifier
-        $file = new SplFileInfo('IMG_20240315-duplicate-001.jpg');
+        $file     = new SplFileInfo('IMG_20240315-duplicate-001.jpg');
+        $strategy = $this->createStrategy('/^IMG_(\d{4})(\d{2})(\d{2})(\..*)?$/', '{Y}-{m}-{d}');
 
-        // Configure strategy
-        $strategy = new DatePatternFilenameStrategy(
-            '/IMG_(\d{4})(\d{2})(\d{2})/',
-            '{Y}-{m}-{d}',
-            $this->createPatternMatchSet(['Y', 'm', 'd']),
-            new SafeRegex()
-        );
-
-        // Get the result
-        $result = $strategy->generateFilename($file);
-
-        // Assert that duplicate identifier was removed (not present in result)
-        self::assertStringNotContainsString('duplicate', $result);
-        self::assertStringContainsString('2024', $result);
-        self::assertStringEndsWith('.jpg', $result);
+        self::assertSame('2024-03-15.jpg', $strategy->generateFilename($file));
     }
 
-    /**
-     * Tests two-digit to four-digit year conversion.
-     *
-     * This test verifies that the strategy correctly converts two-digit years
-     * to four-digit years using PHP's DateTime year interpretation rules.
-     */
     #[Test]
     public function generateFilenameConvertsTwoDigitYear(): void
     {
-        // Test with year in 2000s range (00-69)
-        $file     = new SplFileInfo('photo_240315.jpg');
-        $strategy = new DatePatternFilenameStrategy(
-            '/photo_(\d{2})(\d{2})(\d{2})/',
+        // Captures are y (2-digit year), m, d — source pattern declares this
+        $strategy = $this->createStrategyWithSourcePattern(
+            '/^photo_(\d{2})(\d{2})(\d{2})(\..*)?$/',
             '{Y}',
-            $this->createPatternMatchSet(['y', 'm', 'd']),  // Note: lowercase 'y' for 2-digit year
-            new SafeRegex()
+            '/^{y}{m}{d}$/',
         );
 
-        $result = $strategy->generateFilename($file);
-
-        // Assert that 2-digit year 24 was converted to 2024
-        self::assertStringContainsString('2024', $result);
-
-        // Test with year in 1900s range (70-99)
-        $file2     = new SplFileInfo('photo_991231.jpg');
-        $strategy2 = new DatePatternFilenameStrategy(
-            '/photo_(\d{2})(\d{2})(\d{2})/',
-            '{Y}',
-            $this->createPatternMatchSet(['y', 'm', 'd']),
-            new SafeRegex()
-        );
-
-        $result2 = $strategy2->generateFilename($file2);
-
-        // Assert that 2-digit year 99 was converted to 1999
-        self::assertStringContainsString('1999', $result2);
+        self::assertSame('2024.jpg', $strategy->generateFilename(new SplFileInfo('photo_240315.jpg')));
+        self::assertSame('1999.jpg', $strategy->generateFilename(new SplFileInfo('photo_991231.jpg')));
     }
 
-    /**
-     * Tests reordering of date components.
-     *
-     * This test verifies that date components can be reordered during transformation,
-     * for example converting from European format (dd-mm-yyyy) to ISO format.
-     */
     #[Test]
     public function generateFilenameReordersDateComponents(): void
     {
-        // Create a file with European date format (dd-mm-yyyy)
         $file = new SplFileInfo('file_15-03-2024.txt');
-
-        // Configure strategy to reorder to ISO format
-        $strategy = new DatePatternFilenameStrategy(
-            '/file_(\d{2})-(\d{2})-(\d{4})/',
+        // Regex captures: group1=d, group2=m, group3=Y (European order)
+        // Source pattern declares the capture order: {d}-{m}-{Y}
+        // Replacement reorders to ISO: {Y}-{m}-{d}
+        $strategy = $this->createStrategyWithSourcePattern(
+            '/^file_(\d{2})-(\d{2})-(\d{4})(\..*)?$/',
             '{Y}-{m}-{d}',
-            $this->createPatternMatchSet(['d', 'm', 'Y']),  // Note: mapping order is d, m, Y
-            new SafeRegex()
+            '/^{d}-{m}-{Y}$/',
         );
 
-        $result = $strategy->generateFilename($file);
-
-        // Assert date components are present and in correct order
-        self::assertStringContainsString('2024', $result);
-        self::assertStringContainsString('03', $result);
-        self::assertStringContainsString('15', $result);
-        self::assertStringEndsWith('.txt', $result);
+        self::assertSame('2024-03-15.txt', $strategy->generateFilename($file));
     }
 
-    /**
-     * Tests handling of files without extensions.
-     *
-     * This test verifies that the strategy works with files that have
-     * no file extension.
-     */
     #[Test]
     public function generateFilenameHandlesFilesWithoutExtension(): void
     {
-        // Create a file without extension
-        $file = new SplFileInfo('README_20240315');
+        $file     = new SplFileInfo('README_20240315');
+        $strategy = $this->createStrategy('/^README_(\d{4})(\d{2})(\d{2})(.*)?$/', '{Y}-{m}-{d}');
 
-        // Configure strategy
-        $strategy = new DatePatternFilenameStrategy(
-            '/README_(\d{4})(\d{2})(\d{2})/',
-            '{Y}-{m}-{d}',
-            $this->createPatternMatchSet(['Y', 'm', 'd']),
-            new SafeRegex()
+        self::assertSame('2024-03-15', $strategy->generateFilename($file));
+    }
+
+    #[Test]
+    public function generateFilenameWithFullDateTime(): void
+    {
+        $file     = new SplFileInfo('VID_20240315_143022.mp4');
+        $strategy = $this->createStrategy(
+            '/^VID_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})(\..*)?$/',
+            '{Y}-{m}-{d}_{H}-{i}-{s}',
         );
 
-        $result = $strategy->generateFilename($file);
+        self::assertSame('2024-03-15_14-30-22.mp4', $strategy->generateFilename($file));
+    }
 
-        // Assert date components are present and no extension is added
-        self::assertStringContainsString('2024', $result);
-        self::assertStringContainsString('03', $result);
-        self::assertStringContainsString('15', $result);
-        self::assertStringNotContainsString('.', $result);
+    #[Test]
+    public function generateFilenameReturnsOriginalForNonMatchingFile(): void
+    {
+        $strategy = $this->createStrategy('/^IMG_(\d{4})(\d{2})(\d{2})(\..*)?$/', '{Y}-{m}-{d}');
+
+        // Non-matching files keep their original name (inherited from InheritFilenameStrategy)
+        self::assertSame('random-file.jpg', $strategy->generateFilename(new SplFileInfo('random-file.jpg')));
+    }
+
+    #[Test]
+    public function generateFilenameWithTrailingSuffix(): void
+    {
+        $file     = new SplFileInfo('2024-03-15.01-caption.jpg');
+        $strategy = $this->createStrategy(
+            '/^(\d{4})-(\d{2})-(\d{2})\.(\d{2})(.+)$/',
+            '{Y}-{m}-{d}_{H}-00-00',
+        );
+
+        self::assertSame('2024-03-15_01-00-00-caption.jpg', $strategy->generateFilename($file));
     }
 
     /**
-     * @param string[] $placeholders
+     * Creates a strategy where the capture order matches the replacement placeholder order.
+     * For reordering tests, use createStrategyWithSourcePattern() instead.
      */
-    private function createPatternMatchSet(array $placeholders): PatternMatchSet
+    private function createStrategy(string $regex, string $replacement): DatePatternFilenameStrategy
     {
-        $pattern = '/^' . implode('-', array_map(
-            static fn (string $p): string => '{' . $p . '}',
-            $placeholders,
-        )) . '$/';
+        return new DatePatternFilenameStrategy(
+            $regex,
+            $replacement,
+            PatternMatchSet::fromPattern($replacement),
+            new SafeRegex(),
+        );
+    }
 
-        return PatternMatchSet::fromPattern($pattern);
+    /**
+     * Creates a strategy with an explicit source pattern that defines the capture order.
+     * Used when regex capture order differs from the replacement placeholder order.
+     */
+    private function createStrategyWithSourcePattern(string $regex, string $replacement, string $sourcePattern): DatePatternFilenameStrategy
+    {
+        return new DatePatternFilenameStrategy(
+            $regex,
+            $replacement,
+            PatternMatchSet::fromPattern($sourcePattern),
+            new SafeRegex(),
+        );
     }
 }
