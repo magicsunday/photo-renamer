@@ -13,19 +13,17 @@ namespace MagicSunday\Renamer\Service\PerceptualHash;
 
 use Imagick;
 use ImagickPixel;
-use MagicSunday\Renamer\Service\MediaTypeClassifier;
+use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
 use SplFileInfo;
 use Symfony\Component\Process\Process;
 use Throwable;
 
-use function in_array;
 use function is_file;
 use function is_numeric;
 use function is_string;
 use function max;
 use function min;
 use function sprintf;
-use function strtolower;
 use function sys_get_temp_dir;
 use function tempnam;
 use function trim;
@@ -50,6 +48,7 @@ use function unlink;
 final readonly class ImagickImageLoader
 {
     public function __construct(
+        private MediaTypeClassifierInterface $mediaTypeClassifier,
         private string $ffmpegBinary = 'ffmpeg',
         private string $ffprobeBinary = 'ffprobe',
         private float $posterFrameSecond = 1.0,
@@ -280,11 +279,7 @@ final readonly class ImagickImageLoader
 
     private function isVideo(SplFileInfo $file): bool
     {
-        return in_array(
-            strtolower($file->getExtension()),
-            MediaTypeClassifier::VIDEO_EXTENSIONS,
-            true,
-        );
+        return $this->mediaTypeClassifier->isVideo($file);
     }
 
     private function cleanup(?string $path): void
