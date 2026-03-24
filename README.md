@@ -118,7 +118,6 @@ Prerequisites: Docker.
 ```bash
 git clone git@github.com:magicsunday/photo-renamer.git
 cd photo-renamer
-make install
 make binary
 ```
 
