@@ -153,7 +153,7 @@ mkdir("$dir/04-live-photo-pair", 0755, true);
 $photoSource = getenv('PHOTO_SOURCE') ?: '';
 
 if ($photoSource !== '') {
-    $lpSource = $photoSource . '/2025/2025-01-01_00-02-20-016';
+    $lpSource = $photoSource . '/04-live-photo-pair/IMG_0001';
 } else {
     $lpSource = $backupDir . '/04-live-photo-pair/IMG_0001';
 }
@@ -277,7 +277,7 @@ echo "  17 date-only filename        → [W] ambiguous, metadata has time 21:20:
 // On subsequent runs, re-uses the already-committed test-images as source.
 mkdir("$dir/18-live-photo-conflict", 0755, true);
 if ($photoSource !== '') {
-    $lpConflictSrc = $photoSource . '/2020/2020-08-18 - JH Schierke (18.08-22.08.2020)/2020-08-19_11-09-34-857';
+    $lpConflictSrc = $photoSource . '/18-live-photo-conflict/2024-08-19_11-09-34-857';
 } else {
     $lpConflictSrc = $backupDir . '/18-live-photo-conflict/2024-08-19_11-09-34-857';
 }
@@ -464,7 +464,7 @@ echo "  28 cross-dir format backup   → JPG canonical, HEIC gets -duplicate-001
 mkdir("$dir/29-livephoto-edit-duplicate", 0755, true);
 
 if ($photoSource !== '') {
-    $lp29src = $photoSource . '/MobileBackup/Test/2025-05-03_14-38-16-939';
+    $lp29src = $photoSource . '/29-livephoto-edit-duplicate/2025-05-03_14-38-16-939';
 } else {
     $lp29src = $backupDir . '/29-livephoto-edit-duplicate/2025-05-03_14-38-16-939';
 }
