@@ -111,7 +111,18 @@ Supported file types: `jpg`, `jpeg`, `heic`, `heif`, `mov`, `mp4`, `m4v`.
 
 ## 🚀 Installation
 
-Install from the [releases page](https://github.com/magicsunday/photo-renamer/releases/latest):
+### Build from source
+
+Prerequisites: Docker.
+
+```bash
+git clone git@github.com:magicsunday/photo-renamer.git
+cd photo-renamer
+make install
+make binary
+```
+
+This compiles a self-contained binary via [static-php-cli](https://github.com/crazywhalecc/static-php-cli) with all dependencies (including PHP, Imagick, and ImageMagick) statically linked. The first build takes several minutes; subsequent builds reuse the cached SPC environment.
 
 ```bash
 chmod +x renamer
