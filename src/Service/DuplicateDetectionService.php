@@ -597,15 +597,17 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
             $canonicalExactName      = false;
 
             foreach ($renames as $rename) {
-                if ($rename->getTarget()->getPathname() !== $canonicalTargetPath) {
+                $sourcePath     = $rename->getSource()->getPathname();
+                $sourceBasename = FileHelper::basenameWithoutExtension($rename->getSource());
+                $exactName      = $sourceBasename === $canonicalTargetBasename;
+
+                // Allow files whose source already has the canonical name through
+                // regardless of target directory (idempotent canonical preference).
+                if (!$exactName && $rename->getTarget()->getPathname() !== $canonicalTargetPath) {
                     continue;
                 }
 
-                $sourcePath     = $rename->getSource()->getPathname();
-                $sourceBasename = FileHelper::basenameWithoutExtension($rename->getSource());
-
                 $hasLivePhotoId = isset($this->contentIdentifierMap[$sourcePath]);
-                $exactName      = $sourceBasename === $canonicalTargetBasename;
 
                 if ($canonicalRename === null) {
                     $canonicalRename         = $rename;
