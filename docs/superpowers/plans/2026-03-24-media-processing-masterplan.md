@@ -464,33 +464,43 @@ This pass runs in `DuplicateDetectionService` so that `RenameResult` carries the
 
 **Fix:** In `RenameOutputRenderer::buildOutputEntries()`, reorder the if/elseif chain:
 
-```php
-// Current (wrong):
-// [C] > [W+dup] > [D] > [O] > [W] > [F] > [R]
-//
-// Correct (per A5e):
-// [C] > [W+dup] > [F] > [D] > [O] > [W] > [R]
-```
-
-Move the `fallbackDateFiles` check BEFORE the `isDuplicateTarget` check. Also move it before the `isCanonicalEntry || isNoOp` check — but NOT for no-ops (per H2: [O] > [F] for already-correct files).
+**Refactoring approach:** Extract the tag resolution from the inline if/elseif chain into a dedicated `resolveEntryTag()` method on `RenameOutputRenderer`. This makes the priority chain testable, readable, and maintainable.
 
 ```php
-if (isset($result->livePhotoConflictFiles[$sourcePathname])) {
-    $tag = OutputEntryTag::Candidate;
-} elseif (($isDuplicateTarget && (!$isNoOp)) && isset($result->ambiguousTimezoneFiles[$sourcePathname])) {
-    $tag = OutputEntryTag::Warning;
-} elseif (isset($result->fallbackDateFiles[$sourcePathname]) && (!$isNoOp) && !isset($result->ambiguousTimezoneFiles[$sourcePathname])) {
-    $tag = OutputEntryTag::Fallback;
-} elseif ($isDuplicateTarget && (!$isNoOp)) {
-    $tag = OutputEntryTag::Duplicate;
-} elseif ($isCanonicalEntry || $isNoOp) {
-    $tag = OutputEntryTag::Original;
-} elseif (isset($result->ambiguousTimezoneFiles[$sourcePathname])) {
-    $tag = OutputEntryTag::Warning;
-} else {
-    $tag = OutputEntryTag::Rename;
+private function resolveEntryTag(
+    string $sourcePathname,
+    bool $isDuplicateTarget,
+    bool $isNoOp,
+    bool $isCanonicalEntry,
+    RenameResult $result,
+): OutputEntryTag {
+    if (isset($result->livePhotoConflictFiles[$sourcePathname])) {
+        return OutputEntryTag::Candidate;
+    }
+
+    if (isset($result->ambiguousTimezoneFiles[$sourcePathname]) && (!$isNoOp)) {
+        return OutputEntryTag::Warning;
+    }
+
+    if (isset($result->fallbackDateFiles[$sourcePathname]) && (!$isNoOp)) {
+        return OutputEntryTag::Fallback;
+    }
+
+    if ($isDuplicateTarget && (!$isNoOp)) {
+        return OutputEntryTag::Duplicate;
+    }
+
+    if ($isCanonicalEntry || $isNoOp) {
+        return OutputEntryTag::Original;
+    }
+
+    return OutputEntryTag::Rename;
 }
 ```
+
+Priority chain (top to bottom): `[C] > [W] > [F] > [D] > [O] > [R]`
+Exception: `[O]` wins for no-ops (`!$isNoOp` guard on [W], [F], [D]).
+Post-hoc override (outside this method): `[R]` or `[F]` + date drift → promoted to `[W]`.
 
 **Files:** `src/Service/RenameOutputRenderer.php`
 **Tests:** Scenario #54 (duplicate+fallback), #55 (edit+fallback)
@@ -687,7 +697,9 @@ Task 20: README workflow update (12 steps)
 Task 21: Fix 6 — Actionable verify guidance (--detail flag)
 ```
 
-All tasks use TDD: failing test first, then implementation, then commit.
+**Branch strategy:** All implementation work on a dedicated feature branch (e.g. `feature/masterplan-implementation`). Each task is a separate commit. PR against `main` when all tasks complete.
+
+**TDD strictly enforced:** For every fix and scenario: (1) write the failing test, (2) verify it fails, (3) implement the minimal fix, (4) verify it passes, (5) commit. No implementation without a preceding failing test.
 
 ---
 
