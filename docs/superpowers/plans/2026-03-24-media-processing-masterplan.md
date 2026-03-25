@@ -141,7 +141,160 @@
 | Social media re-download (metadata stripped) | [S] Skipped | #07 |
 | Corrupted metadata | [E] Error | Not tested |
 
-### A5. Automatic vs Manual Actions
+### A5. Metadata Conflict Resolution
+
+When multiple metadata tags provide conflicting dates, the **highest priority wins** (per A2 chain). No averaging, no heuristics.
+
+| Tag 1 (higher priority) | Tag 2 (lower priority) | Winner | Rationale |
+|---|---|---|---|
+| DateTimeOriginal=Jan 1 | Keys:CreationDate=Jun 15 | **Jan 1** | Camera's original capture date is most authoritative |
+| DateTimeOriginal=Jan 1 | QuickTime CreateDate=Jun 15 UTC | **Jan 1** | EXIF tag > QuickTime atom |
+| Keys:CreationDate=Jun 15 +02:00 | QuickTime CreateDate=Jun 15 14:00 UTC | **Jun 15 16:00** (local) | Keys has explicit timezone, convert CreateDate UTC to match |
+| Only ModifyDate (0x0132)=Jan 1 | (nothing else) | **Jan 1 [F]** | Fallback, flagged for user review |
+
+**Test needed:** Scenario with DateTimeOriginal AND Keys:CreationDate holding different dates → verify highest priority wins.
+
+`rename:verify` should report metadata conflicts as a separate category when tags disagree by >1 hour.
+
+### A5b. Extension Normalization Rules
+
+All extensions are lowercased. Aliases are mapped:
+
+| Input | Output | Rationale |
+|-------|--------|-----------|
+| `.JPEG`, `.jpeg` | `.jpg` | Standard JPEG alias |
+| `.JPG` | `.jpg` | Case normalization |
+| `.HEIC` | `.heic` | Case normalization |
+| `.HEIF` | `.heif` | Case normalization — NOT converted to .heic (different codec possible) |
+| `.MOV`, `.Mov` | `.mov` | Case normalization |
+| `.MP4` | `.mp4` | Case normalization |
+| `.M4V` | `.m4v` | Case normalization |
+| `.AVI` | `.avi` | Case normalization |
+
+HEIF and HEIC are **not** interchangeable. HEIC = HEVC codec in HEIF container (Apple). HEIF = generic container that may use different codecs. Both are parsed identically by imagemeta but the extension reflects the actual codec.
+
+### A5c. Live Photo Pair Atomicity
+
+**Rule:** LP pairs are processed atomically — either both files are renamed, or neither is. The still's metadata quality determines the pair's fate.
+
+| Still Status | Video Status | Pair Outcome | Rationale |
+|---|---|---|---|
+| [R] reliable | [R] reliable | **Both renamed** — video inherits still's date | Normal case |
+| [R] reliable | [W] ambiguous TZ | **Both renamed** — video inherits still's date | Video's own TZ is irrelevant in LP pair |
+| [R] reliable | [S] no metadata | **Both renamed** — video inherits still's date | Video has no date but still does |
+| [W] ambiguous TZ | [R] reliable | **Both skipped** — still's date is unreliable | Cannot trust the date that video would inherit |
+| [W] ambiguous TZ | [W] ambiguous TZ | **Both skipped** | No reliable date source |
+| [F] fallback | [R] reliable | **Both [F]** — still's date is fallback quality | Video inherits questionable date; user should fix |
+| [F] fallback | [W] ambiguous | **Both [F]** — fallback dominates | Weakest link determines pair quality |
+| [S] no metadata | [R] reliable | **Video standalone [R], still [S]** — pair broken | Still cannot provide a date; video uses own date |
+| [S] no metadata | [S] no metadata | **Both [S]** | No date anywhere |
+
+**Test needed:** Scenarios for each row in this table, especially "Still [W] + Video [R]" → both must be skipped.
+
+### A5d. Intra-Group Processing Order
+
+Within each duplicate group, processing follows this strict order:
+
+```
+Step 1: LP Pairing
+  → Identify which files are LP companions (via Content ID or basename fallback)
+  → Companions are excluded from hash sub-grouping (compared separately)
+
+Step 2: Canonical Selection
+  → Priority: (1) source basename matches target basename (idempotent)
+              (2) file has LP Content ID (original capture)
+              (3) shallowest directory depth (root wins)
+              (4) first encountered file
+
+Step 3: Hash Sub-Grouping
+  → Content hash: byte-identical files → same sub-group
+  → pHash Stage A: multi-signal scoring for different hashes
+  → pHash Stage B: local blob analysis for score ≥ 95 (skip if dHash=0)
+  → Union-find merge: visually identical → same sub-group
+
+Step 4: Suffix Assignment
+  → Canonical sub-group: base name (no suffix) for canonical, -duplicate-NNN for copies
+  → Other sub-groups: -002, -003, etc.
+  → Within each sub-group: canonical gets no suffix, duplicates get -duplicate-NNN
+
+Step 5: Companion Inheritance
+  → LP video companion inherits its paired still's base name + sub-group suffix
+  → Companion's own metadata quality does NOT affect naming (only still's quality matters)
+```
+
+**Critical dependency:** Each step's output feeds the next. Errors in Step 1 (wrong pairing) propagate through all subsequent steps. This is why LP pairing must happen first.
+
+### A5e. Cross-Cutting Classification Conflicts
+
+When a file triggers multiple classification systems simultaneously, this priority determines the output tag:
+
+```
+Priority (highest to lowest):
+1. [C] Content ID conflict  — always wins, always skipped
+2. [W] Ambiguous timezone   — metadata quality issue, skipped
+3. [W] Date drift >MAX_DATE_DRIFT — metadata quality issue, skipped
+4. [F] Fallback date        — metadata quality warning (skippable via --skip-fallback)
+5. [D] Duplicate            — content classification
+6. [O] Original             — no-op (already correct)
+7. [R] Rename               — normal operation
+```
+
+**Conflict resolution table:**
+
+| Situation | Tag | Naming | Rationale |
+|---|---|---|---|
+| Duplicate + Ambiguous TZ | **[W]** | Skipped | Metadata quality > content classification |
+| Duplicate + Fallback Date (both have fallback) | **[F]** | Shown with `-duplicate-NNN` target | Both files have weak metadata |
+| Duplicate + Fallback Date (only duplicate has fallback) | **[D]** | `-duplicate-NNN` | Duplicate is a copy; fallback is a separate concern for verify |
+| Edit (-002) + Fallback Date | **[F]** | Shown with `-002` target | Weak metadata dominates; user should fix date first |
+| Edit (-002) + Ambiguous TZ | **[W]** | Skipped | Cannot rename with unreliable date |
+| LP Companion + Ambiguous TZ (still is OK) | **[R]** | Renamed (inherits still's date) | Still's metadata quality overrides companion's (per A5c) |
+| LP Companion + Ambiguous TZ (still is also [W]) | **[W]** | Both skipped | No reliable date in the pair |
+| Original + Fallback Date | **[F]** | Shown, not skipped (unless --skip-fallback) | File is already named but metadata is weak |
+
+### A5f. rename:verify Diagnostic Output
+
+For each problematic file, `rename:verify` should provide structured diagnostic information. New `--detail` flag for per-file analysis:
+
+```
+rename:verify --detail ~/Photos
+
+=== Timezone Issues (3 files) ===
+
+[W] clip.mp4
+    Problem:    Ambiguous timezone — QuickTime UTC without offset
+    Metadata:   CreateDate=2025:04:03 16:50:50 (UTC)
+                Keys:CreationDate=(none)
+    Camera:     DJI NEO (DJI FC8671)
+    Suggestion: ./renamer.sh rename:write-date --reason=timezone \
+                  --timezone=Europe/Amsterdam 'clip.mp4'
+
+=== Fallback Dates (1 file) ===
+
+[F] scan-001.jpg
+    Problem:    Only DateTime (0x0132) — no DateTimeOriginal
+    Metadata:   DateTime=2023:12:25 08:00:00
+                DateTimeOriginal=(none)
+    Suggestion: ./renamer.sh rename:write-date --reason=fallback 'scan-001.jpg'
+
+=== No Metadata (2 files) ===
+
+[S] IMG_1234.jpg
+    Problem:    No capture date found
+    Suggestion: Name file with correct date, then:
+                ./renamer.sh rename:write-date --reason=nodata 'IMG_1234.jpg'
+
+=== Metadata Conflicts (1 file) ===
+
+[!] photo.mov
+    Problem:    DateTimeOriginal and Keys:CreationDate disagree by 168 days
+    Metadata:   DateTimeOriginal=2024:01:01 12:00:00
+                Keys:CreationDate=2024:06:15 14:00:00+02:00
+    Using:      DateTimeOriginal (highest priority per extraction chain)
+    Suggestion: Verify which date is correct. Use exiftool to fix.
+```
+
+### A6. Automatic vs Manual Actions
 
 | Scenario | Auto? | Tool |
 |----------|-------|------|
@@ -338,14 +491,20 @@ if ($result->isDuplicateLikely()) {
 | 47 | dedup-cross-dir | Fix 4 | Dedup finds original in root | Not orphaned | Cross dir |
 | 48 | hdr-bracketed | F (HDR) | 3 exposures, same second | `-002`, `-003` | Same dir |
 | 49 | idempotency-multi-format | Principle 3 | JPG+HEIC+MOV+AVI, 2nd run = 0 changes | All [O] | Mixed |
+| **50** | **lp-still-ambiguous-video-ok** | **A5c** | **LP still [W] + video [R] → both skipped** | **Both [W]** | **Same dir** |
+| **51** | **lp-still-fallback** | **A5c** | **LP still [F] + video [R] → both [F]** | **Both [F]** | **Same dir** |
+| **52** | **lp-still-no-metadata** | **A5c** | **LP still [S] + video [R] → pair broken** | **Still [S], Video [R]** | **Same dir** |
+| **53** | **metadata-conflict** | **A5** | **DateTimeOriginal ≠ Keys:CreationDate → highest priority wins** | **Uses DateTimeOriginal** | **Single** |
+| **54** | **duplicate-plus-fallback** | **A5e** | **Duplicate where both have fallback date** | **Both [F]** | **Same dir** |
+| **55** | **edit-plus-fallback** | **A5e** | **Edit (-002) with fallback date** | **[F] with `-002` target** | **Same dir** |
 
-**Removed:** #43 (duplicate of existing #28), #49-HEIF (HEIF is functionally identical to HEIC and shares code path — a separate scenario adds no value), renumbered #50→#49.
+**Removed:** #43 (duplicate of existing #28).
 
 ### Test Infrastructure
 
 | Infrastructure | Scenarios | Pattern |
 |---------------|-----------|---------|
-| `scenarioProvider()` | 01-34, 36, 39-42, 44-46, 48 | Single dry-run, output mapping |
+| `scenarioProvider()` | 01-34, 36, 39-42, 44-46, 48, 50-55 | Single dry-run, output mapping |
 | `WriteDateFlowTest` (new class) | 37, 38, 41 | Multi-step: write-date → rename:exif |
 | `testSkipFallbackOption()` | 35 | Custom method with `--skip-fallback` |
 | `testIdempotencyAcrossFormats()` | 49 | Real rename → dry-run → 0 changes |
@@ -406,20 +565,21 @@ Task 6:  Fix 7 — Shared pipeline logic audit
 
 Phase B: Test Scenarios (TDD per scenario)
 Task 7:  Scenarios 32-42, 44-46, 48 (scenarioProvider)
-Task 8:  Scenarios 37, 38, 41 (WriteDateFlowTest class)
-Task 9:  Scenario 35 (testSkipFallbackOption)
-Task 10: Scenario 47 (testDedupCrossDirectory)
-Task 11: Scenario 49 (testIdempotencyAcrossFormats)
+Task 8:  Scenarios 50-55 (LP atomicity, metadata conflict, cross-cutting)
+Task 9:  Scenarios 37, 38, 41 (WriteDateFlowTest class)
+Task 10: Scenario 35 (testSkipFallbackOption)
+Task 11: Scenario 47 (testDedupCrossDirectory)
+Task 12: Scenario 49 (testIdempotencyAcrossFormats)
 
 Phase C: Performance
-Task 12: Perf 1 — Video frames 5→3
-Task 13: Perf 2 — dHash threshold 20→16
-Task 14: Perf 3 — Stage B resolution 1024→512
+Task 13: Perf 1 — Video frames 5→3
+Task 14: Perf 2 — dHash threshold 20→16
+Task 15: Perf 3 — Stage B resolution 1024→512
 
-Phase D: Documentation
-Task 15: Decision matrix docs
-Task 16: README workflow update (12 steps)
-Task 17: Fix 6 — Actionable verify guidance
+Phase D: Documentation & Diagnostics
+Task 16: Decision matrix docs
+Task 17: README workflow update (12 steps)
+Task 18: Fix 6 — Actionable verify guidance (--detail flag)
 ```
 
 All tasks use TDD: failing test first, then implementation, then commit.
