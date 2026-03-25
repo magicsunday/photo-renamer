@@ -173,6 +173,12 @@ final class WriteDateCommand extends Command
                 null,
                 InputOption::VALUE_REQUIRED,
                 'Filter by write reason (comma-separated: nodata, fallback, timezone, drift). Default: all reasons.',
+            )
+            ->addOption(
+                'local-as-utc',
+                null,
+                InputOption::VALUE_NONE,
+                'Treat QuickTime CreateDate as local time (not real UTC). Adds timezone offset without converting. Use for non-Apple cameras that store local time as "UTC".',
             );
     }
 
@@ -292,19 +298,31 @@ final class WriteDateCommand extends Command
                 continue;
             }
 
-            // For timezone reason: treat CreateDate as real UTC and convert to
-            // the configured timezone. The user explicitly declares which timezone
-            // applies — no camera manufacturer detection needed. This works for
-            // any camera: if CreateDate is 16:50 UTC and --timezone=Europe/Berlin,
-            // the result is 18:50+02:00 (CEST).
+            // For timezone reason: fix QuickTime timestamps lacking timezone info.
+            // --local-as-utc: camera stored local time as "UTC" (non-Apple cameras).
+            //   → Keep the existing time, just add the timezone offset.
+            // Default: camera stored real UTC (Apple/DJI).
+            //   → Convert UTC to local time using the configured timezone.
             // For all other reasons: use the filename date as the write value.
             if ($reasonKey === self::REASON_TIMEZONE) {
                 $rawDateTime = $this->exifMetadataProvider->getRawCaptureDateTime($file);
                 $timezone    = $this->resolveTimezone($input);
+                $localAsUtc  = (bool) $input->getOption('local-as-utc');
 
                 if (($rawDateTime instanceof DateTimeInterface) && ($timezone instanceof DateTimeZone)) {
-                    $writeDateTime = DateTimeImmutable::createFromInterface($rawDateTime)
-                        ->setTimezone($timezone);
+                    if ($localAsUtc) {
+                        // Keep the timestamp as-is, just attach the timezone offset.
+                        // 15:43:33 "UTC" → 15:43:33+02:00 (no conversion).
+                        $writeDateTime = new DateTimeImmutable(
+                            $rawDateTime->format('Y-m-d H:i:s'),
+                            $timezone,
+                        );
+                    } else {
+                        // Convert real UTC to local time.
+                        // 15:43:33 UTC → 17:43:33+02:00 (converted).
+                        $writeDateTime = DateTimeImmutable::createFromInterface($rawDateTime)
+                            ->setTimezone($timezone);
+                    }
                 } else {
                     $writeDateTime = $filenameDateTime;
                 }
