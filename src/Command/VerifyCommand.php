@@ -36,7 +36,9 @@ use function dirname;
 use function escapeshellarg;
 use function explode;
 use function in_array;
+use function is_file;
 use function is_string;
+use function realpath;
 use function sort;
 use function sprintf;
 use function strtolower;
@@ -96,9 +98,9 @@ final class VerifyCommand extends Command
             ->setName('rename:verify')
             ->setDescription('Analyzes photo/video collections for metadata problems.')
             ->addArgument(
-                'source-directory',
+                'source',
                 InputArgument::REQUIRED,
-                'Source directory with photos/videos to analyze.'
+                'Source directory or single file to analyze.',
             )
             ->addOption(
                 'show',
@@ -135,13 +137,16 @@ final class VerifyCommand extends Command
         $io = new SymfonyStyle($input, $output);
         $io->title($this->getName() ?? '');
 
-        $sourceDirectory = $this->resolveSourceDirectory($input);
+        $source = $this->resolveSource($input);
 
-        if ($sourceDirectory === null) {
-            $io->error('Source directory does not exist.');
+        if ($source === null) {
+            $io->error('Source path does not exist.');
 
             return self::FAILURE;
         }
+
+        $isSingleFile    = is_file($source);
+        $sourceDirectory = $isSingleFile ? dirname($source) : $source;
 
         $maxDateDrift       = $this->resolveMaxDateDrift($input);
         $showFilter         = $this->resolveShowFilter($input);
@@ -173,9 +178,11 @@ final class VerifyCommand extends Command
         $scannedFiles = 0;
         $okCount      = 0;
 
-        $files = $this->fileSystemService->collectFiles($sourceDirectory);
+        $files = $isSingleFile
+            ? [new SplFileInfo($source)]
+            : $this->fileSystemService->collectFiles($sourceDirectory);
 
-        $io->text(sprintf('<fg=cyan>Scanning:</> %s', $sourceDirectory));
+        $io->text(sprintf('<fg=cyan>Scanning:</> %s', $source));
 
         $progressBar = $files !== [] ? $io->createProgressBar(count($files)) : null;
         $progressBar?->setFormat(Constants::PROGRESS_BAR_FORMAT);
@@ -305,6 +312,26 @@ final class VerifyCommand extends Command
         $this->renderSummary($io, $scannedFiles, $okCount, $categories);
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Resolves the source path from input. Accepts both files and directories.
+     */
+    private function resolveSource(InputInterface $input): ?string
+    {
+        $source = $input->getArgument('source');
+
+        if (!is_string($source)) {
+            return null;
+        }
+
+        $resolved = realpath($source);
+
+        if ($resolved === false) {
+            return null;
+        }
+
+        return $resolved;
     }
 
     /**
