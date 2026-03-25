@@ -30,6 +30,7 @@ use function is_string;
 use function sprintf;
 use function str_contains;
 use function strtolower;
+use function substr_count;
 
 use const DIRECTORY_SEPARATOR;
 
@@ -134,8 +135,13 @@ final class DedupCommand extends Command
             $basename = FileHelper::basenameWithoutExtension($file);
 
             if (!str_contains($basename, Constants::DUPLICATE_IDENTIFIER)) {
-                $key = $basename . '.' . strtolower($file->getExtension());
-                $originalIndex[$key] ??= $file->getPathname();
+                $key   = $basename . '.' . strtolower($file->getExtension());
+                $depth = substr_count($file->getPathname(), DIRECTORY_SEPARATOR);
+
+                // Prefer the shallowest path (closest to source root) as the original.
+                if (!isset($originalIndex[$key]) || $depth < substr_count($originalIndex[$key], DIRECTORY_SEPARATOR)) {
+                    $originalIndex[$key] = $file->getPathname();
+                }
             }
         }
 
