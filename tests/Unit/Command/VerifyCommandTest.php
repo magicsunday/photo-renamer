@@ -496,7 +496,8 @@ final class VerifyCommandTest extends TestCase
             $output = $tester->getDisplay();
             // Must show the problem description
             self::assertStringContainsString('Ambiguous timezone', $output);
-            // Must show the fix suggestion with write-date command and configured timezone
+            // Must show problem description and fix command with configured timezone
+            self::assertStringContainsString('QuickTime UTC without offset', $output);
             self::assertStringContainsString('rename:write-date', $output);
             self::assertStringContainsString('--reason=timezone', $output);
             self::assertStringContainsString('--timezone=Europe/Berlin', $output);
@@ -537,7 +538,7 @@ final class VerifyCommandTest extends TestCase
             self::assertSame(Command::SUCCESS, $exitCode);
 
             $output = $tester->getDisplay();
-            self::assertStringContainsString('No DateTimeOriginal', $output);
+            self::assertStringContainsString('no DateTimeOriginal', $output);
             self::assertStringContainsString('rename:write-date', $output);
             self::assertStringContainsString('--reason=fallback', $output);
         } finally {
