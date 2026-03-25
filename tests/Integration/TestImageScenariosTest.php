@@ -91,7 +91,7 @@ use const DIRECTORY_SEPARATOR;
 use const PREG_SET_ORDER;
 
 /**
- * Integration test validating all 28 test-image scenarios against their expected
+ * Integration test validating all test-image scenarios against their expected
  * rename outcomes. Each scenario directory contains real media files with genuine
  * EXIF/QuickTime metadata. The test runs the full rename pipeline (scan, group,
  * Live Photo pair, hash sub-group, assign filenames) in dry-run mode and asserts
@@ -407,7 +407,7 @@ final class TestImageScenariosTest extends TestCase
     }
 
     /**
-     * Provides all 28 test-image scenarios with their expected rename outcomes.
+     * Provides all test-image scenarios with their expected rename outcomes.
      *
      * Each entry yields:
      *   - scenario directory name
@@ -777,8 +777,7 @@ final class TestImageScenariosTest extends TestCase
     /**
      * Runs the rename pipeline in dry-run mode and returns the raw console output.
      * Used by extractTagAssignments-based tests that need the full output string.
-     */
-    /**
+     *
      * @param array<string, mixed> $extraOptions Additional CLI options merged into the base set
      */
     private function runDryRunRaw(string $workspace, array $extraOptions = []): string
