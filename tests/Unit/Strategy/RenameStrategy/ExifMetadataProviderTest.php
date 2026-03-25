@@ -422,6 +422,37 @@ final class ExifMetadataProviderTest extends TestCase
     }
 
     /**
+     * Verifies that hasReliableDateTime returns false when the seconds differ
+     * between metadata and filename, even though minutes match (Fix 3).
+     */
+    #[Test]
+    public function hasReliableDateTimeReturnsFalseWhenSecondsDiffer(): void
+    {
+        // Filename says :34, metadata says :00 — same minute, different second.
+        $filePath = sys_get_temp_dir() . '/2012-06-16_15-45-34-000.mp4';
+        file_put_contents($filePath, 'test');
+
+        try {
+            $extractor = new StubMetadataExtractor();
+            $extractor->withResponse(
+                $filePath,
+                new TemporalMetadata(
+                    new DateTimeImmutable('2012-06-16T15:45:00+00:00'),
+                    null,
+                    false,
+                    true, // isAmbiguousTimezone
+                ),
+            );
+
+            $provider = new ExifMetadataProvider($extractor);
+
+            self::assertFalse($provider->hasReliableDateTime(new SplFileInfo($filePath)));
+        } finally {
+            @unlink($filePath);
+        }
+    }
+
+    /**
      * Verifies that hasReliableDateTime returns true for normal files
      * without any flags.
      */
