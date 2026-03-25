@@ -479,8 +479,14 @@ final class VerifyCommand extends Command
 
             $io->text(sprintf('<fg=cyan>%s</> (%d files):', $label, count($files)));
 
+            $isDetail = str_contains($files[0], "\n");
+
             foreach ($files as $file) {
                 $io->text(sprintf('  %s', $file));
+
+                if ($isDetail) {
+                    $io->newLine();
+                }
             }
 
             $io->newLine();
