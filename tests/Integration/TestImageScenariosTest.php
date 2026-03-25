@@ -487,6 +487,17 @@ final class TestImageScenariosTest extends TestCase
             [],
             0,
         ];
+        // Scenario 42: same-directory format backup (HEIC + JPG, same photo)
+        // HEIC canonical + JPG format conversion → JPG gets -duplicate-001 (not -002)
+        // Tests Fix 1: Stage B must skip when dHash distance = 0
+        yield '42-same-dir-format-backup' => [
+            '42-same-dir-format-backup',
+            [
+                'photo.heic' => '2025-02-20_15-30-00-200.heic',
+                'photo.jpg'  => '2025-02-20_15-30-00-200-duplicate-001.jpg',
+            ],
+            2,
+        ];
     }
 
     /**
