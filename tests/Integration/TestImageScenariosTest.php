@@ -542,7 +542,10 @@ final class TestImageScenariosTest extends TestCase
 
         // Scenario 45: edit + backup — original + edit + byte-identical backup
         // Hash sub-grouping: edited.jpg gets canonical base name, original.jpg gets -002,
-        // backup/copy.jpg is byte-identical to original → renamed in its own directory
+        // backup/copy.jpg is byte-identical to original → keeps unsuffixed base name
+        // in its own directory (no naming conflict there). Note: masterplan says
+        // -duplicate-001, but the pipeline correctly avoids suffixes when there's
+        // no in-directory conflict. The file is still a cross-dir duplicate for dedup.
         yield '45-edit-plus-backup' => [
             '45-edit-plus-backup',
             [
@@ -578,15 +581,6 @@ final class TestImageScenariosTest extends TestCase
     }
 
     /**
-     * Runs the rename:exif command in dry-run mode with --list-all and returns
-     * the source -> target mapping parsed from the console output.
-     *
-     * Uses real MetadataExtractor (imagemeta), real PerceptualHashCalculator (Imagick),
-     * and the full service stack to exercise the complete pipeline.
-     *
-     * @return array<string, string> Map of relative source path to relative target path
-     */
-    /**
      * Runs the rename pipeline in dry-run mode and returns the raw console output.
      * Used by extractTagAssignments-based tests that need the full output string.
      */
@@ -598,7 +592,7 @@ final class TestImageScenariosTest extends TestCase
         $metadataExtractor   = new MetadataExtractor(MetadataReader::createDefault());
         $metadataProvider    = new ExifMetadataProvider($metadataExtractor);
         $mediaTypeClassifier = new MediaTypeClassifier();
-        $imageLoader         = new ImagickImageLoader(new MediaTypeClassifier());
+        $imageLoader         = new ImagickImageLoader($mediaTypeClassifier);
 
         $perceptualHashCalculator = new PerceptualHashCalculator($imageLoader);
 
@@ -640,7 +634,10 @@ final class TestImageScenariosTest extends TestCase
     }
 
     /**
-     * @return array<string, string>
+     * Runs the rename:exif command in dry-run mode with --list-all and returns
+     * the source -> target mapping parsed from the console output.
+     *
+     * @return array<string, string> Map of relative source path to relative target path
      */
     private function runDryRun(string $workspace): array
     {
