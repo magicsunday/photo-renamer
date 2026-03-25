@@ -92,7 +92,8 @@ final class MetadataCache
      *     latitude?: float|null,
      *     longitude?: float|null,
      *     videoDurationSeconds?: float|null,
-     *     hasQuickTimeLivePhotoMarker?: bool
+     *     hasQuickTimeLivePhotoMarker?: bool,
+     *     rawQuickTimeCreateDate?: string|null
      * }|null
      */
     public function get(SplFileInfo $file): ?array
@@ -135,6 +136,7 @@ final class MetadataCache
             'longitude'                   => $metadata?->getLongitude(),
             'videoDurationSeconds'        => $metadata?->getVideoDurationSeconds(),
             'hasQuickTimeLivePhotoMarker' => $metadata?->hasQuickTimeLivePhotoMarker() ?? false,
+            'rawQuickTimeCreateDate'      => $metadata?->getRawQuickTimeCreateDate()?->format('Y-m-d\TH:i:s.uP'),
         ];
 
         $this->dirty = true;

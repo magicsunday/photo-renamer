@@ -68,6 +68,9 @@ final class ExiftoolWriterTest extends TestCase
         self::assertContains('-QuickTime:ModifyDate=2024:05:15 14:30:00', $args);
         self::assertContains('/tmp/video.mov', $args);
         self::assertNotContains('-DateTimeOriginal=2024:05:15 14:30:00', $args);
+        // Track/Media dates must NOT be written (may not exist in all files)
+        self::assertNotContains('-TrackCreateDate=2024:05:15 14:30:00', $args);
+        self::assertNotContains('-MediaCreateDate=2024:05:15 14:30:00', $args);
     }
 
     /**
@@ -86,7 +89,7 @@ final class ExiftoolWriterTest extends TestCase
         // preserveCreateDate=false → writes CreateDate (UTC) + Keys:CreationDate (local)
         $args = $writer->buildArguments($file, $dateTime, true, false);
 
-        // CreateDate must be real UTC: 16:34:58+02:00 → 14:34:58 UTC
+        // Movie-header dates must be real UTC: 16:34:58+02:00 → 14:34:58 UTC
         self::assertContains('-QuickTime:CreateDate=2014:05:07 14:34:58', $args);
         self::assertContains('-QuickTime:ModifyDate=2014:05:07 14:34:58', $args);
         // Keys:CreationDate must be local time with offset

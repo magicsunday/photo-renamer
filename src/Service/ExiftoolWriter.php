@@ -83,6 +83,8 @@ final readonly class ExiftoolWriter
             } else {
                 // QuickTime:CreateDate/ModifyDate are always UTC (Mac epoch).
                 // Keys:CreationDate carries the local time with timezone offset.
+                // Track/Media dates are NOT touched — they may not exist in all
+                // files and creating them would add unexpected metadata.
                 $utcDate = DateTimeImmutable::createFromInterface($dateTime)
                     ->setTimezone(new DateTimeZone('UTC'));
                 $utcFormatted = $utcDate->format('Y:m:d H:i:s');

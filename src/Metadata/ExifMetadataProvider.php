@@ -321,6 +321,17 @@ final class ExifMetadataProvider
             return null;
         }
 
+        $rawQtCreateDate = null;
+        $rawQtValue      = $cached['rawQuickTimeCreateDate'] ?? null; // @phpstan-ignore nullCoalesce.offset
+
+        if (is_string($rawQtValue)) { // @phpstan-ignore function.impossibleType
+            try {
+                $rawQtCreateDate = new DateTimeImmutable($rawQtValue);
+            } catch (DateMalformedStringException) { // @phpstan-ignore catch.neverThrown
+                // Ignore malformed cached values
+            }
+        }
+
         return new TemporalMetadata(
             $dateTime,
             $contentId,
@@ -334,6 +345,7 @@ final class ExifMetadataProvider
             $cached['longitude'] ?? null,
             $cached['videoDurationSeconds'] ?? null,
             $cached['hasQuickTimeLivePhotoMarker'] ?? false,
+            $rawQtCreateDate,
         );
     }
 
