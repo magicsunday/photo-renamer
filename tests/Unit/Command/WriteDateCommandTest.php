@@ -425,6 +425,41 @@ final class WriteDateCommandTest extends TestCase
         $this->removeWorkspace($workspace);
     }
 
+    /**
+     * Verifies that AVI files are skipped with a warning because exiftool
+     * cannot write QuickTime atoms to AVI RIFF containers (Fix 2).
+     */
+    #[Test]
+    public function executeSkipsAviFilesWithWarning(): void
+    {
+        $workspace = $this->createWorkspace();
+        $aviPath   = $workspace . DIRECTORY_SEPARATOR . '2024-01-15_10-00-00.avi';
+        file_put_contents($aviPath, 'avi-data');
+
+        try {
+            $metadataExtractor = new StubMetadataExtractor();
+            // No metadata → would normally trigger a write
+
+            $command  = $this->createCommand($metadataExtractor);
+            $tester   = new CommandTester($command);
+            $exitCode = $tester->execute([
+                'source'    => $workspace,
+                '--dry-run' => true,
+            ]);
+
+            self::assertSame(Command::SUCCESS, $exitCode);
+
+            $output = $tester->getDisplay();
+            // AVI must NOT appear as a write candidate
+            self::assertStringNotContainsString('[W]', $output);
+            // Should be counted as skipped unsupported write
+            self::assertStringContainsString('Unsupported write', $output);
+        } finally {
+            @unlink($aviPath);
+            $this->cleanupWorkspace($workspace);
+        }
+    }
+
     private function createCommandWithoutExiftool(): WriteDateCommand
     {
         $output = new BufferedOutput();
