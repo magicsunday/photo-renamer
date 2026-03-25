@@ -250,6 +250,127 @@ final class TestImageScenariosTest extends TestCase
     }
 
     /**
+     * Scenario 51: LP still with fallback date [F] → companion video inherits [F]
+     * via LP atomicity propagation (Fix 8).
+     */
+    #[Test]
+    public function scenario51LpStillFallbackPropagatedToVideo(): void
+    {
+        $scenarioDir = '51-lp-still-fallback';
+        $sourceDir   = $this->testImagesDir() . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        self::assertDirectoryExists($sourceDir);
+
+        $workspace = $this->createTempWorkspace('test_images_');
+        $targetDir = $workspace . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        try {
+            $this->copyDirectory($sourceDir, $targetDir);
+
+            $consoleOutput = $this->runDryRunRaw($targetDir);
+            $tags          = $this->extractTagAssignments($consoleOutput, $targetDir);
+
+            self::assertArrayHasKey('IMG_0001.jpg', $tags, 'JPG still must appear in output');
+            self::assertArrayHasKey('IMG_0001.mov', $tags, 'MOV companion must appear in output');
+            self::assertSame('F', $tags['IMG_0001.jpg'], 'JPG still must be tagged [F] (fallback date)');
+            self::assertSame('F', $tags['IMG_0001.mov'], 'MOV companion must inherit [F] from still');
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Scenario 54: two byte-identical files with fallback date → both [F].
+     * Fix 9: [F] must take priority over [D] for duplicate with fallback.
+     */
+    #[Test]
+    public function scenario54DuplicatePlusFallbackBothTaggedF(): void
+    {
+        $scenarioDir = '54-duplicate-plus-fallback';
+        $sourceDir   = $this->testImagesDir() . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        self::assertDirectoryExists($sourceDir);
+
+        $workspace = $this->createTempWorkspace('test_images_');
+        $targetDir = $workspace . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        try {
+            $this->copyDirectory($sourceDir, $targetDir);
+
+            $consoleOutput = $this->runDryRunRaw($targetDir);
+            $tags          = $this->extractTagAssignments($consoleOutput, $targetDir);
+
+            self::assertNotEmpty($tags, 'Should have tag assignments');
+
+            foreach ($tags as $file => $tag) {
+                self::assertSame('F', $tag, 'File ' . $file . ' must be tagged [F]');
+            }
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Scenario 55: original + edited version (different hash), both with fallback
+     * date → edit gets -002 suffix and [F] tag.
+     */
+    #[Test]
+    public function scenario55EditPlusFallbackBothTaggedF(): void
+    {
+        $scenarioDir = '55-edit-plus-fallback';
+        $sourceDir   = $this->testImagesDir() . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        self::assertDirectoryExists($sourceDir);
+
+        $workspace = $this->createTempWorkspace('test_images_');
+        $targetDir = $workspace . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        try {
+            $this->copyDirectory($sourceDir, $targetDir);
+
+            $consoleOutput = $this->runDryRunRaw($targetDir);
+            $tags          = $this->extractTagAssignments($consoleOutput, $targetDir);
+
+            self::assertArrayHasKey('IMG_0001.jpg', $tags);
+            self::assertArrayHasKey('IMG_0002.jpg', $tags);
+            self::assertSame('F', $tags['IMG_0001.jpg'], 'Original must be tagged [F]');
+            self::assertSame('F', $tags['IMG_0002.jpg'], 'Edit must be tagged [F]');
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Scenario 58: two MOV edits with ambiguous timezone → both [W] skipped.
+     */
+    #[Test]
+    public function scenario58EditPlusAmbiguousTzBothTaggedW(): void
+    {
+        $scenarioDir = '58-edit-plus-ambiguous-tz';
+        $sourceDir   = $this->testImagesDir() . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        self::assertDirectoryExists($sourceDir);
+
+        $workspace = $this->createTempWorkspace('test_images_');
+        $targetDir = $workspace . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        try {
+            $this->copyDirectory($sourceDir, $targetDir);
+
+            $consoleOutput = $this->runDryRunRaw($targetDir);
+            $tags          = $this->extractTagAssignments($consoleOutput, $targetDir);
+
+            self::assertNotEmpty($tags, 'Should have tag assignments');
+
+            foreach ($tags as $file => $tag) {
+                self::assertSame('W', $tag, 'File ' . $file . ' must be tagged [W]');
+            }
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
      * Provides all 28 test-image scenarios with their expected rename outcomes.
      *
      * Each entry yields:
@@ -565,6 +686,43 @@ final class TestImageScenariosTest extends TestCase
                 'IMG_0003.jpg' => '2025-06-01_15-30-22-000-003.jpg',
             ],
             3,
+        ];
+
+        // Scenario 33: MOV with Keys:CreationDate + timezone offset → [R] (not [W])
+        yield '33-mov-with-timezone' => [
+            '33-mov-with-timezone',
+            [
+                'clip.mov' => '2025-02-15_14-00-00-000.mov',
+            ],
+            1,
+        ];
+
+        // Scenario 34: AVI with no readable capture date → [S] (skipped)
+        // AVI RIFF container is not supported by imagemeta for date extraction
+        yield '34-avi-with-date' => [
+            '34-avi-with-date',
+            [],
+            0,
+        ];
+
+        // Scenario 36: mixed warning + normal — JPG [R] + MOV [W] in same dir
+        // [W] on the MOV must NOT infect the JPG's [R] tag
+        yield '36-mixed-warning-normal' => [
+            '36-mixed-warning-normal',
+            [
+                'IMG_0001.jpg' => '2025-03-10_14-00-00-000.jpg',
+            ],
+            1,
+        ];
+
+        // Scenario 46: video trimmed — two videos, same date, different duration → -002
+        yield '46-video-trimmed' => [
+            '46-video-trimmed',
+            [
+                'full.mov'    => '2025-07-01_12-00-00-000.mov',
+                'trimmed.mov' => '2025-07-01_12-00-00-000-002.mov',
+            ],
+            2,
         ];
 
         // Scenario 42: same-directory format backup (HEIC + JPG, same photo)
