@@ -334,6 +334,15 @@ final class WriteDateCommand extends Command
             $maxPathLength = max($maxPathLength, mb_strlen($relativePath));
         }
 
+        // Safety confirmation for non-dry-run (Principle 9)
+        if (!$dryRun && $pendingWrites !== []) {
+            if (!$io->confirm('This will modify metadata in ' . count($pendingWrites) . ' file(s). Are you sure?', false)) {
+                $io->text('<fg=yellow>Aborted.</>');
+
+                return self::SUCCESS;
+            }
+        }
+
         $linkConfig = LinkConfig::fromEnv();
 
         // Process pending writes

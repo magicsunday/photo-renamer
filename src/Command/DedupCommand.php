@@ -165,6 +165,17 @@ final class DedupCommand extends Command
         $progressBar?->finish();
         $io->newLine(2);
 
+        // Safety confirmation for non-dry-run (Principle 9)
+        if (!$dryRun && $duplicates !== []) {
+            $action = $delete ? 'delete' : 'move';
+
+            if (!$io->confirm('This will ' . $action . ' ' . count($duplicates) . ' duplicate file(s). Are you sure?', false)) {
+                $io->text('<fg=yellow>Aborted.</>');
+
+                return self::SUCCESS;
+            }
+        }
+
         $duplicatesFound  = 0;
         $orphanedCount    = 0;
         $spaceReclaimable = 0;
