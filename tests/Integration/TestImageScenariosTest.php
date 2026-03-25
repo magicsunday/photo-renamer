@@ -250,6 +250,42 @@ final class TestImageScenariosTest extends TestCase
     }
 
     /**
+     * Scenario 35: --skip-fallback option skips files with fallback date [F].
+     * Uses existing scenario 05 fixture (file with only 0x0132 ModifyDate).
+     * Verifies that [F] files appear in output with --list-all and are skipped.
+     */
+    #[Test]
+    public function scenario35SkipFallbackOptionSkipsFFiles(): void
+    {
+        $scenarioDir = '05-fallback-date';
+        $sourceDir   = $this->testImagesDir() . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        self::assertDirectoryExists($sourceDir);
+
+        $workspace = $this->createTempWorkspace('test_images_');
+        $targetDir = $workspace . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        try {
+            $this->copyDirectory($sourceDir, $targetDir);
+
+            $consoleOutput = $this->runDryRunRaw($targetDir, ['--skip-fallback' => true]);
+            $tags          = $this->extractTagAssignments($consoleOutput, $targetDir);
+
+            // With --skip-fallback + --list-all, the [F] file should appear tagged [F]
+            self::assertNotEmpty($tags, 'Should have at least one tag assignment');
+
+            foreach ($tags as $file => $tag) {
+                self::assertSame('F', $tag, 'File ' . $file . ' should be tagged [F]');
+            }
+
+            // The file should be skipped (no actual rename performed)
+            self::assertStringContainsString('Planned skips', $consoleOutput);
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
      * Scenario 51: LP still with fallback date [F] → companion video inherits [F]
      * via LP atomicity propagation (Fix 8).
      */
@@ -742,7 +778,10 @@ final class TestImageScenariosTest extends TestCase
      * Runs the rename pipeline in dry-run mode and returns the raw console output.
      * Used by extractTagAssignments-based tests that need the full output string.
      */
-    private function runDryRunRaw(string $workspace): string
+    /**
+     * @param array<string, mixed> $extraOptions Additional CLI options merged into the base set
+     */
+    private function runDryRunRaw(string $workspace, array $extraOptions = []): string
     {
         $output = new BufferedOutput();
         $style  = new SymfonyStyle(new ArrayInput([]), $output);
@@ -784,6 +823,7 @@ final class TestImageScenariosTest extends TestCase
             '--dry-run'        => true,
             '--list-all'       => true,
             '--timezone'       => 'Europe/Amsterdam',
+            ...$extraOptions,
         ]);
 
         self::assertSame(Command::SUCCESS, $exitCode, 'Command must succeed for workspace: ' . $workspace);
