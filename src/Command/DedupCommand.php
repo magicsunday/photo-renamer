@@ -172,14 +172,12 @@ final class DedupCommand extends Command
         $io->newLine(2);
 
         // Safety confirmation for non-dry-run (Principle 9)
-        if (!$dryRun && $duplicates !== []) {
-            $action = $delete ? 'delete' : 'move';
+        $action = $delete ? 'delete' : 'move';
 
-            if (!$io->confirm('This will ' . $action . ' ' . count($duplicates) . ' duplicate file(s). Are you sure?', false)) {
-                $io->text('<fg=yellow>Aborted.</>');
+        if (!$dryRun && ($duplicates !== []) && !$io->confirm('This will ' . $action . ' ' . count($duplicates) . ' duplicate file(s). Are you sure?', false)) {
+            $io->text('<fg=yellow>Aborted.</>');
 
-                return self::SUCCESS;
-            }
+            return self::SUCCESS;
         }
 
         $duplicatesFound  = 0;

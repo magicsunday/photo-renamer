@@ -72,6 +72,7 @@ use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Tester\CommandTester;
+use Symfony\Component\Process\Process;
 
 use function copy;
 
@@ -382,7 +383,7 @@ final class WriteDateFlowTest extends TestCase
 
     private function stripAllDates(string $filePath): void
     {
-        $process = new \Symfony\Component\Process\Process([
+        $process = new Process([
             'exiftool', '-overwrite_original',
             '-DateTimeOriginal=',
             '-CreateDate=',
