@@ -304,22 +304,24 @@ final class WriteDateCommand extends Command
             // Default: camera stored real UTC (Apple/DJI).
             //   → Convert UTC to local time using the configured timezone.
             // For all other reasons: use the filename date as the write value.
+            $localAsUtc = (bool) $input->getOption('local-as-utc');
+
             if ($reasonKey === self::REASON_TIMEZONE) {
                 $rawDateTime = $this->exifMetadataProvider->getRawCaptureDateTime($file);
                 $timezone    = $this->resolveTimezone($input);
-                $localAsUtc  = (bool) $input->getOption('local-as-utc');
 
                 if (($rawDateTime instanceof DateTimeInterface) && ($timezone instanceof DateTimeZone)) {
                     if ($localAsUtc) {
-                        // Keep the timestamp as-is, just attach the timezone offset.
-                        // 15:43:33 "UTC" → 15:43:33+02:00 (no conversion).
+                        // Timestamp is already local time stored as "UTC".
+                        // Attach the timezone, then ExiftoolWriter converts to real UTC.
+                        // 16:34:58 "UTC" → Keys:CreationDate=16:34:58+02:00, CreateDate=14:34:58 UTC.
                         $writeDateTime = new DateTimeImmutable(
                             $rawDateTime->format('Y-m-d H:i:s'),
                             $timezone,
                         );
                     } else {
-                        // Convert real UTC to local time.
-                        // 15:43:33 UTC → 17:43:33+02:00 (converted).
+                        // Timestamp is real UTC. Convert to local time.
+                        // 14:34:58 UTC → Keys:CreationDate=16:34:58+02:00, CreateDate untouched.
                         $writeDateTime = DateTimeImmutable::createFromInterface($rawDateTime)
                             ->setTimezone($timezone);
                     }
@@ -337,7 +339,7 @@ final class WriteDateCommand extends Command
                 'reason'             => $reasonLabel,
                 'isVideo'            => $isVideo,
                 'dateTime'           => $writeDateTime,
-                'preserveCreateDate' => $reasonKey === self::REASON_TIMEZONE,
+                'preserveCreateDate' => ($reasonKey === self::REASON_TIMEZONE) && !$localAsUtc,
             ];
         }
 

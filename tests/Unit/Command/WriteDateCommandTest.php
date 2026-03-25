@@ -493,8 +493,9 @@ final class WriteDateCommandTest extends TestCase
     }
 
     /**
-     * Verifies that --local-as-utc flag keeps the existing CreateDate value
-     * and only adds the timezone offset, without UTC conversion.
+     * Verifies that --local-as-utc treats the existing CreateDate as local time,
+     * writes Keys:CreationDate with offset AND corrects CreateDate to real UTC.
+     * 16:34:58 "UTC" + Europe/Berlin → Keys:CreationDate=16:34:58+02:00, CreateDate=14:34:58 UTC.
      */
     #[Test]
     public function executeDryRunLocalAsUtcKeepsExistingTime(): void
