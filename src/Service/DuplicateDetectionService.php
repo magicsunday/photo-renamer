@@ -667,8 +667,8 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
 
             // Track LP pair for quality flag propagation (still → companion only).
             if ($companionRename instanceof Rename && $canonicalRename instanceof Rename) {
-                $canonicalPath  = $canonicalRename->getSource()->getPathname();
-                $companionPath  = $companionRename->getSource()->getPathname();
+                $canonicalPath    = $canonicalRename->getSource()->getPathname();
+                $companionPath    = $companionRename->getSource()->getPathname();
                 $canonicalIsStill = $this->mediaTypeClassifier->isLivePhotoStill($canonicalRename->getSource());
 
                 if ($canonicalIsStill) {

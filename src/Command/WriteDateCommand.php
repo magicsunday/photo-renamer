@@ -211,14 +211,14 @@ final class WriteDateCommand extends Command
 
         $cache = $this->configureProviderCache($this->exifMetadataProvider);
 
-        $scannedFiles   = 0;
-        $alreadyCorrect = 0;
-        $wouldWrite     = 0;
-        $written        = 0;
-        $writeFailed    = 0;
-        $noDateInName   = 0;
-        $readErrors         = 0;
-        $unsupportedWrite   = 0;
+        $scannedFiles     = 0;
+        $alreadyCorrect   = 0;
+        $wouldWrite       = 0;
+        $written          = 0;
+        $writeFailed      = 0;
+        $noDateInName     = 0;
+        $readErrors       = 0;
+        $unsupportedWrite = 0;
 
         $files = $isSingleFile
             ? [new SplFileInfo($source)]

@@ -182,11 +182,11 @@ final readonly class RenameOutputRenderer
      * Priority chain (top to bottom): [C] > [W] > [F] > [D] > [O] > [R].
      * Exception: [O] wins for no-ops (!$isNoOp guard on [W], [F], [D]).
      *
-     * @param string       $sourcePathname  Absolute path of the source file
+     * @param string       $sourcePathname    Absolute path of the source file
      * @param bool         $isDuplicateTarget Whether the file is a duplicate (has -duplicate- suffix)
-     * @param bool         $isNoOp          Whether source and target paths are identical
-     * @param bool         $isCanonicalEntry Whether the file is the canonical entry in its group
-     * @param RenameResult $result          Result carrying quality flags
+     * @param bool         $isNoOp            Whether source and target paths are identical
+     * @param bool         $isCanonicalEntry  Whether the file is the canonical entry in its group
+     * @param RenameResult $result            Result carrying quality flags
      */
     private function resolveEntryTag(
         string $sourcePathname,
