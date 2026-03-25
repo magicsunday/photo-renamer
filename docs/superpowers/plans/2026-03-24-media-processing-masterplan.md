@@ -478,15 +478,15 @@ private function resolveEntryTag(
         return OutputEntryTag::Candidate;
     }
 
-    if (isset($result->ambiguousTimezoneFiles[$sourcePathname]) && (!$isNoOp)) {
+    if (isset($result->ambiguousTimezoneFiles[$sourcePathname]) && !$isNoOp) {
         return OutputEntryTag::Warning;
     }
 
-    if (isset($result->fallbackDateFiles[$sourcePathname]) && (!$isNoOp)) {
+    if (isset($result->fallbackDateFiles[$sourcePathname]) && !$isNoOp) {
         return OutputEntryTag::Fallback;
     }
 
-    if ($isDuplicateTarget && (!$isNoOp)) {
+    if ($isDuplicateTarget && !$isNoOp) {
         return OutputEntryTag::Duplicate;
     }
 
