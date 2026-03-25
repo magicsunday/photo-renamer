@@ -497,6 +497,7 @@ final class VerifyCommandTest extends TestCase
             // Must show the problem description
             self::assertStringContainsString('Ambiguous timezone', $output);
             // Must show problem description and fix command with configured timezone
+            self::assertStringContainsString('Problem:', $output);
             self::assertStringContainsString('QuickTime UTC without offset', $output);
             self::assertStringContainsString('rename:write-date', $output);
             self::assertStringContainsString('--reason=timezone', $output);
