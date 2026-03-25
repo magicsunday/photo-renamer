@@ -82,6 +82,7 @@ use function is_dir;
 use function mkdir;
 use function preg_match_all;
 use function preg_replace;
+use function rename;
 use function rtrim;
 use function str_starts_with;
 use function strlen;
@@ -243,6 +244,53 @@ final class TestImageScenariosTest extends TestCase
 
             foreach ($tags as $file => $tag) {
                 self::assertSame('W', $tag, 'File ' . $file . ' should be tagged [W]');
+            }
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Scenario 49: Idempotency — files already named correctly produce all [O] on re-run.
+     * Uses scenario 01 fixture (single JPG), renames it, then verifies a second
+     * dry-run shows only [O] entries.
+     */
+    #[Test]
+    public function scenario49IdempotencyAcrossFormats(): void
+    {
+        $scenarioDir = '01-basic-rename';
+        $sourceDir   = $this->testImagesDir() . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        self::assertDirectoryExists($sourceDir);
+
+        $workspace = $this->createTempWorkspace('test_images_');
+        $targetDir = $workspace . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        try {
+            $this->copyDirectory($sourceDir, $targetDir);
+
+            // First: get the expected target name
+            $mappings = $this->runDryRun($targetDir);
+            self::assertNotEmpty($mappings);
+
+            // Rename the file to its expected target
+            foreach ($mappings as $source => $target) {
+                $sourcePath = $targetDir . DIRECTORY_SEPARATOR . $source;
+                $targetPath = $targetDir . DIRECTORY_SEPARATOR . $target;
+
+                if ($sourcePath !== $targetPath) {
+                    rename($sourcePath, $targetPath);
+                }
+            }
+
+            // Second dry-run: all files should be [O] (already correctly named)
+            $consoleOutput = $this->runDryRunRaw($targetDir);
+            $tags          = $this->extractTagAssignments($consoleOutput, $targetDir);
+
+            self::assertNotEmpty($tags, 'Should have tag assignments after re-run');
+
+            foreach ($tags as $file => $tag) {
+                self::assertSame('O', $tag, 'File ' . $file . ' should be [O] on second run');
             }
         } finally {
             $this->removeWorkspace($workspace);
