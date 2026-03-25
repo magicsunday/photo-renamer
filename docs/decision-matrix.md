@@ -49,6 +49,8 @@ Trimmed videos, slow-motion exports. Different duration triggers sub-grouping. R
 
 JPG/HEIC still + MOV video linked by Apple Content Identifier. Receive the same base name. The still is authoritative -- its quality flags (`[W]`, `[F]`) propagate to the companion video (LP atomicity).
 
+Note: In practice, JPG/HEIC stills with EXIF DateTimeOriginal never have `[W]` (ambiguous timezone is a QuickTime-only issue). The `[W]` propagation from still to video is covered by unit tests but cannot occur with real iPhone captures. The `[F]` propagation (fallback date) is the more common real-world case.
+
 ### F: Independent Files (same timestamp)
 
 Burst photos, HDR brackets. Different content at the same second. Result: `-002`, `-003`.
