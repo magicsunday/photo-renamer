@@ -60,6 +60,7 @@ use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
+use MagicSunday\Renamer\Test\Fixtures\ConsoleOutputParserTrait;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -84,9 +85,6 @@ use function preg_match_all;
 use function preg_replace;
 use function rename;
 use function rtrim;
-use function str_starts_with;
-use function strlen;
-use function substr;
 
 use const DIRECTORY_SEPARATOR;
 use const PREG_SET_ORDER;
@@ -154,6 +152,7 @@ use const PREG_SET_ORDER;
 #[UsesClass(ExifDateFilenameStrategy::class)]
 final class TestImageScenariosTest extends TestCase
 {
+    use ConsoleOutputParserTrait;
     use WorkspaceTrait;
 
     /**
@@ -1096,59 +1095,14 @@ final class TestImageScenariosTest extends TestCase
 
         if (preg_match_all('/\[(?:O|D|R|F)]\s+(\S+)\s+.{1,3}\s+(\S+)/', $clean, $matches, PREG_SET_ORDER) > 0) {
             foreach ($matches as $match) {
-                $source = $this->stripPrefix($match[1], $absolutePrefix, $relativePrefix);
-                $target = $this->stripPrefix($match[2], $absolutePrefix, $relativePrefix);
+                $source = $this->stripOutputPrefix($match[1], $absolutePrefix, $relativePrefix);
+                $target = $this->stripOutputPrefix($match[2], $absolutePrefix, $relativePrefix);
 
                 $mappings[$source] = $target;
             }
         }
 
         return $mappings;
-    }
-
-    /**
-     * Parses console output into a map of relative source paths to their assigned
-     * output tags ([O], [R], [D], [F], [W], [C], [S], [E]).
-     *
-     * Used by LP atomicity and conflict scenarios where the TAG assignment matters
-     * more than the target filename (e.g. verifying [W] propagation to companions).
-     *
-     * @return array<string, string> source filename => tag letter (O, R, D, F, W, C, S, E)
-     */
-    private function extractTagAssignments(string $consoleOutput, string $workspace): array
-    {
-        $clean = preg_replace('/<[^>]+>/', '', $consoleOutput) ?? $consoleOutput;
-
-        $assignments    = [];
-        $absolutePrefix = rtrim($workspace, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
-        $relativePrefix = basename(rtrim($workspace, DIRECTORY_SEPARATOR)) . DIRECTORY_SEPARATOR;
-
-        if (preg_match_all('/\[([ORDFWCSE])]\s+(\S+)/', $clean, $matches, PREG_SET_ORDER) > 0) {
-            foreach ($matches as $match) {
-                $source = $this->stripPrefix($match[2], $absolutePrefix, $relativePrefix);
-
-                $assignments[$source] = $match[1];
-            }
-        }
-
-        return $assignments;
-    }
-
-    /**
-     * Strips the absolute or relative workspace prefix from a path to produce
-     * a clean relative path for comparison.
-     */
-    private function stripPrefix(string $path, string $absolutePrefix, string $relativePrefix): string
-    {
-        if (str_starts_with($path, $absolutePrefix)) {
-            return substr($path, strlen($absolutePrefix));
-        }
-
-        if (str_starts_with($path, $relativePrefix)) {
-            return substr($path, strlen($relativePrefix));
-        }
-
-        return $path;
     }
 
     /**

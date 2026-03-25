@@ -61,6 +61,7 @@ use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
+use MagicSunday\Renamer\Test\Fixtures\ConsoleOutputParserTrait;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -73,8 +74,6 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Tester\CommandTester;
 
 use function copy;
-use function preg_match_all;
-use function preg_replace;
 
 /**
  * Multi-step integration tests that exercise write-date → rename:exif flows.
@@ -135,6 +134,7 @@ use function preg_replace;
 #[UsesClass(Constants::class)]
 final class WriteDateFlowTest extends TestCase
 {
+    use ConsoleOutputParserTrait;
     use WorkspaceTrait;
 
     private function testImagesDir(): string
@@ -343,23 +343,6 @@ final class WriteDateFlowTest extends TestCase
         self::assertSame(Command::SUCCESS, $exitCode);
 
         return $this->extractTagAssignments($output->fetch(), $workspace);
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    private function extractTagAssignments(string $consoleOutput, string $workspace): array
-    {
-        $clean       = preg_replace('/<[^>]+>/', '', $consoleOutput) ?? $consoleOutput;
-        $assignments = [];
-
-        if (preg_match_all('/\[([ORDFWCSE])]\s+(\S+)/', $clean, $matches, PREG_SET_ORDER) > 0) {
-            foreach ($matches as $match) {
-                $assignments[$match[2]] = $match[1];
-            }
-        }
-
-        return $assignments;
     }
 
     private function createWriteDateCommand(): WriteDateCommand

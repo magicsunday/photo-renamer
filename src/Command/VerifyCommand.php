@@ -33,6 +33,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use function array_map;
 use function count;
 use function dirname;
+use function escapeshellarg;
 use function explode;
 use function in_array;
 use function is_string;
@@ -187,6 +188,11 @@ final class VerifyCommand extends Command
             $relativePath = FileHelper::relativizePath($file->getPathname(), $sourceDirectory);
             $extension    = strtolower($file->getExtension());
 
+            // Closure for detail-aware category entries (avoids ternary duplication).
+            $entry = fn (string $cat, ?DateTimeInterface $dt = null): string => $detail
+                ? $this->formatDetailEntry($relativePath, $cat, $dt, $configuredTimezone)
+                : $relativePath;
+
             // Check for unrecognized file type
             if (!in_array($extension, Constants::SUPPORTED_MEDIA_EXTENSIONS, true)) {
                 $categories['filetype'][] = $relativePath;
@@ -212,9 +218,7 @@ final class VerifyCommand extends Command
                     $this->addToContentIdMap($contentIdMap, $file, $contentId);
                 }
 
-                $categories['nodata'][] = $detail
-                    ? $this->formatDetailEntry($relativePath, 'nodata', null, $configuredTimezone)
-                    : $relativePath;
+                $categories['nodata'][] = $entry('nodata');
 
                 continue;
             }
@@ -226,17 +230,13 @@ final class VerifyCommand extends Command
             // "raw matches filename" check centrally).
             if (!$this->exifMetadataProvider->hasReliableDateTime($file)) {
                 if ($this->exifMetadataProvider->isAmbiguousTimezone($file)) {
-                    $categories['timezone'][] = $detail
-                        ? $this->formatDetailEntry($relativePath, 'timezone', $captureDateTime, $configuredTimezone)
-                        : $relativePath;
-                    $hasIssue = true;
+                    $categories['timezone'][] = $entry('timezone', $captureDateTime);
+                    $hasIssue                 = true;
                 }
 
                 if ($this->exifMetadataProvider->isFallbackDateTime($file)) {
-                    $categories['fallback'][] = $detail
-                        ? $this->formatDetailEntry($relativePath, 'fallback', $captureDateTime, $configuredTimezone)
-                        : $relativePath;
-                    $hasIssue = true;
+                    $categories['fallback'][] = $entry('fallback', $captureDateTime);
+                    $hasIssue                 = true;
                 }
             }
 
@@ -366,7 +366,8 @@ final class VerifyCommand extends Command
         ?DateTimeInterface $captureDateTime,
         ?DateTimeZone $configuredTimezone = null,
     ): string {
-        $lines = [$relativePath];
+        $lines       = [$relativePath];
+        $escapedPath = escapeshellarg($relativePath);
 
         $tzFlag = ($configuredTimezone instanceof DateTimeZone)
             ? '--timezone=' . $configuredTimezone->getName()
@@ -374,17 +375,17 @@ final class VerifyCommand extends Command
 
         $suggestion = match ($category) {
             'timezone' => sprintf(
-                "    Suggestion: rename:write-date --reason=timezone %s '%s'",
+                '    Suggestion: rename:write-date --reason=timezone %s %s',
                 $tzFlag,
-                $relativePath,
+                $escapedPath,
             ),
             'fallback' => sprintf(
-                "    Suggestion: rename:write-date --reason=fallback '%s'",
-                $relativePath,
+                '    Suggestion: rename:write-date --reason=fallback %s',
+                $escapedPath,
             ),
             'nodata' => sprintf(
-                "    Suggestion: Name file with correct date, then: rename:write-date --reason=nodata '%s'",
-                $relativePath,
+                '    Suggestion: Name file with correct date, then: rename:write-date --reason=nodata %s',
+                $escapedPath,
             ),
             default => null,
         };
