@@ -538,6 +538,57 @@ final class WriteDateCommandTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that --force allows re-writing metadata on files that are
+     * already considered reliable (e.g. to correct a previous wrong write).
+     */
+    #[Test]
+    public function executeDryRunForceOverridesReliableCheck(): void
+    {
+        $workspace = $this->createWorkspace();
+        $movPath   = $workspace . DIRECTORY_SEPARATOR . '2014-05-07_16-34-58-000.mov';
+        file_put_contents($movPath, 'video-data');
+
+        try {
+            $metadataExtractor = new StubMetadataExtractor();
+            // File has reliable metadata (Keys:CreationDate with offset)
+            $metadataExtractor->withResponse(
+                $movPath,
+                new TemporalMetadata(
+                    new DateTimeImmutable('2014-05-07T14:34:58+00:00'),
+                    null,
+                    false,
+                    false, // NOT ambiguous — already has Keys:CreationDate
+                ),
+            );
+
+            $command = $this->createCommand($metadataExtractor);
+            $tester  = new CommandTester($command);
+
+            // Without --force: nothing to write (already reliable)
+            $tester->execute([
+                'source'    => $workspace,
+                '--dry-run' => true,
+            ]);
+
+            self::assertStringContainsString('Already correct', $tester->getDisplay());
+
+            // With --force: should detect as timezone reason
+            $tester->execute([
+                'source'     => $workspace,
+                '--dry-run'  => true,
+                '--force'    => true,
+                '--timezone' => 'Europe/Berlin',
+            ]);
+
+            self::assertStringContainsString('[W]', $tester->getDisplay());
+            self::assertStringContainsString('Would write', $tester->getDisplay());
+        } finally {
+            @unlink($movPath);
+            $this->cleanupWorkspace($workspace);
+        }
+    }
+
     private function createCommandWithoutExiftool(): WriteDateCommand
     {
         $output = new BufferedOutput();

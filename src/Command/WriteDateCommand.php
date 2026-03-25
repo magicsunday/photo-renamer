@@ -179,6 +179,12 @@ final class WriteDateCommand extends Command
                 null,
                 InputOption::VALUE_NONE,
                 'Treat QuickTime CreateDate as local time (not real UTC). Adds timezone offset without converting. Use for non-Apple cameras that store local time as "UTC".',
+            )
+            ->addOption(
+                'force',
+                'f',
+                InputOption::VALUE_NONE,
+                'Overwrite existing metadata even when it is already reliable. Use to correct previously wrong writes.',
             );
     }
 
@@ -278,11 +284,14 @@ final class WriteDateCommand extends Command
             $isVideo = !$this->mediaTypeClassifier->isLivePhotoStill($file);
 
             // Determine if write is needed
+            $force = (bool) $input->getOption('force');
+
             [$reasonKey, $reasonLabel] = $this->determineWriteReason(
                 $file,
                 $captureDateTime,
                 $filenameDateTime,
                 $maxDateDrift,
+                $force,
             );
 
             if ($reasonKey === null) {
@@ -465,6 +474,7 @@ final class WriteDateCommand extends Command
         ?DateTimeInterface $captureDateTime,
         DateTimeImmutable $filenameDateTime,
         int $maxDateDrift,
+        bool $force = false,
     ): array {
         // No capture date at all
         if (!$captureDateTime instanceof DateTimeInterface) {
@@ -482,7 +492,8 @@ final class WriteDateCommand extends Command
         }
 
         // If the date is reliable (no issues, or raw matches filename) → no write needed.
-        if ($this->exifMetadataProvider->hasReliableDateTime($file)) {
+        // --force skips this check to allow correcting previously wrong writes.
+        if (!$force && $this->exifMetadataProvider->hasReliableDateTime($file)) {
             return [null, null];
         }
 
@@ -494,6 +505,13 @@ final class WriteDateCommand extends Command
         // Ambiguous timezone (QuickTime UTC ambiguity)
         if ($this->exifMetadataProvider->isAmbiguousTimezone($file)) {
             return [self::REASON_TIMEZONE, self::REASON_LABELS[self::REASON_TIMEZONE]];
+        }
+
+        // With --force on a video that has metadata but no detected issue:
+        // the file was likely already fixed. Allow re-writing as timezone reason
+        // so the user can correct a previous wrong write.
+        if ($force && !$this->mediaTypeClassifier->isLivePhotoStill($file)) {
+            return [self::REASON_TIMEZONE, 'forced re-write of timezone metadata'];
         }
 
         return [null, null];
