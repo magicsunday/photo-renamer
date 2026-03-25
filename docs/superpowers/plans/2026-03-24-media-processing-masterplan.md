@@ -66,6 +66,7 @@
 | Yes | * | * | **Reliable** — local time |
 | No | Yes | Yes | **Reliable** — has TZ info |
 | No | No | Yes (MOV/MP4/M4V) | **Ambiguous** → [W] |
+| No | No | HEIC/HEIF (no EXIF) | **Ambiguous** → [W] — ISO BMFF without EXIF fallback |
 | No | No | No (JPG/AVI) | **Reliable** — local time assumed |
 | * | * | HEIC/HEIF + has EXIF | **Reliable** — BMFF exception |
 
@@ -190,6 +191,8 @@ HEIF and HEIC are **not** interchangeable. HEIC = HEVC codec in HEIF container (
 | [S] no metadata | [W] ambiguous | **Pair broken** — video standalone [W], still [S] | Still has no date; video has ambiguous |
 | [S] no metadata | [S] no metadata | **Both [S]** | No date anywhere |
 
+**Exception to AGENTS.md rule:** AGENTS.md states "MOV companions always inherit the paired still's date, never their own." This rule only applies when the still has a usable date. When the still has no metadata ([S]), the LP pairing is effectively broken — the video companion is treated as a standalone file despite having a matching Content ID.
+
 **Test needed:** Scenarios for each row in this table, especially "Still [W] + Video [R]" → both must be skipped.
 
 ### A5d. Intra-Group Processing Order
@@ -244,7 +247,7 @@ Post-hoc override (applied after initial tag):
 
 **Key decisions:**
 - **[F] > [D]:** The tag shows the most actionable information. Duplicate status is visible in the `-duplicate-NNN` suffix. The user needs to know the date is weak.
-- **[O] > [F]:** If a file is already correctly named (no-op), the fallback quality is a `rename:verify` concern, not a `rename:exif` concern. Showing [F] for an already-correct file would be confusing.
+- **[O] > [F] and [O] > [W] for no-ops:** If a file is already correctly named (source == target), metadata quality issues ([F] fallback, [W] ambiguous TZ) are `rename:verify` concerns, not `rename:exif` concerns. The file won't be renamed regardless, so showing a warning tag would be confusing and break idempotency.
 - **Date drift is a post-hoc promotion**, not a priority level. It only applies to [R] and [F] tags because duplicates and originals have their own naming logic.
 
 **Conflict resolution table:**
@@ -320,7 +323,7 @@ rename:verify --detail ~/Photos
 | AVI metadata fix | Manual: exiftool | External |
 | Unsupported format | Not possible | `rename:verify` reports |
 
-### A6. Processing Order (12 Steps)
+### A7. Processing Order (12 Steps)
 
 ```
 Phase 1: Fix metadata BEFORE renaming
@@ -369,14 +372,18 @@ Step 12:  rename:dedup ~/Photos             → Execute (prompts for confirmatio
 
 **Root cause:** `hasLocalRetouchCached()` runs for all `isDuplicateLikely()` pairs (score ≥ 95). At dHash=0, the images are pixel-identical on the 9×8 gradient grid — any Stage B differences are compression noise, not retouches.
 
-**Fix:** In `HashSubGroupingService::mergePerceptuallySimilarGroups()`, skip Stage B when dHash distance = 0:
+**Fix:** In `HashSubGroupingService::mergePerceptuallySimilarGroups()`, inside the existing `isDuplicateLikely()` check, skip Stage B when dHash distance = 0:
 
 ```php
+// Existing code structure (preserved):
 if ($result->isDuplicateLikely()) {
+    // NEW: skip Stage B when dHash=0 (compression noise, not retouch)
     $shouldMerge = ($result->dhashDistance === 0)
         || !$this->hasLocalRetouchCached(...);
 }
 ```
+
+The fix stays INSIDE the `isDuplicateLikely()` guard. Stage B is only skipped for pairs that are already classified as likely duplicates AND have zero dHash distance.
 
 **Files:** `src/Service/HashSubGroupingService.php`
 **Tests:** New scenario #42 (same-dir HEIC+JPG format backup)
@@ -395,15 +402,37 @@ if ($result->isDuplicateLikely()) {
 
 **Fix:** Change to `Y-m-d H:i:s`. Verify that `FileHelper::extractDateTimeFromPath()` returns seconds (it does — pattern `(\d{2})[-_.](\d{2})[-_.](\d{2})` captures H:i:s).
 
+**One-time idempotency impact:** Files whose seconds differ (e.g. metadata `14:30:22` vs filename `14:30:00`) were previously accepted as "reliable" and tagged [O]. After this fix, they will be re-flagged as [W] or [F]. This is a correctness improvement, not a regression. Users may see a one-time batch of [W]/[F] on files that were previously [O].
+
 **Files:** `src/Metadata/ExifMetadataProvider.php`
 
 ### Fix 4: Dedup cross-directory original search
 
-**Bug:** Dedup checks same directory only. Cross-dir duplicates show as "orphaned".
+**Bug:** `DedupCommand` constructs the original's path by stripping `-duplicate-NNN` and looking in the SAME directory (`$file->getPath() . DIRECTORY_SEPARATOR . $originalBasename`). Cross-directory duplicates (e.g. `backup/photo-duplicate-001.jpg` whose original is `photo.jpg` in root) are flagged as "orphaned" because the original is not found in `backup/`.
 
-**Fix:** Search source root for original file.
+**Root cause:** Line 141 of `DedupCommand.php`: `$originalPath = $file->getPath() . DIRECTORY_SEPARATOR . $originalBasename . '.' . $file->getExtension();` — only checks the duplicate's own directory.
+
+**Fix:** Build an index of all non-duplicate files during the initial scan, keyed by `basename + extension`. When looking for a duplicate's original, search this index instead of constructing a same-directory path. This is O(N) total (one scan to build index, O(1) per lookup) instead of O(N*M) filesystem searches.
+
+```php
+// During initial scan, build original index:
+$originalIndex = []; // 'photo.jpg' => '/root/photo.jpg'
+foreach ($files as $file) {
+    $basename = FileHelper::basenameWithoutExtension($file);
+    if (!str_contains($basename, Constants::DUPLICATE_IDENTIFIER)) {
+        $key = $basename . '.' . strtolower($file->getExtension());
+        $originalIndex[$key] ??= $file->getPathname();
+    }
+}
+
+// When checking duplicate:
+$originalBasename = FileHelper::stripDuplicateSuffix($basename);
+$key = $originalBasename . '.' . strtolower($file->getExtension());
+$originalExists = isset($originalIndex[$key]);
+```
 
 **Files:** `src/Command/DedupCommand.php`
+**Tests:** Scenario #47
 
 ### Fix 5: Add safety confirmation to rename:write-date AND rename:dedup (Principle 9)
 
@@ -560,6 +589,7 @@ if (isset($result->livePhotoConflictFiles[$sourcePathname])) {
 | **56** | **lp-still-fallback-video-ambiguous** | **A5c** | **LP still [F] + video [W] → both [F]** | **Both [F]** | **Same dir** |
 | **57** | **lp-still-no-metadata-video-ambiguous** | **A5c** | **LP still [S] + video [W] → pair broken** | **Still [S], Video [W]** | **Same dir** |
 | **58** | **edit-plus-ambiguous-tz** | **A5e** | **Edit (-002) with ambiguous TZ** | **[W] skipped** | **Same dir** |
+| **59** | **interrupted-run-recovery** | **Principle 3** | **Half-renamed collection: some date-named, some camera-named** | **Date-named [O], camera-named [R]** | **Mixed** |
 
 **Removed:** #43 (duplicate of existing #28).
 
@@ -614,6 +644,8 @@ if (isset($result->livePhotoConflictFiles[$sourcePathname])) {
 | GPS → Timezone | Requires TZ database | User supplies `--timezone` |
 | RAW (CR2, CR3, ARW, NEF, ORF, RW2) | Camera-specific formats, not in SUPPORTED_MEDIA_EXTENSIONS | Use camera manufacturer's converter |
 | DNG/TIFF | Untested — imagemeta may support TIFF-based EXIF | Test and add to extensions |
+| DST transitions | PHP `DateTimeZone` picks one interpretation during fall-back ambiguity. Spring-forward gaps resolved by PHP default. | No user action needed; inherent in local-time-based EXIF |
+| Future-dated files | No date range validation | Processed normally; user should verify camera clock |
 
 ---
 
@@ -641,6 +673,7 @@ Task 12: Scenarios 37, 38, 41 (WriteDateFlowTest class)
 Task 13: Scenario 35 (testSkipFallbackOption)
 Task 14: Scenario 47 (testDedupCrossDirectory)
 Task 15: Scenario 49 (testIdempotencyAcrossFormats)
+Task 15b: Scenario 59 (testInterruptedRunRecovery)
 
 Phase D: Performance
 Task 16: Perf 1 — Video frames 5→3
@@ -654,3 +687,23 @@ Task 21: Fix 6 — Actionable verify guidance (--detail flag)
 ```
 
 All tasks use TDD: failing test first, then implementation, then commit.
+
+---
+
+## Part G: Definition of Done
+
+The plan is complete when ALL of the following are true:
+
+1. **All 59 scenarios pass** (01-42, 44-59) — `make test` green, zero warnings, zero risky
+2. **All 9 fixes implemented** with dedicated tests
+3. **Idempotency verified:** Processing an already-processed collection produces 0 changes (scenario #49)
+4. **Interrupted run recovery verified:** Half-renamed collection processes correctly (scenario #59)
+5. **Performance benchmarks documented:**
+   - Perf 1 (video frames): measure before/after for 10 video comparisons
+   - Perf 2 (dHash threshold): count full-signal comparisons before/after
+   - Perf 3 (Stage B resolution): measure Imagick peak memory before/after
+6. **`rename:verify --detail` outputs actionable fix commands** for every skip category ([W], [F], [S], [E], [C])
+7. **README "Recommended Workflow" matches A7** (12 steps in 5 phases)
+8. **`docs/decision-matrix.md` published** as user-facing reference
+9. **`make test` passes** (full CI pipeline: lint, CGL, rector, PHPStan, PHPUnit, jscpd)
+10. **Infection mutation score ≥ 55%** (existing baseline maintained)
