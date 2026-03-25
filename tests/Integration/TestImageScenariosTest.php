@@ -217,6 +217,39 @@ final class TestImageScenariosTest extends TestCase
     }
 
     /**
+     * Verifies that extractTagAssignments correctly parses [W] tags from scenario 06
+     * (ambiguous timezone). This validates the helper itself and serves as an
+     * integration test for the tag assignment pipeline.
+     */
+    #[Test]
+    public function extractTagAssignmentsReturnsWarningTagForAmbiguousTimezone(): void
+    {
+        $scenarioDir = '06-ambiguous-timezone';
+        $sourceDir   = $this->testImagesDir() . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        self::assertDirectoryExists($sourceDir);
+
+        $workspace = $this->createTempWorkspace('test_images_');
+        $targetDir = $workspace . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        try {
+            $this->copyDirectory($sourceDir, $targetDir);
+
+            $consoleOutput = $this->runDryRunRaw($targetDir);
+            $tags          = $this->extractTagAssignments($consoleOutput, $targetDir);
+
+            // Scenario 06 has one MOV with ambiguous timezone → must be [W]
+            self::assertNotEmpty($tags, 'Should have at least one tag assignment');
+
+            foreach ($tags as $file => $tag) {
+                self::assertSame('W', $tag, 'File ' . $file . ' should be tagged [W]');
+            }
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
      * Provides all 28 test-image scenarios with their expected rename outcomes.
      *
      * Each entry yields:
@@ -509,7 +542,11 @@ final class TestImageScenariosTest extends TestCase
      *
      * @return array<string, string> Map of relative source path to relative target path
      */
-    private function runDryRun(string $workspace): array
+    /**
+     * Runs the rename pipeline in dry-run mode and returns the raw console output.
+     * Used by extractTagAssignments-based tests that need the full output string.
+     */
+    private function runDryRunRaw(string $workspace): string
     {
         $output = new BufferedOutput();
         $style  = new SymfonyStyle(new ArrayInput([]), $output);
@@ -555,7 +592,15 @@ final class TestImageScenariosTest extends TestCase
 
         self::assertSame(Command::SUCCESS, $exitCode, 'Command must succeed for workspace: ' . $workspace);
 
-        $consoleOutput = $output->fetch();
+        return $output->fetch();
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function runDryRun(string $workspace): array
+    {
+        $consoleOutput = $this->runDryRunRaw($workspace);
 
         return $this->extractRenameMappings($consoleOutput, $workspace);
     }
@@ -587,6 +632,34 @@ final class TestImageScenariosTest extends TestCase
         }
 
         return $mappings;
+    }
+
+    /**
+     * Parses console output into a map of relative source paths to their assigned
+     * output tags ([O], [R], [D], [F], [W], [C], [S], [E]).
+     *
+     * Used by LP atomicity and conflict scenarios where the TAG assignment matters
+     * more than the target filename (e.g. verifying [W] propagation to companions).
+     *
+     * @return array<string, string> source filename => tag letter (O, R, D, F, W, C, S, E)
+     */
+    private function extractTagAssignments(string $consoleOutput, string $workspace): array
+    {
+        $clean = preg_replace('/<[^>]+>/', '', $consoleOutput) ?? $consoleOutput;
+
+        $assignments    = [];
+        $absolutePrefix = rtrim($workspace, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+        $relativePrefix = basename(rtrim($workspace, DIRECTORY_SEPARATOR)) . DIRECTORY_SEPARATOR;
+
+        if (preg_match_all('/\[([ORDFWCSE])]\s+(\S+)/', $clean, $matches, PREG_SET_ORDER) > 0) {
+            foreach ($matches as $match) {
+                $source = $this->stripPrefix($match[2], $absolutePrefix, $relativePrefix);
+
+                $assignments[$source] = $match[1];
+            }
+        }
+
+        return $assignments;
     }
 
     /**
