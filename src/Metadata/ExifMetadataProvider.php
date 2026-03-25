@@ -180,7 +180,7 @@ final class ExifMetadataProvider
 
         return ($rawDateTime instanceof DateTimeInterface)
         && ($filenameDateTime instanceof DateTimeImmutable)
-        && ($rawDateTime->format('Y-m-d H:i') === $filenameDateTime->format('Y-m-d H:i'));
+        && ($rawDateTime->format('Y-m-d H:i:s') === $filenameDateTime->format('Y-m-d H:i:s'));
     }
 
     /**
