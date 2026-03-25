@@ -479,7 +479,7 @@ if (isset($result->livePhotoConflictFiles[$sourcePathname])) {
     $tag = OutputEntryTag::Candidate;
 } elseif (($isDuplicateTarget && (!$isNoOp)) && isset($result->ambiguousTimezoneFiles[$sourcePathname])) {
     $tag = OutputEntryTag::Warning;
-} elseif (isset($result->fallbackDateFiles[$sourcePathname]) && (!$isNoOp)) {
+} elseif (isset($result->fallbackDateFiles[$sourcePathname]) && (!$isNoOp) && !isset($result->ambiguousTimezoneFiles[$sourcePathname])) {
     $tag = OutputEntryTag::Fallback;
 } elseif ($isDuplicateTarget && (!$isNoOp)) {
     $tag = OutputEntryTag::Duplicate;
@@ -603,6 +603,7 @@ if (isset($result->livePhotoConflictFiles[$sourcePathname])) {
 | `testSkipFallbackOption()` | 35 | Custom method with `--skip-fallback` |
 | `testIdempotencyAcrossFormats()` | 49 | Real rename → dry-run → 0 changes |
 | `testDedupCrossDirectory()` | 47 | Test rename:dedup command |
+| `testInterruptedRunRecovery()` | 59 | Real partial rename → dry-run → correct mixed state |
 
 ---
 
@@ -694,7 +695,7 @@ All tasks use TDD: failing test first, then implementation, then commit.
 
 The plan is complete when ALL of the following are true:
 
-1. **All 59 scenarios pass** (01-42, 44-59) — `make test` green, zero warnings, zero risky
+1. **All 58 scenarios pass** (01-42, 44-59; #43 removed) — `make test` green, zero warnings, zero risky
 2. **All 9 fixes implemented** with dedicated tests
 3. **Idempotency verified:** Processing an already-processed collection produces 0 changes (scenario #49)
 4. **Interrupted run recovery verified:** Half-renamed collection processes correctly (scenario #59)
