@@ -89,9 +89,9 @@
 | Type | dHash | Score | Expected | Stage B | Tests |
 |------|-------|-------|----------|---------|-------|
 | HEIC↔JPG (same photo) | 0-3 | 96-100 | `-duplicate-NNN` | **Must skip when dHash=0** | #28, NEW #42 |
-| MOV↔MP4 (container swap) | 0 | 98-100 | `-duplicate-NNN` | N/A (video) | NEW #43 |
+| MOV↔MP4 (container swap) | 0 | 98-100 | `-duplicate-NNN` | N/A (video) | Not tested (needs remuxed pair) |
 | JPEG quality re-save | 0-2 | 95-100 | `-duplicate-NNN` | Skip when dHash=0 | #25 |
-| Video re-encode (same duration) | 1-8 | 90-98 | `-duplicate-NNN` | N/A (video) | NEW #44 |
+| Video re-encode (same duration) | 1-8 | 90-98 | `-duplicate-NNN` or `-002` | N/A (video) | Not tested (needs re-encoded pair) |
 | Cloud re-compress (metadata kept) | 0-5 | 80-99 | `-duplicate-NNN` or `-002` | Varies | Not testable (needs real cloud export) |
 | Metadata-only edit (GPS strip) | 0 | 100 | `-duplicate-NNN` | Skip when dHash=0 | Partial #25 |
 
@@ -427,7 +427,7 @@ if ($result->isDuplicateLikely()) {
 This pass runs in `DuplicateDetectionService` so that `RenameResult` carries the correct flags to `RenameOutputRenderer`.
 
 **Files:** `src/Service/DuplicateDetectionService.php`
-**Tests:** Scenarios #50, #51, #52
+**Tests:** Scenarios #50, #51, #52, #56, #57
 
 ### Fix 9: Tag priority chain — [F] before [D] in RenameOutputRenderer (A5e)
 
@@ -567,7 +567,7 @@ if (isset($result->livePhotoConflictFiles[$sourcePathname])) {
 
 | Infrastructure | Scenarios | Pattern |
 |---------------|-----------|---------|
-| `scenarioProvider()` | 01-34, 36, 39-42, 44-46, 48, 51, 53-55 | Single dry-run, output mapping |
+| `scenarioProvider()` | 01-34, 36, 39-40, 42, 44-46, 48, 51, 53-55 | Single dry-run, output mapping |
 | `extractTagAssignments()` (new helper) | 50, 52, 56-58 | Parses `[W]`/`[S]`/`[C]` tags from output for verification |
 | `WriteDateFlowTest` (new class) | 37, 38, 41 | Multi-step: write-date → rename:exif |
 | `testSkipFallbackOption()` | 35 | Custom method with `--skip-fallback` |
@@ -634,8 +634,9 @@ Phase B: Test Infrastructure
 Task 9:  extractTagAssignments() helper for [W]/[S]/[C] tag verification
 
 Phase C: Test Scenarios (TDD per scenario)
-Task 10: Scenarios 32-42, 44-46, 48 (scenarioProvider)
-Task 11: Scenarios 50-58 (LP atomicity, metadata conflict, cross-cutting)
+Task 10: Scenarios 32-34, 36, 39-42, 44-46, 48 (scenarioProvider)
+Task 11: Scenarios 51, 53-55 (scenarioProvider — LP/conflict with mappable output)
+Task 11b: Scenarios 50, 52, 56-58 (extractTagAssignments — LP/conflict with [W]/[S] tags)
 Task 12: Scenarios 37, 38, 41 (WriteDateFlowTest class)
 Task 13: Scenario 35 (testSkipFallbackOption)
 Task 14: Scenario 47 (testDedupCrossDirectory)
