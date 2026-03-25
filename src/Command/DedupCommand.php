@@ -29,6 +29,7 @@ use function count;
 use function is_string;
 use function sprintf;
 use function str_contains;
+use function strtolower;
 
 use const DIRECTORY_SEPARATOR;
 
@@ -125,6 +126,19 @@ final class DedupCommand extends Command
         $progressBar?->setFormat(Constants::PROGRESS_BAR_FORMAT);
         $progressBar?->start();
 
+        // Build index of non-duplicate files for cross-directory original lookup.
+        /** @var array<string, string> $originalIndex basename.ext => pathname */
+        $originalIndex = [];
+
+        foreach ($files as $file) {
+            $basename = FileHelper::basenameWithoutExtension($file);
+
+            if (!str_contains($basename, Constants::DUPLICATE_IDENTIFIER)) {
+                $key = $basename . '.' . strtolower($file->getExtension());
+                $originalIndex[$key] ??= $file->getPathname();
+            }
+        }
+
         /** @var list<array{file: SplFileInfo, originalExists: bool, relativePath: string}> $duplicates */
         $duplicates = [];
 
@@ -138,12 +152,12 @@ final class DedupCommand extends Command
             }
 
             $originalBasename = FileHelper::stripDuplicateSuffix($basename);
-            $originalPath     = $file->getPath() . DIRECTORY_SEPARATOR . $originalBasename . '.' . $file->getExtension();
+            $key              = $originalBasename . '.' . strtolower($file->getExtension());
             $relativePath     = FileHelper::relativizePath($file->getPathname(), $sourceDirectory);
 
             $duplicates[] = [
                 'file'           => $file,
-                'originalExists' => $this->filesystem->exists($originalPath),
+                'originalExists' => isset($originalIndex[$key]),
                 'relativePath'   => $relativePath,
             ];
         }
