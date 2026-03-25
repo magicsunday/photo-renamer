@@ -152,8 +152,9 @@ The recommended 5-phase workflow for tidying a large photo/video collection:
 
 ```bash
 # Step 1: Analyse the collection
-renamer rename:verify ~/Photos
-renamer rename:verify --detail ~/Photos   # with actionable fix suggestions
+renamer rename:verify ~/Photos                          # overview with issue counts
+renamer rename:verify --detail ~/Photos                 # per-file diagnosis with fix commands
+renamer rename:verify --detail /path/to/single-file.mov # check a single file
 
 # Step 2: Fix files with no metadata (writes date extracted from filename)
 renamer rename:write-date --reason=nodata ~/Photos
@@ -165,11 +166,18 @@ renamer rename:write-date --reason=fallback ~/Photos
 renamer rename:write-date --reason=timezone --timezone=Europe/Berlin ~/Photos
 ```
 
-> **Timezone fix:** QuickTime videos (MOV, MP4, M4V) store timestamps in UTC without timezone info.
-> `--reason=timezone` converts the UTC `CreateDate` to the given timezone and writes
-> `Keys:CreationDate` with the local time + offset (e.g. `18:50:50+02:00`). The original
-> `CreateDate` stays untouched. After this fix, `rename:exif` uses the correct local time
-> and no longer shows `[W]`.
+All commands show a post-scan summary before processing, so you can see what will happen without reading documentation first.
+
+The `--detail` flag on `rename:verify` shows per-file diagnostics with copy-pasteable fix commands:
+
+```
+  clip.mov (2.3 KB)
+     Problem:    Ambiguous timezone — QuickTime UTC without offset
+     Metadata:   CreateDate (UTC) = 2025:03:10 14:00:00
+     Fix:        rename:write-date --reason=timezone --timezone=Europe/Berlin '/path/to/clip.mov'
+```
+
+> **About timestamps:** EXIF `DateTimeOriginal` is always local time (the time shown on the camera display). QuickTime videos (MOV, MP4, M4V) store `CreateDate` in UTC without timezone info — the `[W]` warning flags these. `--reason=timezone` converts the UTC `CreateDate` to the given timezone and writes `Keys:CreationDate` with the local time + offset (e.g. `18:50:50+02:00`). The original `CreateDate` stays untouched.
 
 ### Phase 2: Rename
 
