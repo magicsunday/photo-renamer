@@ -30,6 +30,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Tester\CommandTester;
 
 use function file_put_contents;
+use function is_dir;
 use function mkdir;
 use function str_repeat;
 
@@ -270,6 +271,46 @@ final class DedupCommandTest extends TestCase
 
             self::assertFileExists($movedPath);
             self::assertFileDoesNotExist($duplicatePath);
+        } finally {
+            $this->cleanupWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Verifies that a cross-directory duplicate (original in root, duplicate in
+     * subdirectory) is correctly found and not flagged as orphaned (Fix 4).
+     */
+    #[Test]
+    public function executeFindsCrossDirectoryOriginal(): void
+    {
+        $workspace = $this->createWorkspace();
+        $subDir    = $workspace . DIRECTORY_SEPARATOR . 'backup';
+
+        if (!is_dir($subDir)) {
+            mkdir($subDir, 0777, true);
+        }
+
+        $originalPath  = $workspace . DIRECTORY_SEPARATOR . '2025-04-13_17-29-26-411.jpg';
+        $duplicatePath = $subDir . DIRECTORY_SEPARATOR . '2025-04-13_17-29-26-411-duplicate-001.jpg';
+
+        file_put_contents($originalPath, 'original-content');
+        file_put_contents($duplicatePath, 'duplicate-content');
+
+        try {
+            $command  = $this->createCommand();
+            $tester   = new CommandTester($command);
+            $exitCode = $tester->execute([
+                'source-directory' => $workspace,
+                '--dry-run'        => true,
+            ]);
+
+            self::assertSame(Command::SUCCESS, $exitCode);
+
+            $output = $tester->getDisplay();
+            // Must NOT be flagged as orphaned
+            self::assertStringNotContainsString('Original not found', $output);
+            // Must be detected as a duplicate
+            self::assertStringContainsString('[D]', $output);
         } finally {
             $this->cleanupWorkspace($workspace);
         }
