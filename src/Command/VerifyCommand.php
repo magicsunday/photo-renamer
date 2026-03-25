@@ -405,9 +405,9 @@ final class VerifyCommand extends Command
 
         // Problem description per category
         $problem = match ($category) {
-            'timezone' => '     Problem:    Ambiguous timezone — QuickTime UTC without offset',
-            'fallback' => '     Problem:    Only ModifyDate (0x0132) — no DateTimeOriginal or CreateDate',
-            'nodata'   => '     Problem:    No capture date found (no DateTimeOriginal, CreateDate, or ModifyDate)',
+            'timezone' => '     <fg=yellow>Problem:</>    Ambiguous timezone — QuickTime UTC without offset',
+            'fallback' => '     <fg=yellow>Problem:</>    Only ModifyDate (0x0132) — no DateTimeOriginal or CreateDate',
+            'nodata'   => '     <fg=yellow>Problem:</>    No capture date found (no DateTimeOriginal, CreateDate, or ModifyDate)',
             default    => null,
         };
 
@@ -418,33 +418,33 @@ final class VerifyCommand extends Command
         // Show what metadata IS present
         if ($captureDateTime instanceof DateTimeInterface) {
             $label   = ($category === 'timezone') ? 'CreateDate (UTC)' : 'ModifyDate';
-            $lines[] = sprintf('     Metadata:   %s = %s', $label, $captureDateTime->format('Y:m:d H:i:s'));
+            $lines[] = sprintf('     <fg=gray>Metadata:</>   %s = %s', $label, $captureDateTime->format('Y:m:d H:i:s'));
         } else {
-            $lines[] = '     Metadata:   (none)';
+            $lines[] = '     <fg=gray>Metadata:</>   (none)';
         }
 
         // Check if filename contains a date that write-date could use
         $filenameDateTime = FileHelper::extractDateTimeFromPath($absolutePath);
 
         if ($filenameDateTime instanceof DateTimeImmutable) {
-            $lines[] = sprintf('     Filename:   %s (usable by write-date)', $filenameDateTime->format('Y-m-d H:i:s'));
+            $lines[] = sprintf('     <fg=gray>Filename:</>   %s (usable by write-date)', $filenameDateTime->format('Y-m-d H:i:s'));
         } elseif ($category === 'nodata') {
-            $lines[] = '     Filename:   no date pattern found — rename file first';
+            $lines[] = '     <fg=gray>Filename:</>   no date pattern found — rename file first';
         }
 
         $suggestion = match ($category) {
             'timezone' => sprintf(
-                '     Fix:        rename:write-date --reason=timezone %s %s',
+                '     <fg=green>Fix:</>        rename:write-date --reason=timezone %s %s',
                 $tzFlag,
                 $escapedPath,
             ),
             'fallback' => sprintf(
-                '     Fix:        rename:write-date --reason=fallback %s',
+                '     <fg=green>Fix:</>        rename:write-date --reason=fallback %s',
                 $escapedPath,
             ),
             'nodata' => ($filenameDateTime instanceof DateTimeImmutable)
-                ? sprintf('     Fix:        rename:write-date --reason=nodata %s', $escapedPath)
-                : sprintf('     Fix:        Rename to date-based name, then: rename:write-date --reason=nodata %s', $escapedPath),
+                ? sprintf('     <fg=green>Fix:</>        rename:write-date --reason=nodata %s', $escapedPath)
+                : sprintf('     <fg=green>Fix:</>        Rename to date-based name, then: rename:write-date --reason=nodata %s', $escapedPath),
             default => null,
         };
 
