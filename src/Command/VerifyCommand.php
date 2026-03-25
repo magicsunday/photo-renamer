@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Command;
 
 use DateTimeInterface;
+use DateTimeZone;
 use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
@@ -115,6 +116,12 @@ final class VerifyCommand extends Command
                 null,
                 InputOption::VALUE_REQUIRED,
                 'Timezone for video files without timezone metadata (e.g. Europe/Berlin). Overrides TIMEZONE env var.'
+            )
+            ->addOption(
+                'detail',
+                null,
+                InputOption::VALUE_NONE,
+                'Show actionable fix suggestions with metadata details for each problematic file.',
             );
     }
 
@@ -135,8 +142,10 @@ final class VerifyCommand extends Command
             return self::FAILURE;
         }
 
-        $maxDateDrift = $this->resolveMaxDateDrift($input);
-        $showFilter   = $this->resolveShowFilter($input);
+        $maxDateDrift       = $this->resolveMaxDateDrift($input);
+        $showFilter         = $this->resolveShowFilter($input);
+        $detail             = (bool) $input->getOption('detail');
+        $configuredTimezone = $this->resolveTimezone($input);
 
         $this->configureProviderTimezone($this->exifMetadataProvider, $input);
 
@@ -203,7 +212,9 @@ final class VerifyCommand extends Command
                     $this->addToContentIdMap($contentIdMap, $file, $contentId);
                 }
 
-                $categories['nodata'][] = $relativePath;
+                $categories['nodata'][] = $detail
+                    ? $this->formatDetailEntry($relativePath, 'nodata', null, $configuredTimezone)
+                    : $relativePath;
 
                 continue;
             }
@@ -215,13 +226,17 @@ final class VerifyCommand extends Command
             // "raw matches filename" check centrally).
             if (!$this->exifMetadataProvider->hasReliableDateTime($file)) {
                 if ($this->exifMetadataProvider->isAmbiguousTimezone($file)) {
-                    $categories['timezone'][] = $relativePath;
-                    $hasIssue                 = true;
+                    $categories['timezone'][] = $detail
+                        ? $this->formatDetailEntry($relativePath, 'timezone', $captureDateTime, $configuredTimezone)
+                        : $relativePath;
+                    $hasIssue = true;
                 }
 
                 if ($this->exifMetadataProvider->isFallbackDateTime($file)) {
-                    $categories['fallback'][] = $relativePath;
-                    $hasIssue                 = true;
+                    $categories['fallback'][] = $detail
+                        ? $this->formatDetailEntry($relativePath, 'fallback', $captureDateTime, $configuredTimezone)
+                        : $relativePath;
+                    $hasIssue = true;
                 }
             }
 
@@ -340,6 +355,49 @@ final class VerifyCommand extends Command
             'pathname' => $file->getPathname(),
             'isStill'  => $isStill,
         ];
+    }
+
+    /**
+     * Formats a detail entry with problem description and fix suggestion.
+     */
+    private function formatDetailEntry(
+        string $relativePath,
+        string $category,
+        ?DateTimeInterface $captureDateTime,
+        ?DateTimeZone $configuredTimezone = null,
+    ): string {
+        $lines = [$relativePath];
+
+        $tzFlag = ($configuredTimezone instanceof DateTimeZone)
+            ? '--timezone=' . $configuredTimezone->getName()
+            : '--timezone=<TZ>';
+
+        $suggestion = match ($category) {
+            'timezone' => sprintf(
+                "    Suggestion: rename:write-date --reason=timezone %s '%s'",
+                $tzFlag,
+                $relativePath,
+            ),
+            'fallback' => sprintf(
+                "    Suggestion: rename:write-date --reason=fallback '%s'",
+                $relativePath,
+            ),
+            'nodata' => sprintf(
+                "    Suggestion: Name file with correct date, then: rename:write-date --reason=nodata '%s'",
+                $relativePath,
+            ),
+            default => null,
+        };
+
+        if ($captureDateTime instanceof DateTimeInterface) {
+            $lines[] = sprintf('    Metadata:   %s', $captureDateTime->format('Y:m:d H:i:s'));
+        }
+
+        if ($suggestion !== null) {
+            $lines[] = $suggestion;
+        }
+
+        return implode("\n", $lines);
     }
 
     /**
