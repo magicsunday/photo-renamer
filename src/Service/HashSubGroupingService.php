@@ -638,11 +638,11 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
         $keyB = $fileB->getPathname();
 
         if (!isset($imageCache[$keyA]) && !array_key_exists($keyA, $imageCache)) {
-            $imageCache[$keyA] = $this->imageLoader->loadNormalized($fileA, 1024);
+            $imageCache[$keyA] = $this->imageLoader->loadNormalized($fileA, 512);
         }
 
         if (!isset($imageCache[$keyB]) && !array_key_exists($keyB, $imageCache)) {
-            $imageCache[$keyB] = $this->imageLoader->loadNormalized($fileB, 1024);
+            $imageCache[$keyB] = $this->imageLoader->loadNormalized($fileB, 512);
         }
 
         $imgA = $imageCache[$keyA];

@@ -130,7 +130,7 @@ final readonly class ImagickImageLoader
     }
 
     /**
-     * Extracts multiple frames from a video at 10%, 30%, 50%, 70%, 90% of duration,
+     * Extracts multiple frames from a video at 25%, 50%, 75% of duration,
      * normalizes each, and stitches them horizontally into a single composite image.
      *
      * This ensures dHash/wHash/color histogram capture the full video content,
@@ -142,7 +142,7 @@ final readonly class ImagickImageLoader
     private function loadVideoFrame(SplFileInfo $file): ?Imagick
     {
         $duration    = $this->probeVideoDuration($file);
-        $percentages = [0.10, 0.30, 0.50, 0.70, 0.90];
+        $percentages = [0.25, 0.50, 0.75];
         $frames      = [];
 
         if (($duration !== null) && ($duration > 0.5)) {
@@ -205,7 +205,7 @@ final readonly class ImagickImageLoader
             '1',
             $posterPath,
         ]);
-        $process->setTimeout(20.0);
+        $process->setTimeout(5.0);
 
         try {
             $process->run();
