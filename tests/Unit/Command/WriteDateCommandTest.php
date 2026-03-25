@@ -426,6 +426,38 @@ final class WriteDateCommandTest extends TestCase
     }
 
     /**
+     * Verifies that non-dry-run execution requires confirmation (Fix 5).
+     * When the user declines, no files are written.
+     */
+    #[Test]
+    public function executeNonDryRunRequiresConfirmation(): void
+    {
+        $workspace = $this->createWorkspace();
+        $jpgPath   = $workspace . DIRECTORY_SEPARATOR . '2024-01-15.jpg';
+        file_put_contents($jpgPath, 'photo-data');
+
+        try {
+            $command = $this->createCommand();
+            $tester  = new CommandTester($command);
+            $tester->setInputs(['no']);
+
+            $exitCode = $tester->execute([
+                'source' => $workspace,
+            ]);
+
+            self::assertSame(Command::SUCCESS, $exitCode);
+
+            $output = $tester->getDisplay();
+            self::assertStringContainsString('Are you sure', $output);
+            // No writes should have happened
+            self::assertStringNotContainsString('Written', $output);
+        } finally {
+            @unlink($jpgPath);
+            $this->cleanupWorkspace($workspace);
+        }
+    }
+
+    /**
      * Verifies that AVI files are skipped with a warning because exiftool
      * cannot write QuickTime atoms to AVI RIFF containers (Fix 2).
      */

@@ -186,8 +186,10 @@ final class DedupCommandTest extends TestCase
         file_put_contents($duplicatePath, 'duplicate-content');
 
         try {
-            $command  = $this->createCommand();
-            $tester   = new CommandTester($command);
+            $command = $this->createCommand();
+            $tester  = new CommandTester($command);
+            $tester->setInputs(['yes']);
+
             $exitCode = $tester->execute([
                 'source-directory' => $workspace,
             ]);
@@ -222,8 +224,10 @@ final class DedupCommandTest extends TestCase
         file_put_contents($duplicatePath, 'duplicate-content');
 
         try {
-            $command  = $this->createCommand();
-            $tester   = new CommandTester($command);
+            $command = $this->createCommand();
+            $tester  = new CommandTester($command);
+            $tester->setInputs(['yes']);
+
             $exitCode = $tester->execute([
                 'source-directory' => $workspace,
                 '--delete'         => true,
@@ -257,8 +261,10 @@ final class DedupCommandTest extends TestCase
         file_put_contents($duplicatePath, 'duplicate-content');
 
         try {
-            $command  = $this->createCommand();
-            $tester   = new CommandTester($command);
+            $command = $this->createCommand();
+            $tester  = new CommandTester($command);
+            $tester->setInputs(['yes']);
+
             $exitCode = $tester->execute([
                 'source-directory' => $workspace,
                 '--target'         => '_trash',
@@ -271,6 +277,41 @@ final class DedupCommandTest extends TestCase
 
             self::assertFileExists($movedPath);
             self::assertFileDoesNotExist($duplicatePath);
+        } finally {
+            $this->cleanupWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Verifies that non-dry-run execution requires confirmation (Fix 5).
+     * When the user declines, no files are moved.
+     */
+    #[Test]
+    public function executeNonDryRunRequiresConfirmation(): void
+    {
+        $workspace = $this->createWorkspace();
+
+        $originalPath  = $workspace . DIRECTORY_SEPARATOR . '2025-04-13_17-29-26-411.jpg';
+        $duplicatePath = $workspace . DIRECTORY_SEPARATOR . '2025-04-13_17-29-26-411-duplicate-001.jpg';
+
+        file_put_contents($originalPath, 'original-content');
+        file_put_contents($duplicatePath, 'duplicate-content');
+
+        try {
+            $command = $this->createCommand();
+            $tester  = new CommandTester($command);
+            $tester->setInputs(['no']);
+
+            $exitCode = $tester->execute([
+                'source-directory' => $workspace,
+            ]);
+
+            self::assertSame(Command::SUCCESS, $exitCode);
+
+            $output = $tester->getDisplay();
+            self::assertStringContainsString('Are you sure', $output);
+            // Duplicate file should still exist (not moved)
+            self::assertFileExists($duplicatePath);
         } finally {
             $this->cleanupWorkspace($workspace);
         }
