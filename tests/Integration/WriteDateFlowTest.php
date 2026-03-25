@@ -180,7 +180,7 @@ final class WriteDateFlowTest extends TestCase
             $exitCode = $writeTester->execute([
                 'source'     => $newPath,
                 '--reason'   => 'timezone',
-                '--timezone' => 'Europe/Amsterdam',
+                '--timezone' => 'Europe/Berlin',
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -337,7 +337,7 @@ final class WriteDateFlowTest extends TestCase
             'source-directory' => $workspace,
             '--dry-run'        => true,
             '--list-all'       => true,
-            '--timezone'       => 'Europe/Amsterdam',
+            '--timezone'       => 'Europe/Berlin',
         ]);
 
         self::assertSame(Command::SUCCESS, $exitCode);

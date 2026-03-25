@@ -488,7 +488,7 @@ final class VerifyCommandTest extends TestCase
             $exitCode = $tester->execute([
                 'source-directory' => $workspace,
                 '--detail'         => true,
-                '--timezone'       => 'Europe/Amsterdam',
+                '--timezone'       => 'Europe/Berlin',
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -499,7 +499,7 @@ final class VerifyCommandTest extends TestCase
             // Must show the fix suggestion with write-date command and configured timezone
             self::assertStringContainsString('rename:write-date', $output);
             self::assertStringContainsString('--reason=timezone', $output);
-            self::assertStringContainsString('--timezone=Europe/Amsterdam', $output);
+            self::assertStringContainsString('--timezone=Europe/Berlin', $output);
         } finally {
             @unlink($movPath);
             $this->cleanupWorkspace($workspace);

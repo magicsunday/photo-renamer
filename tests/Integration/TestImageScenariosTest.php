@@ -1055,7 +1055,7 @@ final class TestImageScenariosTest extends TestCase
             'source-directory' => $workspace,
             '--dry-run'        => true,
             '--list-all'       => true,
-            '--timezone'       => 'Europe/Amsterdam',
+            '--timezone'       => 'Europe/Berlin',
             ...$extraOptions,
         ]);
 
