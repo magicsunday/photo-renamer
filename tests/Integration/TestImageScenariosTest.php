@@ -520,6 +520,50 @@ final class TestImageScenariosTest extends TestCase
             [],
             0,
         ];
+        // Scenario 39: unsupported format (PNG) is ignored, only JPG processed
+        yield '39-unsupported-format-skipped' => [
+            '39-unsupported-format-skipped',
+            [
+                'IMG_0001.jpg' => '2025-04-01_09-00-00-000.jpg',
+            ],
+            1,
+        ];
+
+        // Scenario 44: same-dir edit — original + edited version with different software
+        // Same date, different hash → sub-groups -002
+        yield '44-same-dir-edit' => [
+            '44-same-dir-edit',
+            [
+                'IMG_0001.jpg' => '2025-05-01_10-00-00-000.jpg',
+                'IMG_0002.jpg' => '2025-05-01_10-00-00-000-002.jpg',
+            ],
+            2,
+        ];
+
+        // Scenario 45: edit + backup — original + edit + byte-identical backup
+        // Hash sub-grouping: edited.jpg gets canonical base name, original.jpg gets -002,
+        // backup/copy.jpg is byte-identical to original → renamed in its own directory
+        yield '45-edit-plus-backup' => [
+            '45-edit-plus-backup',
+            [
+                'edited.jpg'                                => '2025-05-02_11-00-00-000.jpg',
+                'original.jpg'                              => '2025-05-02_11-00-00-000-002.jpg',
+                'backup' . DIRECTORY_SEPARATOR . 'copy.jpg' => 'backup' . DIRECTORY_SEPARATOR . '2025-05-02_11-00-00-000.jpg',
+            ],
+            3,
+        ];
+
+        // Scenario 48: HDR bracketed — 3 exposures same second → -002, -003
+        yield '48-hdr-bracketed' => [
+            '48-hdr-bracketed',
+            [
+                'IMG_0001.jpg' => '2025-06-01_15-30-22-000.jpg',
+                'IMG_0002.jpg' => '2025-06-01_15-30-22-000-002.jpg',
+                'IMG_0003.jpg' => '2025-06-01_15-30-22-000-003.jpg',
+            ],
+            3,
+        ];
+
         // Scenario 42: same-directory format backup (HEIC + JPG, same photo)
         // HEIC canonical + JPG format conversion → JPG gets -duplicate-001 (not -002)
         // Tests Fix 1: Stage B must skip when dHash distance = 0
