@@ -22,6 +22,16 @@
 
 5. **Metadata is the source of truth.** File content determines duplicates, metadata determines names. Never assume content from metadata or vice versa.
 
+6. **Dry-run is read-only.** `--dry-run` must NOT alter pipeline logic, state, or cached data. It prevents only the actual file rename. The output must accurately reflect what a real run would do — including occupied-path tracking and collision detection.
+
+7. **Filenames are unreliable date sources.** Camera imports produce names like `IMG_1234.jpg`, `MOV_5678.mov`, `DSCF0001.jpg` — no date information. Only after `rename:exif` has run do filenames contain reliable dates. Therefore: `rename:write-date` with filename-as-source (`--reason=nodata/fallback/drift`) is only meaningful AFTER at least one `rename:exif` pass, or when the user has manually named files with dates.
+
+8. **No logic duplication across commands.** Commands sharing the same logic (metadata extraction, timezone detection, date drift, duplicate grouping) must use shared services and traits. Never copy-paste pipeline logic between commands.
+
+9. **Safety confirmation before destructive operations.** Commands that modify files (`rename:exif`, `rename:write-date`, `rename:dedup`) must prompt for user confirmation before executing changes (unless `--dry-run`). Currently missing in `rename:write-date`.
+
+10. **Actionable guidance for unresolvable cases.** When a file is skipped (`[W]`, `[S]`, `[E]`, `[C]`), the output must explain WHY and HOW to fix it. For complex cases, `rename:verify` should provide per-file analysis with specific recommendations (e.g. "use `rename:write-date --reason=timezone --timezone=Europe/Berlin` to fix this file").
+
 ---
 
 ## Part A: Decision Matrices
@@ -150,23 +160,44 @@
 | AVI metadata fix | Manual: exiftool | External |
 | Unsupported format | Not possible | `rename:verify` reports |
 
-### A6. Processing Order (11 Steps)
+### A6. Processing Order (12 Steps)
 
 ```
-Step 1:  rename:verify ~/Photos
-Step 2:  rename:write-date --reason=nodata ~/Photos
-Step 3:  rename:write-date --reason=fallback ~/Photos
-Step 4:  rename:write-date --reason=timezone --timezone=<tz> ~/Photos
-Step 5:  rename:write-date --reason=drift ~/Photos
-         ⚠ No-op for files without date in filename. Re-run after Step 7.
-Step 6:  rename:exif --dry-run ~/Photos
-Step 7:  rename:exif ~/Photos
-Step 8:  rename:verify ~/Photos  (confirm all issues resolved)
-Step 9:  rename:exif --dry-run ~/Photos  (verify idempotency: 0 changes)
-Step 10: rename:dedup --dry-run ~/Photos
-         ⚠ Same-directory original search only.
-Step 11: rename:dedup ~/Photos
+Phase 1: Fix metadata BEFORE renaming
+Step 1:   rename:verify ~/Photos
+          → Understand the collection: what problems exist
+Step 2:   rename:write-date --reason=nodata ~/Photos
+          → Fix files with NO metadata. Only useful if filenames already
+            contain dates (previous rename:exif run or manual naming).
+            Camera originals like IMG_1234.jpg have no date to extract.
+Step 3:   rename:write-date --reason=fallback ~/Photos
+          → Fix files using only ModifyDate (0x0132)
+Step 4:   rename:write-date --reason=timezone --timezone=<tz> ~/Photos
+          → Fix QuickTime videos with ambiguous UTC
+
+Phase 2: Rename
+Step 5:   rename:exif --dry-run ~/Photos  → Preview
+Step 6:   rename:exif ~/Photos            → Execute (prompts for confirmation)
+
+Phase 3: Post-rename verification and drift fix
+Step 7:   rename:verify ~/Photos
+          → Confirm all metadata issues resolved after Phase 1+2
+Step 8:   rename:write-date --reason=drift ~/Photos
+          → NOW filenames contain reliable dates (from Step 6).
+            Detect and fix metadata that disagrees with the filename.
+Step 9:   rename:exif ~/Photos
+          → Re-run to apply drift fixes. Minimal changes expected.
+
+Phase 4: Final verification
+Step 10:  rename:exif --dry-run ~/Photos
+          → Verify idempotency (must show 0 changes)
+
+Phase 5: Cleanup
+Step 11:  rename:dedup --dry-run ~/Photos   → Preview
+Step 12:  rename:dedup ~/Photos             → Execute (prompts for confirmation)
 ```
+
+**Key insight (Principle 7):** `--reason=drift` is placed AFTER `rename:exif` because drift detection compares filename dates with metadata dates. On fresh collections with camera names (`IMG_1234.jpg`), there is no filename date to compare. Only after `rename:exif` produces date-based names does drift detection work.
 
 ---
 
@@ -213,6 +244,35 @@ if ($result->isDuplicateLikely()) {
 **Fix:** Search source root for original file.
 
 **Files:** `src/Command/DedupCommand.php`
+
+### Fix 5: Add safety confirmation to rename:write-date (Principle 9)
+
+**Bug:** `rename:write-date` modifies file metadata without confirmation prompt. `rename:exif` and `rename:dedup` already prompt. Inconsistent safety behavior.
+
+**Fix:** Add `$io->confirm()` before executing writes (same pattern as `AbstractRenameCommand::execute()`).
+
+**Files:** `src/Command/WriteDateCommand.php`
+
+### Fix 6: Actionable guidance in skip reasons (Principle 10)
+
+**Current:** `[W]` shows "Ambiguous timezone: QuickTime UTC without offset — use --timezone or rename:write-date --reason=timezone"
+
+**Enhancement:** `rename:verify` should provide per-file recommendations. When a file is flagged, the verify output should show:
+- What the problem is (e.g. "No timezone offset in Keys:CreationDate")
+- What the raw metadata contains (e.g. "CreateDate: 2025-04-03 16:50:50 UTC")
+- Exact command to fix it (e.g. `rename:write-date --reason=timezone --timezone=Europe/Berlin '/path/to/file.mp4'`)
+
+**Files:** `src/Command/VerifyCommand.php`
+
+### Fix 7: Shared pipeline logic audit (Principle 8)
+
+**Audit task:** Verify that all commands sharing logic use the same service methods:
+- `ConfiguresMetadataProvider` trait: timezone resolution, cache dir, max-date-drift → used by rename:exif, verify, write-date ✓
+- `FileSystemService::collectFiles()` vs `AbstractRenameCommand::createFileIterator()` → two different patterns for the same thing. Consolidate?
+- `hasReliableDateTime()` is called from both `DuplicateDetectionService` and `RenameOutputRenderer` → verify same code path
+- Date extraction from filename: `FileHelper::extractDateTimeFromPath()` used by write-date AND by `hasReliableDateTime()` → same logic ✓
+
+**Files:** Multiple — audit only, no code changes unless duplication found.
 
 ---
 
@@ -336,15 +396,30 @@ if ($result->isDuplicateLikely()) {
 ## Part F: Execution Order
 
 ```
-Task 1: Fix 1 — Stage B skip when dHash=0 (blocks scenario 42)
-Task 2: Fix 2 — AVI guard in WriteDateCommand
-Task 3: Fix 3 — hasReliableDateTime second-precision
-Task 4: Fix 4 — Dedup cross-directory search
-Task 5: Test scenarios 32-49 (TDD: test first, then verify/fix)
-Task 6: Performance optimizations (3a, 3b, 3c)
-Task 7: Decision matrix documentation
-Task 8: README workflow update
-Task 9: Idempotency validation (scenario 49)
+Phase A: Implementation Fixes (TDD per fix)
+Task 1:  Fix 1 — Stage B skip when dHash=0 (blocks scenario 42)
+Task 2:  Fix 2 — AVI guard in WriteDateCommand
+Task 3:  Fix 3 — hasReliableDateTime second-precision
+Task 4:  Fix 4 — Dedup cross-directory search
+Task 5:  Fix 5 — Safety confirmation in rename:write-date
+Task 6:  Fix 7 — Shared pipeline logic audit
+
+Phase B: Test Scenarios (TDD per scenario)
+Task 7:  Scenarios 32-42, 44-46, 48 (scenarioProvider)
+Task 8:  Scenarios 37, 38, 41 (WriteDateFlowTest class)
+Task 9:  Scenario 35 (testSkipFallbackOption)
+Task 10: Scenario 47 (testDedupCrossDirectory)
+Task 11: Scenario 49 (testIdempotencyAcrossFormats)
+
+Phase C: Performance
+Task 12: Perf 1 — Video frames 5→3
+Task 13: Perf 2 — dHash threshold 20→16
+Task 14: Perf 3 — Stage B resolution 1024→512
+
+Phase D: Documentation
+Task 15: Decision matrix docs
+Task 16: README workflow update (12 steps)
+Task 17: Fix 6 — Actionable verify guidance
 ```
 
 All tasks use TDD: failing test first, then implementation, then commit.
