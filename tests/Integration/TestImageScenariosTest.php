@@ -251,6 +251,67 @@ final class TestImageScenariosTest extends TestCase
     }
 
     /**
+     * Scenario 59: Interrupted run recovery — a partially renamed collection.
+     * Some files are already date-named ([O]), others still have camera names ([R]).
+     * The pipeline must correctly handle the mixed state.
+     */
+    #[Test]
+    public function scenario59InterruptedRunRecovery(): void
+    {
+        $workspace = $this->createTempWorkspace('test_images_');
+        $targetDir = $workspace . DIRECTORY_SEPARATOR . 'interrupted';
+
+        try {
+            // Copy scenario 01 fixture and create a "half-renamed" state
+            $sourceDir = $this->testImagesDir() . DIRECTORY_SEPARATOR . '01-basic-rename';
+            $this->copyDirectory($sourceDir, $targetDir);
+
+            // Get expected target name
+            $mappings = $this->runDryRun($targetDir);
+            self::assertNotEmpty($mappings);
+
+            // Rename the first file to its target (simulating a completed rename)
+            foreach ($mappings as $source => $target) {
+                $sourcePath = $targetDir . DIRECTORY_SEPARATOR . $source;
+                $targetPath = $targetDir . DIRECTORY_SEPARATOR . $target;
+
+                if ($sourcePath !== $targetPath) {
+                    rename($sourcePath, $targetPath);
+                }
+            }
+
+            // Add a second un-renamed file from another scenario
+            copy(
+                $this->testImagesDir() . DIRECTORY_SEPARATOR . '14-heic-image' . DIRECTORY_SEPARATOR . 'IMG_0042.heic',
+                $targetDir . DIRECTORY_SEPARATOR . 'IMG_0042.heic',
+            );
+
+            // Run dry-run: date-named file should be [O], camera-named should be [R]
+            $consoleOutput = $this->runDryRunRaw($targetDir);
+            $tags          = $this->extractTagAssignments($consoleOutput, $targetDir);
+
+            self::assertCount(2, $tags, 'Should have exactly 2 files');
+
+            // The already-renamed file should be [O]
+            $oCount = 0;
+            $rCount = 0;
+
+            foreach ($tags as $tag) {
+                if ($tag === 'O') {
+                    ++$oCount;
+                } elseif ($tag === 'R') {
+                    ++$rCount;
+                }
+            }
+
+            self::assertSame(1, $oCount, 'One file should be [O] (already correctly named)');
+            self::assertSame(1, $rCount, 'One file should be [R] (needs renaming)');
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
      * Scenario 49: Idempotency — files already named correctly produce all [O] on re-run.
      * Uses scenario 01 fixture (single JPG), renames it, then verifies a second
      * dry-run shows only [O] entries.
