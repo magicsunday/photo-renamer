@@ -326,6 +326,32 @@ final class WriteDateCommand extends Command
         $progressBar?->finish();
         $io->newLine(2);
 
+        // Post-scan summary before listing individual entries
+        if ($pendingWrites !== []) {
+            $reasonCounts = [];
+
+            foreach ($pendingWrites as $entry) {
+                /** @var string $rk */
+                $rk                = $entry['reasonKey'];
+                $reasonCounts[$rk] = ($reasonCounts[$rk] ?? 0) + 1;
+            }
+
+            $io->text(sprintf(
+                '<fg=cyan>Found %d file(s) needing metadata repair:</>',
+                count($pendingWrites),
+            ));
+
+            foreach ($reasonCounts as $reason => $cnt) {
+                $label = self::REASON_LABELS[$reason] ?? $reason;
+                $io->text(sprintf('  %d %s <fg=gray>(%s)</>', $cnt, $cnt === 1 ? 'file' : 'files', $label));
+            }
+
+            $io->newLine();
+        } elseif ($scannedFiles > 0) {
+            $io->text('<fg=green>All files have correct metadata — nothing to do.</>');
+            $io->newLine();
+        }
+
         // Compute max path length for aligned output
         $maxPathLength = 0;
 

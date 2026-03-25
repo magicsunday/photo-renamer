@@ -172,10 +172,30 @@ final class DedupCommand extends Command
         $progressBar?->finish();
         $io->newLine(2);
 
-        // Safety confirmation for non-dry-run (Principle 9)
+        // Post-scan summary
         $action          = $delete ? 'delete' : 'move';
         $actionableCount = count(array_filter($duplicates, static fn (array $e): bool => $e['originalExists']));
+        $orphanCount     = count($duplicates) - $actionableCount;
 
+        if ($duplicates !== []) {
+            $io->text(sprintf(
+                '<fg=cyan>Found %d duplicate file(s) (%d actionable, %d orphaned).</>',
+                count($duplicates),
+                $actionableCount,
+                $orphanCount,
+            ));
+
+            if ($actionableCount > 0) {
+                $io->text(sprintf('  Action: <fg=yellow>%s</> duplicates whose original still exists.', $action));
+            }
+
+            $io->newLine();
+        } elseif ($files !== []) {
+            $io->text('<fg=green>No duplicate files found — nothing to do.</>');
+            $io->newLine();
+        }
+
+        // Safety confirmation for non-dry-run (Principle 9)
         if (!$dryRun && ($actionableCount > 0) && !$io->confirm('This will ' . $action . ' ' . $actionableCount . ' duplicate file(s). Are you sure?', false)) {
             $io->text('<fg=yellow>Aborted.</>');
 

@@ -368,6 +368,8 @@ abstract class AbstractRenameCommand extends Command
             livePhotoConflictFiles: $this->duplicateDetectionService->getLivePhotoConflictFiles(),
         );
 
+        $this->renderPostScanSummary($result);
+
         $this->fileSystemService
             ->renameFiles(
                 $fileDuplicateCollection,
@@ -384,6 +386,50 @@ abstract class AbstractRenameCommand extends Command
             );
 
         $this->duplicateDetectionService->clearHashCache();
+    }
+
+    /**
+     * Renders a short post-scan summary showing what the pipeline found.
+     */
+    private function renderPostScanSummary(RenameResult $result): void
+    {
+        $skippedCount  = count($result->skippedFiles);
+        $warningCount  = count($result->ambiguousTimezoneFiles);
+        $fallbackCount = count($result->fallbackDateFiles);
+        $conflictCount = count($result->livePhotoConflictFiles);
+        $issueCount    = $skippedCount + $warningCount + $fallbackCount + $conflictCount;
+
+        if ($issueCount > 0) {
+            /** @var list<string> $parts */
+            $parts = [];
+
+            if ($warningCount > 0) {
+                $parts[] = sprintf('%d ambiguous timezone', $warningCount);
+            }
+
+            if ($fallbackCount > 0) {
+                $parts[] = sprintf('%d fallback date', $fallbackCount);
+            }
+
+            if ($skippedCount > 0) {
+                $parts[] = sprintf('%d skipped', $skippedCount);
+            }
+
+            if ($conflictCount > 0) {
+                $parts[] = sprintf('%d LP conflict', $conflictCount);
+            }
+
+            $this->io->text(sprintf(
+                '<fg=yellow>%d file(s) with issues:</> %s',
+                $issueCount,
+                implode(', ', $parts),
+            ));
+
+            $this->io->newLine();
+        }
+
+        $this->io->text('Renaming files');
+        $this->io->newLine();
     }
 
     /**
