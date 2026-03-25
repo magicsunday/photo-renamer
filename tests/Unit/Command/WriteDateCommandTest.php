@@ -492,6 +492,51 @@ final class WriteDateCommandTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that --local-as-utc flag keeps the existing CreateDate value
+     * and only adds the timezone offset, without UTC conversion.
+     */
+    #[Test]
+    public function executeDryRunLocalAsUtcKeepsExistingTime(): void
+    {
+        $workspace = $this->createWorkspace();
+        $movPath   = $workspace . DIRECTORY_SEPARATOR . '2014-04-26.mov';
+        file_put_contents($movPath, 'video-data');
+
+        try {
+            $metadataExtractor = new StubMetadataExtractor();
+            $metadataExtractor->withResponse(
+                $movPath,
+                new TemporalMetadata(
+                    new DateTimeImmutable('2014-04-26T15:43:33+00:00'),
+                    null,
+                    false,
+                    true, // isAmbiguousTimezone
+                ),
+            );
+
+            $command  = $this->createCommand($metadataExtractor);
+            $tester   = new CommandTester($command);
+            $exitCode = $tester->execute([
+                'source'         => $workspace,
+                '--dry-run'      => true,
+                '--reason'       => 'timezone',
+                '--timezone'     => 'Europe/Berlin',
+                '--local-as-utc' => true,
+            ]);
+
+            self::assertSame(Command::SUCCESS, $exitCode);
+
+            $output = $tester->getDisplay();
+            // Must show the ORIGINAL time (15:43:33), not converted (17:43:33)
+            self::assertStringContainsString('15:43:33', $output);
+            self::assertStringNotContainsString('17:43:33', $output);
+        } finally {
+            @unlink($movPath);
+            $this->cleanupWorkspace($workspace);
+        }
+    }
+
     private function createCommandWithoutExiftool(): WriteDateCommand
     {
         $output = new BufferedOutput();
