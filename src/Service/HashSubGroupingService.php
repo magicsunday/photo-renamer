@@ -536,12 +536,15 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
                 $shouldMerge = false;
 
                 if ($result->isDuplicateLikely()) {
-                    // Stage B: local blob analysis for near-identical pairs
-                    $shouldMerge = !$this->hasLocalRetouchCached(
-                        $representativeByHash[$hashes[$i]],
-                        $representativeByHash[$hashes[$j]],
-                        $stageBImageCache,
-                    );
+                    // Skip Stage B when dHash=0: images are pixel-identical on the
+                    // 9×8 gradient grid. Any Stage B differences are compression
+                    // noise (HEIC vs JPEG artifacts), not intentional retouches.
+                    $shouldMerge = ($result->dhashDistance === 0)
+                        || !$this->hasLocalRetouchCached(
+                            $representativeByHash[$hashes[$i]],
+                            $representativeByHash[$hashes[$j]],
+                            $stageBImageCache,
+                        );
                 }
 
                 if ($shouldMerge) {
