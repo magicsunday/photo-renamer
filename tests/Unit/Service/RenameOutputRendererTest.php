@@ -794,6 +794,79 @@ final class RenameOutputRendererTest extends TestCase
     }
 
     /**
+     * Verifies that a duplicate with fallback date is tagged [F], not [D].
+     * Fix 9: [F] has higher priority than [D] in the tag chain.
+     */
+    #[Test]
+    public function buildOutputEntriesTagsFallbackOverDuplicateForFallbackDuplicate(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $sourceDir       = '/tmp/source';
+        $canonical       = $sourceDir . '/photo-a.jpg';
+        $duplicate       = $sourceDir . '/photo-b.jpg';
+        $canonicalTarget = $sourceDir . '/2025-01-01_12-00-00-000.jpg';
+        $duplicateTarget = $sourceDir . '/2025-01-01_12-00-00-000' . Constants::DUPLICATE_IDENTIFIER . '001.jpg';
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate->setTarget(new SplFileInfo($canonicalTarget));
+        $fileDuplicate->addRename(new Rename(new SplFileInfo($canonical), new SplFileInfo($canonicalTarget)));
+        $fileDuplicate->addRename(new Rename(new SplFileInfo($duplicate), new SplFileInfo($duplicateTarget)));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('test', $fileDuplicate);
+
+        [$entries] = $renderer->buildOutputEntries(
+            $collection,
+            new RenameOptions(),
+            new RenameResult(
+                fallbackDateFiles: [$duplicate => true],
+            ),
+            $sourceDir,
+        );
+
+        self::assertCount(2, $entries);
+
+        // The duplicate entry (photo-b) must be [F], not [D].
+        $duplicateEntry = $entries[0]['sourcePath'] === 'photo-b.jpg' ? $entries[0] : $entries[1];
+        self::assertSame(OutputEntryTag::Fallback, $duplicateEntry['tag']);
+    }
+
+    /**
+     * Verifies that a non-duplicate rename with ambiguous timezone is tagged [W].
+     * Fix 9: [W] applies to all renames, not just duplicates.
+     */
+    #[Test]
+    public function buildOutputEntriesTagsWarningForNonDuplicateRenameWithAmbiguousTimezone(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $sourceDir = '/tmp/source';
+        $source    = $sourceDir . '/clip.mp4';
+        $target    = $sourceDir . '/2025-06-10_16-30-00-000.mp4';
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate->setTarget(new SplFileInfo($target));
+        $fileDuplicate->addRename(new Rename(new SplFileInfo($source), new SplFileInfo($target)));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('test', $fileDuplicate);
+
+        [$entries] = $renderer->buildOutputEntries(
+            $collection,
+            new RenameOptions(),
+            new RenameResult(
+                ambiguousTimezoneFiles: [$source => true],
+            ),
+            $sourceDir,
+        );
+
+        self::assertCount(1, $entries);
+        self::assertSame(OutputEntryTag::Warning, $entries[0]['tag']);
+        self::assertTrue($entries[0]['shouldSkip']);
+    }
+
+    /**
      * @return array{RenameOutputRenderer, BufferedOutput}
      */
     private function createRenderer(): array
