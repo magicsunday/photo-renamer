@@ -251,6 +251,69 @@ final class TestImageScenariosTest extends TestCase
     }
 
     /**
+     * Scenario 56: LP still [F] + video [W] — the still's [F] does NOT override
+     * the video's own [W] because [W] has higher priority in the tag chain.
+     * The still keeps [F], the video keeps [W].
+     */
+    #[Test]
+    public function scenario56LpStillFallbackVideoAmbiguousTz(): void
+    {
+        $scenarioDir = '56-lp-still-fallback-video-ambiguous';
+        $sourceDir   = $this->testImagesDir() . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        self::assertDirectoryExists($sourceDir);
+
+        $workspace = $this->createTempWorkspace('test_images_');
+        $targetDir = $workspace . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        try {
+            $this->copyDirectory($sourceDir, $targetDir);
+
+            $consoleOutput = $this->runDryRunRaw($targetDir);
+            $tags          = $this->extractTagAssignments($consoleOutput, $targetDir);
+
+            self::assertArrayHasKey('IMG_0001.jpg', $tags);
+            self::assertArrayHasKey('IMG_0001.mov', $tags);
+            self::assertSame('F', $tags['IMG_0001.jpg'], 'JPG still must be [F] (fallback date)');
+            self::assertSame('W', $tags['IMG_0001.mov'], 'MOV keeps [W] (ambiguous TZ > fallback via priority chain)');
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Scenario 57: LP still with no metadata + video with ambiguous TZ.
+     * LP pairing gives the still a date from the video (timezone-converted).
+     * The still gets [R], the video gets [W].
+     */
+    #[Test]
+    public function scenario57LpStillNoMetadataVideoAmbiguousTz(): void
+    {
+        $scenarioDir = '57-lp-still-no-metadata-video-ambiguous';
+        $sourceDir   = $this->testImagesDir() . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        self::assertDirectoryExists($sourceDir);
+
+        $workspace = $this->createTempWorkspace('test_images_');
+        $targetDir = $workspace . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        try {
+            $this->copyDirectory($sourceDir, $targetDir);
+
+            $consoleOutput = $this->runDryRunRaw($targetDir);
+            $tags          = $this->extractTagAssignments($consoleOutput, $targetDir);
+
+            self::assertArrayHasKey('IMG_0001.jpg', $tags);
+            self::assertArrayHasKey('IMG_0001.mov', $tags);
+            // Still gets [R] — LP pairing provides the video's timezone-converted date
+            self::assertSame('R', $tags['IMG_0001.jpg'], 'JPG still gets [R] via LP pairing date');
+            self::assertSame('W', $tags['IMG_0001.mov'], 'MOV keeps [W] (ambiguous TZ)');
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
      * Scenario 59: Interrupted run recovery — a partially renamed collection.
      * Some files are already date-named ([O]), others still have camera names ([R]).
      * The pipeline must correctly handle the mixed state.
@@ -880,6 +943,29 @@ final class TestImageScenariosTest extends TestCase
                 'photo.jpg'  => '2025-02-20_15-30-00-200-duplicate-001.jpg',
             ],
             2,
+        ];
+
+        // Scenario 52: LP still with no metadata + video with date → LP pairing
+        // gives the still the companion's date. Both [R].
+        // Note: masterplan expected Still [S], but LP pairing correctly passes
+        // the video's date to the still — no file is lost.
+        yield '52-lp-still-no-metadata' => [
+            '52-lp-still-no-metadata',
+            [
+                'IMG_0001.jpg' => '2025-01-01_00-02-19-000.jpg',
+                'IMG_0001.mov' => '2025-01-01_00-02-19-000.mov',
+            ],
+            2,
+        ];
+
+        // Scenario 53: MOV with conflicting QuickTime CreateDate vs Keys:CreationDate.
+        // Pipeline uses timezone-aware Keys:CreationDate (14:00+02:00) over raw UTC (12:00).
+        yield '53-metadata-conflict' => [
+            '53-metadata-conflict',
+            [
+                'clip.mov' => '2025-04-15_14-00-00-000.mov',
+            ],
+            1,
         ];
     }
 
