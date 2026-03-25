@@ -163,7 +163,11 @@ renamer rename:write-date --reason=nodata ~/Photos
 renamer rename:write-date --reason=fallback ~/Photos
 
 # Step 4: Fix QuickTime videos with ambiguous UTC timestamps
+# Apple/DJI cameras (CreateDate is real UTC → convert to local time):
 renamer rename:write-date --reason=timezone --timezone=Europe/Berlin ~/Photos
+
+# Android/Panasonic/Canon cameras (CreateDate is already local time stored as "UTC"):
+renamer rename:write-date --reason=timezone --timezone=Europe/Berlin --local-as-utc ~/Photos
 ```
 
 All commands show a post-scan summary before processing, so you can see what will happen without reading documentation first.
@@ -177,7 +181,12 @@ The `--detail` flag on `rename:verify` shows per-file diagnostics with copy-past
      Fix:        rename:write-date --reason=timezone --timezone=Europe/Berlin '/path/to/clip.mov'
 ```
 
-> **About timestamps:** EXIF `DateTimeOriginal` is always local time (the time shown on the camera display). QuickTime videos (MOV, MP4, M4V) store `CreateDate` in UTC without timezone info — the `[W]` warning flags these. `--reason=timezone` converts the UTC `CreateDate` to the given timezone and writes `Keys:CreationDate` with the local time + offset (e.g. `18:50:50+02:00`). The original `CreateDate` stays untouched.
+> **About timestamps:** EXIF `DateTimeOriginal` is always local time (the time shown on the camera display). QuickTime videos (MOV, MP4, M4V) store `CreateDate` in UTC without timezone info — the `[W]` warning flags these. There are two cases:
+>
+> - **Apple/DJI cameras** store real UTC. `--reason=timezone` converts it to local time: `14:00 UTC` → `16:00+02:00`.
+> - **Non-Apple cameras** (Android, Panasonic, Canon) store local time as "UTC". Use `--local-as-utc` to add the offset without converting: `14:00 "UTC"` → `14:00+02:00`.
+>
+> Both modes write `Keys:CreationDate` with the timezone offset. The original `CreateDate` stays untouched.
 
 ### Phase 2: Rename
 
