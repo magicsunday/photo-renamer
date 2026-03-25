@@ -36,6 +36,7 @@ use function count;
 use function dirname;
 use function escapeshellarg;
 use function explode;
+use function filesize;
 use function in_array;
 use function is_file;
 use function is_string;
@@ -396,7 +397,9 @@ final class VerifyCommand extends Command
         ?DateTimeInterface $captureDateTime,
         ?DateTimeZone $configuredTimezone = null,
     ): string {
-        $lines       = [$relativePath];
+        $fileSize    = filesize($absolutePath);
+        $sizeLabel   = ($fileSize !== false) ? FileHelper::formatSize($fileSize) : '?';
+        $lines       = [sprintf('%s <fg=gray>(%s)</>', $relativePath, $sizeLabel)];
         $escapedPath = escapeshellarg($absolutePath);
 
         $tzFlag = ($configuredTimezone instanceof DateTimeZone)
@@ -427,9 +430,9 @@ final class VerifyCommand extends Command
         $filenameDateTime = FileHelper::extractDateTimeFromPath($absolutePath);
 
         if ($filenameDateTime instanceof DateTimeImmutable) {
-            $lines[] = sprintf('     <fg=gray>Filename:</>   %s (usable by write-date)', $filenameDateTime->format('Y-m-d H:i:s'));
+            $lines[] = sprintf('     <fg=gray>Recovery:</>   date from filename: %s', $filenameDateTime->format('Y-m-d H:i:s'));
         } elseif ($category === 'nodata') {
-            $lines[] = '     <fg=gray>Filename:</>   no date pattern found — rename file first';
+            $lines[] = '     <fg=gray>Recovery:</>   no date in filename — rename file first';
         }
 
         $suggestion = match ($category) {

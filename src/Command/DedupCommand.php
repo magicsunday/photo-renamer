@@ -261,36 +261,6 @@ final class DedupCommand extends Command
     }
 
     /**
-     * Formats a byte count as a human-readable string.
-     *
-     * @param int $bytes Number of bytes
-     *
-     * @return string Formatted size string (e.g. "1.5 MB")
-     */
-    private function formatSize(int $bytes): string
-    {
-        if ($bytes < 1024) {
-            return $bytes . ' B';
-        }
-
-        $kb = $bytes / 1024;
-
-        if ($kb < 1024) {
-            return sprintf('%.1f KB', $kb);
-        }
-
-        $mb = $kb / 1024;
-
-        if ($mb < 1024) {
-            return sprintf('%.1f MB', $mb);
-        }
-
-        $gb = $mb / 1024;
-
-        return sprintf('%.1f GB', $gb);
-    }
-
-    /**
      * Renders the summary table with dedup statistics.
      */
     private function renderSummary(
@@ -310,7 +280,7 @@ final class DedupCommand extends Command
             $rows[] = ['Orphaned (skipped)', (string) $orphanedCount];
         }
 
-        $rows[] = ['Space reclaimable', $this->formatSize($spaceReclaimable)];
+        $rows[] = ['Space reclaimable', FileHelper::formatSize($spaceReclaimable)];
 
         $this->renderer->renderSummarySection($rows, $io);
     }
