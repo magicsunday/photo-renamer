@@ -22,7 +22,7 @@
 
 5. **Metadata is the source of truth.** File content determines duplicates, metadata determines names. Never assume content from metadata or vice versa.
 
-6. **Dry-run is read-only.** `--dry-run` must NOT alter pipeline logic, state, or cached data. It prevents only the actual file rename. The output must accurately reflect what a real run would do — including occupied-path tracking and collision detection.
+6. **Dry-run is read-only.** `--dry-run` must NOT alter pipeline logic, persistent state, or cached data. It prevents only the actual file operation. The output must accurately reflect what a real run would do — including occupied-path tracking and collision detection. Transient simulation state (e.g. in-memory occupied-path index) may be mutated during dry-run to ensure output accuracy.
 
 7. **Filenames are unreliable date sources.** Camera imports produce names like `IMG_1234.jpg`, `MOV_5678.mov`, `DSCF0001.jpg` — no date information. Only after `rename:exif` has run do filenames contain reliable dates. Therefore: `rename:write-date` with filename-as-source (`--reason=nodata/fallback/drift`) is only meaningful AFTER at least one `rename:exif` pass, or when the user has manually named files with dates.
 
@@ -186,7 +186,8 @@ HEIF and HEIC are **not** interchangeable. HEIC = HEVC codec in HEIF container (
 | [W] ambiguous TZ | [W] ambiguous TZ | **Both skipped** | No reliable date source |
 | [F] fallback | [R] reliable | **Both [F]** — still's date is fallback quality | Video inherits questionable date; user should fix |
 | [F] fallback | [W] ambiguous | **Both [F]** — fallback dominates | Weakest link determines pair quality |
-| [S] no metadata | [R] reliable | **Video standalone [R], still [S]** — pair broken | Still cannot provide a date; video uses own date |
+| [S] no metadata | [R] reliable | **Pair broken** — video standalone [R], still [S] | Still has no date; video uses own |
+| [S] no metadata | [W] ambiguous | **Pair broken** — video standalone [W], still [S] | Still has no date; video has ambiguous |
 | [S] no metadata | [S] no metadata | **Both [S]** | No date anywhere |
 
 **Test needed:** Scenarios for each row in this table, especially "Still [W] + Video [R]" → both must be skipped.
@@ -230,27 +231,33 @@ When a file triggers multiple classification systems simultaneously, this priori
 
 ```
 Priority (highest to lowest):
-1. [C] Content ID conflict  — always wins, always skipped
-2. [W] Ambiguous timezone   — metadata quality issue, skipped
-3. [W] Date drift >MAX_DATE_DRIFT — metadata quality issue, skipped
-4. [F] Fallback date        — metadata quality warning (skippable via --skip-fallback)
-5. [D] Duplicate            — content classification
-6. [O] Original             — no-op (already correct)
-7. [R] Rename               — normal operation
+1. [C] Content ID conflict      — always wins, always skipped
+2. [W] Ambiguous timezone        — metadata quality issue, skipped
+3. [F] Fallback date             — metadata quality warning (tag shows action needed)
+4. [D] Duplicate                 — content classification
+5. [O] Original / no-op         — file already correctly named
+6. [R] Rename                    — normal operation
+
+Post-hoc override (applied after initial tag):
+   [R] or [F] + date drift > MAX_DATE_DRIFT → promoted to [W]
 ```
+
+**Key decisions:**
+- **[F] > [D]:** The tag shows the most actionable information. Duplicate status is visible in the `-duplicate-NNN` suffix. The user needs to know the date is weak.
+- **[O] > [F]:** If a file is already correctly named (no-op), the fallback quality is a `rename:verify` concern, not a `rename:exif` concern. Showing [F] for an already-correct file would be confusing.
+- **Date drift is a post-hoc promotion**, not a priority level. It only applies to [R] and [F] tags because duplicates and originals have their own naming logic.
 
 **Conflict resolution table:**
 
 | Situation | Tag | Naming | Rationale |
 |---|---|---|---|
 | Duplicate + Ambiguous TZ | **[W]** | Skipped | Metadata quality > content classification |
-| Duplicate + Fallback Date (both have fallback) | **[F]** | Shown with `-duplicate-NNN` target | Both files have weak metadata |
-| Duplicate + Fallback Date (only duplicate has fallback) | **[D]** | `-duplicate-NNN` | Duplicate is a copy; fallback is a separate concern for verify |
+| Duplicate + Fallback Date | **[F]** | Shown with `-duplicate-NNN` target | [F] > [D]: tag shows actionable info (fix metadata); suffix shows content relationship |
 | Edit (-002) + Fallback Date | **[F]** | Shown with `-002` target | Weak metadata dominates; user should fix date first |
 | Edit (-002) + Ambiguous TZ | **[W]** | Skipped | Cannot rename with unreliable date |
 | LP Companion + Ambiguous TZ (still is OK) | **[R]** | Renamed (inherits still's date) | Still's metadata quality overrides companion's (per A5c) |
 | LP Companion + Ambiguous TZ (still is also [W]) | **[W]** | Both skipped | No reliable date in the pair |
-| Original + Fallback Date | **[F]** | Shown, not skipped (unless --skip-fallback) | File is already named but metadata is weak |
+| Original (no-op) + Fallback Date | **[O]** | No rename | Name is already correct; fallback is a verify concern, not a rename concern |
 
 ### A5f. rename:verify Diagnostic Output
 
@@ -398,13 +405,66 @@ if ($result->isDuplicateLikely()) {
 
 **Files:** `src/Command/DedupCommand.php`
 
-### Fix 5: Add safety confirmation to rename:write-date (Principle 9)
+### Fix 5: Add safety confirmation to rename:write-date AND rename:dedup (Principle 9)
 
-**Bug:** `rename:write-date` modifies file metadata without confirmation prompt. `rename:exif` and `rename:dedup` already prompt. Inconsistent safety behavior.
+**Bug:** `rename:write-date` and `rename:dedup` modify files without confirmation prompt. `rename:exif` already prompts. Inconsistent safety behavior.
 
-**Fix:** Add `$io->confirm()` before executing writes (same pattern as `AbstractRenameCommand::execute()`).
+**Fix:** Add `$io->confirm()` before executing writes/moves/deletes in both commands. Extract pattern into shared `ConfirmableOperationTrait` or inline (3 lines each).
 
-**Files:** `src/Command/WriteDateCommand.php`
+**Files:** `src/Command/WriteDateCommand.php`, `src/Command/DedupCommand.php`
+
+### Fix 8: LP Pair Atomicity — propagate still's quality flags to companion (A5c)
+
+**Bug:** When a LP still has [W] (ambiguous TZ) or [F] (fallback date), the video companion is tagged independently based on its own metadata. The pair is not atomic — the video gets [R] while the still gets [W], producing inconsistent names.
+
+**Root cause:** `DuplicateDetectionService` sets `ambiguousTimezoneFiles` and `fallbackDateFiles` per-file independently. There is no mechanism to propagate a still's quality flags to its LP companion.
+
+**Fix:** After `createDuplicateFilenames()` identifies LP companions (via `detectLivePhotoCompanion()`), add a new LP atomicity pass:
+- For each LP pair: if the still is in `ambiguousTimezoneFiles`, add the companion video to `ambiguousTimezoneFiles` too
+- For each LP pair: if the still is in `fallbackDateFiles`, add the companion video to `fallbackDateFiles` too
+- Exception: if the still is [S] (skipped, no metadata), the pair is broken — video uses its own date independently
+
+This pass runs in `DuplicateDetectionService` so that `RenameResult` carries the correct flags to `RenameOutputRenderer`.
+
+**Files:** `src/Service/DuplicateDetectionService.php`
+**Tests:** Scenarios #50, #51, #52
+
+### Fix 9: Tag priority chain — [F] before [D] in RenameOutputRenderer (A5e)
+
+**Bug:** Code checks `isDuplicateTarget` before `fallbackDateFiles`. A duplicate with fallback date shows [D] instead of [F]. The user doesn't see the metadata quality issue.
+
+**Fix:** In `RenameOutputRenderer::buildOutputEntries()`, reorder the if/elseif chain:
+
+```php
+// Current (wrong):
+// [C] > [W+dup] > [D] > [O] > [W] > [F] > [R]
+//
+// Correct (per A5e):
+// [C] > [W+dup] > [F] > [D] > [O] > [W] > [R]
+```
+
+Move the `fallbackDateFiles` check BEFORE the `isDuplicateTarget` check. Also move it before the `isCanonicalEntry || isNoOp` check — but NOT for no-ops (per H2: [O] > [F] for already-correct files).
+
+```php
+if (isset($result->livePhotoConflictFiles[$sourcePathname])) {
+    $tag = OutputEntryTag::Candidate;
+} elseif (($isDuplicateTarget && (!$isNoOp)) && isset($result->ambiguousTimezoneFiles[$sourcePathname])) {
+    $tag = OutputEntryTag::Warning;
+} elseif (isset($result->fallbackDateFiles[$sourcePathname]) && (!$isNoOp)) {
+    $tag = OutputEntryTag::Fallback;
+} elseif ($isDuplicateTarget && (!$isNoOp)) {
+    $tag = OutputEntryTag::Duplicate;
+} elseif ($isCanonicalEntry || $isNoOp) {
+    $tag = OutputEntryTag::Original;
+} elseif (isset($result->ambiguousTimezoneFiles[$sourcePathname])) {
+    $tag = OutputEntryTag::Warning;
+} else {
+    $tag = OutputEntryTag::Rename;
+}
+```
+
+**Files:** `src/Service/RenameOutputRenderer.php`
+**Tests:** Scenario #54 (duplicate+fallback), #55 (edit+fallback)
 
 ### Fix 6: Actionable guidance in skip reasons (Principle 10)
 
@@ -497,6 +557,9 @@ if ($result->isDuplicateLikely()) {
 | **53** | **metadata-conflict** | **A5** | **DateTimeOriginal ≠ Keys:CreationDate → highest priority wins** | **Uses DateTimeOriginal** | **Single** |
 | **54** | **duplicate-plus-fallback** | **A5e** | **Duplicate where both have fallback date** | **Both [F]** | **Same dir** |
 | **55** | **edit-plus-fallback** | **A5e** | **Edit (-002) with fallback date** | **[F] with `-002` target** | **Same dir** |
+| **56** | **lp-still-fallback-video-ambiguous** | **A5c** | **LP still [F] + video [W] → both [F]** | **Both [F]** | **Same dir** |
+| **57** | **lp-still-no-metadata-video-ambiguous** | **A5c** | **LP still [S] + video [W] → pair broken** | **Still [S], Video [W]** | **Same dir** |
+| **58** | **edit-plus-ambiguous-tz** | **A5e** | **Edit (-002) with ambiguous TZ** | **[W] skipped** | **Same dir** |
 
 **Removed:** #43 (duplicate of existing #28).
 
@@ -504,7 +567,8 @@ if ($result->isDuplicateLikely()) {
 
 | Infrastructure | Scenarios | Pattern |
 |---------------|-----------|---------|
-| `scenarioProvider()` | 01-34, 36, 39-42, 44-46, 48, 50-55 | Single dry-run, output mapping |
+| `scenarioProvider()` | 01-34, 36, 39-42, 44-46, 48, 51, 53-55 | Single dry-run, output mapping |
+| `extractTagAssignments()` (new helper) | 50, 52, 56-58 | Parses `[W]`/`[S]`/`[C]` tags from output for verification |
 | `WriteDateFlowTest` (new class) | 37, 38, 41 | Multi-step: write-date → rename:exif |
 | `testSkipFallbackOption()` | 35 | Custom method with `--skip-fallback` |
 | `testIdempotencyAcrossFormats()` | 49 | Real rename → dry-run → 0 changes |
@@ -548,7 +612,8 @@ if ($result->isDuplicateLikely()) {
 | HEIC↔JPG with dHash 1-2 | Fix 1 only skips Stage B at dHash=0; dHash 1-2 still triggers Stage B | Rare; conservative sub-grouping per Principle 4 |
 | Cloud re-compress + metadata strip | No EXIF = can't group | `rename:write-date --reason=nodata` after manual naming |
 | GPS → Timezone | Requires TZ database | User supplies `--timezone` |
-| DNG/TIFF | Untested in imagemeta | Test and add to extensions |
+| RAW (CR2, CR3, ARW, NEF, ORF, RW2) | Camera-specific formats, not in SUPPORTED_MEDIA_EXTENSIONS | Use camera manufacturer's converter |
+| DNG/TIFF | Untested — imagemeta may support TIFF-based EXIF | Test and add to extensions |
 
 ---
 
@@ -557,29 +622,34 @@ if ($result->isDuplicateLikely()) {
 ```
 Phase A: Implementation Fixes (TDD per fix)
 Task 1:  Fix 1 — Stage B skip when dHash=0 (blocks scenario 42)
-Task 2:  Fix 2 — AVI guard in WriteDateCommand
-Task 3:  Fix 3 — hasReliableDateTime second-precision
-Task 4:  Fix 4 — Dedup cross-directory search
-Task 5:  Fix 5 — Safety confirmation in rename:write-date
-Task 6:  Fix 7 — Shared pipeline logic audit
+Task 2:  Fix 8 — LP pair atomicity propagation (blocks scenarios 50-52, 56-57)
+Task 3:  Fix 9 — Tag priority chain [F] before [D] (blocks scenarios 54-55)
+Task 4:  Fix 2 — AVI guard in WriteDateCommand
+Task 5:  Fix 3 — hasReliableDateTime second-precision
+Task 6:  Fix 4 — Dedup cross-directory search (index-based, not filesystem scan)
+Task 7:  Fix 5 — Safety confirmation in write-date AND dedup
+Task 8:  Fix 7 — Shared pipeline logic audit
 
-Phase B: Test Scenarios (TDD per scenario)
-Task 7:  Scenarios 32-42, 44-46, 48 (scenarioProvider)
-Task 8:  Scenarios 50-55 (LP atomicity, metadata conflict, cross-cutting)
-Task 9:  Scenarios 37, 38, 41 (WriteDateFlowTest class)
-Task 10: Scenario 35 (testSkipFallbackOption)
-Task 11: Scenario 47 (testDedupCrossDirectory)
-Task 12: Scenario 49 (testIdempotencyAcrossFormats)
+Phase B: Test Infrastructure
+Task 9:  extractTagAssignments() helper for [W]/[S]/[C] tag verification
 
-Phase C: Performance
-Task 13: Perf 1 — Video frames 5→3
-Task 14: Perf 2 — dHash threshold 20→16
-Task 15: Perf 3 — Stage B resolution 1024→512
+Phase C: Test Scenarios (TDD per scenario)
+Task 10: Scenarios 32-42, 44-46, 48 (scenarioProvider)
+Task 11: Scenarios 50-58 (LP atomicity, metadata conflict, cross-cutting)
+Task 12: Scenarios 37, 38, 41 (WriteDateFlowTest class)
+Task 13: Scenario 35 (testSkipFallbackOption)
+Task 14: Scenario 47 (testDedupCrossDirectory)
+Task 15: Scenario 49 (testIdempotencyAcrossFormats)
 
-Phase D: Documentation & Diagnostics
-Task 16: Decision matrix docs
-Task 17: README workflow update (12 steps)
-Task 18: Fix 6 — Actionable verify guidance (--detail flag)
+Phase D: Performance
+Task 16: Perf 1 — Video frames 5→3
+Task 17: Perf 2 — dHash threshold 20→16
+Task 18: Perf 3 — Stage B resolution 1024→512
+
+Phase E: Documentation & Diagnostics
+Task 19: Decision matrix docs
+Task 20: README workflow update (12 steps)
+Task 21: Fix 6 — Actionable verify guidance (--detail flag)
 ```
 
 All tasks use TDD: failing test first, then implementation, then commit.
