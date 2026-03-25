@@ -551,7 +551,9 @@ final class WriteDateCommandTest extends TestCase
 
         try {
             $metadataExtractor = new StubMetadataExtractor();
-            // File has reliable metadata (Keys:CreationDate with offset)
+            // File has reliable metadata (Keys:CreationDate already written).
+            // captureDateTime = resolved value (14:34:58+00:00 from Keys:CreationDate).
+            // rawQuickTimeCreateDate = the underlying QuickTime atom (14:34:58 UTC).
             $metadataExtractor->withResponse(
                 $movPath,
                 new TemporalMetadata(
@@ -559,6 +561,15 @@ final class WriteDateCommandTest extends TestCase
                     null,
                     false,
                     false, // NOT ambiguous — already has Keys:CreationDate
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    false,
+                    new DateTimeImmutable('2014-05-07T14:34:58+00:00'), // rawQuickTimeCreateDate
                 ),
             );
 
@@ -573,7 +584,7 @@ final class WriteDateCommandTest extends TestCase
 
             self::assertStringContainsString('Already correct', $tester->getDisplay());
 
-            // With --force: should detect as timezone reason
+            // With --force (default mode = real UTC): converts 14:34:58 UTC → 16:34:58+02:00
             $tester->execute([
                 'source'     => $workspace,
                 '--dry-run'  => true,
@@ -581,8 +592,11 @@ final class WriteDateCommandTest extends TestCase
                 '--timezone' => 'Europe/Berlin',
             ]);
 
-            self::assertStringContainsString('[W]', $tester->getDisplay());
-            self::assertStringContainsString('Would write', $tester->getDisplay());
+            $output = $tester->getDisplay();
+            self::assertStringContainsString('[W]', $output);
+            self::assertStringContainsString('Would write', $output);
+            // Must show the CONVERTED time (16:34:58), not the raw UTC (14:34:58)
+            self::assertStringContainsString('16:34:58', $output);
         } finally {
             @unlink($movPath);
             $this->cleanupWorkspace($workspace);

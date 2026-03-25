@@ -316,8 +316,12 @@ final class WriteDateCommand extends Command
             $localAsUtc = (bool) $input->getOption('local-as-utc');
 
             if ($reasonKey === self::REASON_TIMEZONE) {
-                $rawDateTime = $this->exifMetadataProvider->getRawCaptureDateTime($file);
-                $timezone    = $this->resolveTimezone($input);
+                // With --force, read the raw QuickTime CreateDate (bypasses Keys:CreationDate)
+                // so a previously wrong write can be corrected.
+                $rawDateTime = $force
+                    ? ($this->exifMetadataProvider->getRawQuickTimeCreateDate($file) ?? $this->exifMetadataProvider->getRawCaptureDateTime($file))
+                    : $this->exifMetadataProvider->getRawCaptureDateTime($file);
+                $timezone = $this->resolveTimezone($input);
 
                 if (($rawDateTime instanceof DateTimeInterface) && ($timezone instanceof DateTimeZone)) {
                     if ($localAsUtc) {

@@ -126,6 +126,16 @@ final class ExifMetadataProvider
     }
 
     /**
+     * Returns the raw QuickTime CreateDate atom value (UTC), bypassing
+     * Keys:CreationDate resolution. Used by --force to read the underlying
+     * timestamp when Keys:CreationDate was incorrectly written.
+     */
+    public function getRawQuickTimeCreateDate(SplFileInfo $splFileInfo): ?DateTimeInterface
+    {
+        return $this->resolveMetadata($splFileInfo)?->getRawQuickTimeCreateDate();
+    }
+
+    /**
      * Returns whether the given file has an ambiguous timezone — the QuickTime
      * timestamp could be UTC or local time but we cannot determine which.
      *

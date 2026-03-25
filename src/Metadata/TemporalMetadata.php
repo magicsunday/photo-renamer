@@ -53,6 +53,9 @@ final readonly class TemporalMetadata
      * @param bool                   $hasQuickTimeLivePhotoMarker True when the QuickTime container exposes
      *                                                            Live Photo marker keys such as still-image-time
      *                                                            or live-photo-info
+     * @param DateTimeInterface|null $rawQuickTimeCreateDate      Raw QuickTime CreateDate atom value (UTC, no
+     *                                                            timezone resolution). Used by --force to bypass
+     *                                                            the resolved Keys:CreationDate.
      */
     public function __construct(
         private ?DateTimeInterface $captureDateTime,
@@ -67,6 +70,7 @@ final readonly class TemporalMetadata
         private ?float $longitude = null,
         private ?float $videoDurationSeconds = null,
         private bool $hasQuickTimeLivePhotoMarker = false,
+        private ?DateTimeInterface $rawQuickTimeCreateDate = null,
     ) {
     }
 
@@ -76,6 +80,15 @@ final readonly class TemporalMetadata
     public function getCaptureDateTime(): ?DateTimeInterface
     {
         return $this->captureDateTime;
+    }
+
+    /**
+     * Returns the raw QuickTime CreateDate atom value (UTC) without Keys:CreationDate
+     * resolution. Returns null for non-QuickTime files or when not populated.
+     */
+    public function getRawQuickTimeCreateDate(): ?DateTimeInterface
+    {
+        return $this->rawQuickTimeCreateDate;
     }
 
     /**
