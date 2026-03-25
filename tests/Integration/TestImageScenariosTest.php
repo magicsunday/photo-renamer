@@ -251,6 +251,38 @@ final class TestImageScenariosTest extends TestCase
     }
 
     /**
+     * Scenario 40: LP pair where MOV has ambiguous TZ (no Keys:CreationDate).
+     * JPG still has reliable EXIF date → [R]. MOV is flagged [W].
+     * The MOV's ambiguous TZ is a genuine metadata issue that --timezone alone
+     * doesn't resolve at the rename:exif level (use write-date to fix).
+     */
+    #[Test]
+    public function scenario40LpMovAmbiguousTz(): void
+    {
+        $scenarioDir = '40-lp-mov-ambiguous-tz';
+        $sourceDir   = $this->testImagesDir() . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        self::assertDirectoryExists($sourceDir);
+
+        $workspace = $this->createTempWorkspace('test_images_');
+        $targetDir = $workspace . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        try {
+            $this->copyDirectory($sourceDir, $targetDir);
+
+            $consoleOutput = $this->runDryRunRaw($targetDir);
+            $tags          = $this->extractTagAssignments($consoleOutput, $targetDir);
+
+            self::assertArrayHasKey('IMG_0001.jpg', $tags);
+            self::assertArrayHasKey('IMG_0001.mov', $tags);
+            self::assertSame('R', $tags['IMG_0001.jpg'], 'JPG still should be [R]');
+            self::assertSame('W', $tags['IMG_0001.mov'], 'MOV should be [W] (ambiguous TZ)');
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
      * Scenario 56: LP still [F] + video [W] — the still's [F] does NOT override
      * the video's own [W] because [W] has higher priority in the tag chain.
      * The still keeps [F], the video keeps [W].
@@ -894,6 +926,13 @@ final class TestImageScenariosTest extends TestCase
                 'IMG_0003.jpg' => '2025-06-01_15-30-22-000-003.jpg',
             ],
             3,
+        ];
+
+        // Scenario 32: HEIC without any date metadata → [S] (skipped)
+        yield '32-heic-without-exif' => [
+            '32-heic-without-exif',
+            [],
+            0,
         ];
 
         // Scenario 33: MOV with Keys:CreationDate + timezone offset → [R] (not [W])
