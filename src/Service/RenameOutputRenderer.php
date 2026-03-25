@@ -96,24 +96,13 @@ final readonly class RenameOutputRenderer
 
                 $sourcePathname = $rename->getSource()->getPathname();
 
-                // Conflict and warning tags take priority over duplicate status
-                // because files with unreliable metadata must be skipped
-                // regardless of their position in the duplicate group.
-                if (isset($result->livePhotoConflictFiles[$sourcePathname])) {
-                    $tag = OutputEntryTag::Candidate;
-                } elseif (($isDuplicateTarget && (!$isNoOp)) && isset($result->ambiguousTimezoneFiles[$sourcePathname])) {
-                    $tag = OutputEntryTag::Warning;
-                } elseif ($isDuplicateTarget && (!$isNoOp)) {
-                    $tag = OutputEntryTag::Duplicate;
-                } elseif ($isCanonicalEntry || $isNoOp) {
-                    $tag = OutputEntryTag::Original;
-                } elseif (isset($result->ambiguousTimezoneFiles[$sourcePathname])) {
-                    $tag = OutputEntryTag::Warning;
-                } elseif (isset($result->fallbackDateFiles[$sourcePathname])) {
-                    $tag = OutputEntryTag::Fallback;
-                } else {
-                    $tag = OutputEntryTag::Rename;
-                }
+                $tag = $this->resolveEntryTag(
+                    $sourcePathname,
+                    $isDuplicateTarget,
+                    $isNoOp,
+                    $isCanonicalEntry,
+                    $result,
+                );
 
                 $warningReason = null;
 
@@ -184,6 +173,49 @@ final readonly class RenameOutputRenderer
         usort($outputEntries, static fn (array $a, array $b): int => $a['sortKey'] <=> $b['sortKey']);
 
         return [$outputEntries, $skippedCount, $errorCount];
+    }
+
+    /**
+     * Resolves the output entry tag for a file based on its metadata quality,
+     * duplicate status, and canonical position.
+     *
+     * Priority chain (top to bottom): [C] > [W] > [F] > [D] > [O] > [R].
+     * Exception: [O] wins for no-ops (!$isNoOp guard on [W], [F], [D]).
+     *
+     * @param string       $sourcePathname  Absolute path of the source file
+     * @param bool         $isDuplicateTarget Whether the file is a duplicate (has -duplicate- suffix)
+     * @param bool         $isNoOp          Whether source and target paths are identical
+     * @param bool         $isCanonicalEntry Whether the file is the canonical entry in its group
+     * @param RenameResult $result          Result carrying quality flags
+     */
+    private function resolveEntryTag(
+        string $sourcePathname,
+        bool $isDuplicateTarget,
+        bool $isNoOp,
+        bool $isCanonicalEntry,
+        RenameResult $result,
+    ): OutputEntryTag {
+        if (isset($result->livePhotoConflictFiles[$sourcePathname])) {
+            return OutputEntryTag::Candidate;
+        }
+
+        if (isset($result->ambiguousTimezoneFiles[$sourcePathname]) && !$isNoOp) {
+            return OutputEntryTag::Warning;
+        }
+
+        if (isset($result->fallbackDateFiles[$sourcePathname]) && !$isNoOp) {
+            return OutputEntryTag::Fallback;
+        }
+
+        if ($isDuplicateTarget && !$isNoOp) {
+            return OutputEntryTag::Duplicate;
+        }
+
+        if ($isCanonicalEntry || $isNoOp) {
+            return OutputEntryTag::Original;
+        }
+
+        return OutputEntryTag::Rename;
     }
 
     /**
