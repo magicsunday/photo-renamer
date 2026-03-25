@@ -83,6 +83,12 @@ final class WriteDateCommand extends Command
     private const string REASON_DRIFT = 'drift';
 
     /**
+     * Extensions where exiftool cannot write date metadata reliably.
+     * AVI uses RIFF container — QuickTime atom writes silently fail.
+     */
+    private const array UNSUPPORTED_WRITE_EXTENSIONS = ['avi'];
+
+    /**
      * Maps reason keys to human-readable labels for output.
      *
      * @var array<string, string>
@@ -211,7 +217,8 @@ final class WriteDateCommand extends Command
         $written        = 0;
         $writeFailed    = 0;
         $noDateInName   = 0;
-        $readErrors     = 0;
+        $readErrors         = 0;
+        $unsupportedWrite   = 0;
 
         $files = $isSingleFile
             ? [new SplFileInfo($source)]
@@ -234,6 +241,13 @@ final class WriteDateCommand extends Command
 
             // Skip unsupported file types
             if (!in_array($extension, Constants::SUPPORTED_MEDIA_EXTENSIONS, true)) {
+                continue;
+            }
+
+            // Skip extensions where exiftool cannot write metadata reliably
+            if (in_array($extension, self::UNSUPPORTED_WRITE_EXTENSIONS, true)) {
+                ++$unsupportedWrite;
+
                 continue;
             }
 
@@ -358,7 +372,7 @@ final class WriteDateCommand extends Command
 
         // Render summary
         $io->newLine();
-        $this->renderSummary($io, $scannedFiles, $alreadyCorrect, $wouldWrite, $written, $writeFailed, $noDateInName, $readErrors, $dryRun);
+        $this->renderSummary($io, $scannedFiles, $alreadyCorrect, $wouldWrite, $written, $writeFailed, $noDateInName, $readErrors, $unsupportedWrite, $dryRun);
 
         return self::SUCCESS;
     }
@@ -491,6 +505,7 @@ final class WriteDateCommand extends Command
         int $writeFailed,
         int $noDateInName,
         int $readErrors,
+        int $unsupportedWrite,
         bool $dryRun,
     ): void {
         /** @var list<array{string, string}> $rows */
@@ -513,6 +528,10 @@ final class WriteDateCommand extends Command
 
         if ($noDateInName > 0) {
             $rows[] = ['No date in name', (string) $noDateInName];
+        }
+
+        if ($unsupportedWrite > 0) {
+            $rows[] = ['Unsupported write', (string) $unsupportedWrite];
         }
 
         if ($readErrors > 0) {
