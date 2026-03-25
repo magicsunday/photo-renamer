@@ -25,6 +25,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Filesystem\Filesystem;
 
+use function array_filter;
 use function count;
 use function is_string;
 use function sprintf;
@@ -172,9 +173,10 @@ final class DedupCommand extends Command
         $io->newLine(2);
 
         // Safety confirmation for non-dry-run (Principle 9)
-        $action = $delete ? 'delete' : 'move';
+        $action          = $delete ? 'delete' : 'move';
+        $actionableCount = count(array_filter($duplicates, static fn (array $e): bool => $e['originalExists']));
 
-        if (!$dryRun && ($duplicates !== []) && !$io->confirm('This will ' . $action . ' ' . count($duplicates) . ' duplicate file(s). Are you sure?', false)) {
+        if (!$dryRun && ($actionableCount > 0) && !$io->confirm('This will ' . $action . ' ' . $actionableCount . ' duplicate file(s). Are you sure?', false)) {
             $io->text('<fg=yellow>Aborted.</>');
 
             return self::SUCCESS;

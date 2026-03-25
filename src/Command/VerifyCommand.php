@@ -189,8 +189,9 @@ final class VerifyCommand extends Command
             $extension    = strtolower($file->getExtension());
 
             // Closure for detail-aware category entries (avoids ternary duplication).
-            $entry = fn (string $cat, ?DateTimeInterface $dt = null): string => $detail
-                ? $this->formatDetailEntry($relativePath, $cat, $dt, $configuredTimezone)
+            $absolutePath = $file->getPathname();
+            $entry        = fn (string $cat, ?DateTimeInterface $dt = null): string => $detail
+                ? $this->formatDetailEntry($relativePath, $absolutePath, $cat, $dt, $configuredTimezone)
                 : $relativePath;
 
             // Check for unrecognized file type
@@ -362,12 +363,13 @@ final class VerifyCommand extends Command
      */
     private function formatDetailEntry(
         string $relativePath,
+        string $absolutePath,
         string $category,
         ?DateTimeInterface $captureDateTime,
         ?DateTimeZone $configuredTimezone = null,
     ): string {
         $lines       = [$relativePath];
-        $escapedPath = escapeshellarg($relativePath);
+        $escapedPath = escapeshellarg($absolutePath);
 
         $tzFlag = ($configuredTimezone instanceof DateTimeZone)
             ? '--timezone=' . $configuredTimezone->getName()
