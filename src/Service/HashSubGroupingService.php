@@ -44,8 +44,15 @@ use function strtolower;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-final readonly class HashSubGroupingService implements HashSubGroupingServiceInterface
+final class HashSubGroupingService implements HashSubGroupingServiceInterface
 {
+    /**
+     * Maximum changedAreaRatio for merging isDuplicateLikely pairs.
+     * Configurable at runtime via setMaxMergeChangedArea().
+     * HEIC↔JPG format conversions: 0–30%. Different photos: 89–100%.
+     */
+    private float $maxMergeChangedArea = 0.35;
+
     /**
      * @param SafeHashCalculatorInterface       $hashCalculator           Computes file content hashes for sub-group keying
      * @param SymfonyStyle                      $io                       Console IO for error output on hash computation failures
@@ -55,13 +62,22 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
      * @param ImagickImageLoader                $imageLoader              Image loader for Stage B pixel extraction
      */
     public function __construct(
-        private SafeHashCalculatorInterface $hashCalculator,
-        private SymfonyStyle $io,
-        private MediaTypeClassifierInterface $mediaTypeClassifier,
-        private PerceptualHashCalculatorInterface $perceptualHashCalculator,
-        private LocalDifferenceAnalyzer $localDiffAnalyzer,
-        private ImagickImageLoader $imageLoader,
+        private readonly SafeHashCalculatorInterface $hashCalculator,
+        private readonly SymfonyStyle $io,
+        private readonly MediaTypeClassifierInterface $mediaTypeClassifier,
+        private readonly PerceptualHashCalculatorInterface $perceptualHashCalculator,
+        private readonly LocalDifferenceAnalyzer $localDiffAnalyzer,
+        private readonly ImagickImageLoader $imageLoader,
     ) {
+    }
+
+    /**
+     * Sets the maximum changedAreaRatio threshold for merging isDuplicateLikely pairs.
+     * Pairs with changedArea at or above this threshold are kept as separate sub-groups.
+     */
+    public function setMaxMergeChangedArea(float $threshold): void
+    {
+        $this->maxMergeChangedArea = $threshold;
     }
 
     /**

@@ -150,4 +150,22 @@ trait ConfiguresMetadataProvider
 
         return $envDrift !== null ? (int) $envDrift : $default;
     }
+
+    /**
+     * Resolves the merge threshold from --merge-threshold option or MERGE_THRESHOLD env var.
+     *
+     * @param float $default Default threshold (fraction 0.0–1.0) when neither option nor env var is set
+     */
+    protected function resolveMergeThreshold(InputInterface $input, float $default = 0.35): float
+    {
+        $option = $input->getOption('merge-threshold');
+
+        if (is_string($option)) {
+            return (float) $option;
+        }
+
+        $envValue = FileHelper::env('MERGE_THRESHOLD');
+
+        return $envValue !== null ? (float) $envValue : $default;
+    }
 }

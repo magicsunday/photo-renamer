@@ -21,6 +21,8 @@ use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairing;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingServiceInterface;
+use MagicSunday\Renamer\Service\HashSubGroupingService;
+use MagicSunday\Renamer\Service\HashSubGroupingServiceInterface;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
@@ -63,6 +65,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
         private readonly ExifMetadataProvider $exifMetadataProvider,
         private readonly LivePhotoPairingServiceInterface $livePhotoPairingService,
         private readonly PerceptualHashCalculatorInterface $perceptualHashCalculator,
+        private readonly HashSubGroupingServiceInterface $hashSubGroupingService,
     ) {
         parent::__construct($fileSystemService, $duplicateDetectionService);
     }
@@ -101,6 +104,12 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
                 InputOption::VALUE_REQUIRED,
                 'The date pattern used to create the target filename.',
                 'Y-m-d_H-i-s-v'
+            )
+            ->addOption(
+                'merge-threshold',
+                null,
+                InputOption::VALUE_REQUIRED,
+                'Maximum changedAreaRatio (0.0–1.0) for merging perceptually similar files. Overrides MERGE_THRESHOLD env var. Default: 0.35.',
             );
     }
 
@@ -128,6 +137,12 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
 
         if ($this->perceptualHashCalculator instanceof PerceptualHashCalculator) {
             $this->perceptualHashCalculator->setSignalCache($signalCache);
+        }
+
+        if ($this->hashSubGroupingService instanceof HashSubGroupingService) {
+            $this->hashSubGroupingService->setMaxMergeChangedArea(
+                $this->resolveMergeThreshold($this->input),
+            );
         }
 
         $result = parent::executeCommand();
