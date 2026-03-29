@@ -298,7 +298,8 @@ final class ExifMetadataProvider
      *     latitude?: float|null,
      *     longitude?: float|null,
      *     videoDurationSeconds?: float|null,
-     *     hasQuickTimeLivePhotoMarker?: bool
+     *     hasQuickTimeLivePhotoMarker?: bool,
+     *     rawQuickTimeCreateDate?: string|null
      * } $cached
      *
      * @return TemporalMetadata|null Reconstructed metadata, or null when the cache entry has no date or content ID
@@ -321,16 +322,7 @@ final class ExifMetadataProvider
             return null;
         }
 
-        $rawQtCreateDate = null;
-        $rawQtValue      = $cached['rawQuickTimeCreateDate'] ?? null; // @phpstan-ignore nullCoalesce.offset
-
-        if (is_string($rawQtValue)) { // @phpstan-ignore function.impossibleType
-            try {
-                $rawQtCreateDate = new DateTimeImmutable($rawQtValue);
-            } catch (DateMalformedStringException) { // @phpstan-ignore catch.neverThrown
-                // Ignore malformed cached values
-            }
-        }
+        $rawQtCreateDate = $this->parseCachedDateTime($cached['rawQuickTimeCreateDate'] ?? null);
 
         return new TemporalMetadata(
             $dateTime,
@@ -347,6 +339,22 @@ final class ExifMetadataProvider
             $cached['hasQuickTimeLivePhotoMarker'] ?? false,
             $rawQtCreateDate,
         );
+    }
+
+    /**
+     * Parses a cached ISO 8601 date string into a DateTimeImmutable, returning null on failure.
+     */
+    private function parseCachedDateTime(mixed $value): ?DateTimeImmutable
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+
+        try {
+            return new DateTimeImmutable($value);
+        } catch (DateMalformedStringException) {
+            return null;
+        }
     }
 
     private function applyConfiguredTimezone(TemporalMetadata $metadata, SplFileInfo $splFileInfo): TemporalMetadata

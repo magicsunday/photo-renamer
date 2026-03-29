@@ -27,7 +27,9 @@ use Symfony\Component\Filesystem\Filesystem;
 
 use function array_filter;
 use function count;
+use function is_file;
 use function is_string;
+use function realpath;
 use function sprintf;
 use function str_contains;
 use function strtolower;
@@ -68,9 +70,9 @@ final class DedupCommand extends Command
             ->setName('rename:dedup')
             ->setDescription('Finds and removes files with "-duplicate-" in their name.')
             ->addArgument(
-                'source-directory',
+                'source',
                 InputArgument::REQUIRED,
-                'Source directory to scan for duplicate files.',
+                'Source directory or single file to scan for duplicates.',
             )
             ->addOption(
                 'dry-run',
@@ -102,15 +104,18 @@ final class DedupCommand extends Command
         $io = new SymfonyStyle($input, $output);
         $io->title($this->getName() ?? '');
 
-        /** @var string|null $sourceDir */
-        $sourceDir       = $input->getArgument('source-directory');
-        $sourceDirectory = FileHelper::resolveDirectory($sourceDir);
+        /** @var string|null $source */
+        $source   = $input->getArgument('source');
+        $resolved = is_string($source) ? realpath($source) : false;
 
-        if ($sourceDirectory === null) {
-            $io->error('Source directory does not exist.');
+        if ($resolved === false) {
+            $io->error('Source path does not exist.');
 
             return self::FAILURE;
         }
+
+        $isSingleFile    = is_file($resolved);
+        $sourceDirectory = $isSingleFile ? dirname($resolved) : $resolved;
 
         $dryRun = (bool) $input->getOption('dry-run');
         $delete = (bool) $input->getOption('delete');
@@ -120,7 +125,9 @@ final class DedupCommand extends Command
             $target = '_duplicates';
         }
 
-        $files = $this->fileSystemService->collectFiles($sourceDirectory);
+        $files = $isSingleFile
+            ? [new SplFileInfo($resolved)]
+            : $this->fileSystemService->collectFiles($sourceDirectory);
 
         $io->text(sprintf('<fg=cyan>Scanning:</> %s', $sourceDirectory));
 

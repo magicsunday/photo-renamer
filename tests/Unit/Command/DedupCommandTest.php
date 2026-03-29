@@ -87,8 +87,8 @@ final class DedupCommandTest extends TestCase
             $command  = $this->createCommand();
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
-                '--dry-run'        => true,
+                'source'    => $workspace,
+                '--dry-run' => true,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -121,8 +121,8 @@ final class DedupCommandTest extends TestCase
             $command  = $this->createCommand();
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
-                '--dry-run'        => true,
+                'source'    => $workspace,
+                '--dry-run' => true,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -154,8 +154,8 @@ final class DedupCommandTest extends TestCase
             $command  = $this->createCommand();
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
-                '--dry-run'        => true,
+                'source'    => $workspace,
+                '--dry-run' => true,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -191,7 +191,7 @@ final class DedupCommandTest extends TestCase
             $tester->setInputs(['yes']);
 
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
+                'source' => $workspace,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -229,8 +229,8 @@ final class DedupCommandTest extends TestCase
             $tester->setInputs(['yes']);
 
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
-                '--delete'         => true,
+                'source'   => $workspace,
+                '--delete' => true,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -266,8 +266,8 @@ final class DedupCommandTest extends TestCase
             $tester->setInputs(['yes']);
 
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
-                '--target'         => '_trash',
+                'source'   => $workspace,
+                '--target' => '_trash',
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -303,7 +303,7 @@ final class DedupCommandTest extends TestCase
             $tester->setInputs(['no']);
 
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
+                'source' => $workspace,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -341,8 +341,8 @@ final class DedupCommandTest extends TestCase
             $command  = $this->createCommand();
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
-                '--dry-run'        => true,
+                'source'    => $workspace,
+                '--dry-run' => true,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);

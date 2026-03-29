@@ -135,8 +135,8 @@ final class RenameLowerCaseCommandTest extends TestCase
 
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source-directory' => $sourceDir,
-                '--dry-run'        => true,
+                'source'    => $sourceDir,
+                '--dry-run' => true,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);

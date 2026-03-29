@@ -335,10 +335,10 @@ final class WriteDateFlowTest extends TestCase
 
         $tester   = new CommandTester($command);
         $exitCode = $tester->execute([
-            'source-directory' => $workspace,
-            '--dry-run'        => true,
-            '--list-all'       => true,
-            '--timezone'       => 'Europe/Berlin',
+            'source'     => $workspace,
+            '--dry-run'  => true,
+            '--list-all' => true,
+            '--timezone' => 'Europe/Berlin',
         ]);
 
         self::assertSame(Command::SUCCESS, $exitCode);

@@ -1051,10 +1051,10 @@ final class TestImageScenariosTest extends TestCase
 
         $tester   = new CommandTester($command);
         $exitCode = $tester->execute([
-            'source-directory' => $workspace,
-            '--dry-run'        => true,
-            '--list-all'       => true,
-            '--timezone'       => 'Europe/Berlin',
+            'source'     => $workspace,
+            '--dry-run'  => true,
+            '--list-all' => true,
+            '--timezone' => 'Europe/Berlin',
             ...$extraOptions,
         ]);
 

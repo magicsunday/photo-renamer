@@ -11,7 +11,9 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Command;
 
+use FilesystemIterator;
 use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
+use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
@@ -20,6 +22,7 @@ use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use Override;
+use RecursiveDirectoryIterator;
 use RecursiveIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
@@ -32,11 +35,14 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function array_map;
+use function basename;
 use function explode;
 use function getcwd;
 use function is_dir;
+use function is_file;
 use function is_string;
 use function ltrim;
+use function preg_quote;
 use function realpath;
 use function rtrim;
 use function sprintf;
@@ -109,6 +115,11 @@ abstract class AbstractRenameCommand extends Command
     protected ?array $showFilter = null;
 
     /**
+     * When true, a single file was passed instead of a directory.
+     */
+    protected bool $isSingleFile = false;
+
+    /**
      * @param FileSystemServiceInterface         $fileSystemService         Handles file iteration, counting and rename execution
      * @param DuplicateDetectionServiceInterface $duplicateDetectionService Orchestrates grouping and suffix assignment
      */
@@ -128,9 +139,9 @@ abstract class AbstractRenameCommand extends Command
     {
         $this
             ->addArgument(
-                'source-directory',
+                'source',
                 InputArgument::REQUIRED,
-                'Source directory with photos.'
+                'Source directory or single file to process.',
             )
             ->addOption(
                 'dry-run',
@@ -226,10 +237,17 @@ abstract class AbstractRenameCommand extends Command
             ? array_map(strtoupper(...), array_map(trim(...), explode(',', $showOption)))
             : null;
 
-        $sourceDirectory = $input->getArgument('source-directory');
+        $source = $input->getArgument('source');
 
-        if (is_string($sourceDirectory)) {
-            $this->sourceDirectory = $sourceDirectory;
+        if (is_string($source)) {
+            $resolved = realpath($source);
+
+            if ($resolved !== false && is_file($resolved)) {
+                $this->isSingleFile    = true;
+                $this->sourceDirectory = dirname($resolved);
+            } else {
+                $this->sourceDirectory = $source;
+            }
         }
     }
 
@@ -352,7 +370,8 @@ abstract class AbstractRenameCommand extends Command
      */
     private function processAndRenameFiles(): void
     {
-        // Process list of all files
+        // Single file mode: create a temp directory with a symlink so the pipeline
+        // processes exactly one file while keeping the iterator type consistent.
         $iterator = $this->createFileIterator();
 
         $duplicates = $this->groupFilesByDuplicateIdentifier($iterator);
@@ -503,13 +522,37 @@ abstract class AbstractRenameCommand extends Command
     abstract protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface;
 
     /**
-     * Creates the file iterator for scanning the source directory. Subclasses may
-     * override to apply file type filters (e.g. EXIF command filters by image/video extensions).
+     * Creates the file iterator for scanning the source directory or single file.
+     * Subclasses may override to apply file type filters (e.g. EXIF command
+     * filters by image/video extensions).
      *
      * @return RecursiveIteratorIterator<RecursiveIterator<string, SplFileInfo>>
      */
     protected function createFileIterator(): RecursiveIteratorIterator
     {
+        if ($this->isSingleFile) {
+            $source   = $this->input->getArgument('source');
+            $resolved = is_string($source) ? realpath($source) : false;
+
+            if ($resolved === false || !is_file($resolved)) {
+                throw new RuntimeException('Source file does not exist');
+            }
+
+            $basename = basename($resolved);
+
+            // Use a regex filter on the parent directory that matches only the target file
+            return $this->fileSystemService->createFileIterator(
+                $this->sourceDirectory,
+                new RecursiveRegexFileFilterIterator(
+                    new RecursiveDirectoryIterator(
+                        $this->sourceDirectory,
+                        FilesystemIterator::SKIP_DOTS,
+                    ),
+                    '/^' . preg_quote($basename, '/') . '$/i',
+                ),
+            );
+        }
+
         if (!is_dir($this->sourceDirectory)) {
             throw new RuntimeException(
                 sprintf('Source directory "%s" does not exist', $this->sourceDirectory)

@@ -634,9 +634,9 @@ final class RenameByExifDateCommandTest extends TestCase
 
         $tester   = new CommandTester($command);
         $exitCode = $tester->execute([
-            'source-directory' => $workspace,
-            '--dry-run'        => true,
-            '--list-all'       => true,
+            'source'     => $workspace,
+            '--dry-run'  => true,
+            '--list-all' => true,
         ]);
 
         self::assertSame(Command::SUCCESS, $exitCode);

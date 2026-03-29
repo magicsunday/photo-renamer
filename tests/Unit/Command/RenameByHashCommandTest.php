@@ -141,7 +141,7 @@ final class RenameByHashCommandTest extends TestCase
 
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source-directory'  => $sourceDir,
+                'source'            => $sourceDir,
                 '--dry-run'         => true,
                 '--skip-duplicates' => true,
             ]);
