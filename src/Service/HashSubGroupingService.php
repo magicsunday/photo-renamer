@@ -650,6 +650,18 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
             return false;
         }
 
+        // Skip pixel analysis for cross-format pairs (e.g. HEIC↔JPG).
+        // Different codecs (HEVC vs DCT) produce systematic per-pixel differences
+        // that make changedAreaRatio meaningless — it measures codec artifacts,
+        // not content changes. The pHash signals already handle cross-format
+        // duplicate detection via colorspace-normalized hashing.
+        $extA = strtolower($fileA->getExtension());
+        $extB = strtolower($fileB->getExtension());
+
+        if ($extA !== $extB) {
+            return false;
+        }
+
         $keyA = $fileA->getPathname();
         $keyB = $fileB->getPathname();
 
