@@ -1047,6 +1047,7 @@ final class TestImageScenariosTest extends TestCase
             $metadataProvider,
             new LivePhotoPairingService(),
             $perceptualHashCalculator,
+            $hashSubGroupingService,
         );
 
         $tester   = new CommandTester($command);

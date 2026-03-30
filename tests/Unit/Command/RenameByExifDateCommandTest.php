@@ -35,6 +35,7 @@ use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
+use MagicSunday\Renamer\Service\HashSubGroupingServiceInterface;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoBasenameTargetMap;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetector;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoContentIdentifierTarget;
@@ -142,6 +143,7 @@ final class RenameByExifDateCommandTest extends TestCase
             $this->createExifMetadataProvider(),
             self::createStub(LivePhotoPairingServiceInterface::class),
             new StubPerceptualHashCalculator(),
+            self::createStub(HashSubGroupingServiceInterface::class),
         );
 
         self::assertSame('rename:exif', $command->getName());
@@ -259,6 +261,7 @@ final class RenameByExifDateCommandTest extends TestCase
             $this->createExifMetadataProvider(),
             $livePhotoPairingService,
             new StubPerceptualHashCalculator(),
+            self::createStub(HashSubGroupingServiceInterface::class),
         );
 
         $tester   = new CommandTester($command);
@@ -362,6 +365,7 @@ final class RenameByExifDateCommandTest extends TestCase
             $this->createExifMetadataProvider(),
             $livePhotoPairingService,
             new StubPerceptualHashCalculator(),
+            self::createStub(HashSubGroupingServiceInterface::class),
         );
 
         $capturedProgressBar = null;
@@ -504,6 +508,7 @@ final class RenameByExifDateCommandTest extends TestCase
             $this->createExifMetadataProvider(),
             $livePhotoPairingService,
             new StubPerceptualHashCalculator(),
+            self::createStub(HashSubGroupingServiceInterface::class),
         );
 
         $tester   = new CommandTester($command);
@@ -577,6 +582,7 @@ final class RenameByExifDateCommandTest extends TestCase
                 $metadataProvider,
                 $livePhotoPairingService,
                 new StubPerceptualHashCalculator(),
+                self::createStub(HashSubGroupingServiceInterface::class),
             );
 
             $tester   = new CommandTester($command);
@@ -684,6 +690,7 @@ final class RenameByExifDateCommandTest extends TestCase
             $this->createExifMetadataProvider(),
             $livePhotoPairingService,
             new StubPerceptualHashCalculator(),
+            self::createStub(HashSubGroupingServiceInterface::class),
         );
 
         $io = $this->createMock(SymfonyStyle::class);
@@ -800,6 +807,7 @@ final class RenameByExifDateCommandTest extends TestCase
             $this->createExifMetadataProvider(),
             $livePhotoPairingService,
             new StubPerceptualHashCalculator(),
+            self::createStub(HashSubGroupingServiceInterface::class),
         );
 
         $capturedProgressBar = null;

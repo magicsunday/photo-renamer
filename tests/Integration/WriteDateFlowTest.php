@@ -331,6 +331,7 @@ final class WriteDateFlowTest extends TestCase
             new ExifMetadataProvider(new MetadataExtractor(MetadataReader::createDefault())),
             new LivePhotoPairingService(),
             $perceptualHashCalculator,
+            $hashSubGroupingService,
         );
 
         $tester   = new CommandTester($command);
