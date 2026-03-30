@@ -109,7 +109,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
                 'merge-threshold',
                 null,
                 InputOption::VALUE_REQUIRED,
-                'Maximum changedAreaRatio (0.0–1.0) for merging perceptually similar files. Overrides MERGE_THRESHOLD env var. Default: 0.35.',
+                'Maximum RMSE (0.0–1.0) for merging perceptually similar files. Overrides MERGE_THRESHOLD env var. Default: 0.05.',
             );
     }
 

@@ -156,7 +156,7 @@ trait ConfiguresMetadataProvider
      *
      * @param float $default Default threshold (fraction 0.0–1.0) when neither option nor env var is set
      */
-    protected function resolveMergeThreshold(InputInterface $input, float $default = 0.35): float
+    protected function resolveMergeThreshold(InputInterface $input, float $default = 0.05): float
     {
         $option = $input->getOption('merge-threshold');
 

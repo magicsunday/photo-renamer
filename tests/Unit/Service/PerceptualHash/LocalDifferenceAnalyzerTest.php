@@ -45,6 +45,7 @@ final class LocalDifferenceAnalyzerTest extends TestCase
 
         $result = $this->analyzer->analyze($imgA, $imgB);
 
+        self::assertSame(0.0, $result->rmse);
         self::assertSame(0.0, $result->changedAreaRatio);
         self::assertSame(0.0, $result->largestBlobRatio);
         self::assertSame(0, $result->blobCount);
@@ -59,6 +60,7 @@ final class LocalDifferenceAnalyzerTest extends TestCase
 
         $result = $this->analyzer->analyze($imgA, $imgB);
 
+        self::assertGreaterThan(0.5, $result->rmse);
         self::assertGreaterThan(0.5, $result->changedAreaRatio);
         self::assertGreaterThan(0, $result->blobCount);
     }
@@ -139,6 +141,7 @@ final class LocalDifferenceAnalyzerTest extends TestCase
 
         $result = $this->analyzer->analyze($invalidImg, $validImg);
 
+        self::assertSame(0.0, $result->rmse);
         self::assertSame(0.0, $result->changedAreaRatio);
         self::assertSame(0.0, $result->largestBlobRatio);
         self::assertSame(0, $result->blobCount);

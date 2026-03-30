@@ -47,11 +47,11 @@ use function strtolower;
 final class HashSubGroupingService implements HashSubGroupingServiceInterface
 {
     /**
-     * Maximum changedAreaRatio for merging isDuplicateLikely pairs.
+     * Maximum RMSE for merging isDuplicateLikely pairs.
      * Configurable at runtime via setMaxMergeChangedArea().
-     * HEIC↔JPG format conversions: 0–30%. Different photos: 89–100%.
+     * HEIC↔JPG format conversions: 0.001–0.013. Different photos: 0.25+.
      */
-    private float $maxMergeChangedArea = 0.35;
+    private float $maxMergeChangedArea = 0.05;
 
     /**
      * @param SafeHashCalculatorInterface       $hashCalculator           Computes file content hashes for sub-group keying
@@ -650,18 +650,6 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
             return false;
         }
 
-        // Skip pixel analysis for cross-format pairs (e.g. HEIC↔JPG).
-        // Different codecs (HEVC vs DCT) produce systematic per-pixel differences
-        // that make changedAreaRatio meaningless — it measures codec artifacts,
-        // not content changes. The pHash signals already handle cross-format
-        // duplicate detection via colorspace-normalized hashing.
-        $extA = strtolower($fileA->getExtension());
-        $extB = strtolower($fileB->getExtension());
-
-        if ($extA !== $extB) {
-            return false;
-        }
-
         $keyA = $fileA->getPathname();
         $keyB = $fileB->getPathname();
 
@@ -682,7 +670,12 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
 
         $diffResult = $this->localDiffAnalyzer->analyze($imgA, $imgB);
 
-        return $diffResult->hasCompactRetouch;
+        // Analysis failure → NOT merge (conservative, R6)
+        if (!$diffResult->success) {
+            return true;
+        }
+
+        return $diffResult->rmse >= $this->maxMergeChangedArea;
     }
 
     /**

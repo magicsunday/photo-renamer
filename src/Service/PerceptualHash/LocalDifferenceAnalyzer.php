@@ -20,6 +20,7 @@ use function array_pop;
 use function intdiv;
 use function max;
 use function round;
+use function sqrt;
 
 /**
  * Pixel-level local difference analysis for near-identical image pairs.
@@ -59,8 +60,9 @@ final readonly class LocalDifferenceAnalyzer
         try {
             return $this->doAnalyze($imageA, $imageB);
         } catch (Throwable) {
-            // On any failure, report no retouch detected (conservative)
-            return new LocalDiffResult(0.0, 0.0, 0, false);
+            // On failure, mark as unsuccessful so the merge gate can distinguish
+            // failure (should NOT merge) from a genuine perfect match (should merge).
+            return new LocalDiffResult(0.0, 0.0, 0.0, 0, false, success: false);
         }
     }
 
@@ -90,14 +92,18 @@ final readonly class LocalDifferenceAnalyzer
 
         $totalPixels = $width * $height;
 
-        // Build binary mask: 1 = changed pixel (above noise threshold)
-        $mask         = [];
-        $changedCount = 0;
+        // Compute RMSE and build binary mask in a single pass
+        $mask          = [];
+        $changedCount  = 0;
+        $sumSquaredErr = 0.0;
 
         for ($i = 0; $i < $totalPixels; ++$i) {
-            $diff = abs($pixelsA[$i] - $pixelsB[$i]);
+            $diff = $pixelsA[$i] - $pixelsB[$i];
+            $sumSquaredErr += $diff * $diff;
 
-            if ($diff > self::NOISE_THRESHOLD) {
+            $absDiff = abs($diff);
+
+            if ($absDiff > self::NOISE_THRESHOLD) {
                 $mask[$i] = 1;
                 ++$changedCount;
             } else {
@@ -105,8 +111,11 @@ final readonly class LocalDifferenceAnalyzer
             }
         }
 
+        // RMSE normalized to 0.0–1.0 (divide by 255 max pixel value)
+        $rmse = sqrt($sumSquaredErr / $totalPixels) / 255.0;
+
         if ($changedCount === 0) {
-            return new LocalDiffResult(0.0, 0.0, 0, false);
+            return new LocalDiffResult($rmse, 0.0, 0.0, 0, false);
         }
 
         // Morphological opening: erode then dilate to remove isolated noise pixels
@@ -120,7 +129,7 @@ final readonly class LocalDifferenceAnalyzer
         }
 
         if ($changedCount === 0) {
-            return new LocalDiffResult(0.0, 0.0, 0, false);
+            return new LocalDiffResult($rmse, 0.0, 0.0, 0, false);
         }
 
         // Connected component analysis via flood-fill
@@ -131,6 +140,7 @@ final readonly class LocalDifferenceAnalyzer
         $hasCompactRetouch = $largestBlobRatio >= self::RETOUCH_BLOB_THRESHOLD;
 
         return new LocalDiffResult(
+            $rmse,
             $changedAreaRatio,
             $largestBlobRatio,
             $blobCount,
