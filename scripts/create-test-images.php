@@ -348,19 +348,22 @@ echo "  23 SubSecTime padding        → -500 vs -550 (different targets from 5 
 mkdir("$dir/24-cross-dir-edits", 0755, true);
 mkdir("$dir/24-cross-dir-edits/edited", 0755, true);
 // Use visually DIFFERENT images (different colors) so perceptual hashing sees them as distinct
-exec(sprintf('ffmpeg -y -f lavfi -i color=red:s=64x64 -frames:v 1 %s 2>/dev/null', escapeshellarg("$dir/24-cross-dir-edits/original.jpg")));
+// Use visually DISTINCT patterns (not solid colors — dHash needs gradient differences)
+exec(sprintf('ffmpeg -y -f lavfi -i testsrc=s=64x64:rate=1 -frames:v 1 %s 2>/dev/null', escapeshellarg("$dir/24-cross-dir-edits/original.jpg")));
 exiftool(
     '-DateTimeOriginal=2024:07:25 11:27:50', '-SubSecTimeOriginal=100',
     '-Make=NIKON CORPORATION', '-Model=NIKON D100', '-Software=Adobe Photoshop 7.0',
     "$dir/24-cross-dir-edits/original.jpg",
 );
-exec(sprintf('ffmpeg -y -f lavfi -i color=green:s=64x64 -frames:v 1 %s 2>/dev/null', escapeshellarg("$dir/24-cross-dir-edits/edited/edit-1.jpg")));
+// Edit 1: horizontally flipped pattern (different gradient = different dHash)
+exec(sprintf('ffmpeg -y -f lavfi -i testsrc=s=64x64:rate=1 -vf hflip -frames:v 1 %s 2>/dev/null', escapeshellarg("$dir/24-cross-dir-edits/edited/edit-1.jpg")));
 exiftool(
     '-DateTimeOriginal=2024:07:25 11:27:50', '-SubSecTimeOriginal=100',
     '-Make=NIKON CORPORATION', '-Model=NIKON D100', '-Software=Adobe Photoshop 7.0',
     "$dir/24-cross-dir-edits/edited/edit-1.jpg",
 );
-exec(sprintf('ffmpeg -y -f lavfi -i color=blue:s=64x64 -frames:v 1 %s 2>/dev/null', escapeshellarg("$dir/24-cross-dir-edits/edited/edit-2.jpg")));
+// Edit 2: inverted pattern (negative = different dHash)
+exec(sprintf('ffmpeg -y -f lavfi -i testsrc=s=64x64:rate=1 -vf negate -frames:v 1 %s 2>/dev/null', escapeshellarg("$dir/24-cross-dir-edits/edited/edit-2.jpg")));
 exiftool(
     '-DateTimeOriginal=2024:07:25 11:27:50', '-SubSecTimeOriginal=100',
     '-Make=NIKON CORPORATION', '-Model=NIKON D100', '-Software=Adobe Photoshop 7.0',
@@ -395,13 +398,15 @@ echo "  25 same-dir semantic dup     → one canonical, other -duplicate-001 (sa
 // ============================================================================
 mkdir("$dir/26-same-dir-diff-software", 0755, true);
 // Use visually DIFFERENT images so perceptual hashing sees them as distinct
-exec(sprintf('ffmpeg -y -f lavfi -i color=yellow:s=64x64 -frames:v 1 %s 2>/dev/null', escapeshellarg("$dir/26-same-dir-diff-software/from-camera.jpg")));
+// Use visually DISTINCT patterns (dHash needs gradient differences, not just color)
+exec(sprintf('ffmpeg -y -f lavfi -i smptebars=s=64x64:rate=1 -frames:v 1 %s 2>/dev/null', escapeshellarg("$dir/26-same-dir-diff-software/from-camera.jpg")));
 exiftool(
     '-DateTimeOriginal=2024:11:15 09:30:00', '-SubSecTimeOriginal=450',
     '-Make=Apple', '-Model=iPhone 14 Pro', '-Software=17.2',
     "$dir/26-same-dir-diff-software/from-camera.jpg",
 );
-exec(sprintf('ffmpeg -y -f lavfi -i color=purple:s=64x64 -frames:v 1 %s 2>/dev/null', escapeshellarg("$dir/26-same-dir-diff-software/photoshopped.jpg")));
+// Edit: vertically flipped pattern (different gradient = different dHash)
+exec(sprintf('ffmpeg -y -f lavfi -i smptebars=s=64x64:rate=1 -vf vflip -frames:v 1 %s 2>/dev/null', escapeshellarg("$dir/26-same-dir-diff-software/photoshopped.jpg")));
 exiftool(
     '-DateTimeOriginal=2024:11:15 09:30:00', '-SubSecTimeOriginal=450',
     '-Make=Apple', '-Model=iPhone 14 Pro', '-Software=Adobe Photoshop 2024',
@@ -491,16 +496,20 @@ $lp29pairs = [
 // Create visually distinct dummy images with real metadata copied on top.
 // Original and duplicate are same color (red) → pHash merge.
 // Edit is different color (blue) → pHash separate.
+// Use ffmpeg test sources that produce different dHash values:
+// - 'testsrc' for original (test pattern with text)
+// - 'testsrc' + hflip for edit (different gradient = different dHash)
+// - 'testsrc' for duplicate (same gradient as original)
 $lp29colors = [
-    ['' , '.jpg', 'red'],           // Original JPG
-    ['', '.mov', null],             // Original MOV (video)
-    ['-002', '.jpg', 'blue'],       // Edited JPG (different visual)
-    ['-002', '.mov', null],         // Edited MOV (video)
-    ['-duplicate-001', '.heic', 'red'],  // Duplicate HEIC (same visual as original)
-    ['-duplicate-001', '.mov', null],    // Duplicate MOV (video)
+    ['' , '.jpg', 'testsrc=s=64x64:rate=1'],                  // Original JPG
+    ['', '.mov', null],                                         // Original MOV (video)
+    ['-002', '.jpg', 'testsrc=s=64x64:rate=1,hflip'],         // Edited JPG (flipped = different dHash)
+    ['-002', '.mov', null],                                     // Edited MOV (video)
+    ['-duplicate-001', '.heic', 'testsrc=s=64x64:rate=1'],    // Duplicate HEIC (same visual as original)
+    ['-duplicate-001', '.mov', null],                           // Duplicate MOV (video)
 ];
 
-foreach ($lp29colors as [$suffix, $ext, $color]) {
+foreach ($lp29colors as [$suffix, $ext, $pattern]) {
     $srcFile  = $lp29src . $suffix . $ext;
     $destFile = $dir . '/29-livephoto-edit-duplicate/2025-05-03_14-38-16-939' . $suffix . $ext;
 
@@ -508,9 +517,9 @@ foreach ($lp29colors as [$suffix, $ext, $color]) {
         // Video: create dummy MOV, copy metadata from real file
         stripToMetadataOnly($srcFile, $destFile, true);
     } elseif ($ext === '.heic') {
-        // HEIC: create colored HEIC dummy, copy metadata
-        $tmpJpeg = sys_get_temp_dir() . '/heic-color-' . uniqid() . '.jpg';
-        exec(sprintf('ffmpeg -y -f lavfi -i color=%s:s=64x64 -frames:v 1 %s 2>/dev/null', $color, escapeshellarg($tmpJpeg)));
+        // HEIC: create patterned HEIC dummy, copy metadata
+        $tmpJpeg = sys_get_temp_dir() . '/heic-pattern-' . uniqid() . '.jpg';
+        exec(sprintf('ffmpeg -y -f lavfi -i %s -frames:v 1 %s 2>/dev/null', escapeshellarg($pattern), escapeshellarg($tmpJpeg)));
         exec(sprintf('heif-enc -o %s %s 2>/dev/null', escapeshellarg($destFile), escapeshellarg($tmpJpeg)));
         @unlink($tmpJpeg);
 
@@ -519,8 +528,8 @@ foreach ($lp29colors as [$suffix, $ext, $color]) {
             exec(sprintf('exiftool -overwrite_original -GPS*= %s 2>/dev/null', escapeshellarg($destFile)));
         }
     } else {
-        // JPG: create colored dummy, copy metadata
-        exec(sprintf('ffmpeg -y -f lavfi -i color=%s:s=64x64 -frames:v 1 %s 2>/dev/null', $color, escapeshellarg($destFile)));
+        // JPG: create patterned dummy, copy metadata
+        exec(sprintf('ffmpeg -y -f lavfi -i %s -frames:v 1 %s 2>/dev/null', escapeshellarg($pattern), escapeshellarg($destFile)));
 
         if (file_exists($srcFile)) {
             exec(sprintf('exiftool -overwrite_original -TagsFromFile %s -all:all %s 2>/dev/null', escapeshellarg($srcFile), escapeshellarg($destFile)));
@@ -563,6 +572,34 @@ createVideo("$dir/31-duplicate-ambiguous-tz/clip-a.mp4", 'mp4');
 exiftool('-QuickTime:CreateDate=2025:06:10 14:30:00', "$dir/31-duplicate-ambiguous-tz/clip-a.mp4");
 copy("$dir/31-duplicate-ambiguous-tz/clip-a.mp4", "$dir/31-duplicate-ambiguous-tz/clip-b.mp4");
 echo "  31 duplicate + ambiguous tz  → both [W] skipped (not [D])\n";
+
+// ============================================================================
+// 42 - Same-directory format backup (HEIC + JPG, same photo)
+//      HEIC original + JPG conversion in the same directory.
+//      Both have identical visual content but different content hashes.
+//      Expected: JPG gets -duplicate-001 (format backup = duplicate, not edit).
+//      This tests Fix 1: Stage B must skip when dHash distance = 0.
+// ============================================================================
+mkdir("$dir/42-same-dir-format-backup", 0755, true);
+// Create a textured JPEG (mandelbrot pattern — produces compression artifacts
+// that differ between JPEG and HEIC, triggering the Stage B false positive)
+exec("ffmpeg -y -f lavfi -i mandelbrot=s=256x256:maxiter=100:rate=1 -frames:v 1 $dir/42-same-dir-format-backup/photo.jpg 2>/dev/null");
+exiftool(
+    '-DateTimeOriginal=2025:02:20 15:30:00', '-SubSecTimeOriginal=200',
+    '-Make=Apple', '-Model=iPhone 15 Pro', '-Software=17.2',
+    "$dir/42-same-dir-format-backup/photo.jpg",
+);
+// Create HEIC from the same source image — same visual content, different codec
+$tmpJpeg42 = sys_get_temp_dir() . '/heic-42-' . uniqid() . '.jpg';
+exec("ffmpeg -y -f lavfi -i mandelbrot=s=256x256:maxiter=100:rate=1 -frames:v 1 $tmpJpeg42 2>/dev/null");
+exec("heif-enc -o $dir/42-same-dir-format-backup/photo.heic $tmpJpeg42 2>/dev/null");
+@unlink($tmpJpeg42);
+exiftool(
+    '-DateTimeOriginal=2025:02:20 15:30:00', '-SubSecTimeOriginal=200',
+    '-Make=Apple', '-Model=iPhone 15 Pro', '-Software=17.2',
+    "$dir/42-same-dir-format-backup/photo.heic",
+);
+echo "  42 same-dir format backup    → HEIC canonical, JPG -duplicate-001\n";
 
 // Clean up backup of committed Live Photo files
 if (is_dir($backupDir)) {

@@ -52,7 +52,8 @@ final class MetadataCache
      *     latitude?: float|null,
      *     longitude?: float|null,
      *     videoDurationSeconds?: float|null,
-     *     hasQuickTimeLivePhotoMarker?: bool
+     *     hasQuickTimeLivePhotoMarker?: bool,
+     *     rawQuickTimeCreateDate: string|null
      * }>
      */
     private array $entries = [];
@@ -92,7 +93,8 @@ final class MetadataCache
      *     latitude?: float|null,
      *     longitude?: float|null,
      *     videoDurationSeconds?: float|null,
-     *     hasQuickTimeLivePhotoMarker?: bool
+     *     hasQuickTimeLivePhotoMarker?: bool,
+     *     rawQuickTimeCreateDate: string|null
      * }|null
      */
     public function get(SplFileInfo $file): ?array
@@ -135,6 +137,7 @@ final class MetadataCache
             'longitude'                   => $metadata?->getLongitude(),
             'videoDurationSeconds'        => $metadata?->getVideoDurationSeconds(),
             'hasQuickTimeLivePhotoMarker' => $metadata?->hasQuickTimeLivePhotoMarker() ?? false,
+            'rawQuickTimeCreateDate'      => $metadata?->getRawQuickTimeCreateDate()?->format('Y-m-d\TH:i:s.uP'),
         ];
 
         $this->dirty = true;
@@ -160,6 +163,57 @@ final class MetadataCache
     /**
      * Loads the cache from disk. Silently ignores missing or corrupt cache files.
      */
+    /**
+     * Migrates cached entries to the current schema by backfilling missing keys.
+     *
+     * @param array<string, array<string, mixed>> $data Raw decoded JSON entries
+     *
+     * @return array<string, array{
+     *     mtime: int,
+     *     size: int,
+     *     captureDateTime: string|null,
+     *     contentId: string|null,
+     *     isFallback: bool,
+     *     isAmbiguousTimezone: bool,
+     *     livePhotoVideoIndex?: int|null,
+     *     cameraMake?: string|null,
+     *     cameraModel?: string|null,
+     *     software?: string|null,
+     *     latitude?: float|null,
+     *     longitude?: float|null,
+     *     videoDurationSeconds?: float|null,
+     *     hasQuickTimeLivePhotoMarker?: bool,
+     *     rawQuickTimeCreateDate: string|null
+     * }>
+     */
+    private function migrateEntries(array $data): array
+    {
+        foreach ($data as &$entry) {
+            $entry['rawQuickTimeCreateDate'] ??= null;
+        }
+
+        unset($entry);
+
+        /** @var array<string, array{
+         *     mtime: int,
+         *     size: int,
+         *     captureDateTime: string|null,
+         *     contentId: string|null,
+         *     isFallback: bool,
+         *     isAmbiguousTimezone: bool,
+         *     livePhotoVideoIndex?: int|null,
+         *     cameraMake?: string|null,
+         *     cameraModel?: string|null,
+         *     software?: string|null,
+         *     latitude?: float|null,
+         *     longitude?: float|null,
+         *     videoDurationSeconds?: float|null,
+         *     hasQuickTimeLivePhotoMarker?: bool,
+         *     rawQuickTimeCreateDate: string|null
+         * }> $data */
+        return $data;
+    }
+
     private function load(): void
     {
         if (!$this->filesystem->exists($this->cacheFile)) {
@@ -175,23 +229,8 @@ final class MetadataCache
         $data = json_decode($contents, true);
 
         if (is_array($data)) {
-            /** @var array<string, array{
-             *     mtime: int,
-             *     size: int,
-             *     captureDateTime: string|null,
-             *     contentId: string|null,
-             *     isFallback: bool,
-             *     isAmbiguousTimezone: bool,
-             *     livePhotoVideoIndex?: int|null,
-             *     cameraMake?: string|null,
-             *     cameraModel?: string|null,
-             *     software?: string|null,
-             *     latitude?: float|null,
-             *     longitude?: float|null,
-             *     videoDurationSeconds?: float|null,
-             *     hasQuickTimeLivePhotoMarker?: bool
-             * }> $data */
-            $this->entries = $data;
+            /** @var array<string, array<string, mixed>> $data */
+            $this->entries = $this->migrateEntries($data);
         }
     }
 }

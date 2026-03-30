@@ -16,6 +16,7 @@ use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\Collection\FileList;
 use MagicSunday\Renamer\Model\Collection\RenameList;
@@ -40,6 +41,7 @@ use MagicSunday\Renamer\Service\SafeHashCalculatorInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\LivePhotoAwareRenameStrategyInterface;
+use MagicSunday\Renamer\Strategy\RenameStrategy\MetadataAwareRenameStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubPerceptualHashCalculator;
@@ -3111,6 +3113,192 @@ final class DuplicateDetectionServiceTest extends TestCase
         self::assertCount(4, $group->getFiles());
     }
 
+    /**
+     * Verifies that when a Live Photo still image is flagged as having an ambiguous
+     * timezone [W], the companion video inherits the same flag after
+     * createDuplicateFilenames completes.
+     *
+     * Without the fix, the video companion is tagged independently based on its
+     * own metadata — it gets [R] while the still gets [W], producing inconsistent
+     * names in the same Live Photo pair.
+     */
+    #[Test]
+    public function createDuplicateFilenamesPropagatesAmbiguousTimezoneToLivePhotoCompanion(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+
+        $jpgPath = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.jpg';
+        $movPath = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0001.mov';
+
+        file_put_contents($jpgPath, 'photo-content');
+        file_put_contents($movPath, 'video-content');
+
+        // DIR_CONTEXT: src=$sourceDirectory tgt=$sourceDirectory ext=None
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveArrayIterator([
+                new SplFileInfo($jpgPath),
+                new SplFileInfo($movPath),
+            ], RecursiveArrayIterator::CHILD_ARRAYS_ONLY),
+        );
+
+        // Still has ambiguous timezone, video does not.
+        $renameStrategy = new DummyMetadataAwareLivePhotoRenameStrategy(
+            filenameMap: [
+                $jpgPath => '2025-01-01_12-00-00-000.jpg',
+                $movPath => '2025-01-01_12-00-00-000.mov',
+            ],
+            identifierMap: [
+                $jpgPath => 'content-id-abc',
+                $movPath => 'content-id-abc',
+            ],
+            ambiguousTimezoneMap: [$jpgPath => true],
+            fallbackDateMap: [],
+        );
+
+        $duplicateIdentifierStrategy = new TargetBasenameStrategy();
+
+        $collection = $service->groupFilesByDuplicateIdentifier(
+            $iterator,
+            $renameStrategy,
+            $duplicateIdentifierStrategy,
+            $sourceDirectory,
+        );
+
+        $service->createDuplicateFilenames(
+            $collection,
+            $sourceDirectory,
+        );
+
+        $ambiguous = $service->getAmbiguousTimezoneFiles();
+
+        // Both the still AND its companion video must be flagged.
+        self::assertArrayHasKey($jpgPath, $ambiguous, 'Still image must be flagged as ambiguous timezone');
+        self::assertArrayHasKey($movPath, $ambiguous, 'Companion video must inherit ambiguous timezone from still');
+    }
+
+    /**
+     * Verifies that when a Live Photo still image is flagged as having a fallback
+     * date [F], the companion video inherits the same flag after
+     * createDuplicateFilenames completes.
+     */
+    #[Test]
+    public function createDuplicateFilenamesPropagatesFallbackDateToLivePhotoCompanion(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+
+        $jpgPath = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0002.jpg';
+        $movPath = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0002.mov';
+
+        file_put_contents($jpgPath, 'photo-content-2');
+        file_put_contents($movPath, 'video-content-2');
+
+        // DIR_CONTEXT: src=$sourceDirectory tgt=$sourceDirectory ext=None
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveArrayIterator([
+                new SplFileInfo($jpgPath),
+                new SplFileInfo($movPath),
+            ], RecursiveArrayIterator::CHILD_ARRAYS_ONLY),
+        );
+
+        // Still has fallback date, video does not.
+        $renameStrategy = new DummyMetadataAwareLivePhotoRenameStrategy(
+            filenameMap: [
+                $jpgPath => '2025-01-01_12-00-00-000.jpg',
+                $movPath => '2025-01-01_12-00-00-000.mov',
+            ],
+            identifierMap: [
+                $jpgPath => 'content-id-def',
+                $movPath => 'content-id-def',
+            ],
+            ambiguousTimezoneMap: [],
+            fallbackDateMap: [$jpgPath => true],
+        );
+
+        $duplicateIdentifierStrategy = new TargetBasenameStrategy();
+
+        $collection = $service->groupFilesByDuplicateIdentifier(
+            $iterator,
+            $renameStrategy,
+            $duplicateIdentifierStrategy,
+            $sourceDirectory,
+        );
+
+        $service->createDuplicateFilenames(
+            $collection,
+            $sourceDirectory,
+        );
+
+        $fallback = $service->getFallbackDateFiles();
+
+        // Both the still AND its companion video must be flagged.
+        self::assertArrayHasKey($jpgPath, $fallback, 'Still image must be flagged as fallback date');
+        self::assertArrayHasKey($movPath, $fallback, 'Companion video must inherit fallback date from still');
+    }
+
+    /**
+     * Verifies that quality flag propagation does NOT happen from video to still —
+     * only from still to companion video. The still is the authoritative source.
+     */
+    #[Test]
+    public function createDuplicateFilenamesDoesNotPropagateFromVideoToStill(): void
+    {
+        [$service] = $this->createService();
+
+        $sourceDirectory = $this->createTempDirectory();
+
+        $jpgPath = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0003.jpg';
+        $movPath = $sourceDirectory . DIRECTORY_SEPARATOR . 'IMG_0003.mov';
+
+        file_put_contents($jpgPath, 'photo-content-3');
+        file_put_contents($movPath, 'video-content-3');
+
+        // DIR_CONTEXT: src=$sourceDirectory tgt=$sourceDirectory ext=None
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveArrayIterator([
+                new SplFileInfo($jpgPath),
+                new SplFileInfo($movPath),
+            ], RecursiveArrayIterator::CHILD_ARRAYS_ONLY),
+        );
+
+        // Video has ambiguous timezone, still does not.
+        $renameStrategy = new DummyMetadataAwareLivePhotoRenameStrategy(
+            filenameMap: [
+                $jpgPath => '2025-01-01_12-00-00-000.jpg',
+                $movPath => '2025-01-01_12-00-00-000.mov',
+            ],
+            identifierMap: [
+                $jpgPath => 'content-id-ghi',
+                $movPath => 'content-id-ghi',
+            ],
+            ambiguousTimezoneMap: [$movPath => true],
+            fallbackDateMap: [],
+        );
+
+        $duplicateIdentifierStrategy = new TargetBasenameStrategy();
+
+        $collection = $service->groupFilesByDuplicateIdentifier(
+            $iterator,
+            $renameStrategy,
+            $duplicateIdentifierStrategy,
+            $sourceDirectory,
+        );
+
+        $service->createDuplicateFilenames(
+            $collection,
+            $sourceDirectory,
+        );
+
+        $ambiguous = $service->getAmbiguousTimezoneFiles();
+
+        // Video keeps its own flag, but still must NOT inherit it.
+        self::assertArrayHasKey($movPath, $ambiguous, 'Video should keep its own ambiguous timezone flag');
+        self::assertArrayNotHasKey($jpgPath, $ambiguous, 'Still must NOT inherit ambiguous timezone from video');
+    }
+
     private function createTempDirectory(): string
     {
         $directory               = $this->createTempWorkspace('photo-renamer-');
@@ -3193,5 +3381,61 @@ final readonly class DummyLivePhotoDuplicateIdentifierStrategy implements Duplic
         }
 
         return 'live-photo:' . strtolower($identifier);
+    }
+}
+
+/**
+ * Test double implementing both LivePhotoAwareRenameStrategyInterface and
+ * MetadataAwareRenameStrategyInterface. Allows tests to trigger both LP content
+ * identifier mapping AND fallback/ambiguous timezone tracking in the pipeline.
+ */
+final readonly class DummyMetadataAwareLivePhotoRenameStrategy implements LivePhotoAwareRenameStrategyInterface, MetadataAwareRenameStrategyInterface
+{
+    /**
+     * @param array<string, string|null> $filenameMap
+     * @param array<string, string|null> $identifierMap
+     * @param array<string, true>        $ambiguousTimezoneMap
+     * @param array<string, true>        $fallbackDateMap
+     */
+    public function __construct(
+        private array $filenameMap,
+        private array $identifierMap,
+        private array $ambiguousTimezoneMap = [],
+        private array $fallbackDateMap = [],
+    ) {
+    }
+
+    public function generateFilename(SplFileInfo $splFileInfo): ?string
+    {
+        return $this->filenameMap[$splFileInfo->getPathname()] ?? null;
+    }
+
+    public function getLivePhotoContentIdentifier(SplFileInfo $splFileInfo): ?string
+    {
+        return $this->identifierMap[$splFileInfo->getPathname()] ?? null;
+    }
+
+    public function isFallbackDateTime(SplFileInfo $splFileInfo): bool
+    {
+        return isset($this->fallbackDateMap[$splFileInfo->getPathname()]);
+    }
+
+    public function isAmbiguousTimezone(SplFileInfo $splFileInfo): bool
+    {
+        return isset($this->ambiguousTimezoneMap[$splFileInfo->getPathname()]);
+    }
+
+    public function hasReliableDateTime(SplFileInfo $splFileInfo): bool
+    {
+        $pathname = $splFileInfo->getPathname();
+
+        // Unreliable if flagged as fallback or ambiguous.
+        return !isset($this->fallbackDateMap[$pathname])
+            && !isset($this->ambiguousTimezoneMap[$pathname]);
+    }
+
+    public function getTemporalMetadata(SplFileInfo $splFileInfo): ?TemporalMetadata
+    {
+        return null;
     }
 }

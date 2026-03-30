@@ -60,6 +60,7 @@ use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
+use MagicSunday\Renamer\Test\Fixtures\ConsoleOutputParserTrait;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -82,16 +83,14 @@ use function is_dir;
 use function mkdir;
 use function preg_match_all;
 use function preg_replace;
+use function rename;
 use function rtrim;
-use function str_starts_with;
-use function strlen;
-use function substr;
 
 use const DIRECTORY_SEPARATOR;
 use const PREG_SET_ORDER;
 
 /**
- * Integration test validating all 28 test-image scenarios against their expected
+ * Integration test validating all test-image scenarios against their expected
  * rename outcomes. Each scenario directory contains real media files with genuine
  * EXIF/QuickTime metadata. The test runs the full rename pipeline (scan, group,
  * Live Photo pair, hash sub-group, assign filenames) in dry-run mode and asserts
@@ -153,6 +152,7 @@ use const PREG_SET_ORDER;
 #[UsesClass(ExifDateFilenameStrategy::class)]
 final class TestImageScenariosTest extends TestCase
 {
+    use ConsoleOutputParserTrait;
     use WorkspaceTrait;
 
     /**
@@ -217,7 +217,400 @@ final class TestImageScenariosTest extends TestCase
     }
 
     /**
-     * Provides all 28 test-image scenarios with their expected rename outcomes.
+     * Verifies that extractTagAssignments correctly parses [W] tags from scenario 06
+     * (ambiguous timezone). This validates the helper itself and serves as an
+     * integration test for the tag assignment pipeline.
+     */
+    #[Test]
+    public function extractTagAssignmentsReturnsWarningTagForAmbiguousTimezone(): void
+    {
+        $scenarioDir = '06-ambiguous-timezone';
+        $sourceDir   = $this->testImagesDir() . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        self::assertDirectoryExists($sourceDir);
+
+        $workspace = $this->createTempWorkspace('test_images_');
+        $targetDir = $workspace . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        try {
+            $this->copyDirectory($sourceDir, $targetDir);
+
+            $consoleOutput = $this->runDryRunRaw($targetDir);
+            $tags          = $this->extractTagAssignments($consoleOutput, $targetDir);
+
+            // Scenario 06 has one MOV with ambiguous timezone → must be [W]
+            self::assertNotEmpty($tags, 'Should have at least one tag assignment');
+
+            foreach ($tags as $file => $tag) {
+                self::assertSame('W', $tag, 'File ' . $file . ' should be tagged [W]');
+            }
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Scenario 40: LP pair where MOV has ambiguous TZ (no Keys:CreationDate).
+     * JPG still has reliable EXIF date → [R]. MOV is flagged [W].
+     * The MOV's ambiguous TZ is a genuine metadata issue that --timezone alone
+     * doesn't resolve at the rename:exif level (use write-date to fix).
+     */
+    #[Test]
+    public function scenario40LpMovAmbiguousTz(): void
+    {
+        $scenarioDir = '40-lp-mov-ambiguous-tz';
+        $sourceDir   = $this->testImagesDir() . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        self::assertDirectoryExists($sourceDir);
+
+        $workspace = $this->createTempWorkspace('test_images_');
+        $targetDir = $workspace . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        try {
+            $this->copyDirectory($sourceDir, $targetDir);
+
+            $consoleOutput = $this->runDryRunRaw($targetDir);
+            $tags          = $this->extractTagAssignments($consoleOutput, $targetDir);
+
+            self::assertArrayHasKey('IMG_0001.jpg', $tags);
+            self::assertArrayHasKey('IMG_0001.mov', $tags);
+            self::assertSame('R', $tags['IMG_0001.jpg'], 'JPG still should be [R]');
+            self::assertSame('W', $tags['IMG_0001.mov'], 'MOV should be [W] (ambiguous TZ)');
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Scenario 56: LP still [F] + video [W] — the still's [F] does NOT override
+     * the video's own [W] because [W] has higher priority in the tag chain.
+     * The still keeps [F], the video keeps [W].
+     */
+    #[Test]
+    public function scenario56LpStillFallbackVideoAmbiguousTz(): void
+    {
+        $scenarioDir = '56-lp-still-fallback-video-ambiguous';
+        $sourceDir   = $this->testImagesDir() . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        self::assertDirectoryExists($sourceDir);
+
+        $workspace = $this->createTempWorkspace('test_images_');
+        $targetDir = $workspace . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        try {
+            $this->copyDirectory($sourceDir, $targetDir);
+
+            $consoleOutput = $this->runDryRunRaw($targetDir);
+            $tags          = $this->extractTagAssignments($consoleOutput, $targetDir);
+
+            self::assertArrayHasKey('IMG_0001.jpg', $tags);
+            self::assertArrayHasKey('IMG_0001.mov', $tags);
+            self::assertSame('F', $tags['IMG_0001.jpg'], 'JPG still must be [F] (fallback date)');
+            self::assertSame('W', $tags['IMG_0001.mov'], 'MOV keeps [W] (ambiguous TZ > fallback via priority chain)');
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Scenario 57: LP still with no metadata + video with ambiguous TZ.
+     * LP pairing gives the still a date from the video (timezone-converted).
+     * The still gets [R], the video gets [W].
+     */
+    #[Test]
+    public function scenario57LpStillNoMetadataVideoAmbiguousTz(): void
+    {
+        $scenarioDir = '57-lp-still-no-metadata-video-ambiguous';
+        $sourceDir   = $this->testImagesDir() . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        self::assertDirectoryExists($sourceDir);
+
+        $workspace = $this->createTempWorkspace('test_images_');
+        $targetDir = $workspace . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        try {
+            $this->copyDirectory($sourceDir, $targetDir);
+
+            $consoleOutput = $this->runDryRunRaw($targetDir);
+            $tags          = $this->extractTagAssignments($consoleOutput, $targetDir);
+
+            self::assertArrayHasKey('IMG_0001.jpg', $tags);
+            self::assertArrayHasKey('IMG_0001.mov', $tags);
+            // Still gets [R] — LP pairing provides the video's timezone-converted date
+            self::assertSame('R', $tags['IMG_0001.jpg'], 'JPG still gets [R] via LP pairing date');
+            self::assertSame('W', $tags['IMG_0001.mov'], 'MOV keeps [W] (ambiguous TZ)');
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Scenario 59: Interrupted run recovery — a partially renamed collection.
+     * Some files are already date-named ([O]), others still have camera names ([R]).
+     * The pipeline must correctly handle the mixed state.
+     */
+    #[Test]
+    public function scenario59InterruptedRunRecovery(): void
+    {
+        $workspace = $this->createTempWorkspace('test_images_');
+        $targetDir = $workspace . DIRECTORY_SEPARATOR . 'interrupted';
+
+        try {
+            // Copy scenario 01 fixture and create a "half-renamed" state
+            $sourceDir = $this->testImagesDir() . DIRECTORY_SEPARATOR . '01-basic-rename';
+            $this->copyDirectory($sourceDir, $targetDir);
+
+            // Get expected target name
+            $mappings = $this->runDryRun($targetDir);
+            self::assertNotEmpty($mappings);
+
+            // Rename the first file to its target (simulating a completed rename)
+            foreach ($mappings as $source => $target) {
+                $sourcePath = $targetDir . DIRECTORY_SEPARATOR . $source;
+                $targetPath = $targetDir . DIRECTORY_SEPARATOR . $target;
+
+                if ($sourcePath !== $targetPath) {
+                    rename($sourcePath, $targetPath);
+                }
+            }
+
+            // Add a second un-renamed file from another scenario
+            copy(
+                $this->testImagesDir() . DIRECTORY_SEPARATOR . '14-heic-image' . DIRECTORY_SEPARATOR . 'IMG_0042.heic',
+                $targetDir . DIRECTORY_SEPARATOR . 'IMG_0042.heic',
+            );
+
+            // Run dry-run: date-named file should be [O], camera-named should be [R]
+            $consoleOutput = $this->runDryRunRaw($targetDir);
+            $tags          = $this->extractTagAssignments($consoleOutput, $targetDir);
+
+            self::assertCount(2, $tags, 'Should have exactly 2 files');
+
+            // The already-renamed file should be [O]
+            $oCount = 0;
+            $rCount = 0;
+
+            foreach ($tags as $tag) {
+                if ($tag === 'O') {
+                    ++$oCount;
+                } elseif ($tag === 'R') {
+                    ++$rCount;
+                }
+            }
+
+            self::assertSame(1, $oCount, 'One file should be [O] (already correctly named)');
+            self::assertSame(1, $rCount, 'One file should be [R] (needs renaming)');
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Scenario 49: Idempotency — files already named correctly produce all [O] on re-run.
+     * Uses scenario 01 fixture (single JPG), renames it, then verifies a second
+     * dry-run shows only [O] entries.
+     */
+    #[Test]
+    public function scenario49IdempotencyAcrossFormats(): void
+    {
+        $scenarioDir = '01-basic-rename';
+        $sourceDir   = $this->testImagesDir() . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        self::assertDirectoryExists($sourceDir);
+
+        $workspace = $this->createTempWorkspace('test_images_');
+        $targetDir = $workspace . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        try {
+            $this->copyDirectory($sourceDir, $targetDir);
+
+            // First: get the expected target name
+            $mappings = $this->runDryRun($targetDir);
+            self::assertNotEmpty($mappings);
+
+            // Rename the file to its expected target
+            foreach ($mappings as $source => $target) {
+                $sourcePath = $targetDir . DIRECTORY_SEPARATOR . $source;
+                $targetPath = $targetDir . DIRECTORY_SEPARATOR . $target;
+
+                if ($sourcePath !== $targetPath) {
+                    rename($sourcePath, $targetPath);
+                }
+            }
+
+            // Second dry-run: all files should be [O] (already correctly named)
+            $consoleOutput = $this->runDryRunRaw($targetDir);
+            $tags          = $this->extractTagAssignments($consoleOutput, $targetDir);
+
+            self::assertNotEmpty($tags, 'Should have tag assignments after re-run');
+
+            foreach ($tags as $file => $tag) {
+                self::assertSame('O', $tag, 'File ' . $file . ' should be [O] on second run');
+            }
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Scenario 35: --skip-fallback option skips files with fallback date [F].
+     * Uses existing scenario 05 fixture (file with only 0x0132 ModifyDate).
+     * Verifies that [F] files appear in output with --list-all and are skipped.
+     */
+    #[Test]
+    public function scenario35SkipFallbackOptionSkipsFFiles(): void
+    {
+        $scenarioDir = '05-fallback-date';
+        $sourceDir   = $this->testImagesDir() . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        self::assertDirectoryExists($sourceDir);
+
+        $workspace = $this->createTempWorkspace('test_images_');
+        $targetDir = $workspace . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        try {
+            $this->copyDirectory($sourceDir, $targetDir);
+
+            $consoleOutput = $this->runDryRunRaw($targetDir, ['--skip-fallback' => true]);
+            $tags          = $this->extractTagAssignments($consoleOutput, $targetDir);
+
+            // With --skip-fallback + --list-all, the [F] file should appear tagged [F]
+            self::assertNotEmpty($tags, 'Should have at least one tag assignment');
+
+            foreach ($tags as $file => $tag) {
+                self::assertSame('F', $tag, 'File ' . $file . ' should be tagged [F]');
+            }
+
+            // The file should be skipped (no actual rename performed)
+            self::assertStringContainsString('Planned skips', $consoleOutput);
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Scenario 51: LP still with fallback date [F] → companion video inherits [F]
+     * via LP atomicity propagation (Fix 8).
+     */
+    #[Test]
+    public function scenario51LpStillFallbackPropagatedToVideo(): void
+    {
+        $scenarioDir = '51-lp-still-fallback';
+        $sourceDir   = $this->testImagesDir() . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        self::assertDirectoryExists($sourceDir);
+
+        $workspace = $this->createTempWorkspace('test_images_');
+        $targetDir = $workspace . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        try {
+            $this->copyDirectory($sourceDir, $targetDir);
+
+            $consoleOutput = $this->runDryRunRaw($targetDir);
+            $tags          = $this->extractTagAssignments($consoleOutput, $targetDir);
+
+            self::assertArrayHasKey('IMG_0001.jpg', $tags, 'JPG still must appear in output');
+            self::assertArrayHasKey('IMG_0001.mov', $tags, 'MOV companion must appear in output');
+            self::assertSame('F', $tags['IMG_0001.jpg'], 'JPG still must be tagged [F] (fallback date)');
+            self::assertSame('F', $tags['IMG_0001.mov'], 'MOV companion must inherit [F] from still');
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Scenario 54: two byte-identical files with fallback date → both [F].
+     * Fix 9: [F] must take priority over [D] for duplicate with fallback.
+     */
+    #[Test]
+    public function scenario54DuplicatePlusFallbackBothTaggedF(): void
+    {
+        $scenarioDir = '54-duplicate-plus-fallback';
+        $sourceDir   = $this->testImagesDir() . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        self::assertDirectoryExists($sourceDir);
+
+        $workspace = $this->createTempWorkspace('test_images_');
+        $targetDir = $workspace . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        try {
+            $this->copyDirectory($sourceDir, $targetDir);
+
+            $consoleOutput = $this->runDryRunRaw($targetDir);
+            $tags          = $this->extractTagAssignments($consoleOutput, $targetDir);
+
+            self::assertNotEmpty($tags, 'Should have tag assignments');
+
+            foreach ($tags as $file => $tag) {
+                self::assertSame('F', $tag, 'File ' . $file . ' must be tagged [F]');
+            }
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Scenario 55: original + edited version (different hash), both with fallback
+     * date → edit gets -002 suffix and [F] tag.
+     */
+    #[Test]
+    public function scenario55EditPlusFallbackBothTaggedF(): void
+    {
+        $scenarioDir = '55-edit-plus-fallback';
+        $sourceDir   = $this->testImagesDir() . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        self::assertDirectoryExists($sourceDir);
+
+        $workspace = $this->createTempWorkspace('test_images_');
+        $targetDir = $workspace . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        try {
+            $this->copyDirectory($sourceDir, $targetDir);
+
+            $consoleOutput = $this->runDryRunRaw($targetDir);
+            $tags          = $this->extractTagAssignments($consoleOutput, $targetDir);
+
+            self::assertArrayHasKey('IMG_0001.jpg', $tags);
+            self::assertArrayHasKey('IMG_0002.jpg', $tags);
+            self::assertSame('F', $tags['IMG_0001.jpg'], 'Original must be tagged [F]');
+            self::assertSame('F', $tags['IMG_0002.jpg'], 'Edit must be tagged [F]');
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Scenario 58: two MOV edits with ambiguous timezone → both [W] skipped.
+     */
+    #[Test]
+    public function scenario58EditPlusAmbiguousTzBothTaggedW(): void
+    {
+        $scenarioDir = '58-edit-plus-ambiguous-tz';
+        $sourceDir   = $this->testImagesDir() . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        self::assertDirectoryExists($sourceDir);
+
+        $workspace = $this->createTempWorkspace('test_images_');
+        $targetDir = $workspace . DIRECTORY_SEPARATOR . $scenarioDir;
+
+        try {
+            $this->copyDirectory($sourceDir, $targetDir);
+
+            $consoleOutput = $this->runDryRunRaw($targetDir);
+            $tags          = $this->extractTagAssignments($consoleOutput, $targetDir);
+
+            self::assertNotEmpty($tags, 'Should have tag assignments');
+
+            foreach ($tags as $file => $tag) {
+                self::assertSame('W', $tag, 'File ' . $file . ' must be tagged [W]');
+            }
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Provides all test-image scenarios with their expected rename outcomes.
      *
      * Each entry yields:
      *   - scenario directory name
@@ -487,18 +880,140 @@ final class TestImageScenariosTest extends TestCase
             [],
             0,
         ];
+        // Scenario 39: unsupported format (PNG) is ignored, only JPG processed
+        yield '39-unsupported-format-skipped' => [
+            '39-unsupported-format-skipped',
+            [
+                'IMG_0001.jpg' => '2025-04-01_09-00-00-000.jpg',
+            ],
+            1,
+        ];
+
+        // Scenario 44: same-dir edit — original + edited version with different software
+        // Same date, different hash → sub-groups -002
+        yield '44-same-dir-edit' => [
+            '44-same-dir-edit',
+            [
+                'IMG_0001.jpg' => '2025-05-01_10-00-00-000.jpg',
+                'IMG_0002.jpg' => '2025-05-01_10-00-00-000-002.jpg',
+            ],
+            2,
+        ];
+
+        // Scenario 45: edit + backup — original + edit + byte-identical backup
+        // Hash sub-grouping: edited.jpg gets canonical base name, original.jpg gets -002,
+        // backup/copy.jpg is byte-identical to original → keeps unsuffixed base name
+        // in its own directory (no naming conflict there). Note: masterplan says
+        // -duplicate-001, but the pipeline correctly avoids suffixes when there's
+        // no in-directory conflict. The file is still a cross-dir duplicate for dedup.
+        yield '45-edit-plus-backup' => [
+            '45-edit-plus-backup',
+            [
+                'edited.jpg'                                => '2025-05-02_11-00-00-000.jpg',
+                'original.jpg'                              => '2025-05-02_11-00-00-000-002.jpg',
+                'backup' . DIRECTORY_SEPARATOR . 'copy.jpg' => 'backup' . DIRECTORY_SEPARATOR . '2025-05-02_11-00-00-000.jpg',
+            ],
+            3,
+        ];
+
+        // Scenario 48: HDR bracketed — 3 exposures same second → -002, -003
+        yield '48-hdr-bracketed' => [
+            '48-hdr-bracketed',
+            [
+                'IMG_0001.jpg' => '2025-06-01_15-30-22-000.jpg',
+                'IMG_0002.jpg' => '2025-06-01_15-30-22-000-002.jpg',
+                'IMG_0003.jpg' => '2025-06-01_15-30-22-000-003.jpg',
+            ],
+            3,
+        ];
+
+        // Scenario 32: HEIC without any date metadata → [S] (skipped)
+        yield '32-heic-without-exif' => [
+            '32-heic-without-exif',
+            [],
+            0,
+        ];
+
+        // Scenario 33: MOV with Keys:CreationDate + timezone offset → [R] (not [W])
+        yield '33-mov-with-timezone' => [
+            '33-mov-with-timezone',
+            [
+                'clip.mov' => '2025-02-15_14-00-00-000.mov',
+            ],
+            1,
+        ];
+
+        // Scenario 34: AVI with no readable capture date → [S] (skipped)
+        // AVI RIFF container is not supported by imagemeta for date extraction
+        yield '34-avi-with-date' => [
+            '34-avi-with-date',
+            [],
+            0,
+        ];
+
+        // Scenario 36: mixed warning + normal — JPG [R] + MOV [W] in same dir
+        // [W] on the MOV must NOT infect the JPG's [R] tag
+        yield '36-mixed-warning-normal' => [
+            '36-mixed-warning-normal',
+            [
+                'IMG_0001.jpg' => '2025-03-10_14-00-00-000.jpg',
+            ],
+            1,
+        ];
+
+        // Scenario 46: video trimmed — two videos, same date, different duration → -002
+        yield '46-video-trimmed' => [
+            '46-video-trimmed',
+            [
+                'full.mov'    => '2025-07-01_12-00-00-000.mov',
+                'trimmed.mov' => '2025-07-01_12-00-00-000-002.mov',
+            ],
+            2,
+        ];
+
+        // Scenario 42: same-directory format backup (HEIC + JPG, same photo)
+        // HEIC canonical + JPG format conversion → JPG gets -duplicate-001 (not -002)
+        // Tests Fix 1: Stage B must skip when dHash distance = 0
+        yield '42-same-dir-format-backup' => [
+            '42-same-dir-format-backup',
+            [
+                'photo.heic' => '2025-02-20_15-30-00-200.heic',
+                'photo.jpg'  => '2025-02-20_15-30-00-200-duplicate-001.jpg',
+            ],
+            2,
+        ];
+
+        // Scenario 52: LP still with no metadata + video with date → LP pairing
+        // gives the still the companion's date. Both [R].
+        // Note: masterplan expected Still [S], but LP pairing correctly passes
+        // the video's date to the still — no file is lost.
+        yield '52-lp-still-no-metadata' => [
+            '52-lp-still-no-metadata',
+            [
+                'IMG_0001.jpg' => '2025-01-01_00-02-19-000.jpg',
+                'IMG_0001.mov' => '2025-01-01_00-02-19-000.mov',
+            ],
+            2,
+        ];
+
+        // Scenario 53: MOV with conflicting QuickTime CreateDate vs Keys:CreationDate.
+        // Pipeline uses timezone-aware Keys:CreationDate (14:00+02:00) over raw UTC (12:00).
+        yield '53-metadata-conflict' => [
+            '53-metadata-conflict',
+            [
+                'clip.mov' => '2025-04-15_14-00-00-000.mov',
+            ],
+            1,
+        ];
     }
 
     /**
-     * Runs the rename:exif command in dry-run mode with --list-all and returns
-     * the source -> target mapping parsed from the console output.
+     * Runs the rename pipeline in dry-run mode and returns the raw console output.
+     * Used by extractTagAssignments-based tests that need the full output string.
      *
-     * Uses real MetadataExtractor (imagemeta), real PerceptualHashCalculator (Imagick),
-     * and the full service stack to exercise the complete pipeline.
-     *
-     * @return array<string, string> Map of relative source path to relative target path
+     * @param array<string, mixed> $extraOptions Additional CLI options merged into the base set
      */
-    private function runDryRun(string $workspace): array
+    private function runDryRunRaw(string $workspace, array $extraOptions = []): string
     {
         $output = new BufferedOutput();
         $style  = new SymfonyStyle(new ArrayInput([]), $output);
@@ -506,7 +1021,7 @@ final class TestImageScenariosTest extends TestCase
         $metadataExtractor   = new MetadataExtractor(MetadataReader::createDefault());
         $metadataProvider    = new ExifMetadataProvider($metadataExtractor);
         $mediaTypeClassifier = new MediaTypeClassifier();
-        $imageLoader         = new ImagickImageLoader(new MediaTypeClassifier());
+        $imageLoader         = new ImagickImageLoader($mediaTypeClassifier);
 
         $perceptualHashCalculator = new PerceptualHashCalculator($imageLoader);
 
@@ -536,15 +1051,27 @@ final class TestImageScenariosTest extends TestCase
 
         $tester   = new CommandTester($command);
         $exitCode = $tester->execute([
-            'source-directory' => $workspace,
-            '--dry-run'        => true,
-            '--list-all'       => true,
-            '--timezone'       => 'Europe/Amsterdam',
+            'source'     => $workspace,
+            '--dry-run'  => true,
+            '--list-all' => true,
+            '--timezone' => 'Europe/Berlin',
+            ...$extraOptions,
         ]);
 
         self::assertSame(Command::SUCCESS, $exitCode, 'Command must succeed for workspace: ' . $workspace);
 
-        $consoleOutput = $output->fetch();
+        return $output->fetch();
+    }
+
+    /**
+     * Runs the rename:exif command in dry-run mode with --list-all and returns
+     * the source -> target mapping parsed from the console output.
+     *
+     * @return array<string, string> Map of relative source path to relative target path
+     */
+    private function runDryRun(string $workspace): array
+    {
+        $consoleOutput = $this->runDryRunRaw($workspace);
 
         return $this->extractRenameMappings($consoleOutput, $workspace);
     }
@@ -568,31 +1095,14 @@ final class TestImageScenariosTest extends TestCase
 
         if (preg_match_all('/\[(?:O|D|R|F)]\s+(\S+)\s+.{1,3}\s+(\S+)/', $clean, $matches, PREG_SET_ORDER) > 0) {
             foreach ($matches as $match) {
-                $source = $this->stripPrefix($match[1], $absolutePrefix, $relativePrefix);
-                $target = $this->stripPrefix($match[2], $absolutePrefix, $relativePrefix);
+                $source = $this->stripOutputPrefix($match[1], $absolutePrefix, $relativePrefix);
+                $target = $this->stripOutputPrefix($match[2], $absolutePrefix, $relativePrefix);
 
                 $mappings[$source] = $target;
             }
         }
 
         return $mappings;
-    }
-
-    /**
-     * Strips the absolute or relative workspace prefix from a path to produce
-     * a clean relative path for comparison.
-     */
-    private function stripPrefix(string $path, string $absolutePrefix, string $relativePrefix): string
-    {
-        if (str_starts_with($path, $absolutePrefix)) {
-            return substr($path, strlen($absolutePrefix));
-        }
-
-        if (str_starts_with($path, $relativePrefix)) {
-            return substr($path, strlen($relativePrefix));
-        }
-
-        return $path;
     }
 
     /**

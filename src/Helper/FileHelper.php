@@ -435,4 +435,30 @@ final class FileHelper
 
         return sprintf('<href=%s>%s</>', $url, $displayPath);
     }
+
+    /**
+     * Formats a byte count as a human-readable string (e.g. "1.5 MB").
+     */
+    public static function formatSize(int $bytes): string
+    {
+        if ($bytes < 1024) {
+            return $bytes . ' B';
+        }
+
+        $kb = $bytes / 1024;
+
+        if ($kb < 1024) {
+            return sprintf('%.1f KB', $kb);
+        }
+
+        $mb = $kb / 1024;
+
+        if ($mb < 1024) {
+            return sprintf('%.1f MB', $mb);
+        }
+
+        $gb = $mb / 1024;
+
+        return sprintf('%.1f GB', $gb);
+    }
 }

@@ -30,6 +30,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Tester\CommandTester;
 
 use function file_put_contents;
+use function is_dir;
 use function mkdir;
 use function str_repeat;
 
@@ -86,8 +87,8 @@ final class DedupCommandTest extends TestCase
             $command  = $this->createCommand();
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
-                '--dry-run'        => true,
+                'source'    => $workspace,
+                '--dry-run' => true,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -120,8 +121,8 @@ final class DedupCommandTest extends TestCase
             $command  = $this->createCommand();
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
-                '--dry-run'        => true,
+                'source'    => $workspace,
+                '--dry-run' => true,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -153,8 +154,8 @@ final class DedupCommandTest extends TestCase
             $command  = $this->createCommand();
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
-                '--dry-run'        => true,
+                'source'    => $workspace,
+                '--dry-run' => true,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -185,10 +186,12 @@ final class DedupCommandTest extends TestCase
         file_put_contents($duplicatePath, 'duplicate-content');
 
         try {
-            $command  = $this->createCommand();
-            $tester   = new CommandTester($command);
+            $command = $this->createCommand();
+            $tester  = new CommandTester($command);
+            $tester->setInputs(['yes']);
+
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
+                'source' => $workspace,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -221,11 +224,13 @@ final class DedupCommandTest extends TestCase
         file_put_contents($duplicatePath, 'duplicate-content');
 
         try {
-            $command  = $this->createCommand();
-            $tester   = new CommandTester($command);
+            $command = $this->createCommand();
+            $tester  = new CommandTester($command);
+            $tester->setInputs(['yes']);
+
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
-                '--delete'         => true,
+                'source'   => $workspace,
+                '--delete' => true,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -256,11 +261,13 @@ final class DedupCommandTest extends TestCase
         file_put_contents($duplicatePath, 'duplicate-content');
 
         try {
-            $command  = $this->createCommand();
-            $tester   = new CommandTester($command);
+            $command = $this->createCommand();
+            $tester  = new CommandTester($command);
+            $tester->setInputs(['yes']);
+
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
-                '--target'         => '_trash',
+                'source'   => $workspace,
+                '--target' => '_trash',
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -270,6 +277,81 @@ final class DedupCommandTest extends TestCase
 
             self::assertFileExists($movedPath);
             self::assertFileDoesNotExist($duplicatePath);
+        } finally {
+            $this->cleanupWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Verifies that non-dry-run execution requires confirmation (Fix 5).
+     * When the user declines, no files are moved.
+     */
+    #[Test]
+    public function executeNonDryRunRequiresConfirmation(): void
+    {
+        $workspace = $this->createWorkspace();
+
+        $originalPath  = $workspace . DIRECTORY_SEPARATOR . '2025-04-13_17-29-26-411.jpg';
+        $duplicatePath = $workspace . DIRECTORY_SEPARATOR . '2025-04-13_17-29-26-411-duplicate-001.jpg';
+
+        file_put_contents($originalPath, 'original-content');
+        file_put_contents($duplicatePath, 'duplicate-content');
+
+        try {
+            $command = $this->createCommand();
+            $tester  = new CommandTester($command);
+            $tester->setInputs(['no']);
+
+            $exitCode = $tester->execute([
+                'source' => $workspace,
+            ]);
+
+            self::assertSame(Command::SUCCESS, $exitCode);
+
+            $output = $tester->getDisplay();
+            self::assertStringContainsString('Are you sure', $output);
+            // Duplicate file should still exist (not moved)
+            self::assertFileExists($duplicatePath);
+        } finally {
+            $this->cleanupWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Verifies that a cross-directory duplicate (original in root, duplicate in
+     * subdirectory) is correctly found and not flagged as orphaned (Fix 4).
+     */
+    #[Test]
+    public function executeFindsCrossDirectoryOriginal(): void
+    {
+        $workspace = $this->createWorkspace();
+        $subDir    = $workspace . DIRECTORY_SEPARATOR . 'backup';
+
+        if (!is_dir($subDir)) {
+            mkdir($subDir, 0777, true);
+        }
+
+        $originalPath  = $workspace . DIRECTORY_SEPARATOR . '2025-04-13_17-29-26-411.jpg';
+        $duplicatePath = $subDir . DIRECTORY_SEPARATOR . '2025-04-13_17-29-26-411-duplicate-001.jpg';
+
+        file_put_contents($originalPath, 'original-content');
+        file_put_contents($duplicatePath, 'duplicate-content');
+
+        try {
+            $command  = $this->createCommand();
+            $tester   = new CommandTester($command);
+            $exitCode = $tester->execute([
+                'source'    => $workspace,
+                '--dry-run' => true,
+            ]);
+
+            self::assertSame(Command::SUCCESS, $exitCode);
+
+            $output = $tester->getDisplay();
+            // Must NOT be flagged as orphaned
+            self::assertStringNotContainsString('Original not found', $output);
+            // Must be detected as a duplicate
+            self::assertStringContainsString('[D]', $output);
         } finally {
             $this->cleanupWorkspace($workspace);
         }

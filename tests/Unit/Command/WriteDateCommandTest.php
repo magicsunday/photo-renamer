@@ -425,6 +425,184 @@ final class WriteDateCommandTest extends TestCase
         $this->removeWorkspace($workspace);
     }
 
+    /**
+     * Verifies that non-dry-run execution requires confirmation (Fix 5).
+     * When the user declines, no files are written.
+     */
+    #[Test]
+    public function executeNonDryRunRequiresConfirmation(): void
+    {
+        $workspace = $this->createWorkspace();
+        $jpgPath   = $workspace . DIRECTORY_SEPARATOR . '2024-01-15.jpg';
+        file_put_contents($jpgPath, 'photo-data');
+
+        try {
+            $command = $this->createCommand();
+            $tester  = new CommandTester($command);
+            $tester->setInputs(['no']);
+
+            $exitCode = $tester->execute([
+                'source' => $workspace,
+            ]);
+
+            self::assertSame(Command::SUCCESS, $exitCode);
+
+            $output = $tester->getDisplay();
+            self::assertStringContainsString('Are you sure', $output);
+            // No writes should have happened
+            self::assertStringNotContainsString('Written', $output);
+        } finally {
+            @unlink($jpgPath);
+            $this->cleanupWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Verifies that AVI files are skipped with a warning because exiftool
+     * cannot write QuickTime atoms to AVI RIFF containers (Fix 2).
+     */
+    #[Test]
+    public function executeSkipsAviFilesWithWarning(): void
+    {
+        $workspace = $this->createWorkspace();
+        $aviPath   = $workspace . DIRECTORY_SEPARATOR . '2024-01-15_10-00-00.avi';
+        file_put_contents($aviPath, 'avi-data');
+
+        try {
+            $metadataExtractor = new StubMetadataExtractor();
+            // No metadata → would normally trigger a write
+
+            $command  = $this->createCommand($metadataExtractor);
+            $tester   = new CommandTester($command);
+            $exitCode = $tester->execute([
+                'source'    => $workspace,
+                '--dry-run' => true,
+            ]);
+
+            self::assertSame(Command::SUCCESS, $exitCode);
+
+            $output = $tester->getDisplay();
+            // AVI must NOT appear as a write candidate
+            self::assertStringNotContainsString('[W]', $output);
+            // Should be counted as skipped unsupported write
+            self::assertStringContainsString('Unsupported write', $output);
+        } finally {
+            @unlink($aviPath);
+            $this->cleanupWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Verifies that --local-as-utc treats the existing CreateDate as local time,
+     * writes Keys:CreationDate with offset AND corrects CreateDate to real UTC.
+     * 16:34:58 "UTC" + Europe/Berlin → Keys:CreationDate=16:34:58+02:00, CreateDate=14:34:58 UTC.
+     */
+    #[Test]
+    public function executeDryRunLocalAsUtcKeepsExistingTime(): void
+    {
+        $workspace = $this->createWorkspace();
+        $movPath   = $workspace . DIRECTORY_SEPARATOR . '2014-04-26.mov';
+        file_put_contents($movPath, 'video-data');
+
+        try {
+            $metadataExtractor = new StubMetadataExtractor();
+            $metadataExtractor->withResponse(
+                $movPath,
+                new TemporalMetadata(
+                    new DateTimeImmutable('2014-04-26T15:43:33+00:00'),
+                    null,
+                    false,
+                    true, // isAmbiguousTimezone
+                ),
+            );
+
+            $command  = $this->createCommand($metadataExtractor);
+            $tester   = new CommandTester($command);
+            $exitCode = $tester->execute([
+                'source'         => $workspace,
+                '--dry-run'      => true,
+                '--reason'       => 'timezone',
+                '--timezone'     => 'Europe/Berlin',
+                '--local-as-utc' => true,
+            ]);
+
+            self::assertSame(Command::SUCCESS, $exitCode);
+
+            $output = $tester->getDisplay();
+            // Must show the ORIGINAL time (15:43:33), not converted (17:43:33)
+            self::assertStringContainsString('15:43:33', $output);
+            self::assertStringNotContainsString('17:43:33', $output);
+        } finally {
+            @unlink($movPath);
+            $this->cleanupWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Verifies that --force allows re-writing metadata on files that are
+     * already considered reliable (e.g. to correct a previous wrong write).
+     */
+    #[Test]
+    public function executeDryRunForceOverridesReliableCheck(): void
+    {
+        $workspace = $this->createWorkspace();
+        $movPath   = $workspace . DIRECTORY_SEPARATOR . '2014-05-07_16-34-58-000.mov';
+        file_put_contents($movPath, 'video-data');
+
+        try {
+            $metadataExtractor = new StubMetadataExtractor();
+            // File has reliable metadata (Keys:CreationDate already written).
+            // captureDateTime = resolved value (14:34:58+00:00 from Keys:CreationDate).
+            // rawQuickTimeCreateDate = the underlying QuickTime atom (14:34:58 UTC).
+            $metadataExtractor->withResponse(
+                $movPath,
+                new TemporalMetadata(
+                    new DateTimeImmutable('2014-05-07T14:34:58+00:00'),
+                    null,
+                    false,
+                    false, // NOT ambiguous — already has Keys:CreationDate
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    false,
+                    new DateTimeImmutable('2014-05-07T14:34:58+00:00'), // rawQuickTimeCreateDate
+                ),
+            );
+
+            $command = $this->createCommand($metadataExtractor);
+            $tester  = new CommandTester($command);
+
+            // Without --force: nothing to write (already reliable)
+            $tester->execute([
+                'source'    => $workspace,
+                '--dry-run' => true,
+            ]);
+
+            self::assertStringContainsString('Already correct', $tester->getDisplay());
+
+            // With --force (default mode = real UTC): converts 14:34:58 UTC → 16:34:58+02:00
+            $tester->execute([
+                'source'     => $workspace,
+                '--dry-run'  => true,
+                '--force'    => true,
+                '--timezone' => 'Europe/Berlin',
+            ]);
+
+            $output = $tester->getDisplay();
+            self::assertStringContainsString('[W]', $output);
+            self::assertStringContainsString('Would write', $output);
+            // Must show the CONVERTED time (16:34:58), not the raw UTC (14:34:58)
+            self::assertStringContainsString('16:34:58', $output);
+        } finally {
+            @unlink($movPath);
+            $this->cleanupWorkspace($workspace);
+        }
+    }
+
     private function createCommandWithoutExiftool(): WriteDateCommand
     {
         $output = new BufferedOutput();

@@ -536,12 +536,15 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
                 $shouldMerge = false;
 
                 if ($result->isDuplicateLikely()) {
-                    // Stage B: local blob analysis for near-identical pairs
-                    $shouldMerge = !$this->hasLocalRetouchCached(
-                        $representativeByHash[$hashes[$i]],
-                        $representativeByHash[$hashes[$j]],
-                        $stageBImageCache,
-                    );
+                    // Skip Stage B when dHash=0: images are pixel-identical on the
+                    // 9×8 gradient grid. Any Stage B differences are compression
+                    // noise (HEIC vs JPEG artifacts), not intentional retouches.
+                    $shouldMerge = ($result->dhashDistance === 0)
+                        || !$this->hasLocalRetouchCached(
+                            $representativeByHash[$hashes[$i]],
+                            $representativeByHash[$hashes[$j]],
+                            $stageBImageCache,
+                        );
                 }
 
                 if ($shouldMerge) {
@@ -635,11 +638,11 @@ final readonly class HashSubGroupingService implements HashSubGroupingServiceInt
         $keyB = $fileB->getPathname();
 
         if (!isset($imageCache[$keyA]) && !array_key_exists($keyA, $imageCache)) {
-            $imageCache[$keyA] = $this->imageLoader->loadNormalized($fileA, 1024);
+            $imageCache[$keyA] = $this->imageLoader->loadNormalized($fileA, 512);
         }
 
         if (!isset($imageCache[$keyB]) && !array_key_exists($keyB, $imageCache)) {
-            $imageCache[$keyB] = $this->imageLoader->loadNormalized($fileB, 1024);
+            $imageCache[$keyB] = $this->imageLoader->loadNormalized($fileB, 512);
         }
 
         $imgA = $imageCache[$keyA];

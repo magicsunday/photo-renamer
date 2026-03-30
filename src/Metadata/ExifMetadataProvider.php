@@ -126,6 +126,16 @@ final class ExifMetadataProvider
     }
 
     /**
+     * Returns the raw QuickTime CreateDate atom value (UTC), bypassing
+     * Keys:CreationDate resolution. Used by --force to read the underlying
+     * timestamp when Keys:CreationDate was incorrectly written.
+     */
+    public function getRawQuickTimeCreateDate(SplFileInfo $splFileInfo): ?DateTimeInterface
+    {
+        return $this->resolveMetadata($splFileInfo)?->getRawQuickTimeCreateDate();
+    }
+
+    /**
      * Returns whether the given file has an ambiguous timezone — the QuickTime
      * timestamp could be UTC or local time but we cannot determine which.
      *
@@ -180,7 +190,7 @@ final class ExifMetadataProvider
 
         return ($rawDateTime instanceof DateTimeInterface)
         && ($filenameDateTime instanceof DateTimeImmutable)
-        && ($rawDateTime->format('Y-m-d H:i') === $filenameDateTime->format('Y-m-d H:i'));
+        && ($rawDateTime->format('Y-m-d H:i:s') === $filenameDateTime->format('Y-m-d H:i:s'));
     }
 
     /**
@@ -288,7 +298,8 @@ final class ExifMetadataProvider
      *     latitude?: float|null,
      *     longitude?: float|null,
      *     videoDurationSeconds?: float|null,
-     *     hasQuickTimeLivePhotoMarker?: bool
+     *     hasQuickTimeLivePhotoMarker?: bool,
+     *     rawQuickTimeCreateDate?: string|null
      * } $cached
      *
      * @return TemporalMetadata|null Reconstructed metadata, or null when the cache entry has no date or content ID
@@ -311,6 +322,8 @@ final class ExifMetadataProvider
             return null;
         }
 
+        $rawQtCreateDate = $this->parseCachedDateTime($cached['rawQuickTimeCreateDate'] ?? null);
+
         return new TemporalMetadata(
             $dateTime,
             $contentId,
@@ -324,7 +337,24 @@ final class ExifMetadataProvider
             $cached['longitude'] ?? null,
             $cached['videoDurationSeconds'] ?? null,
             $cached['hasQuickTimeLivePhotoMarker'] ?? false,
+            $rawQtCreateDate,
         );
+    }
+
+    /**
+     * Parses a cached ISO 8601 date string into a DateTimeImmutable, returning null on failure.
+     */
+    private function parseCachedDateTime(mixed $value): ?DateTimeImmutable
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+
+        try {
+            return new DateTimeImmutable($value);
+        } catch (DateMalformedStringException) {
+            return null;
+        }
     }
 
     private function applyConfiguredTimezone(TemporalMetadata $metadata, SplFileInfo $splFileInfo): TemporalMetadata

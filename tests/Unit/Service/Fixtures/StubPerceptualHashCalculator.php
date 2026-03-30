@@ -73,18 +73,18 @@ final class StubPerceptualHashCalculator implements PerceptualHashCalculatorInte
         $dhashA = $this->computeDhash($fileA);
         $dhashB = $this->computeDhash($fileB);
 
-        $dd = (($dhashA !== null) && ($dhashB !== null))
+        $dhashDistance = (($dhashA !== null) && ($dhashB !== null))
             ? $this->hammingDistance($dhashA, $dhashB)
             : 64;
 
-        $score          = (int) round(max(0.0, 1.0 - ($dd / 64.0)) * 100);
+        $score          = (int) round(max(0.0, 1.0 - ($dhashDistance / 64.0)) * 100);
         $classification = match (true) {
             $score >= 95 => SimilarityClassification::DuplicateLikely,
             $score >= 85 => SimilarityClassification::EditedVariant,
             default      => SimilarityClassification::Different,
         };
 
-        return new SimilarityResult($score, $dd, 0, 0.0, 0.0, null, $classification);
+        return new SimilarityResult($score, $dhashDistance, 0, 0.0, 0.0, null, $classification);
     }
 
     public function hammingDistance(string $hashA, string $hashB): int

@@ -25,10 +25,15 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Filesystem\Filesystem;
 
+use function array_filter;
 use function count;
+use function is_file;
 use function is_string;
+use function realpath;
 use function sprintf;
 use function str_contains;
+use function strtolower;
+use function substr_count;
 
 use const DIRECTORY_SEPARATOR;
 
@@ -65,9 +70,9 @@ final class DedupCommand extends Command
             ->setName('rename:dedup')
             ->setDescription('Finds and removes files with "-duplicate-" in their name.')
             ->addArgument(
-                'source-directory',
+                'source',
                 InputArgument::REQUIRED,
-                'Source directory to scan for duplicate files.',
+                'Source directory or single file to scan for duplicates.',
             )
             ->addOption(
                 'dry-run',
@@ -99,15 +104,18 @@ final class DedupCommand extends Command
         $io = new SymfonyStyle($input, $output);
         $io->title($this->getName() ?? '');
 
-        /** @var string|null $sourceDir */
-        $sourceDir       = $input->getArgument('source-directory');
-        $sourceDirectory = FileHelper::resolveDirectory($sourceDir);
+        /** @var string|null $source */
+        $source   = $input->getArgument('source');
+        $resolved = is_string($source) ? realpath($source) : false;
 
-        if ($sourceDirectory === null) {
-            $io->error('Source directory does not exist.');
+        if ($resolved === false) {
+            $io->error('Source path does not exist.');
 
             return self::FAILURE;
         }
+
+        $isSingleFile    = is_file($resolved);
+        $sourceDirectory = $isSingleFile ? dirname($resolved) : $resolved;
 
         $dryRun = (bool) $input->getOption('dry-run');
         $delete = (bool) $input->getOption('delete');
@@ -117,13 +125,33 @@ final class DedupCommand extends Command
             $target = '_duplicates';
         }
 
-        $files = $this->fileSystemService->collectFiles($sourceDirectory);
+        $files = $isSingleFile
+            ? [new SplFileInfo($resolved)]
+            : $this->fileSystemService->collectFiles($sourceDirectory);
 
         $io->text(sprintf('<fg=cyan>Scanning:</> %s', $sourceDirectory));
 
         $progressBar = $files !== [] ? $io->createProgressBar(count($files)) : null;
         $progressBar?->setFormat(Constants::PROGRESS_BAR_FORMAT);
         $progressBar?->start();
+
+        // Build index of non-duplicate files for cross-directory original lookup.
+        /** @var array<string, string> $originalIndex basename.ext => pathname */
+        $originalIndex = [];
+
+        foreach ($files as $file) {
+            $basename = FileHelper::basenameWithoutExtension($file);
+
+            if (!str_contains($basename, Constants::DUPLICATE_IDENTIFIER)) {
+                $key   = $basename . '.' . strtolower($file->getExtension());
+                $depth = substr_count($file->getPathname(), DIRECTORY_SEPARATOR);
+
+                // Prefer the shallowest path (closest to source root) as the original.
+                if (!isset($originalIndex[$key]) || $depth < substr_count($originalIndex[$key], DIRECTORY_SEPARATOR)) {
+                    $originalIndex[$key] = $file->getPathname();
+                }
+            }
+        }
 
         /** @var list<array{file: SplFileInfo, originalExists: bool, relativePath: string}> $duplicates */
         $duplicates = [];
@@ -138,18 +166,48 @@ final class DedupCommand extends Command
             }
 
             $originalBasename = FileHelper::stripDuplicateSuffix($basename);
-            $originalPath     = $file->getPath() . DIRECTORY_SEPARATOR . $originalBasename . '.' . $file->getExtension();
+            $key              = $originalBasename . '.' . strtolower($file->getExtension());
             $relativePath     = FileHelper::relativizePath($file->getPathname(), $sourceDirectory);
 
             $duplicates[] = [
                 'file'           => $file,
-                'originalExists' => $this->filesystem->exists($originalPath),
+                'originalExists' => isset($originalIndex[$key]),
                 'relativePath'   => $relativePath,
             ];
         }
 
         $progressBar?->finish();
         $io->newLine(2);
+
+        // Post-scan summary
+        $action          = $delete ? 'delete' : 'move';
+        $actionableCount = count(array_filter($duplicates, static fn (array $e): bool => $e['originalExists']));
+        $orphanCount     = count($duplicates) - $actionableCount;
+
+        if ($duplicates !== []) {
+            $io->text(sprintf(
+                '<fg=cyan>Found %d duplicate file(s) (%d actionable, %d orphaned).</>',
+                count($duplicates),
+                $actionableCount,
+                $orphanCount,
+            ));
+
+            if ($actionableCount > 0) {
+                $io->text(sprintf('  Action: <fg=yellow>%s</> duplicates whose original still exists.', $action));
+            }
+
+            $io->newLine();
+        } elseif ($files !== []) {
+            $io->text('<fg=green>No duplicate files found — nothing to do.</>');
+            $io->newLine();
+        }
+
+        // Safety confirmation for non-dry-run (Principle 9)
+        if (!$dryRun && ($actionableCount > 0) && !$io->confirm('This will ' . $action . ' ' . $actionableCount . ' duplicate file(s). Are you sure?', false)) {
+            $io->text('<fg=yellow>Aborted.</>');
+
+            return self::SUCCESS;
+        }
 
         $duplicatesFound  = 0;
         $orphanedCount    = 0;
@@ -230,36 +288,6 @@ final class DedupCommand extends Command
     }
 
     /**
-     * Formats a byte count as a human-readable string.
-     *
-     * @param int $bytes Number of bytes
-     *
-     * @return string Formatted size string (e.g. "1.5 MB")
-     */
-    private function formatSize(int $bytes): string
-    {
-        if ($bytes < 1024) {
-            return $bytes . ' B';
-        }
-
-        $kb = $bytes / 1024;
-
-        if ($kb < 1024) {
-            return sprintf('%.1f KB', $kb);
-        }
-
-        $mb = $kb / 1024;
-
-        if ($mb < 1024) {
-            return sprintf('%.1f MB', $mb);
-        }
-
-        $gb = $mb / 1024;
-
-        return sprintf('%.1f GB', $gb);
-    }
-
-    /**
      * Renders the summary table with dedup statistics.
      */
     private function renderSummary(
@@ -279,7 +307,7 @@ final class DedupCommand extends Command
             $rows[] = ['Orphaned (skipped)', (string) $orphanedCount];
         }
 
-        $rows[] = ['Space reclaimable', $this->formatSize($spaceReclaimable)];
+        $rows[] = ['Space reclaimable', FileHelper::formatSize($spaceReclaimable)];
 
         $this->renderer->renderSummarySection($rows, $io);
     }

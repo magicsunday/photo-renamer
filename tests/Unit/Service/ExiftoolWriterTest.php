@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
 use DateTimeImmutable;
+use DateTimeZone;
 use MagicSunday\Renamer\Service\ExiftoolWriter;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -67,5 +68,31 @@ final class ExiftoolWriterTest extends TestCase
         self::assertContains('-QuickTime:ModifyDate=2024:05:15 14:30:00', $args);
         self::assertContains('/tmp/video.mov', $args);
         self::assertNotContains('-DateTimeOriginal=2024:05:15 14:30:00', $args);
+        // Track/Media dates must NOT be written (may not exist in all files)
+        self::assertNotContains('-TrackCreateDate=2024:05:15 14:30:00', $args);
+        self::assertNotContains('-MediaCreateDate=2024:05:15 14:30:00', $args);
+    }
+
+    /**
+     * Verifies that buildArguments for a video with local-as-utc scenario
+     * (preserveCreateDate=false, timezone-aware DateTime) produces correct
+     * UTC CreateDate and local Keys:CreationDate.
+     */
+    #[Test]
+    public function buildArgumentsForVideoLocalAsUtcConvertsToRealUtc(): void
+    {
+        $writer = new ExiftoolWriter();
+        $file   = new SplFileInfo('/tmp/video.mov');
+        // 16:34:58 local time (Europe/Berlin, CEST = UTC+2)
+        $dateTime = new DateTimeImmutable('2014-05-07 16:34:58', new DateTimeZone('Europe/Berlin'));
+
+        // preserveCreateDate=false → writes CreateDate (UTC) + Keys:CreationDate (local)
+        $args = $writer->buildArguments($file, $dateTime, true, false);
+
+        // Movie-header dates must be real UTC: 16:34:58+02:00 → 14:34:58 UTC
+        self::assertContains('-QuickTime:CreateDate=2014:05:07 14:34:58', $args);
+        self::assertContains('-QuickTime:ModifyDate=2014:05:07 14:34:58', $args);
+        // Keys:CreationDate must be local time with offset
+        self::assertContains('-Keys:CreationDate=2014:05:07 16:34:58+02:00', $args);
     }
 }

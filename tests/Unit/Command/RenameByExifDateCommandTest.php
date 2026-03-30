@@ -263,7 +263,7 @@ final class RenameByExifDateCommandTest extends TestCase
 
         $tester   = new CommandTester($command);
         $exitCode = $tester->execute([
-            'source-directory'          => 'source-dir',
+            'source'                    => 'source-dir',
             '--dry-run'                 => true,
             '--target-filename-pattern' => 'Ymd-His',
         ]);
@@ -508,8 +508,8 @@ final class RenameByExifDateCommandTest extends TestCase
 
         $tester   = new CommandTester($command);
         $exitCode = $tester->execute([
-            'source-directory' => '/source-dir',
-            '--dry-run'        => true,
+            'source'    => '/source-dir',
+            '--dry-run' => true,
         ]);
 
         self::assertSame(Command::SUCCESS, $exitCode);
@@ -581,9 +581,9 @@ final class RenameByExifDateCommandTest extends TestCase
 
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
-                '--dry-run'        => true,
-                '--list-all'       => true,
+                'source'     => $workspace,
+                '--dry-run'  => true,
+                '--list-all' => true,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);

@@ -83,6 +83,12 @@ final class WriteDateCommand extends Command
     private const string REASON_DRIFT = 'drift';
 
     /**
+     * Extensions where exiftool cannot write date metadata reliably.
+     * AVI uses RIFF container — QuickTime atom writes silently fail.
+     */
+    private const array UNSUPPORTED_WRITE_EXTENSIONS = ['avi'];
+
+    /**
      * Maps reason keys to human-readable labels for output.
      *
      * @var array<string, string>
@@ -167,6 +173,18 @@ final class WriteDateCommand extends Command
                 null,
                 InputOption::VALUE_REQUIRED,
                 'Filter by write reason (comma-separated: nodata, fallback, timezone, drift). Default: all reasons.',
+            )
+            ->addOption(
+                'local-as-utc',
+                null,
+                InputOption::VALUE_NONE,
+                'Treat QuickTime CreateDate as local time (not real UTC). Adds timezone offset without converting. Use for non-Apple cameras that store local time as "UTC".',
+            )
+            ->addOption(
+                'force',
+                'f',
+                InputOption::VALUE_NONE,
+                'Overwrite existing metadata even when it is already reliable. Use to correct previously wrong writes.',
             );
     }
 
@@ -205,13 +223,14 @@ final class WriteDateCommand extends Command
 
         $cache = $this->configureProviderCache($this->exifMetadataProvider);
 
-        $scannedFiles   = 0;
-        $alreadyCorrect = 0;
-        $wouldWrite     = 0;
-        $written        = 0;
-        $writeFailed    = 0;
-        $noDateInName   = 0;
-        $readErrors     = 0;
+        $scannedFiles     = 0;
+        $alreadyCorrect   = 0;
+        $wouldWrite       = 0;
+        $written          = 0;
+        $writeFailed      = 0;
+        $noDateInName     = 0;
+        $readErrors       = 0;
+        $unsupportedWrite = 0;
 
         $files = $isSingleFile
             ? [new SplFileInfo($source)]
@@ -237,6 +256,13 @@ final class WriteDateCommand extends Command
                 continue;
             }
 
+            // Skip extensions where exiftool cannot write metadata reliably
+            if (in_array($extension, self::UNSUPPORTED_WRITE_EXTENSIONS, true)) {
+                ++$unsupportedWrite;
+
+                continue;
+            }
+
             // Extract date+time from filename
             $filenameDateTime = FileHelper::extractDateTimeFromPath($file->getPathname());
 
@@ -258,11 +284,14 @@ final class WriteDateCommand extends Command
             $isVideo = !$this->mediaTypeClassifier->isLivePhotoStill($file);
 
             // Determine if write is needed
+            $force = (bool) $input->getOption('force');
+
             [$reasonKey, $reasonLabel] = $this->determineWriteReason(
                 $file,
                 $captureDateTime,
                 $filenameDateTime,
                 $maxDateDrift,
+                $force,
             );
 
             if ($reasonKey === null) {
@@ -278,19 +307,37 @@ final class WriteDateCommand extends Command
                 continue;
             }
 
-            // For timezone reason: treat CreateDate as real UTC and convert to
-            // the configured timezone. The user explicitly declares which timezone
-            // applies — no camera manufacturer detection needed. This works for
-            // any camera: if CreateDate is 16:50 UTC and --timezone=Europe/Berlin,
-            // the result is 18:50+02:00 (CEST).
+            // For timezone reason: fix QuickTime timestamps lacking timezone info.
+            // --local-as-utc: camera stored local time as "UTC" (non-Apple cameras).
+            //   → Keep the existing time, just add the timezone offset.
+            // Default: camera stored real UTC (Apple/DJI).
+            //   → Convert UTC to local time using the configured timezone.
             // For all other reasons: use the filename date as the write value.
+            $localAsUtc = (bool) $input->getOption('local-as-utc');
+
             if ($reasonKey === self::REASON_TIMEZONE) {
-                $rawDateTime = $this->exifMetadataProvider->getRawCaptureDateTime($file);
-                $timezone    = $this->resolveTimezone($input);
+                // With --force, read the raw QuickTime CreateDate (bypasses Keys:CreationDate)
+                // so a previously wrong write can be corrected.
+                $rawDateTime = $force
+                    ? ($this->exifMetadataProvider->getRawQuickTimeCreateDate($file) ?? $this->exifMetadataProvider->getRawCaptureDateTime($file))
+                    : $this->exifMetadataProvider->getRawCaptureDateTime($file);
+                $timezone = $this->resolveTimezone($input);
 
                 if (($rawDateTime instanceof DateTimeInterface) && ($timezone instanceof DateTimeZone)) {
-                    $writeDateTime = DateTimeImmutable::createFromInterface($rawDateTime)
-                        ->setTimezone($timezone);
+                    if ($localAsUtc) {
+                        // Timestamp is already local time stored as "UTC".
+                        // Attach the timezone, then ExiftoolWriter converts to real UTC.
+                        // 16:34:58 "UTC" → Keys:CreationDate=16:34:58+02:00, CreateDate=14:34:58 UTC.
+                        $writeDateTime = new DateTimeImmutable(
+                            $rawDateTime->format('Y-m-d H:i:s'),
+                            $timezone,
+                        );
+                    } else {
+                        // Timestamp is real UTC. Convert to local time.
+                        // 14:34:58 UTC → Keys:CreationDate=16:34:58+02:00, CreateDate untouched.
+                        $writeDateTime = DateTimeImmutable::createFromInterface($rawDateTime)
+                            ->setTimezone($timezone);
+                    }
                 } else {
                     $writeDateTime = $filenameDateTime;
                 }
@@ -305,12 +352,38 @@ final class WriteDateCommand extends Command
                 'reason'             => $reasonLabel,
                 'isVideo'            => $isVideo,
                 'dateTime'           => $writeDateTime,
-                'preserveCreateDate' => $reasonKey === self::REASON_TIMEZONE,
+                'preserveCreateDate' => ($reasonKey === self::REASON_TIMEZONE) && !$localAsUtc,
             ];
         }
 
         $progressBar?->finish();
         $io->newLine(2);
+
+        // Post-scan summary before listing individual entries
+        if ($pendingWrites !== []) {
+            $reasonCounts = [];
+
+            foreach ($pendingWrites as $entry) {
+                /** @var string $rk */
+                $rk                = $entry['reasonKey'];
+                $reasonCounts[$rk] = ($reasonCounts[$rk] ?? 0) + 1;
+            }
+
+            $io->text(sprintf(
+                '<fg=cyan>Found %d file(s) needing metadata repair:</>',
+                count($pendingWrites),
+            ));
+
+            foreach ($reasonCounts as $reason => $cnt) {
+                $label = self::REASON_LABELS[$reason] ?? $reason;
+                $io->text(sprintf('  %d %s <fg=gray>(%s)</>', $cnt, $cnt === 1 ? 'file' : 'files', $label));
+            }
+
+            $io->newLine();
+        } elseif ($scannedFiles > 0) {
+            $io->text('<fg=green>All files have correct metadata — nothing to do.</>');
+            $io->newLine();
+        }
 
         // Compute max path length for aligned output
         $maxPathLength = 0;
@@ -318,6 +391,13 @@ final class WriteDateCommand extends Command
         foreach ($pendingWrites as $entry) {
             $relativePath  = FileHelper::relativizePath($entry['path'], $sourceDirectory);
             $maxPathLength = max($maxPathLength, mb_strlen($relativePath));
+        }
+
+        // Safety confirmation for non-dry-run (Principle 9)
+        if (!$dryRun && ($pendingWrites !== []) && !$io->confirm('This will modify metadata in ' . count($pendingWrites) . ' file(s). Are you sure?', false)) {
+            $io->text('<fg=yellow>Aborted.</>');
+
+            return self::SUCCESS;
         }
 
         $linkConfig = LinkConfig::fromEnv();
@@ -358,7 +438,7 @@ final class WriteDateCommand extends Command
 
         // Render summary
         $io->newLine();
-        $this->renderSummary($io, $scannedFiles, $alreadyCorrect, $wouldWrite, $written, $writeFailed, $noDateInName, $readErrors, $dryRun);
+        $this->renderSummary($io, $scannedFiles, $alreadyCorrect, $wouldWrite, $written, $writeFailed, $noDateInName, $readErrors, $unsupportedWrite, $dryRun);
 
         return self::SUCCESS;
     }
@@ -398,6 +478,7 @@ final class WriteDateCommand extends Command
         ?DateTimeInterface $captureDateTime,
         DateTimeImmutable $filenameDateTime,
         int $maxDateDrift,
+        bool $force = false,
     ): array {
         // No capture date at all
         if (!$captureDateTime instanceof DateTimeInterface) {
@@ -415,7 +496,8 @@ final class WriteDateCommand extends Command
         }
 
         // If the date is reliable (no issues, or raw matches filename) → no write needed.
-        if ($this->exifMetadataProvider->hasReliableDateTime($file)) {
+        // --force skips this check to allow correcting previously wrong writes.
+        if (!$force && $this->exifMetadataProvider->hasReliableDateTime($file)) {
             return [null, null];
         }
 
@@ -427,6 +509,13 @@ final class WriteDateCommand extends Command
         // Ambiguous timezone (QuickTime UTC ambiguity)
         if ($this->exifMetadataProvider->isAmbiguousTimezone($file)) {
             return [self::REASON_TIMEZONE, self::REASON_LABELS[self::REASON_TIMEZONE]];
+        }
+
+        // With --force on a video that has metadata but no detected issue:
+        // the file was likely already fixed. Allow re-writing as timezone reason
+        // so the user can correct a previous wrong write.
+        if ($force && !$this->mediaTypeClassifier->isLivePhotoStill($file)) {
+            return [self::REASON_TIMEZONE, 'forced re-write of timezone metadata'];
         }
 
         return [null, null];
@@ -491,6 +580,7 @@ final class WriteDateCommand extends Command
         int $writeFailed,
         int $noDateInName,
         int $readErrors,
+        int $unsupportedWrite,
         bool $dryRun,
     ): void {
         /** @var list<array{string, string}> $rows */
@@ -513,6 +603,10 @@ final class WriteDateCommand extends Command
 
         if ($noDateInName > 0) {
             $rows[] = ['No date in name', (string) $noDateInName];
+        }
+
+        if ($unsupportedWrite > 0) {
+            $rows[] = ['Unsupported write', (string) $unsupportedWrite];
         }
 
         if ($readErrors > 0) {

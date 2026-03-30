@@ -555,6 +555,10 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
             }
         }
 
+        // Collect Live Photo pairs (still → companion video) for quality flag propagation.
+        /** @var list<array{still: string, companion: string}> $livePhotoPairs */
+        $livePhotoPairs = [];
+
         $progressBar = $this->startProgressBar($fileDuplicateCollection->count());
 
         /** @var FileDuplicate $fileDuplicate */
@@ -660,6 +664,19 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
                 $canonicalRename,
                 $fileDuplicate,
             );
+
+            // Track LP pair for quality flag propagation (still → companion only).
+            if ($companionRename instanceof Rename && $canonicalRename instanceof Rename) {
+                $canonicalPath    = $canonicalRename->getSource()->getPathname();
+                $companionPath    = $companionRename->getSource()->getPathname();
+                $canonicalIsStill = $this->mediaTypeClassifier->isLivePhotoStill($canonicalRename->getSource());
+
+                if ($canonicalIsStill) {
+                    $livePhotoPairs[] = ['still' => $canonicalPath, 'companion' => $companionPath];
+                } else {
+                    $livePhotoPairs[] = ['still' => $companionPath, 'companion' => $canonicalPath];
+                }
+            }
 
             // Content-hash sub-grouping with multi-signal perceptual merge: when
             // multiple distinct files share the same target name, assign sequential
@@ -788,7 +805,34 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
         $progressBar->finish();
         $this->io->newLine();
 
+        // LP atomicity pass: propagate the still image's quality flags to its
+        // companion video so the pair is always tagged consistently.
+        $this->propagateLivePhotoQualityFlags($livePhotoPairs);
+
         return $fileDuplicateCollection;
+    }
+
+    /**
+     * Propagates quality flags (ambiguous timezone, fallback date) from the Live
+     * Photo still image to its companion video. This ensures atomic tagging: both
+     * files in the pair receive the same [W] or [F] flag.
+     *
+     * @param list<array{still: string, companion: string}> $livePhotoPairs
+     */
+    private function propagateLivePhotoQualityFlags(array $livePhotoPairs): void
+    {
+        foreach ($livePhotoPairs as $pair) {
+            $stillPath     = $pair['still'];
+            $companionPath = $pair['companion'];
+
+            if (isset($this->ambiguousTimezoneFiles[$stillPath])) {
+                $this->ambiguousTimezoneFiles[$companionPath] = true;
+            }
+
+            if (isset($this->fallbackDateFiles[$stillPath])) {
+                $this->fallbackDateFiles[$companionPath] = true;
+            }
+        }
     }
 
     /**

@@ -146,8 +146,8 @@ final class AbstractRenameCommandTest extends TestCase
 
         $tester = new CommandTester($command);
         $tester->execute([
-            'source-directory' => '/source-directory',
-            '--dry-run'        => true,
+            'source'    => '/source-directory',
+            '--dry-run' => true,
         ]);
 
         self::assertSame(Command::SUCCESS, $tester->getStatusCode());
@@ -241,7 +241,7 @@ final class AbstractRenameCommandTest extends TestCase
 
         $tester = new CommandTester($command);
         $tester->execute([
-            'source-directory'  => '/source-directory',
+            'source'            => '/source-directory',
             '--dry-run'         => true,
             '--skip-duplicates' => true,
         ]);
@@ -340,8 +340,8 @@ final class AbstractRenameCommandTest extends TestCase
         $tester = new CommandTester($command);
         $tester->setInputs(['yes']);
         $tester->execute([
-            'source-directory' => '/source-directory',
-            '--list-all'       => true,
+            'source'     => '/source-directory',
+            '--list-all' => true,
         ]);
 
         self::assertSame(Command::SUCCESS, $tester->getStatusCode());
@@ -436,8 +436,8 @@ final class AbstractRenameCommandTest extends TestCase
 
         $tester = new CommandTester($command);
         $tester->execute([
-            'source-directory' => 'relative-source',
-            '--dry-run'        => true,
+            'source'    => 'relative-source',
+            '--dry-run' => true,
         ]);
 
         self::assertSame(Command::SUCCESS, $tester->getStatusCode());
@@ -483,8 +483,8 @@ final class AbstractRenameCommandTest extends TestCase
 
         $tester = new CommandTester($command);
         $tester->execute([
-            'source-directory' => '/nonexistent-directory-for-test',
-            '--dry-run'        => true,
+            'source'    => '/nonexistent-directory-for-test',
+            '--dry-run' => true,
         ]);
 
         self::assertSame(Command::FAILURE, $tester->getStatusCode());

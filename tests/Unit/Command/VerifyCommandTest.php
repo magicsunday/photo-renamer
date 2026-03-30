@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Command;
 
 use DateTimeImmutable;
+use DateTimeZone;
 use MagicSunday\Renamer\Command\VerifyCommand;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Helper\FileHelper;
@@ -84,7 +85,7 @@ final class VerifyCommandTest extends TestCase
         $command  = $this->createCommand();
         $tester   = new CommandTester($command);
         $exitCode = $tester->execute([
-            'source-directory' => '/non-existent-path-' . uniqid('', true),
+            'source' => '/non-existent-path-' . uniqid('', true),
         ]);
 
         self::assertSame(Command::FAILURE, $exitCode);
@@ -102,7 +103,7 @@ final class VerifyCommandTest extends TestCase
             $command  = $this->createCommand();
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
+                'source' => $workspace,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -129,7 +130,7 @@ final class VerifyCommandTest extends TestCase
             $command  = $this->createCommand();
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
+                'source' => $workspace,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -163,7 +164,7 @@ final class VerifyCommandTest extends TestCase
             $command  = $this->createCommand($metadataExtractor);
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
+                'source' => $workspace,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -194,7 +195,7 @@ final class VerifyCommandTest extends TestCase
             $command  = $this->createCommand($metadataExtractor);
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
+                'source' => $workspace,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -233,7 +234,7 @@ final class VerifyCommandTest extends TestCase
             $command  = $this->createCommand($metadataExtractor);
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
+                'source' => $workspace,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -275,8 +276,8 @@ final class VerifyCommandTest extends TestCase
             $command  = $this->createCommand($metadataExtractor);
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
-                '--show'           => 'timezone',
+                'source' => $workspace,
+                '--show' => 'timezone',
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -316,7 +317,7 @@ final class VerifyCommandTest extends TestCase
             $command  = $this->createCommand($metadataExtractor);
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
+                'source' => $workspace,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -364,7 +365,7 @@ final class VerifyCommandTest extends TestCase
             $command  = $this->createCommand($metadataExtractor);
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
+                'source' => $workspace,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -403,7 +404,7 @@ final class VerifyCommandTest extends TestCase
             $command  = $this->createCommand($metadataExtractor);
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
+                'source' => $workspace,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -446,7 +447,7 @@ final class VerifyCommandTest extends TestCase
             $command  = $this->createCommand($metadataExtractor);
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source-directory' => $workspace,
+                'source' => $workspace,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -456,6 +457,93 @@ final class VerifyCommandTest extends TestCase
             self::assertStringContainsString('OK', $output);
         } finally {
             @unlink($movPath);
+            $this->cleanupWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Verifies that --detail flag shows actionable fix suggestions for ambiguous timezone files.
+     */
+    #[Test]
+    public function executeDetailShowsFixSuggestionForAmbiguousTimezone(): void
+    {
+        $workspace = $this->createWorkspace();
+        $movPath   = $workspace . DIRECTORY_SEPARATOR . 'clip.mov';
+        file_put_contents($movPath, 'video-data');
+
+        try {
+            $metadataExtractor = new StubMetadataExtractor();
+            $metadataExtractor->withResponse(
+                $movPath,
+                new TemporalMetadata(
+                    new DateTimeImmutable('2025:04:03 16:50:50', new DateTimeZone('UTC')),
+                    null,
+                    false,
+                    true, // isAmbiguousTimezone
+                ),
+            );
+
+            $command  = $this->createCommand($metadataExtractor);
+            $tester   = new CommandTester($command);
+            $exitCode = $tester->execute([
+                'source'     => $workspace,
+                '--detail'   => true,
+                '--timezone' => 'Europe/Berlin',
+            ]);
+
+            self::assertSame(Command::SUCCESS, $exitCode);
+
+            $output = $tester->getDisplay();
+            // Must show the problem description
+            self::assertStringContainsString('Ambiguous timezone', $output);
+            // Must show problem description and fix command with configured timezone
+            self::assertStringContainsString('Problem:', $output);
+            self::assertStringContainsString('QuickTime UTC without offset', $output);
+            self::assertStringContainsString('rename:write-date', $output);
+            self::assertStringContainsString('--reason=timezone', $output);
+            self::assertStringContainsString('--timezone=Europe/Berlin', $output);
+        } finally {
+            @unlink($movPath);
+            $this->cleanupWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Verifies that --detail flag shows fix suggestion for fallback date files.
+     */
+    #[Test]
+    public function executeDetailShowsFixSuggestionForFallbackDate(): void
+    {
+        $workspace = $this->createWorkspace();
+        $jpgPath   = $workspace . DIRECTORY_SEPARATOR . 'scan-001.jpg';
+        file_put_contents($jpgPath, 'photo-data');
+
+        try {
+            $metadataExtractor = new StubMetadataExtractor();
+            $metadataExtractor->withResponse(
+                $jpgPath,
+                new TemporalMetadata(
+                    new DateTimeImmutable('2023-12-25T08:00:00+00:00'),
+                    null,
+                    true, // isFallbackDateTime
+                ),
+            );
+
+            $command  = $this->createCommand($metadataExtractor);
+            $tester   = new CommandTester($command);
+            $exitCode = $tester->execute([
+                'source'   => $workspace,
+                '--detail' => true,
+            ]);
+
+            self::assertSame(Command::SUCCESS, $exitCode);
+
+            $output = $tester->getDisplay();
+            self::assertStringContainsString('no DateTimeOriginal', $output);
+            self::assertStringContainsString('rename:write-date', $output);
+            self::assertStringContainsString('--reason=fallback', $output);
+        } finally {
+            @unlink($jpgPath);
             $this->cleanupWorkspace($workspace);
         }
     }

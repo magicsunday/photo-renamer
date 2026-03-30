@@ -11,7 +11,9 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Command;
 
+use DateTimeImmutable;
 use DateTimeInterface;
+use DateTimeZone;
 use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
@@ -32,9 +34,13 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use function array_map;
 use function count;
 use function dirname;
+use function escapeshellarg;
 use function explode;
+use function filesize;
 use function in_array;
+use function is_file;
 use function is_string;
+use function realpath;
 use function sort;
 use function sprintf;
 use function strtolower;
@@ -94,9 +100,9 @@ final class VerifyCommand extends Command
             ->setName('rename:verify')
             ->setDescription('Analyzes photo/video collections for metadata problems.')
             ->addArgument(
-                'source-directory',
+                'source',
                 InputArgument::REQUIRED,
-                'Source directory with photos/videos to analyze.'
+                'Source directory or single file to analyze.',
             )
             ->addOption(
                 'show',
@@ -115,6 +121,12 @@ final class VerifyCommand extends Command
                 null,
                 InputOption::VALUE_REQUIRED,
                 'Timezone for video files without timezone metadata (e.g. Europe/Berlin). Overrides TIMEZONE env var.'
+            )
+            ->addOption(
+                'detail',
+                null,
+                InputOption::VALUE_NONE,
+                'Show actionable fix suggestions with metadata details for each problematic file.',
             );
     }
 
@@ -127,16 +139,21 @@ final class VerifyCommand extends Command
         $io = new SymfonyStyle($input, $output);
         $io->title($this->getName() ?? '');
 
-        $sourceDirectory = $this->resolveSourceDirectory($input);
+        $source = $this->resolveSource($input);
 
-        if ($sourceDirectory === null) {
-            $io->error('Source directory does not exist.');
+        if ($source === null) {
+            $io->error('Source path does not exist.');
 
             return self::FAILURE;
         }
 
-        $maxDateDrift = $this->resolveMaxDateDrift($input);
-        $showFilter   = $this->resolveShowFilter($input);
+        $isSingleFile    = is_file($source);
+        $sourceDirectory = $isSingleFile ? dirname($source) : $source;
+
+        $maxDateDrift       = $this->resolveMaxDateDrift($input);
+        $showFilter         = $this->resolveShowFilter($input);
+        $detail             = (bool) $input->getOption('detail');
+        $configuredTimezone = $this->resolveTimezone($input);
 
         $this->configureProviderTimezone($this->exifMetadataProvider, $input);
 
@@ -163,9 +180,11 @@ final class VerifyCommand extends Command
         $scannedFiles = 0;
         $okCount      = 0;
 
-        $files = $this->fileSystemService->collectFiles($sourceDirectory);
+        $files = $isSingleFile
+            ? [new SplFileInfo($source)]
+            : $this->fileSystemService->collectFiles($sourceDirectory);
 
-        $io->text(sprintf('<fg=cyan>Scanning:</> %s', $sourceDirectory));
+        $io->text(sprintf('<fg=cyan>Scanning:</> %s', $source));
 
         $progressBar = $files !== [] ? $io->createProgressBar(count($files)) : null;
         $progressBar?->setFormat(Constants::PROGRESS_BAR_FORMAT);
@@ -177,6 +196,12 @@ final class VerifyCommand extends Command
 
             $relativePath = FileHelper::relativizePath($file->getPathname(), $sourceDirectory);
             $extension    = strtolower($file->getExtension());
+
+            // Closure for detail-aware category entries (avoids ternary duplication).
+            $absolutePath = $file->getPathname();
+            $entry        = fn (string $cat, ?DateTimeInterface $dt = null): string => $detail
+                ? $this->formatDetailEntry($relativePath, $absolutePath, $cat, $dt, $configuredTimezone)
+                : $relativePath;
 
             // Check for unrecognized file type
             if (!in_array($extension, Constants::SUPPORTED_MEDIA_EXTENSIONS, true)) {
@@ -203,7 +228,7 @@ final class VerifyCommand extends Command
                     $this->addToContentIdMap($contentIdMap, $file, $contentId);
                 }
 
-                $categories['nodata'][] = $relativePath;
+                $categories['nodata'][] = $entry('nodata');
 
                 continue;
             }
@@ -215,12 +240,12 @@ final class VerifyCommand extends Command
             // "raw matches filename" check centrally).
             if (!$this->exifMetadataProvider->hasReliableDateTime($file)) {
                 if ($this->exifMetadataProvider->isAmbiguousTimezone($file)) {
-                    $categories['timezone'][] = $relativePath;
+                    $categories['timezone'][] = $entry('timezone', $captureDateTime);
                     $hasIssue                 = true;
                 }
 
                 if ($this->exifMetadataProvider->isFallbackDateTime($file)) {
-                    $categories['fallback'][] = $relativePath;
+                    $categories['fallback'][] = $entry('fallback', $captureDateTime);
                     $hasIssue                 = true;
                 }
             }
@@ -284,11 +309,59 @@ final class VerifyCommand extends Command
         $cache->flush();
         $this->exifMetadataProvider->clearCache();
 
+        // Post-scan summary before detailed listing
+        $totalIssues = 0;
+
+        foreach ($categories as $categoryFiles) {
+            $totalIssues += count($categoryFiles);
+        }
+
+        if ($totalIssues > 0) {
+            $io->text(sprintf(
+                '<fg=cyan>Found %d issue(s) in %d scanned file(s):</>',
+                $totalIssues,
+                $scannedFiles,
+            ));
+
+            foreach (self::CATEGORY_LABELS as $categoryId => $label) {
+                $cnt = count($categories[$categoryId]);
+
+                if ($cnt > 0) {
+                    $io->text(sprintf('  %d %s', $cnt, $label));
+                }
+            }
+
+            $io->newLine();
+        } elseif ($scannedFiles > 0) {
+            $io->text('<fg=green>All files OK — no metadata issues found.</>');
+            $io->newLine();
+        }
+
         // Render output
         $this->renderCategories($io, $categories, $showFilter);
         $this->renderSummary($io, $scannedFiles, $okCount, $categories);
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Resolves the source path from input. Accepts both files and directories.
+     */
+    private function resolveSource(InputInterface $input): ?string
+    {
+        $source = $input->getArgument('source');
+
+        if (!is_string($source)) {
+            return null;
+        }
+
+        $resolved = realpath($source);
+
+        if ($resolved === false) {
+            return null;
+        }
+
+        return $resolved;
     }
 
     /**
@@ -343,6 +416,77 @@ final class VerifyCommand extends Command
     }
 
     /**
+     * Formats a detail entry with problem description and fix suggestion.
+     */
+    private function formatDetailEntry(
+        string $relativePath,
+        string $absolutePath,
+        string $category,
+        ?DateTimeInterface $captureDateTime,
+        ?DateTimeZone $configuredTimezone = null,
+    ): string {
+        $fileSize    = filesize($absolutePath);
+        $sizeLabel   = ($fileSize !== false) ? FileHelper::formatSize($fileSize) : '?';
+        $lines       = [sprintf('%s <fg=gray>(%s)</>', $relativePath, $sizeLabel)];
+        $escapedPath = escapeshellarg($absolutePath);
+
+        $tzFlag = ($configuredTimezone instanceof DateTimeZone)
+            ? '--timezone=' . $configuredTimezone->getName()
+            : '--timezone=<TZ>';
+
+        // Problem description per category
+        $problem = match ($category) {
+            'timezone' => '     <fg=yellow>Problem:</>    Ambiguous timezone — QuickTime UTC without offset',
+            'fallback' => '     <fg=yellow>Problem:</>    Only ModifyDate (0x0132) — no DateTimeOriginal or CreateDate',
+            'nodata'   => '     <fg=yellow>Problem:</>    No capture date found (no DateTimeOriginal, CreateDate, or ModifyDate)',
+            default    => null,
+        };
+
+        if ($problem !== null) {
+            $lines[] = $problem;
+        }
+
+        // Show what metadata IS present
+        if ($captureDateTime instanceof DateTimeInterface) {
+            $label   = ($category === 'timezone') ? 'CreateDate (UTC)' : 'ModifyDate';
+            $lines[] = sprintf('     <fg=gray>Metadata:</>   %s = %s', $label, $captureDateTime->format('Y:m:d H:i:s'));
+        } else {
+            $lines[] = '     <fg=gray>Metadata:</>   (none)';
+        }
+
+        // Check if filename contains a date that write-date could use
+        $filenameDateTime = FileHelper::extractDateTimeFromPath($absolutePath);
+
+        if ($filenameDateTime instanceof DateTimeImmutable) {
+            $lines[] = sprintf('     <fg=gray>Recovery:</>   date from filename: %s', $filenameDateTime->format('Y-m-d H:i:s'));
+        } elseif ($category === 'nodata') {
+            $lines[] = '     <fg=gray>Recovery:</>   no date in filename — rename file first';
+        }
+
+        $suggestion = match ($category) {
+            'timezone' => sprintf(
+                '     <fg=green>Fix:</>        rename:write-date --reason=timezone %s %s',
+                $tzFlag,
+                $escapedPath,
+            ),
+            'fallback' => sprintf(
+                '     <fg=green>Fix:</>        rename:write-date --reason=fallback %s',
+                $escapedPath,
+            ),
+            'nodata' => ($filenameDateTime instanceof DateTimeImmutable)
+                ? sprintf('     <fg=green>Fix:</>        rename:write-date --reason=nodata %s', $escapedPath)
+                : sprintf('     <fg=green>Fix:</>        Rename to date-based name, then: rename:write-date --reason=nodata %s', $escapedPath),
+            default => null,
+        };
+
+        if ($suggestion !== null) {
+            $lines[] = $suggestion;
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
      * Renders the categorized file lists.
      *
      * @param SymfonyStyle                $io         Console IO
@@ -366,8 +510,14 @@ final class VerifyCommand extends Command
 
             $io->text(sprintf('<fg=cyan>%s</> (%d files):', $label, count($files)));
 
+            $isDetail = str_contains($files[0], "\n");
+
             foreach ($files as $file) {
                 $io->text(sprintf('  %s', $file));
+
+                if ($isDetail) {
+                    $io->newLine();
+                }
             }
 
             $io->newLine();

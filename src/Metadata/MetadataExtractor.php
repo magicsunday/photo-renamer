@@ -97,6 +97,11 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
             return null;
         }
 
+        // Raw QuickTime CreateDate for --force re-writes (bypasses Keys:CreationDate resolution)
+        $rawQuickTimeCreateDate = $isQuickTimeContainer
+            ? $structured->locationTime->capture->dateTime
+            : null;
+
         return new TemporalMetadata(
             $captureDateTime,
             $livePhotoId,
@@ -110,6 +115,7 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
             $longitude,
             $videoDurationSeconds,
             $hasQuickTimeLivePhotoMarker,
+            $rawQuickTimeCreateDate,
         );
     }
 

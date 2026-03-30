@@ -321,7 +321,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
      * Computes multi-signal similarity with early-exit optimization.
      *
      * Phase 1: Cheap dHash pre-filter (only 9×8 grayscale per file).
-     * If dHash distance > 20 → clearly different → skip expensive signals.
+     * If dHash distance > 16 → clearly different → skip expensive signals.
      *
      * Phase 2: Full signal computation (wHash, HF-energy, color histogram)
      * only for pairs that pass the dHash pre-filter. Imagick instances are
@@ -337,22 +337,22 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         // Phase 1: Load + dHash, cached per pathname for pairwise reuse
         [$imgA, $dhashA] = $this->loadAndComputeDhash($fileA);
         [$imgB, $dhashB] = $this->loadAndComputeDhash($fileB);
-        $dd              = (($dhashA !== null) && ($dhashB !== null))
+        $dhashDistance   = (($dhashA !== null) && ($dhashB !== null))
             ? $this->hammingDistance($dhashA, $dhashB)
             : 64;
 
-        // Early exit: dHash distance > 20 → clearly different content.
+        // Early exit: dHash distance > 16 → clearly different content.
         // Images stay in loadCache for potential reuse in other pairwise comparisons.
-        if ($dd > 20) {
-            $score = (int) round(max(0.0, 1.0 - ($dd / 64.0)) * 100);
+        if ($dhashDistance > 16) {
+            $score = (int) round(max(0.0, 1.0 - ($dhashDistance / 64.0)) * 100);
 
-            return new SimilarityResult($score, $dd, 64, 1.0, 1.0, null, SimilarityClassification::Different);
+            return new SimilarityResult($score, $dhashDistance, 64, 1.0, 1.0, null, SimilarityClassification::Different);
         }
 
         // Early exit: dHash = 0 AND not video → visually identical.
         $isVideo = (($durationA !== null) && ($durationB !== null));
 
-        if (($dd === 0) && (!$isVideo)) {
+        if (($dhashDistance === 0) && (!$isVideo)) {
             return new SimilarityResult(100, 0, 0, 0.0, 0.0, null, SimilarityClassification::DuplicateLikely);
         }
 
@@ -360,15 +360,15 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         $signalsA = $this->getOrComputeRemainingSignals($fileA, $imgA);
         $signalsB = $this->getOrComputeRemainingSignals($fileB, $imgB);
 
-        $wd = (($signalsA !== null) && ($signalsB !== null))
+        $whashDistance = (($signalsA !== null) && ($signalsB !== null))
             ? $this->hammingDistance($signalsA['whash'] ?? '', $signalsB['whash'] ?? '')
             : 64;
 
-        $hfd = (($signalsA !== null) && ($signalsB !== null) && ($signalsA['hf'] !== null) && ($signalsB['hf'] !== null))
+        $hfEnergyDelta = (($signalsA !== null) && ($signalsB !== null) && ($signalsA['hf'] !== null) && ($signalsB['hf'] !== null))
             ? abs($signalsA['hf'] - $signalsB['hf'])
             : 1.0;
 
-        $cd = (($signalsA !== null) && ($signalsB !== null) && ($signalsA['hist'] !== null) && ($signalsB['hist'] !== null))
+        $colorDistance = (($signalsA !== null) && ($signalsB !== null) && ($signalsA['hist'] !== null) && ($signalsB['hist'] !== null))
             ? $this->histogramDistance($signalsA['hist'], $signalsB['hist'])
             : 1.0;
 
@@ -378,7 +378,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
             $durDelta = abs($durationA - $durationB);
         }
 
-        $score = $this->computeWeightedScore($dd, $wd, $hfd, $cd, $durDelta, $isVideo);
+        $score = $this->computeWeightedScore($dhashDistance, $whashDistance, $hfEnergyDelta, $colorDistance, $durDelta, $isVideo);
 
         $classification = match (true) {
             $score >= 95 => SimilarityClassification::DuplicateLikely,
@@ -386,7 +386,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
             default      => SimilarityClassification::Different,
         };
 
-        return new SimilarityResult($score, $dd, $wd, $hfd, $cd, $durDelta, $classification);
+        return new SimilarityResult($score, $dhashDistance, $whashDistance, $hfEnergyDelta, $colorDistance, $durDelta, $classification);
     }
 
     /**
@@ -475,17 +475,17 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
      * For videos: dHash 25%, wHash 20%, HF-energy 15%, color 10%, duration 30%.
      */
     private function computeWeightedScore(
-        int $dd,
-        int $wd,
-        float $hfd,
-        float $cd,
+        int $dhashDistance,
+        int $whashDistance,
+        float $hfEnergyDelta,
+        float $colorDistance,
         ?float $durDelta,
         bool $isVideo,
     ): int {
-        $simDhash = max(0.0, 1.0 - ($dd / 64.0));
-        $simWhash = max(0.0, 1.0 - ($wd / 64.0));
-        $simHf    = 1.0 - min(1.0, $hfd / 0.15);
-        $simColor = 1.0 - min(1.0, $cd);
+        $simDhash = max(0.0, 1.0 - ($dhashDistance / 64.0));
+        $simWhash = max(0.0, 1.0 - ($whashDistance / 64.0));
+        $simHf    = 1.0 - min(1.0, $hfEnergyDelta / 0.15);
+        $simColor = 1.0 - min(1.0, $colorDistance);
 
         if ($isVideo && ($durDelta !== null)) {
             $simDur = max(0.0, 1.0 - $durDelta / 30.0);

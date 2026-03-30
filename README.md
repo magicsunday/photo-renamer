@@ -144,77 +144,95 @@ sudo mv renamer /usr/local/bin/
 renamer --version
 ```
 
-## 📋 Recommended Workflow
+## Recommended Workflow
 
-The recommended workflow for tidying a large photo/video collection:
+The recommended 5-phase workflow for tidying a large photo/video collection:
 
-### Step 1: Analyse the collection
+### Phase 1: Fix metadata BEFORE renaming
 
 ```bash
-renamer rename:verify ~/Photos
+# Step 1: Analyse the collection
+renamer rename:verify ~/Photos                          # overview with issue counts
+renamer rename:verify --detail ~/Photos                 # per-file diagnosis with fix commands
+renamer rename:verify --detail /path/to/single-file.mov # check a single file
+
+# Step 2: Fix files with no metadata (writes date extracted from filename)
+renamer rename:write-date --reason=nodata ~/Photos
+
+# Step 3: Fix files using only ModifyDate (0x0132) instead of DateTimeOriginal
+renamer rename:write-date --reason=fallback ~/Photos
+
+# Step 4: Fix QuickTime videos with ambiguous UTC timestamps
+# Apple/DJI cameras (CreateDate is real UTC → convert to local time):
+renamer rename:write-date --reason=timezone --timezone=Europe/Berlin ~/Photos
+
+# Android/Panasonic/Canon cameras (CreateDate is already local time stored as "UTC"):
+renamer rename:write-date --reason=timezone --timezone=Europe/Berlin --local-as-utc ~/Photos
 ```
 
-Review the report to understand what problems exist: missing metadata, ambiguous timezones, broken Live Photo pairs, unrecognized file types.
+All commands show a post-scan summary before processing, so you can see what will happen without reading documentation first.
 
-### Step 2: Fix broken metadata
+The `--detail` flag on `rename:verify` shows per-file diagnostics with copy-pasteable fix commands:
 
-```bash
-# Preview what would be written
-renamer rename:write-date --dry-run ~/Photos
-
-# Fix only files with no metadata (writes date from filename)
-renamer rename:write-date --reason=nodata --dry-run ~/Photos
-
-# Fix ambiguous timezone on videos (converts CreateDate UTC → local time)
-renamer rename:write-date --reason=timezone --timezone=Europe/Berlin --dry-run ~/Photos
-
-# Fix multiple categories at once
-renamer rename:write-date --reason=nodata,fallback ~/Photos
+```
+  clip.mov (2.3 KB)
+     Problem:    Ambiguous timezone — QuickTime UTC without offset
+     Metadata:   CreateDate (UTC) = 2025:03:10 14:00:00
+     Fix:        rename:write-date --reason=timezone --timezone=Europe/Berlin '/path/to/clip.mov'
 ```
 
-Fixes files flagged as `[W]` (ambiguous timezone), `[F]` (fallback date), or with date drift. Only touches files where the metadata is missing or unreliable. The `--reason` filter allows working through categories separately: `nodata`, `fallback`, `timezone`, `drift`.
+> **About timestamps:** EXIF `DateTimeOriginal` is always local time (the time shown on the camera display). QuickTime videos (MOV, MP4, M4V) store `CreateDate` in UTC without timezone info — the `[W]` warning flags these. There are two cases:
+>
+> - **Apple/DJI cameras** store real UTC. `--reason=timezone` converts it to local time: `14:00 UTC` → `16:00+02:00`.
+> - **Non-Apple cameras** (Android, Panasonic, Canon) store local time as "UTC". Use `--local-as-utc` to add the offset without converting: `14:00 "UTC"` → `14:00+02:00`.
+>
+> Both modes write `Keys:CreationDate` with the timezone offset. The original `CreateDate` stays untouched.
 
-> **Timezone fix:** QuickTime videos (MOV, MP4, M4V) store timestamps in UTC without timezone info.
-> `--reason=timezone` converts the UTC `CreateDate` to the given timezone and writes
-> `Keys:CreationDate` with the local time + offset (e.g. `18:50:50+02:00`). The original
-> `CreateDate` stays untouched. After this fix, `rename:exif` uses the correct local time
-> and no longer shows `[W]`.
-
-### Step 3: Rename by EXIF date
+### Phase 2: Rename
 
 ```bash
-# Preview
+# Step 5: Preview
 renamer rename:exif --dry-run ~/Photos
 
-# Execute
+# Step 6: Execute (prompts for confirmation)
 renamer rename:exif ~/Photos
 ```
 
 Renames all photos and videos to `YYYY-MM-DD_HH-MM-SS-mmm.ext`. Extensions are normalised automatically (e.g. `JPEG` → `jpg`). Live Photo pairs (still + video) receive the same base name. Files with distinct content sharing the same timestamp get sequential sub-group numbers (`-002`, `-003`, ...), while visually identical files (format conversions, re-imports) are merged via perceptual hashing. True duplicates get `-duplicate-NNN` suffixes.
 
-### Step 4: Review warnings
+### Phase 3: Post-rename verification and drift fix
 
 ```bash
-# Show only warnings and errors
-renamer rename:exif --dry-run --show=W,E ~/Photos
+# Step 7: Confirm all metadata issues resolved
+renamer rename:verify ~/Photos
+
+# Step 8: Fix metadata that disagrees with the (now reliable) filename dates
+renamer rename:write-date --reason=drift ~/Photos
+
+# Step 9: Re-run to apply drift fixes (minimal changes expected)
+renamer rename:exif ~/Photos
 ```
 
-Files with `[W]` were skipped because their metadata is ambiguous. Go back to Step 2 for these, or fix them manually with exiftool.
+> **Why drift comes after rename:** `--reason=drift` compares filename dates with metadata dates. On fresh collections with camera names (`IMG_1234.jpg`), there is no filename date to compare. Only after `rename:exif` produces date-based names does drift detection work.
 
-### Step 5: Clean up duplicates
+### Phase 4: Final verification
 
 ```bash
-# Preview which duplicates would be moved
+# Step 10: Verify idempotency (must show 0 changes)
+renamer rename:exif --dry-run ~/Photos
+```
+
+### Phase 5: Cleanup
+
+```bash
+# Step 11: Preview which duplicates would be moved
 renamer rename:dedup --dry-run ~/Photos
 
-# Move duplicates to _duplicates/ folder
+# Step 12: Move duplicates (prompts for confirmation)
 renamer rename:dedup ~/Photos
 
 # Or delete them directly
 renamer rename:dedup --delete ~/Photos
-
-# Or move to a custom folder
-renamer rename:dedup --target=_trash ~/Photos
 ```
 
 After renaming, files with identical content receive `-duplicate-NNN` suffixes. This step moves (or deletes) those duplicates, keeping only the originals. Orphaned duplicates (whose original no longer exists) are skipped with a warning.
