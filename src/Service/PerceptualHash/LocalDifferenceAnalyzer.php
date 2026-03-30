@@ -38,7 +38,7 @@ use function sqrt;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-final readonly class LocalDifferenceAnalyzer
+final class LocalDifferenceAnalyzer
 {
     /**
      * Working resolution: long edge scaled to this many pixels.
@@ -49,6 +49,13 @@ final readonly class LocalDifferenceAnalyzer
      * Pixel differences below this threshold (0–255) are considered JPEG noise.
      */
     private const int NOISE_THRESHOLD = 6;
+
+    /**
+     * Set to true to re-enable the legacy blob analysis pipeline
+     * (mask → morphology → flood-fill → changedAreaRatio/hasCompactRetouch).
+     * Superseded by RMSE which is codec-agnostic and faster.
+     */
+    private bool $enableBlobAnalysis = false;
 
     /**
      * Minimum blob area ratio to consider as a compact retouch.
@@ -92,16 +99,46 @@ final readonly class LocalDifferenceAnalyzer
 
         $totalPixels = $width * $height;
 
-        // Compute RMSE and build binary mask in a single pass
-        $mask          = [];
-        $changedCount  = 0;
+        // Compute RMSE only — fast single-pass over pixel arrays
         $sumSquaredErr = 0.0;
 
         for ($i = 0; $i < $totalPixels; ++$i) {
             $diff = $pixelsA[$i] - $pixelsB[$i];
             $sumSquaredErr += $diff * $diff;
+        }
 
-            $absDiff = abs($diff);
+        // RMSE normalized to 0.0–1.0 (divide by 255 max pixel value)
+        $rmse = sqrt($sumSquaredErr / $totalPixels) / 255.0;
+
+        // Legacy blob analysis — disabled for performance. Reactivate by
+        // setting ENABLE_BLOB_ANALYSIS to true if RMSE proves insufficient.
+        if ($this->enableBlobAnalysis) {
+            return $this->doLegacyBlobAnalysis($pixelsA, $pixelsB, $totalPixels, $width, $height, $rmse);
+        }
+
+        return new LocalDiffResult($rmse, 0.0, 0.0, 0, false);
+    }
+
+    /**
+     * Legacy blob analysis pipeline: binary mask → morphological opening → flood-fill.
+     * Superseded by RMSE. Kept behind ENABLE_BLOB_ANALYSIS flag for rollback.
+     *
+     * @param list<int> $pixelsA
+     * @param list<int> $pixelsB
+     */
+    private function doLegacyBlobAnalysis(
+        array $pixelsA,
+        array $pixelsB,
+        int $totalPixels,
+        int $width,
+        int $height,
+        float $rmse,
+    ): LocalDiffResult {
+        $mask         = [];
+        $changedCount = 0;
+
+        for ($i = 0; $i < $totalPixels; ++$i) {
+            $absDiff = abs($pixelsA[$i] - $pixelsB[$i]);
 
             if ($absDiff > self::NOISE_THRESHOLD) {
                 $mask[$i] = 1;
@@ -111,17 +148,11 @@ final readonly class LocalDifferenceAnalyzer
             }
         }
 
-        // RMSE normalized to 0.0–1.0 (divide by 255 max pixel value)
-        $rmse = sqrt($sumSquaredErr / $totalPixels) / 255.0;
-
         if ($changedCount === 0) {
             return new LocalDiffResult($rmse, 0.0, 0.0, 0, false);
         }
 
-        // Morphological opening: erode then dilate to remove isolated noise pixels
-        $mask = $this->morphologicalOpen($mask, $width, $height);
-
-        // Recount after morphology
+        $mask         = $this->morphologicalOpen($mask, $width, $height);
         $changedCount = 0;
 
         foreach ($mask as $v) {
@@ -132,7 +163,6 @@ final readonly class LocalDifferenceAnalyzer
             return new LocalDiffResult($rmse, 0.0, 0.0, 0, false);
         }
 
-        // Connected component analysis via flood-fill
         [$blobCount, $largestBlobArea] = $this->findBlobs($mask, $width, $height);
 
         $changedAreaRatio  = $changedCount / $totalPixels;

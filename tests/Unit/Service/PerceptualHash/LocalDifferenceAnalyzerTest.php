@@ -53,7 +53,7 @@ final class LocalDifferenceAnalyzerTest extends TestCase
     }
 
     #[Test]
-    public function completelyDifferentImagesProduceHighChangedArea(): void
+    public function completelyDifferentImagesProduceHighRmse(): void
     {
         $imgA = $this->createSolidImage(64, 64, 'white');
         $imgB = $this->createSolidImage(64, 64, 'black');
@@ -61,39 +61,33 @@ final class LocalDifferenceAnalyzerTest extends TestCase
         $result = $this->analyzer->analyze($imgA, $imgB);
 
         self::assertGreaterThan(0.5, $result->rmse);
-        self::assertGreaterThan(0.5, $result->changedAreaRatio);
-        self::assertGreaterThan(0, $result->blobCount);
     }
 
     #[Test]
-    public function singlePixelNoiseIsRemovedByMorphology(): void
+    public function singlePixelDifferenceProducesNearZeroRmse(): void
     {
         $imgA = $this->createSolidImage(64, 64, 'white');
         $imgB = $this->createSolidImage(64, 64, 'white');
 
-        // Change exactly one pixel to black (max contrast against white)
-        $pixel = new ImagickPixel('black');
-        $draw  = new ImagickDraw();
-        $draw->setFillColor($pixel);
+        $draw = new ImagickDraw();
+        $draw->setFillColor(new ImagickPixel('black'));
         $draw->point(32, 32);
 
         $imgB->drawImage($draw);
 
         $result = $this->analyzer->analyze($imgA, $imgB);
 
-        // Morphological opening with a 3x3 cross kernel removes isolated pixels
-        self::assertSame(0, $result->blobCount);
-        self::assertSame(0.0, $result->changedAreaRatio);
-        self::assertFalse($result->hasCompactRetouch);
+        // One pixel out of 64×64 = negligible RMSE
+        self::assertLessThan(0.02, $result->rmse);
     }
 
     #[Test]
-    public function compactBlobDetectedAsRetouch(): void
+    public function localRetouchProducesModerateRmse(): void
     {
         $imgA = $this->createSolidImage(64, 64, 'white');
         $imgB = $this->createSolidImage(64, 64, 'white');
 
-        // Draw a 10x10 black square into one image to simulate a local retouch
+        // Draw a 10x10 black square to simulate a local retouch
         $draw = new ImagickDraw();
         $draw->setFillColor(new ImagickPixel('black'));
         $draw->rectangle(20, 20, 30, 30);
@@ -102,34 +96,9 @@ final class LocalDifferenceAnalyzerTest extends TestCase
 
         $result = $this->analyzer->analyze($imgA, $imgB);
 
-        self::assertTrue($result->hasCompactRetouch);
-        self::assertGreaterThan(0, $result->blobCount);
-        self::assertGreaterThan(0.0, $result->largestBlobRatio);
-    }
-
-    #[Test]
-    public function scatteredNoiseNotClassifiedAsRetouch(): void
-    {
-        $imgA = $this->createSolidImage(64, 64, 'gray');
-        $imgB = $this->createSolidImage(64, 64, 'gray');
-
-        // Place isolated single pixels on a regular grid with stride 3.
-        // No two pixels share a 4-connected neighbor, so morphological
-        // opening (erode) removes them all.
-        $draw = new ImagickDraw();
-        $draw->setFillColor(new ImagickPixel('white'));
-
-        for ($y = 1; $y < 64; $y += 3) {
-            for ($x = 1; $x < 64; $x += 3) {
-                $draw->point($x, $y);
-            }
-        }
-
-        $imgB->drawImage($draw);
-
-        $result = $this->analyzer->analyze($imgA, $imgB);
-
-        self::assertFalse($result->hasCompactRetouch);
+        // 10×10 black square on white → noticeable but not extreme RMSE
+        self::assertGreaterThan(0.05, $result->rmse);
+        self::assertLessThan(0.5, $result->rmse);
     }
 
     #[Test]
