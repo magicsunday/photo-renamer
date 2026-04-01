@@ -77,7 +77,7 @@ Summary renders from three sources:
 - [x] Update command to pass both to summary
 - [x] Update all tests
 - [x] Run `make test`
-- [ ] Commit: `refactor: separate counter ownership into ExecutionPreview and ExecutionResult`
+- [x] Commit: `refactor: separate counter ownership into ExecutionPreview and ExecutionResult`
 
 ---
 
@@ -95,7 +95,7 @@ Test proving the code is already correct.
 
 - [x] Write test `companionInSubdirectoryKeepsSubgroupSuffix`
 - [x] Verify test passes without code changes
-- [ ] Commit: `test: verify companions never enter cross-directory shortcut`
+- [x] Commit: `test: verify companions never enter cross-directory shortcut`
 
 ---
 
@@ -118,7 +118,7 @@ Test at the level where the numbering actually originates — SubgroupClassifier
   - Test that adding a new cluster shifts existing numbers
   - Document this as accepted behavior
   - Do NOT hard-assert alphabetical — assert deterministic + documented
-- [ ] Commit: `test: document cluster renumbering as deterministic accepted behavior`
+- [x] Commit: `test: document cluster renumbering as deterministic accepted behavior`
 
 ---
 
@@ -162,7 +162,7 @@ This is a **degraded-mode stability rule**, not new classification. It is narrow
 - [x] Implement `hasExistingSubgroupPattern()` with all 5 strict conditions
 - [x] Implement `preserveExistingSubgroupNames()` — assigns current name as proposedName for matching items, flat duplicate for non-matching
 - [x] Run `make test`
-- [ ] Commit: `fix: degraded classification preserves existing subgroup names under strict conditions`
+- [x] Commit: `fix: degraded classification preserves existing subgroup names under strict conditions`
 
 ---
 
@@ -194,19 +194,19 @@ NOT "first found" — that depends on iteration order which may change.
 - [x] Refactor CompanionDetector Phase 1: collect candidates → select best via preference chain
 - [x] Run `make test`
 - [x] Verify with real data: `./renamer.sh rename:exif --dry-run /volume1/Fotos/MobileBackup/Test/ --list-all`
-- [ ] Commit: `fix: CompanionDetector selects one companion per media type with stable preference`
+- [x] Commit: `fix: CompanionDetector selects one companion per media type with stable preference`
 
 ---
 
 ## Success Criteria
 
-- [ ] Renderer produces `ExecutionPreview`, Executor produces `ExecutionResult` — clear ownership
-- [ ] Summary renders from three distinct sources (RenameResult + Preview + Result)
-- [ ] Companions in subdirectories never lose subgroup suffix (proven by test)
-- [ ] Degraded groups with existing subgroup names remain stable only under strict conditions
-- [ ] Degraded groups with inconsistent names fall through to safe flat naming
-- [ ] Cluster renumbering is documented as deterministic accepted behavior
-- [ ] CompanionDetector selects exactly one companion per media type with stable preference
-- [ ] Live Photo groups with duplicate companions are fully idempotent
-- [ ] All existing tests remain green
-- [ ] `make test` passes
+- [x] Renderer produces `ExecutionPreview`, Executor produces `ExecutionResult` — clear ownership
+- [x] Summary renders from three distinct sources (RenameResult + Preview + Result)
+- [x] Companions in subdirectories never lose subgroup suffix (proven by test)
+- [x] Degraded groups with existing subgroup names remain stable only under strict conditions
+- [x] Degraded groups with inconsistent names fall through to safe flat naming
+- [x] Cluster renumbering is documented as deterministic accepted behavior
+- [x] CompanionDetector selects exactly one companion per media type with stable preference
+- [x] Live Photo groups with duplicate companions are fully idempotent
+- [x] All existing tests remain green
+- [x] `make test` passes
