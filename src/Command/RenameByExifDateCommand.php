@@ -273,6 +273,9 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
             maxDateDrift: $this->maxDateDrift,
         );
 
+        $this->io->text('<fg=cyan>Renaming files</>');
+        $this->io->newLine();
+
         $preview = $this->renameOutputRenderer->renderPlanEntries(
             $executionPlan,
             $options,
@@ -280,6 +283,14 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
             $this->showFilter,
             $result,
         );
+
+        $hasSkippedFiles = $result->skippedFiles !== [];
+
+        if (($preview->plannedMoves === 0) && ($preview->plannedSkips === 0) && !$hasSkippedFiles) {
+            $this->io->text('<fg=green> All files already have the correct name. Nothing to do.</>');
+        }
+
+        $this->io->newLine();
 
         // Render decision log in --list-all mode
         if ($this->listAll) {

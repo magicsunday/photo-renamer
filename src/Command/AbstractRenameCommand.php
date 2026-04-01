@@ -422,18 +422,16 @@ abstract class AbstractRenameCommand extends Command
                 $parts[] = sprintf('%d LP conflict', $conflictCount);
             }
 
+            $this->io->newLine(2);
+
             $this->io->text(sprintf(
                 '<fg=yellow>%d file(s) with issues:</> %s',
                 $issueCount,
                 implode(', ', $parts),
             ));
 
-            $this->io->newLine();
+            $this->io->newLine(2);
         }
-
-        $this->io->newLine();
-        $this->io->text('Renaming files');
-        $this->io->newLine();
     }
 
     /**
