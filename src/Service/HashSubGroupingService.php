@@ -102,6 +102,8 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
      * @param array<string, string>                $contentIdentifierMap   map from source pathname to content identifier
      * @param Closure(SplFileInfo, string): string $targetPathnameResolver resolves (sourceFileInfo, targetFilename) to absolute target path
      * @param array<string, TemporalMetadata|null> $temporalMetadataMap    map from source pathname to temporal metadata (for video duration)
+     *
+     * @return array<string, string>|null Map from source pathname to cluster root hash key, or null when not needed
      */
     #[Override]
     public function apply(
@@ -111,7 +113,7 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
         array $contentIdentifierMap,
         Closure $targetPathnameResolver,
         array $temporalMetadataMap = [],
-    ): bool {
+    ): ?array {
         /** @var list<Rename> $nonCompanionRenames */
         $nonCompanionRenames = [];
 
@@ -137,7 +139,7 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
 
         // No sub-grouping needed for 0 or 1 non-companion files.
         if (count($nonCompanionRenames) <= 1) {
-            return false;
+            return null;
         }
 
         // Compute hashes and build sub-groups keyed by hash.
@@ -174,7 +176,7 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
         // If all files have the same hash, this is a pure duplicate group.
         // Fall through to existing logic.
         if (count($hashGroups) <= 1) {
-            return false;
+            return null;
         }
 
         // Merge hash groups that are perceptually similar (near-duplicates).
@@ -184,7 +186,7 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
         $hashGroups = $this->mergePerceptuallySimilarGroups($hashGroups, $temporalMetadataMap);
 
         if (count($hashGroups) <= 1) {
-            return false;
+            return null;
         }
 
         /** @var array<int, true> $nonCompanionLookup */
@@ -216,7 +218,7 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
             }
 
             if (count($companionHashes) === 1) {
-                return false;
+                return null;
             }
         }
 
@@ -491,7 +493,70 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
             $fileDuplicate->setTarget($canonicalRename->getTarget());
         }
 
-        return true;
+        // Build content-based cluster map: source pathname → order-preserving cluster key.
+        // The key encodes the subgroup number as a prefix so that alphabetical sort in
+        // TargetNameResolver::buildSubgroupMap() reproduces the same ordering as the
+        // hash-group iteration order. This preserves subgroup stability across runs
+        // while keeping cluster formation filename-free (Regel 1).
+        /** @var array<string, string> $clusterMap */
+        $clusterMap = [];
+
+        foreach ($hashGroups as $rootHash => $groupRenames) {
+            $groupNumber = $hashToSubGroup[$rootHash];
+            $clusterKey  = sprintf('%03d_%s', $groupNumber, $rootHash);
+
+            foreach ($groupRenames as $rename) {
+                $clusterMap[$rename->getSource()->getPathname()] = $clusterKey;
+            }
+        }
+
+        // Map companion files to cluster keys via content ID / source basename fallback.
+        if ($companionRename instanceof Rename) {
+            /** @var array<string, string> $contentIdToClusterKey */
+            $contentIdToClusterKey = [];
+
+            /** @var array<string, string> $sourceBasenameToClusterKey */
+            $sourceBasenameToClusterKey = [];
+
+            foreach ($nonCompanionRenames as $stillRename) {
+                $stillPath  = $stillRename->getSource()->getPathname();
+                $clusterKey = $clusterMap[$stillPath] ?? null;
+
+                if ($clusterKey === null) {
+                    continue;
+                }
+
+                $stillContentId = $contentIdentifierMap[$stillPath] ?? null;
+
+                if ($stillContentId !== null) {
+                    $contentIdToClusterKey[$stillContentId] = $clusterKey;
+                }
+
+                $stillBasename                             = FileHelper::basenameWithoutExtension($stillRename->getSource());
+                $sourceBasenameToClusterKey[$stillBasename] = $clusterKey;
+            }
+
+            foreach ($fileDuplicate->getRenames() as $rename) {
+                if (isset($nonCompanionLookup[spl_object_id($rename)])) {
+                    continue;
+                }
+
+                $renamePath      = $rename->getSource()->getPathname();
+                $renameContentId = $contentIdentifierMap[$renamePath] ?? null;
+
+                if (($renameContentId !== null) && isset($contentIdToClusterKey[$renameContentId])) {
+                    $clusterMap[$renamePath] = $contentIdToClusterKey[$renameContentId];
+                } else {
+                    $renameBasename = FileHelper::basenameWithoutExtension($rename->getSource());
+
+                    if (isset($sourceBasenameToClusterKey[$renameBasename])) {
+                        $clusterMap[$renamePath] = $sourceBasenameToClusterKey[$renameBasename];
+                    }
+                }
+            }
+        }
+
+        return $clusterMap;
     }
 
     /**

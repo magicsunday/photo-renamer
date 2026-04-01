@@ -87,14 +87,14 @@ final class HashSubGroupingServiceTest extends TestCase
     }
 
     /**
-     * Verifies that apply() returns false for a group containing only one file,
+     * Verifies that apply() returns null for a group containing only one file,
      * because sub-grouping is unnecessary when there is nothing to compare.
      *
      * Returning false tells the caller that the rename list was not modified
      * and no further sub-group processing is needed.
      */
     #[Test]
-    public function applyReturnsFalseForSingleFile(): void
+    public function applyReturnsNullForSingleFile(): void
     {
         $service = $this->createHashSubGroupingService();
 
@@ -116,18 +116,18 @@ final class HashSubGroupingServiceTest extends TestCase
 
         $result = $service->apply($fileDuplicate, $renameA, null, [], $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory));
 
-        self::assertFalse($result);
+        self::assertNull($result);
     }
 
     /**
-     * Verifies that apply() returns false when all files in the group share the
+     * Verifies that apply() returns null when all files in the group share the
      * same hash (all are true duplicates, only one sub-group exists).
      *
      * No sequential numbering is needed because there is only one distinct content
      * variant. The standard -duplicate-NNN suffixes will be assigned by the caller.
      */
     #[Test]
-    public function applyReturnsFalseForSingleHashGroup(): void
+    public function applyReturnsNullForSingleHashGroup(): void
     {
         $service = $this->createHashSubGroupingService();
 
@@ -154,11 +154,11 @@ final class HashSubGroupingServiceTest extends TestCase
 
         $result = $service->apply($fileDuplicate, $renameA, null, [], $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory));
 
-        self::assertFalse($result);
+        self::assertNull($result);
     }
 
     /**
-     * Verifies that apply() returns true and assigns sub-group numbers when two
+     * Verifies that apply() returns cluster map and assigns sub-group numbers when two
      * files have different content hashes: the canonical keeps the unsuffixed
      * base name, the second file gets -002.
      *
@@ -166,7 +166,7 @@ final class HashSubGroupingServiceTest extends TestCase
      * date group produces sequential numbers instead of -duplicate-NNN.
      */
     #[Test]
-    public function applyReturnsTrueAndAssignsSubGroupsForDistinctHashes(): void
+    public function applyReturnsClusterMapForDistinctHashes(): void
     {
         $service = $this->createHashSubGroupingService();
 
@@ -193,7 +193,7 @@ final class HashSubGroupingServiceTest extends TestCase
 
         $result = $service->apply($fileDuplicate, $renameA, null, [], $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory));
 
-        self::assertTrue($result);
+        self::assertIsArray($result);
 
         $renames = iterator_to_array($fileDuplicate->getRenames());
 
@@ -261,7 +261,7 @@ final class HashSubGroupingServiceTest extends TestCase
 
         $result = $service->apply($fileDuplicate, $renameA, null, [], $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory));
 
-        self::assertTrue($result);
+        self::assertIsArray($result);
 
         $renames       = iterator_to_array($fileDuplicate->getRenames());
         $renameTargets = [];
@@ -340,7 +340,7 @@ final class HashSubGroupingServiceTest extends TestCase
             $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
         );
 
-        self::assertTrue($result);
+        self::assertIsArray($result);
 
         $renames       = iterator_to_array($fileDuplicate->getRenames());
         $renameTargets = [];
@@ -356,7 +356,7 @@ final class HashSubGroupingServiceTest extends TestCase
     }
 
     /**
-     * Verifies that apply() returns false when companion videos (MOVs) all share
+     * Verifies that apply() returns null when companion videos (MOVs) all share
      * the same hash, indicating the stills are semantic duplicates of the same
      * capture (different JPG encoding/metadata, not different photos).
      */
@@ -429,7 +429,7 @@ final class HashSubGroupingServiceTest extends TestCase
             $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
         );
 
-        self::assertFalse($result);
+        self::assertNull($result);
     }
 
     /**
@@ -473,7 +473,7 @@ final class HashSubGroupingServiceTest extends TestCase
             $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
         );
 
-        self::assertTrue($result);
+        self::assertIsArray($result);
     }
 
     /**
@@ -517,7 +517,7 @@ final class HashSubGroupingServiceTest extends TestCase
             $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
         );
 
-        self::assertTrue($result);
+        self::assertIsArray($result);
     }
 
     /**
@@ -550,7 +550,7 @@ final class HashSubGroupingServiceTest extends TestCase
      * is below the threshold, treating them as perceptual duplicates.
      *
      * Two files with different xxh128 content hashes but identical visual content
-     * (same dHash) should be merged into a single group → apply() returns false.
+     * (same dHash) should be merged into a single group → apply() returns null.
      */
     #[Test]
     public function applyMergesPerceptuallySimilarHashGroups(): void
@@ -594,7 +594,7 @@ final class HashSubGroupingServiceTest extends TestCase
             $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
         );
 
-        self::assertFalse($result, 'Perceptually identical files should be merged → no sub-grouping');
+        self::assertNull($result, 'Perceptually identical files should be merged → no sub-grouping');
     }
 
     /**
@@ -641,7 +641,7 @@ final class HashSubGroupingServiceTest extends TestCase
             $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
         );
 
-        self::assertTrue($result, 'Visually distinct files should remain in separate sub-groups');
+        self::assertIsArray($result, 'Visually distinct files should remain in separate sub-groups');
     }
 
     /**
@@ -688,7 +688,7 @@ final class HashSubGroupingServiceTest extends TestCase
             $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
         );
 
-        self::assertTrue($result, 'Failed dHash should result in separate sub-groups (conservative)');
+        self::assertIsArray($result, 'Failed dHash should result in separate sub-groups (conservative)');
     }
 
     private function createHashSubGroupingService(): HashSubGroupingService

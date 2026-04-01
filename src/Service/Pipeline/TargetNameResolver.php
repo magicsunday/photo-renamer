@@ -637,17 +637,12 @@ final readonly class TargetNameResolver implements TargetNameResolverInterface
     }
 
     /**
-     * Checks whether a canonical-cluster item in a cross-directory scenario has no
-     * naming conflict and can keep the unsuffixed canonical basename.
+     * Always returns false: the cross-directory shortcut is disabled.
      *
-     * Non-canonical cluster items must ALWAYS keep their subgroup suffix for
-     * idempotency: without the suffix, a re-run would see the file with the
-     * canonical basename and might re-assign it as canonical.
-     *
-     * @param bool               $isCanonicalCluster Whether the item belongs to the canonical cluster
-     * @param string             $directory          Directory of the item
-     * @param string|null        $canonicalDir       Directory of the canonical item
-     * @param array<string, int> $dirFileCounts      Non-Companion file counts per directory
+     * Canonical-cluster duplicates must always receive -duplicate-NNN — an identical
+     * copy in another directory is still a duplicate. Non-canonical cluster items must
+     * always keep their subgroup suffix for idempotency (without the suffix, a re-run
+     * would see a canonical-looking basename and might re-assign the file as canonical).
      */
     private function isCrossDirNoConflict(
         bool $isCanonicalCluster,
@@ -655,9 +650,7 @@ final readonly class TargetNameResolver implements TargetNameResolverInterface
         ?string $canonicalDir,
         array $dirFileCounts,
     ): bool {
-        return $isCanonicalCluster
-            && ($directory !== $canonicalDir)
-            && (($dirFileCounts[$directory] ?? 0) <= 1);
+        return false;
     }
 
     /**

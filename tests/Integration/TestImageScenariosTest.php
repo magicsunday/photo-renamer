@@ -938,8 +938,8 @@ final class TestImageScenariosTest extends TestCase
             '45-edit-plus-backup',
             [
                 'edited.jpg'                                => '2025-05-02_11-00-00-000.jpg',
-                'original.jpg'                              => '2025-05-02_11-00-00-000-003.jpg',
-                'backup' . DIRECTORY_SEPARATOR . 'copy.jpg' => 'backup' . DIRECTORY_SEPARATOR . '2025-05-02_11-00-00-000-002.jpg',
+                'original.jpg'                              => '2025-05-02_11-00-00-000-002.jpg',
+                'backup' . DIRECTORY_SEPARATOR . 'copy.jpg' => 'backup' . DIRECTORY_SEPARATOR . '2025-05-02_11-00-00-000-002-duplicate-001.jpg',
             ],
             3,
         ];

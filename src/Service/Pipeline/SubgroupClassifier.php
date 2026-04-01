@@ -176,7 +176,7 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
 
             $targetPathnameResolver = (static fn (SplFileInfo $source, string $targetFilename): string => $source->getPath() . DIRECTORY_SEPARATOR . $targetFilename);
 
-            $applied = $this->hashSubGroupingService->apply(
+            $clusterMap = $this->hashSubGroupingService->apply(
                 $fileDuplicate,
                 $canonicalRename,
                 $companionRename,
@@ -185,45 +185,47 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
                 $temporalMetaMap,
             );
 
-            if (!$applied) {
+            if ($clusterMap === null) {
                 // Single hash group or single file — no subgrouping needed
                 $group->markClassificationSucceeded();
 
                 return;
             }
 
-            // Collect all clusterId and clusterRank assignments in a temporary map before
-            // applying any. This ensures atomicity: if the mapping step throws, no items
-            // are modified.
+            // Assign clusterIds directly from hash-based cluster membership (Regel 1:
+            // cluster formation is filename-free). The cluster map keys are source
+            // pathnames, values are merged hash group root keys.
             /** @var array<string, array{clusterId: string, clusterRank: int}> $clusterIdAssignments */
             $clusterIdAssignments = [];
 
             /** @var array<string, int> $clusterRankCounters */
             $clusterRankCounters = [];
 
-            foreach ($fileDuplicate->getRenames() as $rename) {
-                $sourcePath = $rename->getSource()->getPathname();
-                $item       = $pathToItem[$sourcePath] ?? null;
+            foreach ($group->getItems() as $item) {
+                $sourcePath = $item->file->getPathname();
+                $clusterKey = $clusterMap[$sourcePath] ?? null;
 
-                if ($item === null) {
+                if ($clusterKey === null) {
                     continue;
                 }
 
-                $targetBasename = FileHelper::basenameWithoutExtension($rename->getTarget());
-                $clusterBase    = FileHelper::stripDuplicateSuffix($targetBasename);
-
-                $rank                              = $clusterRankCounters[$clusterBase] ?? 0;
-                $clusterRankCounters[$clusterBase] = $rank + 1;
+                $rank                              = $clusterRankCounters[$clusterKey] ?? 0;
+                $clusterRankCounters[$clusterKey] = $rank + 1;
 
                 $clusterIdAssignments[$sourcePath] = [
-                    'clusterId'   => $targetBasename,
+                    'clusterId'   => $clusterKey,
                     'clusterRank' => $rank,
                 ];
             }
 
             // All assignments computed successfully — apply them atomically
             foreach ($clusterIdAssignments as $sourcePath => $assignment) {
-                $item = $pathToItem[$sourcePath];
+                $item = $pathToItem[$sourcePath] ?? null;
+
+                if ($item === null) {
+                    continue;
+                }
+
                 $group->replaceItem(
                     $item,
                     $item->withClusterId($assignment['clusterId'])->withClusterRank($assignment['clusterRank']),

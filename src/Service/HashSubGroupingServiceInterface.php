@@ -29,9 +29,10 @@ interface HashSubGroupingServiceInterface
     /**
      * Applies content-hash sub-grouping when a naming conflict exists.
      *
-     * Returns true when sub-grouping was applied (multiple distinct hashes found),
-     * in which case the caller should skip the default suffix assignment.
-     * Returns false when sub-grouping is not needed.
+     * Returns a cluster map (source pathname → cluster root hash key) when
+     * sub-grouping was applied (multiple distinct content hashes found).
+     * Returns null when sub-grouping is not needed (single hash group or
+     * single non-companion file).
      *
      * @param FileDuplicate                        $fileDuplicate          the duplicate group to process
      * @param Rename|null                          $canonicalRename        the canonical rename entry
@@ -39,6 +40,8 @@ interface HashSubGroupingServiceInterface
      * @param array<string, string>                $contentIdentifierMap   map from source pathname to content identifier
      * @param Closure(SplFileInfo, string): string $targetPathnameResolver resolves (sourceFileInfo, targetFilename) to absolute target path
      * @param array<string, TemporalMetadata|null> $temporalMetadataMap    map from source pathname to temporal metadata (for video duration)
+     *
+     * @return array<string, string>|null Map from source pathname to cluster root hash key, or null when not needed
      */
     public function apply(
         FileDuplicate $fileDuplicate,
@@ -47,7 +50,7 @@ interface HashSubGroupingServiceInterface
         array $contentIdentifierMap,
         Closure $targetPathnameResolver,
         array $temporalMetadataMap = [],
-    ): bool;
+    ): ?array;
 
     /**
      * Releases all cached hash results to free memory.

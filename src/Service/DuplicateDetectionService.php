@@ -704,14 +704,14 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
             // combined similarity metric (dHash + wHash + HF + color + duration)
             // are merged as semantic duplicates.
             $subGroupApplied = !$skipHashSubGrouping
-                && $this->hashSubGroupingService->apply(
+                && ($this->hashSubGroupingService->apply(
                     $fileDuplicate,
                     $canonicalRename,
                     $companionRename,
                     $this->contentIdentifierMap,
                     $this->getTargetPathname(...),
                     $this->temporalMetadataMap,
-                );
+                ) !== null);
 
             // Release per-group Imagick instances cached during perceptual scoring
             $this->hashSubGroupingService->clearCache();
