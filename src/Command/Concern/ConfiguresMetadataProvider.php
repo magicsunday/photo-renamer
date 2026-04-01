@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Command\Concern;
 
 use DateTimeZone;
+use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Service\MetadataCache;
@@ -19,10 +20,13 @@ use MagicSunday\Renamer\Service\PerceptualHash\PerceptualSignalCache;
 use Phar;
 use Symfony\Component\Console\Input\InputInterface;
 
+use function array_map;
+use function explode;
 use function getenv;
 use function in_array;
 use function is_string;
 use function sys_get_temp_dir;
+use function trim;
 
 use const DIRECTORY_SEPARATOR;
 
@@ -167,5 +171,21 @@ trait ConfiguresMetadataProvider
         $envValue = FileHelper::env('MERGE_THRESHOLD');
 
         return $envValue !== null ? (float) $envValue : $default;
+    }
+
+    /**
+     * Resolves the format priority list from CANONICAL_FORMAT_PRIORITY env var.
+     *
+     * @return list<string>
+     */
+    protected function resolveFormatPriority(): array
+    {
+        $envValue = FileHelper::env('CANONICAL_FORMAT_PRIORITY');
+
+        if (is_string($envValue) && ($envValue !== '')) {
+            return array_map(trim(...), explode(',', $envValue));
+        }
+
+        return Constants::DEFAULT_FORMAT_PRIORITY;
     }
 }

@@ -12,6 +12,8 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service;
 
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
+use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
+use MagicSunday\Renamer\Model\Execution\ExecutionResult;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
 use RecursiveIterator;
@@ -64,4 +66,19 @@ interface FileSystemServiceInterface
         RenameResult $result = new RenameResult(),
         ?array $showFilter = null,
     ): void;
+
+    /**
+     * Execute a runtime plan, performing the actual file rename operations.
+     * Builds an occupied-path index from the plan and uses runtime collision
+     * fallback as a safety layer.
+     *
+     * @param ExecutionPlan $plan   The runtime execution plan
+     * @param bool          $dryRun When true, simulate without touching filesystem
+     *
+     * @return ExecutionResult Runtime execution counters (moves, fallbacks, errors)
+     */
+    public function executePlan(
+        ExecutionPlan $plan,
+        bool $dryRun = false,
+    ): ExecutionResult;
 }

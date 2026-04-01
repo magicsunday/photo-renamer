@@ -91,15 +91,39 @@ KISS, SOLID, DRY, YAGNI, GRASP, Law of Demeter, SoC, CoC — in that order of pr
 
 ### Pipeline (rename:exif)
 
-scan → group by target basename (cross-directory) → defer video companions → Live Photo pairing → hash sub-grouping → assign filenames → execute renames
+```
+CaptureGroupBuilder.build() → SubgroupClassifier.classify() → RoleAssigner.assign()
+→ TargetNameResolver.resolve() → CollisionResolver.resolve() → RenamePlanValidator.validate()
+→ ExecutionPlanBuilder.build() → RenameOutputRenderer → FileSystemService.executePlan()
+```
 
-Duplicate detection is **cross-directory**: files with the same EXIF date in different subdirectories land in one group. The canonical is in the shallowest directory. Files stay in their original directory after renaming.
+Canonical selection uses format-dominant weighted scoring. Subgroup classification happens before role assignment. The pipeline operates on `AssetGroupCollection` / `AssetGroup` / `AssetItem` models. `ExecutionPlanBuilder` projects the group collection into a flat `ExecutionPlan` runtime model consumed by `RenameOutputRenderer` and `FileSystemService.executePlan()`.
+
+### Legacy Execution Path
+
+Commands other than `rename:exif` (`rename:hash`, `rename:pattern`, `rename:date-pattern`, `rename:lower`) use the legacy execution path via `AbstractRenameCommand`:
+
+```
+DuplicateDetectionService → FileDuplicateCollection → FileSystemService.renameFiles()
+```
+
+This is an intentional bounded exception (End State B). These commands are too simple to benefit from the `ExecutionPlan` runtime model. The legacy path is retained without migration timeline.
 
 ### Key Services
 
 | Service | Responsibility |
 |---------|---------------|
-| `DuplicateDetectionService` | Grouping, canonical selection, Live Photo pairing |
+| `CaptureGroupBuilder` | Steps 1-3: file collection, metadata, capture group formation, LP pairing |
+| `SubgroupClassifier` | Content-hash sub-grouping before role assignment (facade over HashSubGroupingService) |
+| `CompanionDetector` | Live Photo companion detection (content-ID + basename fallback) |
+| `RoleAssigner` | Thin orchestrator: scoring + companion detection + role assignment |
+| `CanonicalScorer` | Weighted scoring: format(10000x) > idempotency(1000) > root(50) > LP-ID(25) |
+| `TargetNameResolver` | Pure semantic naming from role + group key |
+| `CollisionResolver` | Target path deduplication via disk index |
+| `RenamePlanValidator` | Pre-execution safety: duplicate targets, case conflicts, circular swaps |
+| `ExecutionPlanBuilder` | Projects AssetGroupCollection into ExecutionPlan runtime model |
+| `AssetGroupAdapter` | **Deprecated** — retained for differential tests only |
+| `DuplicateDetectionService` | Grouping, canonical selection, Live Photo pairing (retained for non-exif commands) |
 | `HashSubGroupingService` | Content-hash sub-groups + 2-stage perceptual hash merge (dHash/wHash/HF/color/duration scoring + local blob analysis) |
 | `PerceptualHashCalculator` | Multi-signal visual similarity scoring (Imagick-based, with decode hints and caching) |
 | `LocalDifferenceAnalyzer` | Pixel-level blob detection for near-identical pairs (Stage B) |
@@ -123,7 +147,7 @@ Duplicate detection is **cross-directory**: files with the same EXIF date in dif
 
 - **`hasReliableDateTime()`** — single source of truth for metadata quality. Used by rename:exif, rename:verify, rename:write-date. A date is reliable when: (a) not fallback AND not ambiguous, OR (b) raw metadata matches filename date.
 - **Live Photo pairing** — MOV companions always inherit the paired still's date, never their own. Videos with Content Identifiers are deferred in the first grouping pass.
-- **Canonical selection** — already correctly named files (`source basename == target basename`) are always preferred as canonical.
+- **Canonical scoring** — format-dominant weighted scoring: format priority (configurable via `CANONICAL_FORMAT_PRIORITY`) dominates all other signals. A preferred format (HEIC) always beats a correctly-named lower-priority format (JPG). Idempotency (1000 pts) only wins within the same format tier.
 - **Idempotency** — re-running any command on already-processed files produces identical results.
 - **Symfony Filesystem** — all file operations (`rename`, `mkdir`, `remove`, `dumpFile`, `readFile`) use `Symfony\Component\Filesystem\Filesystem`. Never use procedural PHP functions for file I/O in production code.
 
@@ -181,3 +205,4 @@ scripts/               # Build and utility scripts
 | `TIMEZONE` | Convert UTC video timestamps to local time | `Europe/Berlin` |
 | `MAX_DATE_DRIFT` | Max days drift between filename and metadata date | `7` |
 | `CACHE_DIR` | Persistent cache directory | `.build/cache` |
+| `CANONICAL_FORMAT_PRIORITY` | Comma-separated format priority for canonical selection | `heic,heif,dng,arw,...` |

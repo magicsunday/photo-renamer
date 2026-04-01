@@ -29,7 +29,7 @@ final class Constants
     /**
      * Symfony progress bar format string shared across all pipeline phases.
      */
-    public const string PROGRESS_BAR_FORMAT = ' %current%/%max% [%bar%] %percent:3s%% | ETA: %estimated:-6s% | Remaining: %remaining:-6s%';
+    public const string PROGRESS_BAR_FORMAT = ' %current%/%max% [%bar%] %percent:3s%% | Elapsed: %elapsed% | Remaining: %remaining%';
 
     /**
      * Upper bound for the runtime duplicate suffix fallback loop.
@@ -47,4 +47,12 @@ final class Constants
      * @var list<string>
      */
     public const array SUPPORTED_MEDIA_EXTENSIONS = ['jpg', 'jpeg', 'heic', 'heif', 'avi', 'mov', 'mp4', 'm4v'];
+
+    /**
+     * Default format priority for canonical selection (highest priority first).
+     * Configurable via CANONICAL_FORMAT_PRIORITY env var.
+     *
+     * @var list<string>
+     */
+    public const array DEFAULT_FORMAT_PRIORITY = ['heic', 'heif', 'dng', 'arw', 'jpg', 'jpeg', 'mov', 'mp4', 'm4v', 'avi'];
 }

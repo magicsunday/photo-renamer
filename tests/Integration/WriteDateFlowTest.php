@@ -37,7 +37,9 @@ use MagicSunday\Renamer\Model\SkippedFile;
 use MagicSunday\Renamer\Model\TargetFileResult;
 use MagicSunday\Renamer\Regex\RegexMatchResult;
 use MagicSunday\Renamer\Regex\SafeRegex;
+use MagicSunday\Renamer\Service\CanonicalScorer;
 use MagicSunday\Renamer\Service\DuplicateDetectionService;
+use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilder;
 use MagicSunday\Renamer\Service\ExiftoolWriter;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
@@ -57,7 +59,17 @@ use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualSignalCache;
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityClassification;
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityResult;
+use MagicSunday\Renamer\Service\Pipeline\AssetGroupPipeline;
+use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuilder;
+use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuildState;
+use MagicSunday\Renamer\Service\Pipeline\CollisionResolver;
+use MagicSunday\Renamer\Service\Pipeline\CompanionDetector;
+use MagicSunday\Renamer\Service\Pipeline\ExifRenamePipelineResult;
+use MagicSunday\Renamer\Service\Pipeline\RoleAssigner;
+use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifier;
+use MagicSunday\Renamer\Service\Pipeline\TargetNameResolver;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
+use MagicSunday\Renamer\Service\RenamePlanValidator;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
@@ -118,7 +130,6 @@ use function copy;
 #[UsesClass(LivePhotoContentIdentifierTargetMap::class)]
 #[UsesClass(LivePhotoExistingFilePathnameIndex::class)]
 #[UsesClass(LivePhotoPairingCollection::class)]
-#[UsesClass(LivePhotoPairingService::class)]
 #[UsesClass(MediaTypeClassifier::class)]
 #[UsesClass(MetadataCache::class)]
 #[UsesClass(ImagickImageLoader::class)]
@@ -128,6 +139,18 @@ use function copy;
 #[UsesClass(PerceptualSignalCache::class)]
 #[UsesClass(SimilarityClassification::class)]
 #[UsesClass(SimilarityResult::class)]
+#[UsesClass(ExecutionPlanBuilder::class)]
+#[UsesClass(CanonicalScorer::class)]
+#[UsesClass(CaptureGroupBuilder::class)]
+#[UsesClass(CaptureGroupBuildState::class)]
+#[UsesClass(AssetGroupPipeline::class)]
+#[UsesClass(ExifRenamePipelineResult::class)]
+#[UsesClass(CollisionResolver::class)]
+#[UsesClass(CompanionDetector::class)]
+#[UsesClass(RoleAssigner::class)]
+#[UsesClass(SubgroupClassifier::class)]
+#[UsesClass(TargetNameResolver::class)]
+#[UsesClass(RenamePlanValidator::class)]
 #[UsesClass(RenameOutputRenderer::class)]
 #[UsesClass(SafeHashCalculator::class)]
 #[UsesClass(TargetBasenameStrategy::class)]
@@ -320,8 +343,34 @@ final class WriteDateFlowTest extends TestCase
 
         $livePhotoConflictDetector = new LivePhotoConflictDetector($mediaTypeClassifier);
 
+        $captureGroupBuilder = new CaptureGroupBuilder(
+            $style,
+            $mediaTypeClassifier,
+            $livePhotoConflictDetector,
+            new LivePhotoPairingService(),
+        );
+        $subgroupClassifier   = new SubgroupClassifier($hashSubGroupingService, $mediaTypeClassifier, $style);
+        $companionDetector    = new CompanionDetector($mediaTypeClassifier);
+        $canonicalScorer      = new CanonicalScorer();
+        $roleAssigner         = new RoleAssigner($canonicalScorer, $companionDetector);
+        $targetNameResolver   = new TargetNameResolver();
+        $collisionResolver    = new CollisionResolver();
+        $renamePlanValidator  = new RenamePlanValidator();
+        $executionPlanBuilder = new ExecutionPlanBuilder();
+
+        $pipeline = new AssetGroupPipeline(
+            $captureGroupBuilder,
+            $subgroupClassifier,
+            $roleAssigner,
+            $targetNameResolver,
+            $collisionResolver,
+            $renamePlanValidator,
+        );
+
+        $renderer = new RenameOutputRenderer($style);
+
         $command = new RenameByExifDateCommand(
-            new FileSystemService($style, new RenameOutputRenderer($style)),
+            new FileSystemService($style, $renderer),
             new DuplicateDetectionService(
                 $style,
                 $hashSubGroupingService,
@@ -329,9 +378,12 @@ final class WriteDateFlowTest extends TestCase
                 $livePhotoConflictDetector,
             ),
             new ExifMetadataProvider(new MetadataExtractor(MetadataReader::createDefault())),
-            new LivePhotoPairingService(),
             $perceptualHashCalculator,
             $hashSubGroupingService,
+            $pipeline,
+            $canonicalScorer,
+            $executionPlanBuilder,
+            $renderer,
         );
 
         $tester   = new CommandTester($command);

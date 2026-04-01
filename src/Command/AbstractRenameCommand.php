@@ -15,6 +15,7 @@ use FilesystemIterator;
 use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
+use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
@@ -34,7 +35,9 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
+use function array_filter;
 use function array_map;
+use function array_values;
 use function basename;
 use function explode;
 use function getcwd;
@@ -85,16 +88,6 @@ abstract class AbstractRenameCommand extends Command
     protected bool $dryRun = false;
 
     /**
-     * When true, files identified as duplicates are excluded from the rename operation.
-     */
-    protected bool $skipDuplicates = false;
-
-    /**
-     * When true, files with fallback DateTime (0x0132) are excluded from the rename operation.
-     */
-    protected bool $skipFallback = false;
-
-    /**
      * When true, the output lists all files including unchanged originals.
      */
     protected bool $listAll = false;
@@ -132,7 +125,7 @@ abstract class AbstractRenameCommand extends Command
 
     /**
      * Registers the shared CLI arguments (source-directory) and options
-     * (--dry-run, --skip-duplicates, --list-all) common to all rename commands.
+     * (--dry-run, --list-all) common to all rename commands.
      */
     #[Override]
     protected function configure(): void
@@ -148,18 +141,6 @@ abstract class AbstractRenameCommand extends Command
                 'd',
                 InputOption::VALUE_NONE,
                 'Perform a dry run, without actually changing anything.'
-            )
-            ->addOption(
-                'skip-duplicates',
-                's',
-                InputOption::VALUE_NONE,
-                'Skip duplicate files from the rename action. The files remain unchanged in the source directory.'
-            )
-            ->addOption(
-                'skip-fallback',
-                null,
-                InputOption::VALUE_NONE,
-                'Skip files whose date comes from the fallback DateTime tag (0x0132) instead of DateTimeOriginal.'
             )
             ->addOption(
                 'list-all',
@@ -224,18 +205,29 @@ abstract class AbstractRenameCommand extends Command
      */
     private function initializeCommandParameters(InputInterface $input): void
     {
-        $this->dryRun         = (bool) $input->getOption('dry-run');
-        $this->skipDuplicates = (bool) $input->getOption('skip-duplicates');
-        $this->skipFallback   = (bool) $input->getOption('skip-fallback');
-        $this->listAll        = (bool) $input->getOption('list-all');
+        $this->dryRun  = (bool) $input->getOption('dry-run');
+        $this->listAll = (bool) $input->getOption('list-all');
 
         $this->maxDateDrift = $this->resolveMaxDateDrift($input);
 
         $showOption = $input->getOption('show');
 
-        $this->showFilter = is_string($showOption)
-            ? array_map(strtoupper(...), array_map(trim(...), explode(',', $showOption)))
-            : null;
+        if (is_string($showOption)) {
+            // Explicit --show filter: use exactly what the user specified
+            $this->showFilter = array_map(strtoupper(...), array_map(trim(...), explode(',', $showOption)));
+        } elseif ($this->listAll) {
+            // --list-all: show everything (including [O])
+            $this->showFilter = null;
+        } else {
+            // Default: show everything except [O] (only changes and problems)
+            $this->showFilter = array_values(array_map(
+                static fn (OutputEntryTag $tag): string => $tag->letter(),
+                array_filter(
+                    OutputEntryTag::cases(),
+                    static fn (OutputEntryTag $tag): bool => $tag !== OutputEntryTag::Original,
+                ),
+            ));
+        }
 
         $source = $input->getArgument('source');
 
@@ -258,12 +250,6 @@ abstract class AbstractRenameCommand extends Command
      */
     private function validateCommandOptions(): int
     {
-        if ($this->skipDuplicates && ($this->sourceDirectory === '')) {
-            $this->io->error('Skipping duplicate files requires a source directory');
-
-            return self::FAILURE;
-        }
-
         return self::SUCCESS;
     }
 
@@ -394,8 +380,6 @@ abstract class AbstractRenameCommand extends Command
                 $fileDuplicateCollection,
                 new RenameOptions(
                     dryRun: $this->dryRun,
-                    skipDuplicates: $this->skipDuplicates,
-                    skipFallback: $this->skipFallback,
                     listAll: $this->listAll,
                     sourceBaseDirectory: $this->sourceDirectory,
                     maxDateDrift: $this->maxDateDrift,
@@ -410,45 +394,58 @@ abstract class AbstractRenameCommand extends Command
     /**
      * Renders a short post-scan summary showing what the pipeline found.
      */
-    private function renderPostScanSummary(RenameResult $result): void
+    protected function renderPostScanSummary(RenameResult $result): void
     {
         $skippedCount  = count($result->skippedFiles);
         $warningCount  = count($result->ambiguousTimezoneFiles);
         $fallbackCount = count($result->fallbackDateFiles);
         $conflictCount = count($result->livePhotoConflictFiles);
+        $crossDirCount = count($result->crossDirectoryCompanions);
         $issueCount    = $skippedCount + $warningCount + $fallbackCount + $conflictCount;
+        $infoCount     = $crossDirCount;
 
-        if ($issueCount > 0) {
-            /** @var list<string> $parts */
-            $parts = [];
-
-            if ($warningCount > 0) {
-                $parts[] = sprintf('%d ambiguous timezone', $warningCount);
-            }
-
-            if ($fallbackCount > 0) {
-                $parts[] = sprintf('%d fallback date', $fallbackCount);
-            }
-
-            if ($skippedCount > 0) {
-                $parts[] = sprintf('%d skipped', $skippedCount);
-            }
-
-            if ($conflictCount > 0) {
-                $parts[] = sprintf('%d LP conflict', $conflictCount);
-            }
-
-            $this->io->text(sprintf(
-                '<fg=yellow>%d file(s) with issues:</> %s',
-                $issueCount,
-                implode(', ', $parts),
-            ));
-
+        if (($issueCount > 0) || ($infoCount > 0)) {
+            $this->io->newLine(2);
+            $this->io->text('<fg=cyan>Scan results</>');
             $this->io->newLine();
+
+            if ($issueCount > 0) {
+                /** @var list<string> $parts */
+                $parts = [];
+
+                if ($warningCount > 0) {
+                    $parts[] = sprintf('%d ambiguous timezone', $warningCount);
+                }
+
+                if ($fallbackCount > 0) {
+                    $parts[] = sprintf('%d fallback date', $fallbackCount);
+                }
+
+                if ($skippedCount > 0) {
+                    $parts[] = sprintf('%d skipped', $skippedCount);
+                }
+
+                if ($conflictCount > 0) {
+                    $parts[] = sprintf('%d LP conflict', $conflictCount);
+                }
+
+                $this->io->text(sprintf(
+                    ' <fg=yellow>%d file(s) with issues:</> %s',
+                    $issueCount,
+                    implode(', ', $parts),
+                ));
+            }
+
+            if ($crossDirCount > 0) {
+                $this->io->text(sprintf(
+                    ' <fg=blue>%d notice(s):</> %d cross-directory LP pair(s)',
+                    $crossDirCount,
+                    $crossDirCount,
+                ));
+            }
         }
 
-        $this->io->text('Renaming files');
-        $this->io->newLine();
+        $this->io->newLine(2);
     }
 
     /**

@@ -13,4 +13,11 @@ if [[ $# -eq 0 ]]; then
     exit 1
 fi
 
-make run CMD="$*"
+# Determine docker compose binary
+if command -v "docker-compose" &>/dev/null; then
+    COMPOSE_BIN="docker-compose"
+else
+    COMPOSE_BIN="docker compose"
+fi
+
+$COMPOSE_BIN run --rm buildbox php -d memory_limit=-1 src/Renamer.php "$@"

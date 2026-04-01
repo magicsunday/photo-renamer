@@ -37,7 +37,9 @@ use MagicSunday\Renamer\Model\SkippedFile;
 use MagicSunday\Renamer\Model\TargetFileResult;
 use MagicSunday\Renamer\Regex\RegexMatchResult;
 use MagicSunday\Renamer\Regex\SafeRegex;
+use MagicSunday\Renamer\Service\CanonicalScorer;
 use MagicSunday\Renamer\Service\DuplicateDetectionService;
+use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilder;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoBasenameTargetMap;
@@ -56,7 +58,17 @@ use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualSignalCache;
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityClassification;
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityResult;
+use MagicSunday\Renamer\Service\Pipeline\AssetGroupPipeline;
+use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuilder;
+use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuildState;
+use MagicSunday\Renamer\Service\Pipeline\CollisionResolver;
+use MagicSunday\Renamer\Service\Pipeline\CompanionDetector;
+use MagicSunday\Renamer\Service\Pipeline\ExifRenamePipelineResult;
+use MagicSunday\Renamer\Service\Pipeline\RoleAssigner;
+use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifier;
+use MagicSunday\Renamer\Service\Pipeline\TargetNameResolver;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
+use MagicSunday\Renamer\Service\RenamePlanValidator;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
@@ -136,7 +148,6 @@ use const PREG_SET_ORDER;
 #[UsesClass(LivePhotoContentIdentifierTargetMap::class)]
 #[UsesClass(LivePhotoExistingFilePathnameIndex::class)]
 #[UsesClass(LivePhotoPairingCollection::class)]
-#[UsesClass(LivePhotoPairingService::class)]
 #[UsesClass(MediaTypeClassifier::class)]
 #[UsesClass(MetadataCache::class)]
 #[UsesClass(ImagickImageLoader::class)]
@@ -146,6 +157,18 @@ use const PREG_SET_ORDER;
 #[UsesClass(PerceptualSignalCache::class)]
 #[UsesClass(SimilarityClassification::class)]
 #[UsesClass(SimilarityResult::class)]
+#[UsesClass(ExecutionPlanBuilder::class)]
+#[UsesClass(CanonicalScorer::class)]
+#[UsesClass(CaptureGroupBuilder::class)]
+#[UsesClass(CaptureGroupBuildState::class)]
+#[UsesClass(AssetGroupPipeline::class)]
+#[UsesClass(ExifRenamePipelineResult::class)]
+#[UsesClass(CollisionResolver::class)]
+#[UsesClass(CompanionDetector::class)]
+#[UsesClass(RoleAssigner::class)]
+#[UsesClass(SubgroupClassifier::class)]
+#[UsesClass(TargetNameResolver::class)]
+#[UsesClass(RenamePlanValidator::class)]
 #[UsesClass(RenameOutputRenderer::class)]
 #[UsesClass(SafeHashCalculator::class)]
 #[UsesClass(TargetBasenameStrategy::class)]
@@ -455,10 +478,11 @@ final class TestImageScenariosTest extends TestCase
     /**
      * Scenario 35: --skip-fallback option skips files with fallback date [F].
      * Uses existing scenario 05 fixture (file with only 0x0132 ModifyDate).
-     * Verifies that [F] files appear in output with --list-all and are skipped.
+     * Verifies that [F] files appear in output and are always skipped
+     * (isExecutable=false blocks execution).
      */
     #[Test]
-    public function scenario35SkipFallbackOptionSkipsFFiles(): void
+    public function scenario35FallbackFilesAreAlwaysSkipped(): void
     {
         $scenarioDir = '05-fallback-date';
         $sourceDir   = $this->testImagesDir() . DIRECTORY_SEPARATOR . $scenarioDir;
@@ -471,10 +495,10 @@ final class TestImageScenariosTest extends TestCase
         try {
             $this->copyDirectory($sourceDir, $targetDir);
 
-            $consoleOutput = $this->runDryRunRaw($targetDir, ['--skip-fallback' => true]);
+            $consoleOutput = $this->runDryRunRaw($targetDir);
             $tags          = $this->extractTagAssignments($consoleOutput, $targetDir);
 
-            // With --skip-fallback + --list-all, the [F] file should appear tagged [F]
+            // The [F] file should appear tagged [F]
             self::assertNotEmpty($tags, 'Should have at least one tag assignment');
 
             foreach ($tags as $file => $tag) {
@@ -658,10 +682,8 @@ final class TestImageScenariosTest extends TestCase
 
         yield '05-fallback-date' => [
             '05-fallback-date',
-            [
-                'scan-001.jpg' => '2023-12-25_08-00-00-000.jpg',
-            ],
-            1,
+            [],
+            0,
         ];
 
         // Scenario 06: ambiguous timezone — [W] skipped, no mapping
@@ -761,10 +783,8 @@ final class TestImageScenariosTest extends TestCase
 
         yield '19-write-date-fallback' => [
             '19-write-date-fallback',
-            [
-                '2024-02-14_14-00-00.jpg' => '2024-02-14_09-00-00-000.jpg',
-            ],
-            1,
+            [],
+            0,
         ];
 
         // Scenario 20: date drift >7 days — [W] skipped, no mapping
@@ -837,23 +857,29 @@ final class TestImageScenariosTest extends TestCase
             3,
         ];
 
+        // Format-dominant canonical: HEIC beats JPG even when JPG was the old canonical.
         yield '28-cross-dir-format-backup' => [
             '28-cross-dir-format-backup',
             [
-                'photo.jpg'                                   => '2025-11-15_20-26-50-647.jpg',
-                'backup' . DIRECTORY_SEPARATOR . 'photo.heic' => 'backup' . DIRECTORY_SEPARATOR . '2025-11-15_20-26-50-647-duplicate-001.heic',
+                'photo.jpg'                                   => '2025-11-15_20-26-50-647-duplicate-001.jpg',
+                'backup' . DIRECTORY_SEPARATOR . 'photo.heic' => 'backup' . DIRECTORY_SEPARATOR . '2025-11-15_20-26-50-647.heic',
             ],
             2,
         ];
 
+        // Format-dominant canonical: HEIC beats JPG.
+        // HEIC gets the clean basename; JPG is demoted to -duplicate-001.
+        // Only one MOV per media type can be companion: the clean-basename .mov wins
+        // (tier-2 clean companion name). The -duplicate-001.mov loses companion status
+        // and becomes -duplicate-001.mov (only MOV duplicate).
         yield '29-livephoto-edit-duplicate' => [
             '29-livephoto-edit-duplicate',
             [
-                '2025-05-03_14-38-16-939.jpg'                => '2025-05-03_14-38-16-939.jpg',
+                '2025-05-03_14-38-16-939.jpg'                => '2025-05-03_14-38-16-939-duplicate-001.jpg',
                 '2025-05-03_14-38-16-939.mov'                => '2025-05-03_14-38-16-939.mov',
                 '2025-05-03_14-38-16-939-002.jpg'            => '2025-05-03_14-38-16-939-002.jpg',
                 '2025-05-03_14-38-16-939-002.mov'            => '2025-05-03_14-38-16-939-002.mov',
-                '2025-05-03_14-38-16-939-duplicate-001.heic' => '2025-05-03_14-38-16-939-duplicate-001.heic',
+                '2025-05-03_14-38-16-939-duplicate-001.heic' => '2025-05-03_14-38-16-939.heic',
                 '2025-05-03_14-38-16-939-duplicate-001.mov'  => '2025-05-03_14-38-16-939-duplicate-001.mov',
             ],
             6,
@@ -901,17 +927,19 @@ final class TestImageScenariosTest extends TestCase
         ];
 
         // Scenario 45: edit + backup — original + edit + byte-identical backup
-        // Hash sub-grouping: edited.jpg gets canonical base name, original.jpg gets -002,
-        // backup/copy.jpg is byte-identical to original → keeps unsuffixed base name
-        // in its own directory (no naming conflict there). Note: masterplan says
-        // -duplicate-001, but the pipeline correctly avoids suffixes when there's
-        // no in-directory conflict. The file is still a cross-dir duplicate for dedup.
+        // Hash sub-grouping: edited.jpg gets canonical base name, original.jpg and
+        // backup/copy.jpg are in separate non-canonical subgroups. Subgroup numbers
+        // are assigned by sorted cluster base (hash-derived, rename-independent).
+        // Non-canonical cluster items ALWAYS keep their subgroup suffix for
+        // idempotency — even when alone in their directory with no naming conflict.
+        // Without the suffix, a re-run would see a canonical-looking basename and
+        // might re-assign the file as canonical.
         yield '45-edit-plus-backup' => [
             '45-edit-plus-backup',
             [
                 'edited.jpg'                                => '2025-05-02_11-00-00-000.jpg',
-                'original.jpg'                              => '2025-05-02_11-00-00-000-002.jpg',
-                'backup' . DIRECTORY_SEPARATOR . 'copy.jpg' => 'backup' . DIRECTORY_SEPARATOR . '2025-05-02_11-00-00-000.jpg',
+                'original.jpg'                              => '2025-05-02_11-00-00-000-003.jpg',
+                'backup' . DIRECTORY_SEPARATOR . 'copy.jpg' => 'backup' . DIRECTORY_SEPARATOR . '2025-05-02_11-00-00-000-002.jpg',
             ],
             3,
         ];
@@ -1036,8 +1064,34 @@ final class TestImageScenariosTest extends TestCase
 
         $livePhotoConflictDetector = new LivePhotoConflictDetector($mediaTypeClassifier);
 
+        $captureGroupBuilder = new CaptureGroupBuilder(
+            $style,
+            $mediaTypeClassifier,
+            $livePhotoConflictDetector,
+            new LivePhotoPairingService(),
+        );
+        $subgroupClassifier   = new SubgroupClassifier($hashSubGroupingService, $mediaTypeClassifier, $style);
+        $companionDetector    = new CompanionDetector($mediaTypeClassifier);
+        $canonicalScorer      = new CanonicalScorer();
+        $roleAssigner         = new RoleAssigner($canonicalScorer, $companionDetector);
+        $targetNameResolver   = new TargetNameResolver();
+        $collisionResolver    = new CollisionResolver();
+        $renamePlanValidator  = new RenamePlanValidator();
+        $executionPlanBuilder = new ExecutionPlanBuilder();
+
+        $pipeline = new AssetGroupPipeline(
+            $captureGroupBuilder,
+            $subgroupClassifier,
+            $roleAssigner,
+            $targetNameResolver,
+            $collisionResolver,
+            $renamePlanValidator,
+        );
+
+        $renderer = new RenameOutputRenderer($style);
+
         $command = new RenameByExifDateCommand(
-            new FileSystemService($style, new RenameOutputRenderer($style)),
+            new FileSystemService($style, $renderer),
             new DuplicateDetectionService(
                 $style,
                 $hashSubGroupingService,
@@ -1045,9 +1099,12 @@ final class TestImageScenariosTest extends TestCase
                 $livePhotoConflictDetector,
             ),
             $metadataProvider,
-            new LivePhotoPairingService(),
             $perceptualHashCalculator,
             $hashSubGroupingService,
+            $pipeline,
+            $canonicalScorer,
+            $executionPlanBuilder,
+            $renderer,
         );
 
         $tester   = new CommandTester($command);
@@ -1080,8 +1137,8 @@ final class TestImageScenariosTest extends TestCase
     /**
      * Parses console output into an ordered map of relative source to relative target paths.
      *
-     * Matches entry tags with a target path: [O] Original, [R] Rename, [D] Duplicate,
-     * [F] Fallback. Skipped entries ([W] Warning, [C] Candidate, [S] Skipped, [E] Error)
+     * Matches entry tags with a target path: [O] Original, [R] Rename, [D] Duplicate.
+     * Skipped entries ([W] Warning, [C] Candidate, [F] Fallback, [S] Skipped, [E] Error)
      * show a reason instead of a target path and are excluded.
      *
      * @return array<string, string>
@@ -1094,7 +1151,7 @@ final class TestImageScenariosTest extends TestCase
         $absolutePrefix = rtrim($workspace, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
         $relativePrefix = basename(rtrim($workspace, DIRECTORY_SEPARATOR)) . DIRECTORY_SEPARATOR;
 
-        if (preg_match_all('/\[(?:O|D|R|F)]\s+(\S+)\s+.{1,3}\s+(\S+)/', $clean, $matches, PREG_SET_ORDER) > 0) {
+        if (preg_match_all('/\[(?:O|D|R)]\s+(\S+)\s+.{1,3}\s+(\S+)/', $clean, $matches, PREG_SET_ORDER) > 0) {
             foreach ($matches as $match) {
                 $source = $this->stripOutputPrefix($match[1], $absolutePrefix, $relativePrefix);
                 $target = $this->stripOutputPrefix($match[2], $absolutePrefix, $relativePrefix);
