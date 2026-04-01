@@ -127,11 +127,6 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
         $isAmbiguousTimezone = isset($ambiguousTimezoneFiles[$sourcePath]);
         $isFallbackDate      = isset($fallbackDateFiles[$sourcePath]);
 
-        // [W] and [C] items must not be executed — they stay at their source path
-        $shouldExecute = !$isNoOp
-            && !$isAmbiguousTimezone
-            && !$isLivePhotoConflict;
-
         // Execution decision: state flags → execution policy
         $isExecutable         = true;
         $executionBlockReason = null;
@@ -157,7 +152,6 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
             renameRequired: $renameRequired,
             isNoOp: $isNoOp,
             groupKey: $groupKey,
-            shouldExecute: $shouldExecute,
             clusterId: $item->clusterId,
             isDuplicateTarget: $this->isDuplicateTarget($targetPath),
             isLivePhotoConflict: $isLivePhotoConflict,

@@ -36,7 +36,6 @@ final readonly class ExecutionItem
      * @param bool              $renameRequired       True when source !== target
      * @param bool              $isNoOp               True when file is already at target (source === target)
      * @param string            $groupKey             The capture group key
-     * @param bool              $shouldExecute        Whether this item should be executed (false for [W]/[C] skips)
      * @param string|null       $clusterId            Subgroup cluster ID (null if not classified)
      * @param bool              $isDuplicateTarget    Target contains -duplicate-
      * @param bool              $isLivePhotoConflict  Live Photo content-identifier conflict
@@ -53,7 +52,6 @@ final readonly class ExecutionItem
         public bool $renameRequired,
         public bool $isNoOp,
         public string $groupKey,
-        public bool $shouldExecute = true,
         public ?string $clusterId = null,
         public bool $isDuplicateTarget = false,
         public bool $isLivePhotoConflict = false,

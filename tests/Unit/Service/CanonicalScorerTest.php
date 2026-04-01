@@ -29,6 +29,10 @@ use SplFileInfo;
  * Format priority is the dominant signal — a preferred format (HEIC) always beats
  * a correctly-named lower-priority format (JPG).
  *
+ * Note: assertGreaterThan($a, $b) asserts $b > $a (PHPUnit convention: expected, actual).
+ * Higher priorityScore = more likely to be selected as canonical. The assertions below
+ * are correct — the item expected to win canonical selection has the higher score.
+ *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
@@ -69,6 +73,7 @@ final class CanonicalScorerTest extends TestCase
         $jpg   = $items[0];
         $heic  = $items[1];
 
+        // Higher score = canonical winner; assertGreaterThan(loser, winner)
         self::assertGreaterThan($jpg->priorityScore, $heic->priorityScore);
     }
 
@@ -93,6 +98,7 @@ final class CanonicalScorerTest extends TestCase
 
         // JPG: format (2-1)*10000=10000 + idempotency 1000 + root 50 = 11050 + tie-break
         // HEIC: format (2-0)*10000=20000 + root 50 = 20050 + tie-break
+        // Higher score = canonical winner; assertGreaterThan(loser, winner)
         self::assertGreaterThan($jpg->priorityScore, $heic->priorityScore);
     }
 
@@ -114,6 +120,7 @@ final class CanonicalScorerTest extends TestCase
         $unnamed    = $items[0];
         $idempotent = $items[1];
 
+        // Higher score = canonical winner; assertGreaterThan(loser, winner)
         self::assertGreaterThan($unnamed->priorityScore, $idempotent->priorityScore);
     }
 
@@ -135,6 +142,7 @@ final class CanonicalScorerTest extends TestCase
         $subdir = $items[0];
         $root   = $items[1];
 
+        // Higher score = canonical winner; assertGreaterThan(loser, winner)
         self::assertGreaterThan($subdir->priorityScore, $root->priorityScore);
     }
 
@@ -159,6 +167,7 @@ final class CanonicalScorerTest extends TestCase
         $noLiveId   = $items[0];
         $withLiveId = $items[1];
 
+        // Higher score = canonical winner; assertGreaterThan(loser, winner)
         self::assertGreaterThan($noLiveId->priorityScore, $withLiveId->priorityScore);
     }
 
@@ -236,6 +245,7 @@ final class CanonicalScorerTest extends TestCase
         $heic  = $items[1];
 
         // PNG format score = 0, HEIC format score = 20000
+        // Higher score = canonical winner; assertGreaterThan(loser, winner)
         self::assertGreaterThan($png->priorityScore, $heic->priorityScore);
         // PNG should have less than 10000 (no format bonus)
         self::assertLessThan(10000, $png->priorityScore);
@@ -259,6 +269,7 @@ final class CanonicalScorerTest extends TestCase
         $longPath  = $items[0];
         $shortPath = $items[1];
 
+        // Higher score = canonical winner; assertGreaterThan(loser, winner)
         self::assertGreaterThan($longPath->priorityScore, $shortPath->priorityScore);
     }
 

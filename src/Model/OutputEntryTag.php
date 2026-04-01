@@ -32,7 +32,7 @@ enum OutputEntryTag: string
     case Warning   = 'W';
     case Skipped   = 'S';
     case Error     = 'E';
-    case Info      = 'i';
+    case Info      = 'I';
 
     /**
      * Returns the single-character tag letter used for --show filtering.
