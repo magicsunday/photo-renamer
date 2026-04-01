@@ -15,16 +15,18 @@ use FilesystemIterator;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
-use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
-use MagicSunday\Renamer\Model\FileDuplicate;
+use MagicSunday\Renamer\Model\RenameOptions;
+use MagicSunday\Renamer\Service\CanonicalScorerInterface;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
+use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilderInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
-use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairing;
-use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingServiceInterface;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
 use MagicSunday\Renamer\Service\HashSubGroupingServiceInterface;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
+use MagicSunday\Renamer\Service\Pipeline\AssetGroupPipeline;
+use MagicSunday\Renamer\Service\RenameOutputRenderer;
+use MagicSunday\Renamer\Service\ValidationResult;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
@@ -33,17 +35,19 @@ use Override;
 use RecursiveDirectoryIterator;
 use RecursiveIterator;
 use RecursiveIteratorIterator;
+use RuntimeException;
 use SplFileInfo;
-use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Input\InputOption;
 
 use function array_filter;
 use function array_map;
 use function array_unique;
+use function count;
 use function implode;
 use function is_dir;
 use function is_string;
 use function preg_quote;
+use function sprintf;
 
 /**
  * Renames photos and videos using their EXIF DateTimeOriginal value as the target
@@ -63,9 +67,12 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
         FileSystemServiceInterface $fileSystemService,
         DuplicateDetectionServiceInterface $duplicateDetectionService,
         private readonly ExifMetadataProvider $exifMetadataProvider,
-        private readonly LivePhotoPairingServiceInterface $livePhotoPairingService,
         private readonly PerceptualHashCalculatorInterface $perceptualHashCalculator,
         private readonly HashSubGroupingServiceInterface $hashSubGroupingService,
+        private readonly AssetGroupPipeline $pipeline,
+        private readonly CanonicalScorerInterface $canonicalScorer,
+        private readonly ExecutionPlanBuilderInterface $executionPlanBuilder,
+        private readonly RenameOutputRenderer $renameOutputRenderer,
     ) {
         parent::__construct($fileSystemService, $duplicateDetectionService);
     }
@@ -122,6 +129,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
     {
         $this->useFileExtensionFromSource = true;
 
+        // Existing pattern/provider/cache setup (unchanged)
         $targetFilenamePattern = $this->input->getOption('target-filename-pattern');
 
         if (is_string($targetFilenamePattern)) {
@@ -145,12 +153,24 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
             );
         }
 
-        $result = parent::executeCommand();
+        // Configure score-based canonical selection
+        $this->canonicalScorer->setFormatPriority($this->resolveFormatPriority());
+        $this->canonicalScorer->setSourceDirectory($this->sourceDirectory);
 
-        $metadataCache->flush();
-        $signalCache->flush();
+        try {
+            $this->processWithAssetGroups();
 
-        return $result;
+            $this->io->success('done');
+
+            return self::SUCCESS;
+        } catch (RuntimeException $exception) {
+            $this->io->error($exception->getMessage());
+
+            return self::FAILURE;
+        } finally {
+            $metadataCache->flush();
+            $signalCache->flush();
+        }
     }
 
     /**
@@ -187,71 +207,6 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
     }
 
     /**
-     * Groups files by their duplicate identifier and performs a second pass for Live Photo matches.
-     *
-     * @template TInner of RecursiveIterator
-     *
-     * @param RecursiveIteratorIterator<TInner> $iterator iterator with all files that should be processed
-     */
-    #[Override]
-    protected function groupFilesByDuplicateIdentifier(RecursiveIteratorIterator $iterator): FileDuplicateCollection
-    {
-        $fileDuplicateCollection = parent::groupFilesByDuplicateIdentifier($iterator);
-
-        $this->io->newLine();
-        $this->io->text('<fg=cyan>Pairing Live Photos</>');
-
-        $fileCount = $this->duplicateDetectionService->getLastScannedFileCount();
-
-        $iterator->rewind();
-
-        /** @var ProgressBar|null $progressBar */
-        $progressBar = null;
-
-        if ($fileCount > 0) {
-            $progressBar = $this->io->createProgressBar($fileCount);
-            $progressBar->setFormat(Constants::PROGRESS_BAR_FORMAT);
-            $progressBar->start();
-        }
-
-        $pairings = $this->livePhotoPairingService->pairByContentIdentifier(
-            iterator: $iterator,
-            fileDuplicateCollection: $fileDuplicateCollection,
-            contentIdentifierResolver: [$this->getExifDateFilenameStrategy(), 'getLivePhotoContentIdentifier'],
-            onFileInspected: function () use ($progressBar): void {
-                $progressBar?->advance();
-            },
-        );
-
-        /** @var LivePhotoPairing $pairing */
-        foreach ($pairings as $pairing) {
-            $duplicateIdentifier = $pairing->getDuplicateIdentifier();
-
-            $fileDuplicate = $fileDuplicateCollection->get($duplicateIdentifier);
-
-            if ($fileDuplicate instanceof FileDuplicate) {
-                $fileDuplicate->addFile($pairing->getSourceFile());
-
-                continue;
-            }
-
-            $fileDuplicate = new FileDuplicate()
-                ->addFile($pairing->getSourceFile())
-                ->setTarget($pairing->getTargetFile());
-
-            $fileDuplicateCollection->set($duplicateIdentifier, $fileDuplicate);
-        }
-
-        $progressBar?->finish();
-        $this->io->newLine();
-
-        // Release cached metadata — all content identifiers have been captured.
-        $this->exifMetadataProvider->clearCache();
-
-        return $fileDuplicateCollection;
-    }
-
-    /**
      * Returns the strategy that builds the target filename based on EXIF dates.
      */
     #[Override]
@@ -267,6 +222,111 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
     protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
     {
         return $this->duplicateIdentifierStrategy ??= new TargetBasenameStrategy();
+    }
+
+    /**
+     * Executes the new 8-step AssetGroup pipeline.
+     */
+    private function processWithAssetGroups(): void
+    {
+        // Steps 1-6: build groups, classify, assign roles, resolve names, resolve collisions, validate
+        $pipelineResult = $this->pipeline->run(
+            $this->createFileIterator(),
+            $this->getTargetFilenameStrategy(),
+            $this->getDuplicateIdentifierStrategy(),
+            $this->sourceDirectory,
+            $this->useFileExtensionFromSource,
+        );
+
+        // Release metadata cache after pipeline
+        $this->exifMetadataProvider->clearCache();
+
+        // Handle validation
+        if (!$pipelineResult->validationResult->isValid()) {
+            $this->renderValidationWarnings($pipelineResult->validationResult);
+        }
+
+        // Abort on circular swaps (data loss prevention)
+        if ($pipelineResult->validationResult->circularSwaps !== []) {
+            throw new RuntimeException(sprintf(
+                'Aborting: %d circular swap(s) detected. Manual resolution required.',
+                count($pipelineResult->validationResult->circularSwaps),
+            ));
+        }
+
+        // Step 7: Build ExecutionPlan from pipeline output
+        $executionPlan = $this->executionPlanBuilder->build(
+            $pipelineResult->groups,
+            $pipelineResult->context,
+        );
+
+        // Build RenameResult from pipeline context
+        $result = $pipelineResult->context->toRenameResult();
+
+        $this->renderPostScanSummary($result);
+
+        // Render output entries (render-only, no file moves)
+        $options = new RenameOptions(
+            dryRun: $this->dryRun,
+            listAll: $this->listAll,
+            sourceBaseDirectory: $this->sourceDirectory,
+            maxDateDrift: $this->maxDateDrift,
+        );
+
+        $counters = $this->renameOutputRenderer->renderPlanEntries(
+            $executionPlan,
+            $options,
+            $this->sourceDirectory,
+            $this->showFilter,
+            $result,
+        );
+
+        // Render decision log in --list-all mode
+        if ($this->listAll) {
+            $this->renameOutputRenderer->renderDecisionLogFromPlan($executionPlan);
+        }
+
+        // Execute file operations (may apply runtime fallback for edge cases
+        // where CollisionResolver could not predict a conflict at plan time)
+        $this->fileSystemService->executePlan($executionPlan, $this->dryRun);
+
+        // Render summary
+        $this->renameOutputRenderer->renderPlanSummary(
+            $executionPlan,
+            $result,
+            $counters,
+            $this->dryRun,
+        );
+
+        // Cleanup
+        $this->hashSubGroupingService->clearCache();
+    }
+
+    /**
+     * Renders validation warnings for the rename plan.
+     */
+    private function renderValidationWarnings(ValidationResult $validationResult): void
+    {
+        if ($validationResult->duplicateTargets !== []) {
+            $this->io->warning(sprintf(
+                '%d duplicate target path(s) — multiple files map to the same destination.',
+                count($validationResult->duplicateTargets),
+            ));
+        }
+
+        if ($validationResult->caseConflicts !== []) {
+            $this->io->warning(sprintf(
+                '%d case-insensitive conflict(s) — targets differ only in letter case.',
+                count($validationResult->caseConflicts),
+            ));
+        }
+
+        if ($validationResult->circularSwaps !== []) {
+            $this->io->warning(sprintf(
+                '%d circular swap(s) — rename cycle(s) that would cause data loss.',
+                count($validationResult->circularSwaps),
+            ));
+        }
     }
 
     /**

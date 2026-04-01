@@ -16,6 +16,7 @@ use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
+use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
 use MagicSunday\Renamer\Model\LinkConfig;
 use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\Rename;
@@ -30,18 +31,25 @@ use SplFileInfo;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Filesystem\Filesystem;
 
+use function basename;
+use function dirname;
 use function in_array;
 use function mb_strlen;
+use function pathinfo;
 use function rtrim;
 use function sprintf;
 use function str_repeat;
+use function strlen;
+use function substr;
 
 use const DIRECTORY_SEPARATOR;
+use const PATHINFO_BASENAME;
+use const PATHINFO_EXTENSION;
 
 /**
  * Handles all direct file system interactions: creating file iterators, counting files,
  * executing the actual rename operations, and resolving runtime target collisions
- * via the {@see findAvailableDuplicateTarget()} fallback. Delegates output entry building
+ * via the {@see findAvailableDuplicatePath()} fallback. Delegates output entry building
  * and summary rendering to {@see RenameOutputRenderer}. Tracks occupied paths in-memory
  * to prevent data loss during batch moves.
  *
@@ -159,6 +167,90 @@ final readonly class FileSystemService implements FileSystemServiceInterface
     }
 
     /**
+     * Execute a runtime plan, performing the actual file rename operations.
+     * Builds an occupied-path index from the plan and uses runtime collision
+     * fallback as a safety layer.
+     *
+     * @param ExecutionPlan $plan   The runtime execution plan
+     * @param bool          $dryRun When true, simulate without touching filesystem
+     *
+     * @return array{fileCount: int, duplicateCount: int, plannedMoves: int, plannedSkips: int}
+     */
+    #[Override]
+    public function executePlan(ExecutionPlan $plan, bool $dryRun = false): array
+    {
+        $occupiedPaths = $this->buildOccupiedPathsFromPlan($plan);
+
+        $fileCount      = 0;
+        $duplicateCount = 0;
+        $plannedMoves   = 0;
+        $plannedSkips   = 0;
+
+        foreach ($plan->groups as $group) {
+            foreach ($group->items as $item) {
+                if (!$item->isExecutable) {
+                    // Non-executable item: keep source path occupied so other files
+                    // don't try to move into it. Count as planned skip if it has
+                    // a block reason (not just a no-op).
+                    $occupiedPaths[$item->sourcePath] = true;
+
+                    if ($item->executionBlockReason !== null) {
+                        ++$plannedSkips;
+                    }
+
+                    continue;
+                }
+
+                if ($item->isDuplicateTarget) {
+                    ++$duplicateCount;
+                }
+
+                // Execute the move using shared helper
+                try {
+                    $this->moveFileByPath(
+                        $item->sourcePath,
+                        $item->targetPath,
+                        $occupiedPaths,
+                        $dryRun,
+                    );
+
+                    ++$fileCount;
+                    ++$plannedMoves;
+                } catch (RuntimeException $exception) {
+                    // Keep source occupied to prevent collisions with remaining items
+                    $occupiedPaths[$item->sourcePath] = true;
+                    $this->io->error(sprintf('Failed to rename %s: %s', $item->sourcePath, $exception->getMessage()));
+                }
+            }
+        }
+
+        return [
+            'fileCount'      => $fileCount,
+            'duplicateCount' => $duplicateCount,
+            'plannedMoves'   => $plannedMoves,
+            'plannedSkips'   => $plannedSkips,
+        ];
+    }
+
+    /**
+     * Builds an occupied-path index from all source paths in an ExecutionPlan.
+     *
+     * @return array<string, true>
+     */
+    private function buildOccupiedPathsFromPlan(ExecutionPlan $plan): array
+    {
+        $occupiedPaths = [];
+
+        foreach ($plan->groups as $group) {
+            foreach ($group->items as $item) {
+                $occupiedPaths[$item->sourcePath] = true;
+            }
+        }
+
+        return $occupiedPaths;
+    }
+
+    /**
      * Builds an in-memory index of all occupied file paths for collision detection.
      *
      * @return array<string, true>
@@ -268,7 +360,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
                         OutputEntryTag::Candidate => 'Conflicting Live Photo content ID across groups',
                         OutputEntryTag::Warning   => $warningReason ?? 'Ambiguous timezone: QuickTime UTC without offset — use --timezone or rename:write-date --reason=timezone',
                         OutputEntryTag::Fallback  => 'Fallback date: DateTime (0x0132) used instead of DateTimeOriginal',
-                        default                   => 'Duplicate (--skip-duplicates)',
+                        default                   => 'Skipped',
                     };
 
                     $this->io->text(sprintf(
@@ -347,13 +439,12 @@ final readonly class FileSystemService implements FileSystemServiceInterface
 
     /**
      * Moves a single file from source to target, creating directories as needed.
-     * When the target path is already occupied (by a file moved earlier in the same batch),
-     * falls back to {@see findAvailableDuplicateTarget()} to prevent data loss. Updates the
-     * occupied-paths index to reflect the new file system state.
+     * Delegates to {@see moveFileByPath()} for the actual move logic.
      *
      * @param SplFileInfo         $sourceFileInfo Source file to move
      * @param SplFileInfo         $targetFileInfo Intended target path
      * @param array<string, true> $occupiedPaths  Mutable index of paths currently occupied on disk
+     * @param bool                $dryRun         When true, track path changes without touching the filesystem
      *
      * @throws RuntimeException When the directory cannot be created or the file operation fails
      */
@@ -363,8 +454,40 @@ final readonly class FileSystemService implements FileSystemServiceInterface
         array &$occupiedPaths = [],
         bool $dryRun = false,
     ): void {
-        $sourcePath = $sourceFileInfo->getPathname();
-        $targetPath = $targetFileInfo->getPathname();
+        $this->moveFileByPath(
+            $sourceFileInfo->getPathname(),
+            $targetFileInfo->getPathname(),
+            $occupiedPaths,
+            $dryRun,
+        );
+    }
+
+    /**
+     * Moves a file from source path to target path, creating directories as needed.
+     * When the target path is already occupied (by a file moved earlier in the same batch,
+     * or a skipped file that stays at its source path), falls back to
+     * {@see findAvailableDuplicatePath()} to prevent data loss. Updates the occupied-paths
+     * index to reflect the new file system state.
+     *
+     * Returns the actual target path used, which may differ from the requested target
+     * if a duplicate-suffix fallback was applied.
+     *
+     * @param string              $sourcePath    Absolute source file path
+     * @param string              $targetPath    Intended absolute target file path
+     * @param array<string, true> $occupiedPaths Mutable index of paths currently occupied on disk
+     * @param bool                $dryRun        When true, track path changes without touching the filesystem
+     *
+     * @return string The actual target path the file was moved to (may include duplicate suffix)
+     *
+     * @throws RuntimeException When the source file does not exist or the file operation fails
+     */
+    private function moveFileByPath(
+        string $sourcePath,
+        string $targetPath,
+        array &$occupiedPaths,
+        bool $dryRun,
+    ): string {
+        $plannedTarget = $targetPath;
 
         // Target already occupied by a different file (moved there earlier in
         // the same batch, or a skipped file that stays at its source path).
@@ -373,18 +496,28 @@ final readonly class FileSystemService implements FileSystemServiceInterface
             ($targetPath !== $sourcePath)
             && isset($occupiedPaths[$targetPath])
         ) {
-            $targetFileInfo = $this->findAvailableDuplicateTarget($targetFileInfo, $occupiedPaths);
-            $targetPath     = $targetFileInfo->getPathname();
+            $targetPath = $this->findAvailableDuplicatePath($targetPath, $occupiedPaths);
+        }
+
+        if ($targetPath !== $plannedTarget) {
+            $this->io->warning(sprintf(
+                'Runtime collision fallback: %s → %s (planned: %s)',
+                basename($sourcePath),
+                basename($targetPath),
+                basename($plannedTarget),
+            ));
         }
 
         if (!$dryRun) {
+            $sourceFileInfo = new SplFileInfo($sourcePath);
+
             if (!$sourceFileInfo->isFile()) {
                 throw new RuntimeException(
                     sprintf('Source file "%s" does not exist', $sourcePath),
                 );
             }
 
-            $this->filesystem->mkdir($targetFileInfo->getPath());
+            $this->filesystem->mkdir(dirname($targetPath));
             $this->filesystem->rename($sourcePath, $targetPath);
         }
 
@@ -392,18 +525,34 @@ final readonly class FileSystemService implements FileSystemServiceInterface
         unset($occupiedPaths[$sourcePath]);
 
         $occupiedPaths[$targetPath] = true;
+
+        return $targetPath;
     }
 
     /**
      * Finds the next available duplicate target path that is not occupied.
      *
-     * @param array<string, true> $occupiedPaths current set of occupied paths
+     * Strips any existing duplicate suffix from the target basename to avoid nested
+     * suffixes (e.g. "-duplicate-003-duplicate-001"), then increments a counter until
+     * an unoccupied candidate path is found.
+     *
+     * @param string              $targetPath    Absolute target file path
+     * @param array<string, true> $occupiedPaths Current set of occupied paths
+     *
+     * @return string An available absolute path with a duplicate suffix appended
+     *
+     * @throws RuntimeException When the maximum duplicate suffix count is exceeded
      */
-    private function findAvailableDuplicateTarget(SplFileInfo $target, array $occupiedPaths): SplFileInfo
+    private function findAvailableDuplicatePath(string $targetPath, array $occupiedPaths): string
     {
-        $ext      = $target->getExtension();
-        $basename = FileHelper::basenameWithoutExtension($target);
-        $dir      = $target->getPath();
+        $ext      = pathinfo($targetPath, PATHINFO_EXTENSION);
+        $dir      = dirname($targetPath);
+        $basename = pathinfo($targetPath, PATHINFO_BASENAME);
+
+        // Strip the extension from basename to get the stem.
+        if ($ext !== '') {
+            $basename = substr($basename, 0, -(strlen($ext) + 1));
+        }
 
         // Strip any existing duplicate suffix to avoid nested suffixes (e.g. -duplicate-003-duplicate-001).
         $basename = FileHelper::stripDuplicateSuffix($basename);
@@ -430,7 +579,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
             ++$counter;
         } while (isset($occupiedPaths[$candidatePath]));
 
-        return new SplFileInfo($candidatePath);
+        return $candidatePath;
     }
 
     /**

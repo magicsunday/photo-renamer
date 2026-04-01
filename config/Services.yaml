@@ -48,5 +48,34 @@ services:
     MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface:
         class: MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator
 
+    # New pipeline services
+    MagicSunday\Renamer\Service\CanonicalScorerInterface:
+        class: MagicSunday\Renamer\Service\CanonicalScorer
+
+    MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuilderInterface:
+        class: MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuilder
+        arguments:
+            $io: '@Symfony\Component\Console\Style\SymfonyStyle'
+
+    MagicSunday\Renamer\Service\Pipeline\SubgroupClassifierInterface:
+        class: MagicSunday\Renamer\Service\Pipeline\SubgroupClassifier
+        arguments:
+            $io: '@Symfony\Component\Console\Style\SymfonyStyle'
+
+    MagicSunday\Renamer\Service\Pipeline\CompanionDetectorInterface:
+        class: MagicSunday\Renamer\Service\Pipeline\CompanionDetector
+
+    MagicSunday\Renamer\Service\Pipeline\RoleAssignerInterface:
+        class: MagicSunday\Renamer\Service\Pipeline\RoleAssigner
+
+    MagicSunday\Renamer\Service\Pipeline\TargetNameResolverInterface:
+        class: MagicSunday\Renamer\Service\Pipeline\TargetNameResolver
+
+    MagicSunday\Renamer\Service\Pipeline\CollisionResolverInterface:
+        class: MagicSunday\Renamer\Service\Pipeline\CollisionResolver
+
+    MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilderInterface:
+        class: MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilder
+
     MagicSunday\ImageMeta\MetadataReader:
         factory: ['MagicSunday\ImageMeta\MetadataReader', 'createDefault']

@@ -24,16 +24,12 @@ final readonly class RenameOptions
 {
     /**
      * @param bool        $dryRun              When true, renames are simulated without touching the file system
-     * @param bool        $skipDuplicates      When true, files identified as duplicates are excluded from output
-     * @param bool        $skipFallback        When true, files with fallback DateTime (0x0132) are excluded from rename
      * @param bool        $listAll             When true, all files are listed in output including unchanged ones
      * @param string|null $sourceBaseDirectory Absolute path to the directory scanned for source files
      * @param int|null    $maxDateDrift        Maximum allowed date drift in days (0 = disabled, null = disabled)
      */
     public function __construct(
         public bool $dryRun = false,
-        public bool $skipDuplicates = false,
-        public bool $skipFallback = false,
         public bool $listAll = false,
         public ?string $sourceBaseDirectory = null,
         public ?int $maxDateDrift = null,
