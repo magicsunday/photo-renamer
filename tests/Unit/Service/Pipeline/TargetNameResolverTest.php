@@ -976,6 +976,295 @@ final class TargetNameResolverTest extends TestCase
         self::assertSame('/photos/2024-01-01_12-00-00-000-004.jpg', $resolvedC->proposedName);
     }
 
+    /**
+     * A companion in a subdirectory that is the only group member there would match
+     * the isCrossDirNoConflict conditions (alone in dir, different from canonical dir)
+     * IF it reached that check. But companions are resolved via resolveCompanionItem()
+     * and `continue` BEFORE isCrossDirNoConflict, so they always receive the subgroup
+     * suffix from the subgroupMap — never the clean unsuffixed basename.
+     */
+    #[Test]
+    public function testCompanionInSubdirectoryKeepsSubgroupSuffix(): void
+    {
+        $resolver = new TargetNameResolver();
+
+        $groupKey         = '2024-01-01_12-00-00-000';
+        $canonicalCluster = $groupKey;
+        $otherCluster     = $groupKey . '-002';
+
+        // Canonical HEIC in /photos/ — canonical cluster
+        $canonical = $this->createItemWithCluster('/photos/IMG_0001.heic', ItemRole::Canonical, $canonicalCluster);
+
+        // Non-canonical Duplicate JPG in /photos/ — creates a second subgroup
+        $duplicate = $this->createItemWithCluster('/photos/IMG_0002.jpg', ItemRole::Duplicate, $otherCluster);
+
+        // Companion MOV in /photos/subdir/ — same non-canonical cluster, alone in its dir
+        // If the companion reached isCrossDirNoConflict it would get the clean basename
+        // (different dir from canonical, only file there). But companions skip that check.
+        $companion = $this->createItemWithCluster('/photos/subdir/IMG_0002.mov', ItemRole::Companion, $otherCluster);
+
+        $group = $this->createGroup($groupKey, [$canonical, $duplicate, $companion]);
+
+        $groups = new AssetGroupCollection();
+        $groups->set($groupKey, $group);
+
+        $resolver->resolve($groups);
+
+        $items = $group->getItems();
+
+        // Canonical gets clean name
+        self::assertSame('/photos/2024-01-01_12-00-00-000.heic', $items[0]->proposedName);
+
+        // Duplicate in non-canonical cluster gets -002 subgroup suffix
+        self::assertSame('/photos/2024-01-01_12-00-00-000-002.jpg', $items[1]->proposedName);
+
+        // Companion in subdirectory MUST get the subgroup suffix, not the clean basename
+        $companionResolved = $group->getItemByPath('/photos/subdir/IMG_0002.mov');
+        self::assertNotNull($companionResolved);
+        self::assertSame(
+            '/photos/subdir/2024-01-01_12-00-00-000-002.mov',
+            $companionResolved->proposedName,
+            'Companion in subdirectory must keep subgroup suffix — it must not enter the cross-directory shortcut',
+        );
+    }
+
+    /**
+     * Cluster renumbering when new clusters appear is deterministic accepted behavior.
+     *
+     * buildSubgroupMap() sorts cluster bases alphabetically and assigns sequential
+     * numbers (canonical=0, others=2,3,...). When MERGE_THRESHOLD changes and
+     * SubgroupClassifier produces different clusters, the subgroup map numbers shift.
+     * This test documents:
+     *   - Run 1 + Run 2: identical inputs produce identical subgroup numbers (determinism).
+     *   - Run 3: a new cluster can shift existing subgroup numbers (accepted behavior).
+     */
+    #[Test]
+    public function testClusterRenumberingIsDeterministicWhenNewClusterAppears(): void
+    {
+        $groupKey         = '2024-01-01_12-00-00-000';
+        $canonicalCluster = $groupKey;
+
+        // Use cluster names where alphabetical order is unambiguous
+        $clusterB = 'bravo_hash';
+        $clusterC = 'charlie_hash';
+        // A new cluster that sorts BEFORE bravo (simulates tighter MERGE_THRESHOLD splitting)
+        $clusterA = 'alpha_hash';
+
+        // --- Run 1: two clusters (canonical + bravo) ---
+        $resolver1 = new TargetNameResolver();
+
+        $group1 = $this->createGroup($groupKey, [
+            $this->createItemWithCluster('/photos/IMG_0001.heic', ItemRole::Canonical, $canonicalCluster),
+            $this->createItemWithCluster('/photos/IMG_0002.jpg', ItemRole::Duplicate, $clusterB),
+        ]);
+
+        $groups1 = new AssetGroupCollection();
+        $groups1->set($groupKey, $group1);
+
+        $resolver1->resolve($groups1);
+
+        $run1BravoItem = $group1->getItemByPath('/photos/IMG_0002.jpg');
+        self::assertNotNull($run1BravoItem);
+        $run1BravoName = $run1BravoItem->proposedName;
+
+        // --- Run 2: identical setup — must produce same result (determinism proof) ---
+        $resolver2 = new TargetNameResolver();
+
+        $group2 = $this->createGroup($groupKey, [
+            $this->createItemWithCluster('/photos/IMG_0001.heic', ItemRole::Canonical, $canonicalCluster),
+            $this->createItemWithCluster('/photos/IMG_0002.jpg', ItemRole::Duplicate, $clusterB),
+        ]);
+
+        $groups2 = new AssetGroupCollection();
+        $groups2->set($groupKey, $group2);
+
+        $resolver2->resolve($groups2);
+
+        $run2BravoItem = $group2->getItemByPath('/photos/IMG_0002.jpg');
+        self::assertNotNull($run2BravoItem);
+
+        self::assertSame(
+            $run1BravoName,
+            $run2BravoItem->proposedName,
+            'Determinism: identical inputs must produce identical subgroup numbers',
+        );
+
+        // --- Run 3: add a third cluster that sorts after bravo (charlie) ---
+        $resolver3 = new TargetNameResolver();
+
+        $group3 = $this->createGroup($groupKey, [
+            $this->createItemWithCluster('/photos/IMG_0001.heic', ItemRole::Canonical, $canonicalCluster),
+            $this->createItemWithCluster('/photos/IMG_0002.jpg', ItemRole::Duplicate, $clusterB),
+            $this->createItemWithCluster('/photos/IMG_0003.jpg', ItemRole::Duplicate, $clusterC),
+        ]);
+
+        $groups3 = new AssetGroupCollection();
+        $groups3->set($groupKey, $group3);
+
+        $resolver3->resolve($groups3);
+
+        $run3BravoItem   = $group3->getItemByPath('/photos/IMG_0002.jpg');
+        $run3CharlieItem = $group3->getItemByPath('/photos/IMG_0003.jpg');
+        self::assertNotNull($run3BravoItem);
+        self::assertNotNull($run3CharlieItem);
+
+        // Bravo and charlie must get different subgroup numbers
+        self::assertNotSame(
+            $run3BravoItem->proposedName,
+            $run3CharlieItem->proposedName,
+            'Different clusters must receive different subgroup numbers',
+        );
+
+        // --- Run 3b: add alpha_hash which sorts BEFORE bravo, demonstrating the shift ---
+        // Accepted behavior: subgroup numbers are derived from the current cluster set,
+        // not preserved across threshold changes. When alpha_hash is introduced and sorts
+        // before bravo_hash, bravo's number shifts from 002 to 003 because alpha_hash
+        // now occupies position 002.
+        $resolver3b = new TargetNameResolver();
+
+        $group3b = $this->createGroup($groupKey, [
+            $this->createItemWithCluster('/photos/IMG_0001.heic', ItemRole::Canonical, $canonicalCluster),
+            $this->createItemWithCluster('/photos/IMG_0002.jpg', ItemRole::Duplicate, $clusterB),
+            $this->createItemWithCluster('/photos/IMG_0004.jpg', ItemRole::Duplicate, $clusterA),
+        ]);
+
+        $groups3b = new AssetGroupCollection();
+        $groups3b->set($groupKey, $group3b);
+
+        $resolver3b->resolve($groups3b);
+
+        $run3bAlphaItem = $group3b->getItemByPath('/photos/IMG_0004.jpg');
+        $run3bBravoItem = $group3b->getItemByPath('/photos/IMG_0002.jpg');
+        self::assertNotNull($run3bAlphaItem);
+        self::assertNotNull($run3bBravoItem);
+
+        // Alpha and bravo must receive different subgroup numbers
+        self::assertNotSame(
+            $run3bAlphaItem->proposedName,
+            $run3bBravoItem->proposedName,
+            'Alpha and bravo must receive different subgroup numbers',
+        );
+
+        // Verify the shift: bravo's number in Run 3b differs from Run 1/2 because
+        // alpha_hash now occupies the earlier position in the sorted order.
+        self::assertNotSame(
+            $run1BravoName,
+            $run3bBravoItem->proposedName,
+            'Accepted behavior: bravo subgroup number shifts when a new cluster sorts before it',
+        );
+    }
+
+    /**
+     * Degraded group with existing subgroup names matching groupKey-NNN pattern:
+     * all 5 conditions met, items preserve their current filenames as proposedName.
+     *
+     * Conditions:
+     * 1. Group isClassificationDegraded() is true
+     * 2. At least one non-Canonical basename matches groupKey-NNN pattern
+     * 3. No two items claim the same clean subgroup basename
+     * 4. Existing duplicate numbering within subgroups is consistent
+     * 5. No item has a clusterId set (truly degraded)
+     */
+    #[Test]
+    public function testDegradedGroupWithExistingSubgroupNamesPreservesNames(): void
+    {
+        $resolver = new TargetNameResolver();
+
+        $groupKey = '2024-01-01_12-00-00-000';
+
+        // Items already named from a prior successful subgroup run
+        $canonical = $this->createItem('/photos/2024-01-01_12-00-00-000.heic', ItemRole::Canonical);
+        $subgroup2 = $this->createItem('/photos/2024-01-01_12-00-00-000-002.jpg', ItemRole::Duplicate);
+        $subgroup3 = $this->createItem('/photos/2024-01-01_12-00-00-000-003.jpg', ItemRole::Duplicate);
+
+        $group = $this->createDegradedGroup($groupKey, [$canonical, $subgroup2, $subgroup3]);
+
+        $groups = new AssetGroupCollection();
+        $groups->set($groupKey, $group);
+
+        $resolver->resolve($groups);
+
+        $items = $group->getItems();
+
+        // Canonical keeps clean name
+        self::assertSame('/photos/2024-01-01_12-00-00-000.heic', $items[0]->proposedName);
+        self::assertFalse($items[0]->renameRequired);
+
+        // Subgroup items preserve their existing names
+        $sub2 = $group->getItemByPath('/photos/2024-01-01_12-00-00-000-002.jpg');
+        self::assertNotNull($sub2);
+        self::assertSame('/photos/2024-01-01_12-00-00-000-002.jpg', $sub2->proposedName);
+        self::assertFalse($sub2->renameRequired);
+
+        $sub3 = $group->getItemByPath('/photos/2024-01-01_12-00-00-000-003.jpg');
+        self::assertNotNull($sub3);
+        self::assertSame('/photos/2024-01-01_12-00-00-000-003.jpg', $sub3->proposedName);
+        self::assertFalse($sub3->renameRequired);
+    }
+
+    /**
+     * Degraded group where two items claim the same subgroup basename: condition 3 fails,
+     * falls through to flat duplicate naming.
+     */
+    #[Test]
+    public function testDegradedGroupWithConflictingSubgroupNamesFallsThrough(): void
+    {
+        $resolver = new TargetNameResolver();
+
+        $groupKey = '2024-01-01_12-00-00-000';
+
+        // Two items have the same subgroup number -002 (conflict)
+        $canonical = $this->createItem('/photos/2024-01-01_12-00-00-000.heic', ItemRole::Canonical);
+        $conflict1 = $this->createItem('/photos/2024-01-01_12-00-00-000-002.jpg', ItemRole::Duplicate);
+        $conflict2 = $this->createItem('/photos/backup/2024-01-01_12-00-00-000-002.jpg', ItemRole::Duplicate);
+
+        $group = $this->createDegradedGroup($groupKey, [$canonical, $conflict1, $conflict2]);
+
+        $groups = new AssetGroupCollection();
+        $groups->set($groupKey, $group);
+
+        $resolver->resolve($groups);
+
+        $items = $group->getItems();
+
+        // Falls through to flat naming: canonical clean, duplicates get -duplicate-NNN
+        self::assertSame('/photos/2024-01-01_12-00-00-000.heic', $items[0]->proposedName);
+        self::assertSame('/photos/2024-01-01_12-00-00-000-duplicate-001.heic', $items[1]->proposedName);
+        self::assertSame('/photos/backup/2024-01-01_12-00-00-000-duplicate-002.heic', $items[2]->proposedName);
+    }
+
+    /**
+     * Degraded group where some items have clusterIds: condition 5 fails,
+     * falls through to normal naming (not truly degraded, partial classification).
+     */
+    #[Test]
+    public function testDegradedGroupWithPartialClusterIdsFallsThrough(): void
+    {
+        $resolver = new TargetNameResolver();
+
+        $groupKey = '2024-01-01_12-00-00-000';
+
+        // Item with clusterId means condition 5 (no clusterIds) fails
+        $canonical = $this->createItemWithCluster('/photos/2024-01-01_12-00-00-000.heic', ItemRole::Canonical, $groupKey);
+        $subgroup  = $this->createItem('/photos/2024-01-01_12-00-00-000-002.jpg', ItemRole::Duplicate);
+
+        $group = $this->createDegradedGroup($groupKey, [$canonical, $subgroup]);
+
+        $groups = new AssetGroupCollection();
+        $groups->set($groupKey, $group);
+
+        $resolver->resolve($groups);
+
+        $items = $group->getItems();
+
+        // Falls through: partial classification triggers subgroup path (hasMultipleSubgroups
+        // returns true because of mix of classified + unclassified). But the key point is
+        // the degraded recovery did NOT intercept — the subgroup path handles it.
+        // The canonical gets clean name, the unclassified item gets -002 (implicit subgroup).
+        self::assertSame('/photos/2024-01-01_12-00-00-000.heic', $items[0]->proposedName);
+        self::assertSame('/photos/2024-01-01_12-00-00-000-002.jpg', $items[1]->proposedName);
+    }
+
     private function createItem(string $pathname, ItemRole $role): AssetItem
     {
         return new AssetItem(
@@ -1009,6 +1298,23 @@ final class TargetNameResolverTest extends TestCase
     private function createGroup(string $groupKey, array $items): AssetGroup
     {
         $group = new AssetGroup($groupKey);
+
+        foreach ($items as $item) {
+            $group->addItem($item);
+        }
+
+        return $group;
+    }
+
+    /**
+     * Creates a group marked as classification-degraded (Hash-Fehler).
+     *
+     * @param list<AssetItem> $items
+     */
+    private function createDegradedGroup(string $groupKey, array $items): AssetGroup
+    {
+        $group = new AssetGroup($groupKey);
+        $group->markClassificationFailed('Hash-Fehler');
 
         foreach ($items as $item) {
             $group->addItem($item);

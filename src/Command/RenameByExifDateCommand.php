@@ -273,7 +273,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
             maxDateDrift: $this->maxDateDrift,
         );
 
-        $counters = $this->renameOutputRenderer->renderPlanEntries(
+        $preview = $this->renameOutputRenderer->renderPlanEntries(
             $executionPlan,
             $options,
             $this->sourceDirectory,
@@ -294,7 +294,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
         $this->renameOutputRenderer->renderPlanSummary(
             $executionPlan,
             $result,
-            $counters,
+            $preview,
             $this->dryRun,
         );
 

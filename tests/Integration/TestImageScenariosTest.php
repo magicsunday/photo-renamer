@@ -869,8 +869,9 @@ final class TestImageScenariosTest extends TestCase
 
         // Format-dominant canonical: HEIC beats JPG.
         // HEIC gets the clean basename; JPG is demoted to -duplicate-001.
-        // The HEIC's MOV companion retains its -duplicate-001 suffix (no naming conflict in its slot).
-        // The JPG's MOV companion inherits the canonical MOV slot (clean basename).
+        // Only one MOV per media type can be companion: the clean-basename .mov wins
+        // (tier-2 clean companion name). The -duplicate-001.mov loses companion status
+        // and becomes -duplicate-001.mov (only MOV duplicate).
         yield '29-livephoto-edit-duplicate' => [
             '29-livephoto-edit-duplicate',
             [

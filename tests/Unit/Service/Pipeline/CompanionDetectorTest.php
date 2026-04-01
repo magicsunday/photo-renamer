@@ -234,10 +234,11 @@ final class CompanionDetectorTest extends TestCase
     }
 
     /**
-     * Multiple content-ID companions: HEIC(abc) + MOV(abc) + MP4(abc) should detect both.
+     * Multiple content-ID companions of same media type: HEIC(abc) + MOV(abc) + MP4(abc)
+     * should detect only one video (best candidate), not both.
      */
     #[Test]
-    public function multipleContentIdCompanionsAllDetected(): void
+    public function multipleContentIdCompanionsSelectsBestPerMediaType(): void
     {
         $detector = $this->createDetector();
 
@@ -263,9 +264,9 @@ final class CompanionDetectorTest extends TestCase
 
         $companions = $detector->detect($group, $heic);
 
+        // Only one video companion selected (MOV wins: basename matches canonical)
+        self::assertCount(1, $companions);
         self::assertArrayHasKey($mov->file->getPathname(), $companions);
-        self::assertArrayHasKey($mp4->file->getPathname(), $companions);
-        self::assertCount(2, $companions);
     }
 
     /**
@@ -294,6 +295,159 @@ final class CompanionDetectorTest extends TestCase
 
         self::assertArrayHasKey($heic->file->getPathname(), $companions);
         self::assertCount(1, $companions);
+    }
+
+    /**
+     * Only one companion per media type when multiple files share the same content-ID.
+     * Two MOVs with same content-ID paired to HEIC canonical: only one returned.
+     */
+    #[Test]
+    public function testOnlyOneCompanionPerMediaTypeWhenMultipleShareContentId(): void
+    {
+        $detector = $this->createDetector();
+
+        $heic = new AssetItem(
+            new SplFileInfo('/photos/IMG_0001.heic'),
+            contentIdentifier: 'abc',
+        );
+
+        $mov1 = new AssetItem(
+            new SplFileInfo('/photos/IMG_0001.mov'),
+            contentIdentifier: 'abc',
+        );
+
+        $mov2 = new AssetItem(
+            new SplFileInfo('/photos/IMG_0002.mov'),
+            contentIdentifier: 'abc',
+        );
+
+        $group = new AssetGroup('group-1');
+        $group->addItem($heic);
+        $group->addItem($mov1);
+        $group->addItem($mov2);
+
+        $companions = $detector->detect($group, $heic);
+
+        self::assertCount(1, $companions);
+    }
+
+    /**
+     * Companion whose basename matches canonical's basename is preferred over another.
+     */
+    #[Test]
+    public function testCompanionWithMatchingBasenamePreferedOverOther(): void
+    {
+        $detector = $this->createDetector();
+
+        $heic = new AssetItem(
+            new SplFileInfo('/photos/IMG_0001.heic'),
+            contentIdentifier: 'abc',
+        );
+
+        // MOV with different basename
+        $movOther = new AssetItem(
+            new SplFileInfo('/photos/IMG_9999.mov'),
+            contentIdentifier: 'abc',
+        );
+
+        // MOV with matching basename — should be preferred
+        $movMatch = new AssetItem(
+            new SplFileInfo('/photos/IMG_0001.mov'),
+            contentIdentifier: 'abc',
+        );
+
+        $group = new AssetGroup('group-1');
+        $group->addItem($heic);
+        $group->addItem($movOther);
+        $group->addItem($movMatch);
+
+        $companions = $detector->detect($group, $heic);
+
+        self::assertCount(1, $companions);
+        self::assertArrayHasKey($movMatch->file->getPathname(), $companions);
+    }
+
+    /**
+     * When no basename match exists, the stable tie-breaker selects the winner:
+     * lower clusterRank wins; without clusterRank, shorter pathname wins.
+     */
+    #[Test]
+    public function testCompanionFallbackUsesStableTieBreaker(): void
+    {
+        $detector = $this->createDetector();
+
+        $heic = new AssetItem(
+            new SplFileInfo('/photos/IMG_0001.heic'),
+            contentIdentifier: 'abc',
+        );
+
+        // Both MOVs have different basenames from canonical — no basename match
+        $movHighRank = new AssetItem(
+            new SplFileInfo('/photos/VID_A.mov'),
+            contentIdentifier: 'abc',
+            clusterRank: 5,
+        );
+
+        $movLowRank = new AssetItem(
+            new SplFileInfo('/photos/VID_B.mov'),
+            contentIdentifier: 'abc',
+            clusterRank: 2,
+        );
+
+        $group = new AssetGroup('group-1');
+        $group->addItem($heic);
+        $group->addItem($movHighRank);
+        $group->addItem($movLowRank);
+
+        $companions = $detector->detect($group, $heic);
+
+        // Lower clusterRank wins
+        self::assertCount(1, $companions);
+        self::assertArrayHasKey($movLowRank->file->getPathname(), $companions);
+
+        // Test without clusterRank: shorter pathname wins
+        $movLong = new AssetItem(
+            new SplFileInfo('/photos/subdir/VID_LONG.mov'),
+            contentIdentifier: 'abc',
+        );
+
+        $movShort = new AssetItem(
+            new SplFileInfo('/photos/VID_S.mov'),
+            contentIdentifier: 'abc',
+        );
+
+        $group2 = new AssetGroup('group-2');
+        $group2->addItem($heic);
+        $group2->addItem($movLong);
+        $group2->addItem($movShort);
+
+        $companions2 = $detector->detect($group2, $heic);
+
+        // Shorter pathname wins
+        self::assertCount(1, $companions2);
+        self::assertArrayHasKey($movShort->file->getPathname(), $companions2);
+
+        // Test lexicographic tie-breaker (same length)
+        $movAlpha = new AssetItem(
+            new SplFileInfo('/photos/VID_AAA.mov'),
+            contentIdentifier: 'abc',
+        );
+
+        $movBeta = new AssetItem(
+            new SplFileInfo('/photos/VID_BBB.mov'),
+            contentIdentifier: 'abc',
+        );
+
+        $group3 = new AssetGroup('group-3');
+        $group3->addItem($heic);
+        $group3->addItem($movBeta);
+        $group3->addItem($movAlpha);
+
+        $companions3 = $detector->detect($group3, $heic);
+
+        // Lexicographic: AAA < BBB
+        self::assertCount(1, $companions3);
+        self::assertArrayHasKey($movAlpha->file->getPathname(), $companions3);
     }
 
     private function createDetector(): CompanionDetectorInterface

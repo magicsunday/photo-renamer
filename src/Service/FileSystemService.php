@@ -17,6 +17,7 @@ use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
+use MagicSunday\Renamer\Model\Execution\ExecutionResult;
 use MagicSunday\Renamer\Model\LinkConfig;
 use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\Rename;
@@ -174,62 +175,60 @@ final readonly class FileSystemService implements FileSystemServiceInterface
      * @param ExecutionPlan $plan   The runtime execution plan
      * @param bool          $dryRun When true, simulate without touching filesystem
      *
-     * @return array{fileCount: int, duplicateCount: int, plannedMoves: int, plannedSkips: int}
+     * @return ExecutionResult Runtime execution counters (moves, fallbacks, errors)
      */
     #[Override]
-    public function executePlan(ExecutionPlan $plan, bool $dryRun = false): array
+    public function executePlan(ExecutionPlan $plan, bool $dryRun = false): ExecutionResult
     {
         $occupiedPaths = $this->buildOccupiedPathsFromPlan($plan);
 
-        $fileCount      = 0;
-        $duplicateCount = 0;
-        $plannedMoves   = 0;
-        $plannedSkips   = 0;
+        $executedMoves    = 0;
+        $runtimeFallbacks = 0;
+        $runtimeErrors    = 0;
 
         foreach ($plan->groups as $group) {
             foreach ($group->items as $item) {
                 if (!$item->isExecutable) {
                     // Non-executable item: keep source path occupied so other files
-                    // don't try to move into it. Count as planned skip if it has
-                    // a block reason (not just a no-op).
+                    // don't try to move into it.
                     $occupiedPaths[$item->sourcePath] = true;
-
-                    if ($item->executionBlockReason !== null) {
-                        ++$plannedSkips;
-                    }
 
                     continue;
                 }
 
-                if ($item->isDuplicateTarget) {
-                    ++$duplicateCount;
-                }
-
                 // Execute the move using shared helper
                 try {
-                    $this->moveFileByPath(
+                    $actualTarget = $this->moveFileByPath(
                         $item->sourcePath,
                         $item->targetPath,
                         $occupiedPaths,
                         $dryRun,
                     );
 
-                    ++$fileCount;
-                    ++$plannedMoves;
+                    if (!$dryRun) {
+                        ++$executedMoves;
+
+                        if ($actualTarget !== $item->targetPath) {
+                            ++$runtimeFallbacks;
+                        }
+                    }
                 } catch (RuntimeException $exception) {
                     // Keep source occupied to prevent collisions with remaining items
                     $occupiedPaths[$item->sourcePath] = true;
                     $this->io->error(sprintf('Failed to rename %s: %s', $item->sourcePath, $exception->getMessage()));
+
+                    if (!$dryRun) {
+                        ++$runtimeErrors;
+                    }
                 }
             }
         }
 
-        return [
-            'fileCount'      => $fileCount,
-            'duplicateCount' => $duplicateCount,
-            'plannedMoves'   => $plannedMoves,
-            'plannedSkips'   => $plannedSkips,
-        ];
+        return new ExecutionResult(
+            executedMoves: $executedMoves,
+            runtimeFallbacks: $runtimeFallbacks,
+            runtimeErrors: $runtimeErrors,
+        );
     }
 
     /**

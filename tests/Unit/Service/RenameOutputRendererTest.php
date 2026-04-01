@@ -20,6 +20,7 @@ use MagicSunday\Renamer\Model\Execution\ExecutionGroup;
 use MagicSunday\Renamer\Model\Execution\ExecutionItem;
 use MagicSunday\Renamer\Model\Execution\ExecutionItemType;
 use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
+use MagicSunday\Renamer\Model\Execution\ExecutionPreview;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\Rename;
@@ -55,6 +56,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 #[UsesClass(ExecutionGroup::class)]
 #[UsesClass(ExecutionItem::class)]
 #[UsesClass(ExecutionPlan::class)]
+#[UsesClass(ExecutionPreview::class)]
 #[UsesClass(FileHelper::class)]
 #[UsesClass(FileList::class)]
 #[UsesClass(RenameList::class)]
@@ -1076,7 +1078,7 @@ final class RenameOutputRendererTest extends TestCase
         ]);
 
         // Only show [R] entries — the [O] no-op should not render
-        $counters = $renderer->renderPlanEntries(
+        $preview = $renderer->renderPlanEntries(
             $plan,
             new RenameOptions(),
             $baseDir,
@@ -1087,7 +1089,7 @@ final class RenameOutputRendererTest extends TestCase
 
         self::assertStringContainsString('a.jpg', $buffer);
         self::assertStringNotContainsString('2025-02-01', $buffer);
-        self::assertSame(1, $counters['plannedMoves']);
+        self::assertSame(1, $preview->plannedMoves);
     }
 
     /**

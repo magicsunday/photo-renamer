@@ -69,14 +69,14 @@ Summary renders from three sources:
 
 ### Steps
 
-- [ ] Create `ExecutionPreview` (final readonly class)
-- [ ] Create `ExecutionResult` (final readonly class)
-- [ ] Update `renderPlanEntries()` to return `ExecutionPreview` instead of `array`
-- [ ] Update `executePlan()` to return `ExecutionResult` instead of `array`
-- [ ] Update `renderPlanSummary()` to accept `ExecutionPreview` + `ExecutionResult`
-- [ ] Update command to pass both to summary
-- [ ] Update all tests
-- [ ] Run `make test`
+- [x] Create `ExecutionPreview` (final readonly class)
+- [x] Create `ExecutionResult` (final readonly class)
+- [x] Update `renderPlanEntries()` to return `ExecutionPreview` instead of `array`
+- [x] Update `executePlan()` to return `ExecutionResult` instead of `array`
+- [x] Update `renderPlanSummary()` to accept `ExecutionPreview` + `ExecutionResult`
+- [x] Update command to pass both to summary
+- [x] Update all tests
+- [x] Run `make test`
 - [ ] Commit: `refactor: separate counter ownership into ExecutionPreview and ExecutionResult`
 
 ---
@@ -93,8 +93,8 @@ Test proving the code is already correct.
 
 ### Steps
 
-- [ ] Write test `companionInSubdirectoryKeepsSubgroupSuffix`
-- [ ] Verify test passes without code changes
+- [x] Write test `companionInSubdirectoryKeepsSubgroupSuffix`
+- [x] Verify test passes without code changes
 - [ ] Commit: `test: verify companions never enter cross-directory shortcut`
 
 ---
@@ -113,7 +113,7 @@ Test at the level where the numbering actually originates — SubgroupClassifier
 
 ### Steps
 
-- [ ] Write test `clusterRenumberingIsDeterministicWhenNewClusterAppears`
+- [x] Write test `clusterRenumberingIsDeterministicWhenNewClusterAppears`
   - Test that numbering is deterministic
   - Test that adding a new cluster shifts existing numbers
   - Document this as accepted behavior
@@ -156,12 +156,12 @@ This is a **degraded-mode stability rule**, not new classification. It is narrow
 
 ### Steps
 
-- [ ] Write failing test `degradedGroupWithExistingSubgroupNamesPreservesNames`
-- [ ] Write test `degradedGroupWithConflictingSubgroupNamesFallsThrough`
-- [ ] Write test `degradedGroupWithPartialClusterIdsFallsThrough`
-- [ ] Implement `hasExistingSubgroupPattern()` with all 5 strict conditions
-- [ ] Implement `preserveExistingSubgroupNames()` — assigns current name as proposedName for matching items, flat duplicate for non-matching
-- [ ] Run `make test`
+- [x] Write failing test `degradedGroupWithExistingSubgroupNamesPreservesNames`
+- [x] Write test `degradedGroupWithConflictingSubgroupNamesFallsThrough`
+- [x] Write test `degradedGroupWithPartialClusterIdsFallsThrough`
+- [x] Implement `hasExistingSubgroupPattern()` with all 5 strict conditions
+- [x] Implement `preserveExistingSubgroupNames()` — assigns current name as proposedName for matching items, flat duplicate for non-matching
+- [x] Run `make test`
 - [ ] Commit: `fix: degraded classification preserves existing subgroup names under strict conditions`
 
 ---
@@ -188,12 +188,12 @@ NOT "first found" — that depends on iteration order which may change.
 
 ### Steps
 
-- [ ] Write failing test `onlyOneCompanionPerMediaTypeWhenMultipleShareContentId`
-- [ ] Write test `companionWithMatchingBasenamePreferedOverOther`
-- [ ] Write test `companionFallbackUsesStableTieBreaker` (not first-found)
-- [ ] Refactor CompanionDetector Phase 1: collect candidates → select best via preference chain
-- [ ] Run `make test`
-- [ ] Verify with real data: `./renamer.sh rename:exif --dry-run /volume1/Fotos/MobileBackup/Test/ --list-all`
+- [x] Write failing test `onlyOneCompanionPerMediaTypeWhenMultipleShareContentId`
+- [x] Write test `companionWithMatchingBasenamePreferedOverOther`
+- [x] Write test `companionFallbackUsesStableTieBreaker` (not first-found)
+- [x] Refactor CompanionDetector Phase 1: collect candidates → select best via preference chain
+- [x] Run `make test`
+- [x] Verify with real data: `./renamer.sh rename:exif --dry-run /volume1/Fotos/MobileBackup/Test/ --list-all`
 - [ ] Commit: `fix: CompanionDetector selects one companion per media type with stable preference`
 
 ---

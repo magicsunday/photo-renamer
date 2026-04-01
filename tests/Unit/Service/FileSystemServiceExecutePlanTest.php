@@ -17,6 +17,7 @@ use MagicSunday\Renamer\Model\Execution\ExecutionGroup;
 use MagicSunday\Renamer\Model\Execution\ExecutionItem;
 use MagicSunday\Renamer\Model\Execution\ExecutionItemType;
 use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
+use MagicSunday\Renamer\Model\Execution\ExecutionResult;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
@@ -50,6 +51,7 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(ExecutionGroup::class)]
 #[UsesClass(ExecutionItem::class)]
 #[UsesClass(ExecutionItemType::class)]
+#[UsesClass(ExecutionResult::class)]
 #[UsesClass(Constants::class)]
 #[UsesClass(FileHelper::class)]
 #[UsesClass(RenameOutputRenderer::class)]
@@ -114,8 +116,8 @@ final class FileSystemServiceExecutePlanTest extends TestCase
         self::assertFileDoesNotExist($sourceFile);
         self::assertFileExists($targetFile);
         self::assertSame('move-content', file_get_contents($targetFile));
-        self::assertSame(1, $result['fileCount']);
-        self::assertSame(1, $result['plannedMoves']);
+        self::assertSame(1, $result->executedMoves);
+        self::assertSame(0, $result->runtimeErrors);
     }
 
     /**
@@ -155,8 +157,8 @@ final class FileSystemServiceExecutePlanTest extends TestCase
 
         self::assertFileExists($file);
         self::assertSame('noop-content', file_get_contents($file));
-        self::assertSame(0, $result['fileCount']);
-        self::assertSame(0, $result['plannedMoves']);
+        self::assertSame(0, $result->executedMoves);
+        self::assertSame(0, $result->runtimeErrors);
     }
 
     /**
@@ -198,8 +200,9 @@ final class FileSystemServiceExecutePlanTest extends TestCase
 
         self::assertFileExists($sourceFile);
         self::assertFileDoesNotExist($targetFile);
-        self::assertSame(1, $result['fileCount']);
-        self::assertSame(1, $result['plannedMoves']);
+        // Dry-run: nothing actually executed
+        self::assertSame(0, $result->executedMoves);
+        self::assertSame(0, $result->runtimeErrors);
     }
 
     /**
@@ -269,8 +272,8 @@ final class FileSystemServiceExecutePlanTest extends TestCase
         self::assertFileExists($fallbackTarget);
         self::assertSame('content-B', file_get_contents($fallbackTarget));
 
-        self::assertSame(2, $result['fileCount']);
-        self::assertSame(2, $result['plannedMoves']);
+        self::assertSame(2, $result->executedMoves);
+        self::assertSame(1, $result->runtimeFallbacks);
     }
 
     /**
@@ -311,12 +314,12 @@ final class FileSystemServiceExecutePlanTest extends TestCase
 
         $result = $service->executePlan($plan);
 
-        self::assertSame(1, $result['duplicateCount']);
-        self::assertSame(1, $result['fileCount']);
+        self::assertSame(1, $result->executedMoves);
+        self::assertSame(0, $result->runtimeErrors);
     }
 
     /**
-     * Verifies that all four counter values are correctly computed for a
+     * Verifies that ExecutionResult counters are correctly computed for a
      * mixed plan containing no-op, rename, and duplicate items.
      */
     #[Test]
@@ -376,10 +379,10 @@ final class FileSystemServiceExecutePlanTest extends TestCase
 
         $result = $service->executePlan($plan);
 
-        self::assertSame(2, $result['fileCount']);
-        self::assertSame(1, $result['duplicateCount']);
-        self::assertSame(2, $result['plannedMoves']);
-        self::assertSame(0, $result['plannedSkips']);
+        // Only 2 executable items (no-op is not executable)
+        self::assertSame(2, $result->executedMoves);
+        self::assertSame(0, $result->runtimeFallbacks);
+        self::assertSame(0, $result->runtimeErrors);
     }
 
     /**
@@ -394,10 +397,9 @@ final class FileSystemServiceExecutePlanTest extends TestCase
 
         $result = $service->executePlan($plan);
 
-        self::assertSame(0, $result['fileCount']);
-        self::assertSame(0, $result['duplicateCount']);
-        self::assertSame(0, $result['plannedMoves']);
-        self::assertSame(0, $result['plannedSkips']);
+        self::assertSame(0, $result->executedMoves);
+        self::assertSame(0, $result->runtimeFallbacks);
+        self::assertSame(0, $result->runtimeErrors);
     }
 
     /**
@@ -441,16 +443,16 @@ final class FileSystemServiceExecutePlanTest extends TestCase
         self::assertFileExists($sourceFile);
         self::assertFileDoesNotExist($targetFile);
         self::assertSame('blocked-content', file_get_contents($sourceFile));
-        self::assertSame(0, $result['fileCount']);
-        self::assertSame(0, $result['plannedMoves']);
+        self::assertSame(0, $result->executedMoves);
+        self::assertSame(0, $result->runtimeErrors);
     }
 
     /**
-     * Verifies that non-executable items with a block reason increment the
-     * plannedSkips counter, while non-executable no-ops do not.
+     * Verifies that non-executable items are not executed — neither blocked
+     * items nor no-ops produce any executedMoves.
      */
     #[Test]
-    public function executePlanCountsNonExecutableAsPlannedSkips(): void
+    public function executePlanSkipsAllNonExecutableItems(): void
     {
         $service = $this->createService();
 
@@ -493,10 +495,12 @@ final class FileSystemServiceExecutePlanTest extends TestCase
 
         $result = $service->executePlan($plan);
 
-        // Only the blocked item counts as a planned skip, not the no-op
-        self::assertSame(1, $result['plannedSkips']);
-        self::assertSame(0, $result['fileCount']);
-        self::assertSame(0, $result['plannedMoves']);
+        self::assertSame(0, $result->executedMoves);
+        self::assertSame(0, $result->runtimeFallbacks);
+        self::assertSame(0, $result->runtimeErrors);
+        // Both files unchanged on disk
+        self::assertFileExists($blockedFile);
+        self::assertFileExists($noOpFile);
     }
 
     /**

@@ -271,7 +271,7 @@ final class RenameByExifDateCommandTest extends TestCase
             self::assertSame(
                 '2025-01-01_00-02-20-016-duplicate-001.mov',
                 $mappings['mov.mov'],
-                'LP-1 duplicate MOV gets -duplicate-001',
+                'LP-1 non-companion MOV gets -duplicate-001 (only MOV duplicate)',
             );
 
             // ---- True duplicates of 1.jpg (same hash 123, no LP) ----

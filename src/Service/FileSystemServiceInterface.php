@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Service;
 
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
+use MagicSunday\Renamer\Model\Execution\ExecutionResult;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
 use RecursiveIterator;
@@ -74,10 +75,10 @@ interface FileSystemServiceInterface
      * @param ExecutionPlan $plan   The runtime execution plan
      * @param bool          $dryRun When true, simulate without touching filesystem
      *
-     * @return array{fileCount: int, duplicateCount: int, plannedMoves: int, plannedSkips: int}
+     * @return ExecutionResult Runtime execution counters (moves, fallbacks, errors)
      */
     public function executePlan(
         ExecutionPlan $plan,
         bool $dryRun = false,
-    ): array;
+    ): ExecutionResult;
 }
