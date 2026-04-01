@@ -869,18 +869,18 @@ final class TestImageScenariosTest extends TestCase
 
         // Format-dominant canonical: HEIC beats JPG.
         // HEIC gets the clean basename; JPG is demoted to -duplicate-001.
-        // Only one MOV per media type can be companion: the clean-basename .mov wins
-        // (tier-2 clean companion name). The -duplicate-001.mov loses companion status
-        // and becomes -duplicate-001.mov (only MOV duplicate).
+        // Only one MOV per media type can be companion: the clean-basename .mov wins.
+        // Conservative merge policy: JPG and HEIC have RMSE 0.053 — above safe-merge
+        // zone (0.025), so they form separate subgroups instead of merging.
         yield '29-livephoto-edit-duplicate' => [
             '29-livephoto-edit-duplicate',
             [
-                '2025-05-03_14-38-16-939.jpg'                => '2025-05-03_14-38-16-939-duplicate-001.jpg',
-                '2025-05-03_14-38-16-939.mov'                => '2025-05-03_14-38-16-939.mov',
+                '2025-05-03_14-38-16-939.jpg'                => '2025-05-03_14-38-16-939-003.jpg',
+                '2025-05-03_14-38-16-939.mov'                => '2025-05-03_14-38-16-939-003-duplicate-001.mov',
                 '2025-05-03_14-38-16-939-002.jpg'            => '2025-05-03_14-38-16-939-002.jpg',
                 '2025-05-03_14-38-16-939-002.mov'            => '2025-05-03_14-38-16-939-002.mov',
                 '2025-05-03_14-38-16-939-duplicate-001.heic' => '2025-05-03_14-38-16-939.heic',
-                '2025-05-03_14-38-16-939-duplicate-001.mov'  => '2025-05-03_14-38-16-939-duplicate-001.mov',
+                '2025-05-03_14-38-16-939-duplicate-001.mov'  => '2025-05-03_14-38-16-939-003.mov',
             ],
             6,
         ];
@@ -1032,6 +1032,21 @@ final class TestImageScenariosTest extends TestCase
                 'clip.mov' => '2025-04-15_14-00-00-000.mov',
             ],
             1,
+        ];
+
+        // Scenario 59: minimal-edit false merge — three images with same capture date.
+        // The -003 image is a minimal edit (RMSE 0.043 from original, dHash distance 0).
+        // Current bug: dHash==0 causes the pipeline to merge -003 into the canonical
+        // cluster, renaming it to -duplicate-001. Correct behavior: all three should
+        // remain as separate subgroups because they are perceptually distinct edits.
+        yield '59-minimal-edit-false-merge' => [
+            '59-minimal-edit-false-merge',
+            [
+                '2009-07-25_11-27-50-100.jpg'     => '2009-07-25_11-27-50-100.jpg',
+                '2009-07-25_11-27-50-100-002.jpg' => '2009-07-25_11-27-50-100-002.jpg',
+                '2009-07-25_11-27-50-100-003.jpg' => '2009-07-25_11-27-50-100-003.jpg',
+            ],
+            3,
         ];
     }
 

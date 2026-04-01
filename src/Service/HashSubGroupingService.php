@@ -22,7 +22,9 @@ use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
 use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzer;
+use MagicSunday\Renamer\Service\PerceptualHash\LocalDiffResult;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
+use MagicSunday\Renamer\Service\PerceptualHash\SimilarityResult;
 use Override;
 use SplFileInfo;
 use Symfony\Component\Console\Style\SymfonyStyle;
@@ -47,11 +49,17 @@ use function strtolower;
 final class HashSubGroupingService implements HashSubGroupingServiceInterface
 {
     /**
+     * RMSE below this threshold is codec noise (HEIC↔JPG format conversions).
+     * Pairs in this zone are always safe to merge without further analysis.
+     */
+    private const float SAFE_MERGE_RMSE = 0.025;
+
+    /**
      * Maximum RMSE for merging isDuplicateLikely pairs.
-     * Configurable at runtime via setMaxMergeChangedArea().
+     * Configurable at runtime via setMaxMergeRmse().
      * HEIC↔JPG format conversions: 0.001–0.013. Different photos: 0.25+.
      */
-    private float $maxMergeChangedArea = 0.05;
+    private float $maxMergeRmse = 0.06;
 
     /**
      * @param SafeHashCalculatorInterface       $hashCalculator           Computes file content hashes for sub-group keying
@@ -72,12 +80,12 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
     }
 
     /**
-     * Sets the maximum changedAreaRatio threshold for merging isDuplicateLikely pairs.
-     * Pairs with changedArea at or above this threshold are kept as separate sub-groups.
+     * Sets the maximum RMSE threshold for merging isDuplicateLikely pairs.
+     * Pairs with RMSE at or above this threshold are kept as separate sub-groups.
      */
-    public function setMaxMergeChangedArea(float $threshold): void
+    public function setMaxMergeRmse(float $threshold): void
     {
-        $this->maxMergeChangedArea = $threshold;
+        $this->maxMergeRmse = $threshold;
     }
 
     /**
@@ -552,15 +560,12 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
                 $shouldMerge = false;
 
                 if ($result->isDuplicateLikely()) {
-                    // Skip Stage B when dHash=0: images are pixel-identical on the
-                    // 9×8 gradient grid. Any Stage B differences are compression
-                    // noise (HEIC vs JPEG artifacts), not intentional retouches.
-                    $shouldMerge = ($result->dhashDistance === 0)
-                        || !$this->hasLocalRetouchCached(
-                            $representativeByHash[$hashes[$i]],
-                            $representativeByHash[$hashes[$j]],
-                            $stageBImageCache,
-                        );
+                    $shouldMerge = $this->shouldMergePerceptually(
+                        $representativeByHash[$hashes[$i]],
+                        $representativeByHash[$hashes[$j]],
+                        $result,
+                        $stageBImageCache,
+                    );
                 }
 
                 if ($shouldMerge) {
@@ -577,6 +582,19 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
         // Release Stage B image cache
         foreach ($stageBImageCache as $img) {
             $img?->clear();
+        }
+
+        // Deterministic root selection: re-root each component to the
+        // lexicographically smallest hash string. This guarantees the same
+        // cluster identity regardless of comparison order.
+        for ($i = 0; $i < $count; ++$i) {
+            $root     = $this->findRoot($parent, $i);
+            $rootHash = $hashes[$root];
+            $myHash   = $hashes[$i];
+
+            if ($myHash < $rootHash) {
+                $parent[$root] = $i;
+            }
         }
 
         // Build merged groups keyed by root's content hash.
@@ -635,19 +653,57 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
     }
 
     /**
-     * Stage B with per-merge image cache: avoids redundant Imagick loads when the
-     * same file appears in multiple pairwise comparisons (O(K) loads instead of O(K^2)).
+     * Determines whether two perceptually similar files should be merged into
+     * the same cluster. Uses RMSE zones: safe merge (codec noise) vs. conservative
+     * no-merge (gray zone and above-threshold).
      *
      * @param array<string, Imagick|null> $imageCache shared cache, populated on first access
      */
-    private function hasLocalRetouchCached(
+    private function shouldMergePerceptually(
+        SplFileInfo $fileA,
+        SplFileInfo $fileB,
+        SimilarityResult $similarity,
+        array &$imageCache,
+    ): bool {
+        if (!$similarity->isDuplicateLikely()) {
+            return false;
+        }
+
+        // Both videos → merge (duration already validated by similarity scoring)
+        if ($this->mediaTypeClassifier->isVideo($fileA) && $this->mediaTypeClassifier->isVideo($fileB)) {
+            return true;
+        }
+
+        $diff = $this->analyzeLocalDifferenceCached($fileA, $fileB, $imageCache);
+
+        if (!$diff->success) {
+            return false;
+        }
+
+        // Merge only in the safe codec-noise zone. When the user sets --merge-threshold
+        // below SAFE_MERGE_RMSE, respect their stricter setting.
+        $effectiveMergeThreshold = min(self::SAFE_MERGE_RMSE, $this->maxMergeRmse);
+
+        return $diff->rmse <= $effectiveMergeThreshold;
+    }
+
+    /**
+     * Stage B with per-merge image cache: avoids redundant Imagick loads when the
+     * same file appears in multiple pairwise comparisons (O(K) loads instead of O(K^2)).
+     *
+     * Returns the raw LocalDiffResult without interpretation, so the caller
+     * can apply zone-based merge decisions.
+     *
+     * @param array<string, Imagick|null> $imageCache shared cache, populated on first access
+     */
+    private function analyzeLocalDifferenceCached(
         SplFileInfo $fileA,
         SplFileInfo $fileB,
         array &$imageCache,
-    ): bool {
-        // Only analyze still images — videos use duration as the differentiator
+    ): LocalDiffResult {
+        // Videos: return success with zero RMSE (duration-based comparison already done)
         if ($this->mediaTypeClassifier->isVideo($fileA) || $this->mediaTypeClassifier->isVideo($fileB)) {
-            return false;
+            return new LocalDiffResult(0.0, 0.0, 0.0, 0, false, success: true);
         }
 
         $keyA = $fileA->getPathname();
@@ -664,18 +720,12 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
         $imgA = $imageCache[$keyA];
         $imgB = $imageCache[$keyB];
 
+        // Imagick load failure: return unsuccessful result
         if ((!$imgA instanceof Imagick) || (!$imgB instanceof Imagick)) {
-            return false;
+            return new LocalDiffResult(0.0, 0.0, 0.0, 0, false, success: false);
         }
 
-        $diffResult = $this->localDiffAnalyzer->analyze($imgA, $imgB);
-
-        // Analysis failure → NOT merge (conservative, R6)
-        if (!$diffResult->success) {
-            return true;
-        }
-
-        return $diffResult->rmse >= $this->maxMergeChangedArea;
+        return $this->localDiffAnalyzer->analyzeRmse($imgA, $imgB);
     }
 
     /**

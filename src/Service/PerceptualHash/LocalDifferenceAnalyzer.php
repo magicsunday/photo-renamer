@@ -51,43 +51,69 @@ final class LocalDifferenceAnalyzer
     private const int NOISE_THRESHOLD = 6;
 
     /**
-     * Set to true to re-enable the legacy blob analysis pipeline
-     * (mask → morphology → flood-fill → changedAreaRatio/hasCompactRetouch).
-     * Superseded by RMSE which is codec-agnostic and faster.
-     */
-    private bool $enableBlobAnalysis = false;
-
-    /**
      * Minimum blob area ratio to consider as a compact retouch.
      */
     private const float RETOUCH_BLOB_THRESHOLD = 0.001;
 
-    public function analyze(Imagick $imageA, Imagick $imageB): LocalDiffResult
+    /**
+     * Computes RMSE only (fast path). Blob fields are zeroed.
+     * Returns success=false on Imagick errors.
+     */
+    public function analyzeRmse(Imagick $imageA, Imagick $imageB): LocalDiffResult
     {
         try {
-            return $this->doAnalyze($imageA, $imageB);
+            [$pixelsA, $pixelsB, $totalPixels] = $this->exportPixels($imageA, $imageB);
+
+            $rmse = $this->computeRmse($pixelsA, $pixelsB, $totalPixels);
+
+            return new LocalDiffResult($rmse, 0.0, 0.0, 0, false);
         } catch (Throwable) {
-            // On failure, mark as unsuccessful so the merge gate can distinguish
-            // failure (should NOT merge) from a genuine perfect match (should merge).
             return new LocalDiffResult(0.0, 0.0, 0.0, 0, false, success: false);
         }
     }
 
-    private function doAnalyze(Imagick $imageA, Imagick $imageB): LocalDiffResult
+    /**
+     * Computes RMSE and runs the legacy blob analysis in a single pass.
+     * Returns success=false on Imagick errors.
+     */
+    public function analyzeDetailed(Imagick $imageA, Imagick $imageB): LocalDiffResult
     {
-        // Downscale both to working resolution
+        try {
+            [$pixelsA, $pixelsB, $totalPixels, $width, $height] = $this->exportPixels($imageA, $imageB);
+
+            $rmse = $this->computeRmse($pixelsA, $pixelsB, $totalPixels);
+
+            return $this->doLegacyBlobAnalysis($pixelsA, $pixelsB, $totalPixels, $width, $height, $rmse);
+        } catch (Throwable) {
+            return new LocalDiffResult(0.0, 0.0, 0.0, 0, false, success: false);
+        }
+    }
+
+    /**
+     * Backward-compatible entry point. Delegates to analyzeRmse().
+     */
+    public function analyze(Imagick $imageA, Imagick $imageB): LocalDiffResult
+    {
+        return $this->analyzeRmse($imageA, $imageB);
+    }
+
+    /**
+     * Downscales both images to working resolution, exports grayscale pixels.
+     *
+     * @return array{list<int>, list<int>, int, int, int} [pixelsA, pixelsB, totalPixels, width, height]
+     */
+    private function exportPixels(Imagick $imageA, Imagick $imageB): array
+    {
         $grayA = $this->downscaleGray($imageA);
         $grayB = $this->downscaleGray($imageB);
 
         $width  = $grayA->getImageWidth();
         $height = $grayA->getImageHeight();
 
-        // Ensure same dimensions
         if (($width !== $grayB->getImageWidth()) || ($height !== $grayB->getImageHeight())) {
             $grayB->resizeImage($width, $height, Imagick::FILTER_TRIANGLE, 1.0, false);
         }
 
-        // Export grayscale pixels
         /** @var list<int> $pixelsA */
         $pixelsA = $grayA->exportImagePixels(0, 0, $width, $height, 'I', Imagick::PIXEL_CHAR);
 
@@ -97,9 +123,17 @@ final class LocalDifferenceAnalyzer
         $grayA->clear();
         $grayB->clear();
 
-        $totalPixels = $width * $height;
+        return [$pixelsA, $pixelsB, $width * $height, $width, $height];
+    }
 
-        // Compute RMSE only — fast single-pass over pixel arrays
+    /**
+     * Computes RMSE normalized to 0.0–1.0 from two grayscale pixel arrays.
+     *
+     * @param list<int> $pixelsA
+     * @param list<int> $pixelsB
+     */
+    private function computeRmse(array $pixelsA, array $pixelsB, int $totalPixels): float
+    {
         $sumSquaredErr = 0.0;
 
         for ($i = 0; $i < $totalPixels; ++$i) {
@@ -107,21 +141,12 @@ final class LocalDifferenceAnalyzer
             $sumSquaredErr += $diff * $diff;
         }
 
-        // RMSE normalized to 0.0–1.0 (divide by 255 max pixel value)
-        $rmse = sqrt($sumSquaredErr / $totalPixels) / 255.0;
-
-        // Legacy blob analysis — disabled for performance. Reactivate by
-        // setting ENABLE_BLOB_ANALYSIS to true if RMSE proves insufficient.
-        if ($this->enableBlobAnalysis) {
-            return $this->doLegacyBlobAnalysis($pixelsA, $pixelsB, $totalPixels, $width, $height, $rmse);
-        }
-
-        return new LocalDiffResult($rmse, 0.0, 0.0, 0, false);
+        return sqrt($sumSquaredErr / $totalPixels) / 255.0;
     }
 
     /**
      * Legacy blob analysis pipeline: binary mask → morphological opening → flood-fill.
-     * Superseded by RMSE. Kept behind ENABLE_BLOB_ANALYSIS flag for rollback.
+     * Superseded by RMSE. Kept for analyzeDetailed() which needs blob metrics.
      *
      * @param list<int> $pixelsA
      * @param list<int> $pixelsB

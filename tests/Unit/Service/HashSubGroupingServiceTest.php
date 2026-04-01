@@ -12,6 +12,8 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
 use Closure;
+use Imagick;
+use ImagickPixel;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\Collection\FileList;
 use MagicSunday\Renamer\Model\Collection\RenameList;
@@ -559,8 +561,10 @@ final class HashSubGroupingServiceTest extends TestCase
         $fileA = $sourceDirectory . DIRECTORY_SEPARATOR . 'a.jpg';
         $fileB = $sourceDirectory . DIRECTORY_SEPARATOR . 'b.jpg';
 
-        file_put_contents($fileA, 'content-A');
-        file_put_contents($fileB, 'content-B-different');
+        // Must be valid JPEG files so Imagick can load them for RMSE analysis.
+        // Conservative merge policy: Imagick load failure → no merge.
+        $this->createSyntheticJpeg($fileA);
+        $this->createSyntheticJpeg($fileB);
 
         $target = $targetDirectory . DIRECTORY_SEPARATOR . 'target.jpg';
 
@@ -715,5 +719,17 @@ final class HashSubGroupingServiceTest extends TestCase
         $this->tempDirectories[] = $directory;
 
         return $directory;
+    }
+
+    /**
+     * Creates a minimal valid JPEG file for tests that need Imagick-loadable images.
+     */
+    private function createSyntheticJpeg(string $path, int $width = 100, int $height = 100, string $color = 'gray'): void
+    {
+        $img = new Imagick();
+        $img->newImage($width, $height, new ImagickPixel($color));
+        $img->setImageFormat('jpeg');
+        $img->writeImage($path);
+        $img->clear();
     }
 }
