@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Command;
 
 use FilesystemIterator;
 use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Model\RenameOptions;
@@ -323,6 +324,12 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
                 '%d duplicate target path(s) — multiple files map to the same destination.',
                 count($validationResult->duplicateTargets),
             ));
+
+            foreach ($validationResult->duplicateTargets as $target) {
+                $this->io->text(sprintf('  <fg=yellow>→</> %s', FileHelper::relativizePath($target, $this->sourceDirectory)));
+            }
+
+            $this->io->newLine();
         }
 
         if ($validationResult->caseConflicts !== []) {
@@ -330,6 +337,16 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
                 '%d case-insensitive conflict(s) — targets differ only in letter case.',
                 count($validationResult->caseConflicts),
             ));
+
+            foreach ($validationResult->caseConflicts as $group) {
+                $relativePaths = array_map(
+                    fn (string $path): string => FileHelper::relativizePath($path, $this->sourceDirectory),
+                    $group,
+                );
+                $this->io->text(sprintf('  <fg=yellow>→</> %s', implode(' ↔ ', $relativePaths)));
+            }
+
+            $this->io->newLine();
         }
 
         if ($validationResult->circularSwaps !== []) {
@@ -337,6 +354,16 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
                 '%d circular swap(s) — rename cycle(s) that would cause data loss.',
                 count($validationResult->circularSwaps),
             ));
+
+            foreach ($validationResult->circularSwaps as $cycle) {
+                $relativePaths = array_map(
+                    fn (string $path): string => FileHelper::relativizePath($path, $this->sourceDirectory),
+                    $cycle,
+                );
+                $this->io->text(sprintf('  <fg=yellow>→</> %s', implode(' → ', $relativePaths)));
+            }
+
+            $this->io->newLine();
         }
     }
 
