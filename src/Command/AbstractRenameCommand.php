@@ -443,9 +443,9 @@ abstract class AbstractRenameCommand extends Command
                     $crossDirCount,
                 ));
             }
-
-            $this->io->newLine(2);
         }
+
+        $this->io->newLine(2);
     }
 
     /**
