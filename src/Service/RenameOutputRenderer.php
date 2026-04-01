@@ -21,6 +21,7 @@ use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
 use MagicSunday\Renamer\Model\Execution\ExecutionPreview;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\LinkConfig;
+use MagicSunday\Renamer\Model\OutputEntry;
 use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
@@ -75,7 +76,7 @@ final readonly class RenameOutputRenderer
      * @param RenameResult            $result                  Pipeline-computed results (scanned files, collisions, skips)
      * @param string|null             $sourceBaseDirectory     Normalized base directory for path relativization
      *
-     * @return array{list<array<string, mixed>>, int, int} Tuple of [entries, skippedCount, errorCount]
+     * @return array{list<OutputEntry>, int, int} Tuple of [entries, skippedCount, errorCount]
      */
     public function buildOutputEntries(
         FileDuplicateCollection $fileDuplicateCollection,
@@ -83,7 +84,7 @@ final readonly class RenameOutputRenderer
         RenameResult $result,
         ?string $sourceBaseDirectory,
     ): array {
-        /** @var list<array<string, mixed>> $outputEntries */
+        /** @var list<OutputEntry> $outputEntries */
         $outputEntries = [];
 
         /** @var FileDuplicate $fileDuplicate */
@@ -119,40 +120,25 @@ final readonly class RenameOutputRenderer
                 [$tag, $warningReason]                 = $this->applyDateDriftCheck($tag, null, $sourcePath, $targetPath, $options);
                 [$shouldSkip, $shouldPerformOperation] = $this->computeSkipFlags($tag, $isNoOp);
 
-                $outputEntries[] = [
-                    'sortKey'                => $rename->getSource()->getPathname(),
-                    'type'                   => 'rename',
-                    'sourcePath'             => $sourcePath,
-                    'targetPath'             => $targetPath,
-                    'tag'                    => $tag,
-                    'isDuplicateTarget'      => $isDuplicateTarget,
-                    'shouldSkip'             => $shouldSkip,
-                    'shouldPerformOperation' => $shouldPerformOperation,
-                    'rename'                 => $rename,
-                    'warningReason'          => $warningReason,
-                ];
+                $outputEntries[] = OutputEntry::rename(
+                    sortKey: $rename->getSource()->getPathname(),
+                    sourcePath: $sourcePath,
+                    targetPath: $targetPath,
+                    tag: $tag,
+                    isDuplicateTarget: $isDuplicateTarget,
+                    shouldSkip: $shouldSkip,
+                    shouldPerformOperation: $shouldPerformOperation,
+                    warningReason: $warningReason,
+                );
             }
         }
 
         [$skippedCount, $errorCount] = $this->appendSkippedFileEntries($outputEntries, $result, $sourceBaseDirectory);
 
-        usort($outputEntries, static function (array $a, array $b): int {
-            $cmp = $a['sortKey'] <=> $b['sortKey'];
+        usort($outputEntries, static function (OutputEntry $a, OutputEntry $b): int {
+            $cmp = $a->sortKey <=> $b->sortKey;
 
-            if ($cmp !== 0) {
-                return $cmp;
-            }
-
-            // Info entries sort after their parent entry (rename/skip)
-            $typeOrder = ['rename' => 0, 'skip' => 1, 'info' => 2];
-
-            /** @var string $aType */
-            $aType = $a['type'];
-
-            /** @var string $bType */
-            $bType = $b['type'];
-
-            return ($typeOrder[$aType] ?? 9) <=> ($typeOrder[$bType] ?? 9);
+            return $cmp !== 0 ? $cmp : ($a->type->sortOrder() <=> $b->type->sortOrder());
         });
 
         return [$outputEntries, $skippedCount, $errorCount];
@@ -344,7 +330,7 @@ final readonly class RenameOutputRenderer
      * @param RenameResult  $result              Scan/analysis summary data (skipped files)
      * @param string|null   $sourceBaseDirectory Base directory for relative path display
      *
-     * @return array{list<array<string, mixed>>, int, int} Tuple of [entries, skippedCount, errorCount]
+     * @return array{list<OutputEntry>, int, int} Tuple of [entries, skippedCount, errorCount]
      */
     public function buildOutputEntriesFromPlan(
         ExecutionPlan $plan,
@@ -352,7 +338,7 @@ final readonly class RenameOutputRenderer
         RenameResult $result,
         ?string $sourceBaseDirectory = null,
     ): array {
-        /** @var list<array<string, mixed>> $outputEntries */
+        /** @var list<OutputEntry> $outputEntries */
         $outputEntries = [];
 
         foreach ($plan->groups as $group) {
@@ -371,39 +357,25 @@ final readonly class RenameOutputRenderer
                     || ($tag === OutputEntryTag::Candidate);
                 $shouldPerformOperation = !$shouldSkip && !$item->isNoOp;
 
-                $outputEntries[] = [
-                    'sortKey'                => $item->sourcePath,
-                    'type'                   => 'rename',
-                    'sourcePath'             => $sourcePath,
-                    'targetPath'             => $targetPath,
-                    'tag'                    => $tag,
-                    'isDuplicateTarget'      => $item->isDuplicateTarget,
-                    'shouldSkip'             => $shouldSkip,
-                    'shouldPerformOperation' => $shouldPerformOperation,
-                    'warningReason'          => $warningReason,
-                ];
+                $outputEntries[] = OutputEntry::rename(
+                    sortKey: $item->sourcePath,
+                    sourcePath: $sourcePath,
+                    targetPath: $targetPath,
+                    tag: $tag,
+                    isDuplicateTarget: $item->isDuplicateTarget,
+                    shouldSkip: $shouldSkip,
+                    shouldPerformOperation: $shouldPerformOperation,
+                    warningReason: $warningReason,
+                );
             }
         }
 
         [$skippedCount, $errorCount] = $this->appendSkippedFileEntries($outputEntries, $result, $sourceBaseDirectory);
 
-        usort($outputEntries, static function (array $a, array $b): int {
-            $cmp = $a['sortKey'] <=> $b['sortKey'];
+        usort($outputEntries, static function (OutputEntry $a, OutputEntry $b): int {
+            $cmp = $a->sortKey <=> $b->sortKey;
 
-            if ($cmp !== 0) {
-                return $cmp;
-            }
-
-            // Info entries sort after their parent entry (rename/skip)
-            $typeOrder = ['rename' => 0, 'skip' => 1, 'info' => 2];
-
-            /** @var string $aType */
-            $aType = $a['type'];
-
-            /** @var string $bType */
-            $bType = $b['type'];
-
-            return ($typeOrder[$aType] ?? 9) <=> ($typeOrder[$bType] ?? 9);
+            return $cmp !== 0 ? $cmp : ($a->type->sortOrder() <=> $b->type->sortOrder());
         });
 
         return [$outputEntries, $skippedCount, $errorCount];
@@ -599,9 +571,16 @@ final readonly class RenameOutputRenderer
      * Appends skipped file entries from the RenameResult to the output entries array.
      * Returns the counts of skipped (no-metadata) and error entries.
      *
-     * @param list<array<string, mixed>> $outputEntries       Output entries array (modified by reference)
-     * @param RenameResult               $result              Result carrying skipped files
-     * @param string|null                $sourceBaseDirectory Base directory for path relativization
+     * @param list<OutputEntry> $outputEntries       Output entries array (modified by reference)
+     * @param RenameResult      $result              Result carrying skipped files
+     * @param string|null       $sourceBaseDirectory Base directory for path relativization
+     *
+     * @return array{int, int} [skippedCount, errorCount]
+     */
+    /**
+     * @param list<OutputEntry> $outputEntries       Entries to append to (by reference)
+     * @param RenameResult      $result              Pipeline results with skipped files and notices
+     * @param string|null       $sourceBaseDirectory Base directory for relative paths
      *
      * @return array{int, int} [skippedCount, errorCount]
      */
@@ -620,26 +599,23 @@ final readonly class RenameOutputRenderer
                 ++$skippedCount;
             }
 
-            $outputEntries[] = [
-                'sortKey'    => $skippedFile->getFile()->getPathname(),
-                'type'       => 'skip',
-                'sourcePath' => FileHelper::relativizePath($skippedFile->getFile()->getPathname(), $sourceBaseDirectory),
-                'reason'     => ucfirst($skippedFile->getReason()),
-                'tag'        => $skippedFile->isError() ? OutputEntryTag::Error : OutputEntryTag::Skipped,
-            ];
+            $outputEntries[] = OutputEntry::skip(
+                sortKey: $skippedFile->getFile()->getPathname(),
+                sourcePath: FileHelper::relativizePath($skippedFile->getFile()->getPathname(), $sourceBaseDirectory),
+                reason: ucfirst($skippedFile->getReason()),
+                tag: $skippedFile->isError() ? OutputEntryTag::Error : OutputEntryTag::Skipped,
+            );
         }
 
         foreach ($result->crossDirectoryCompanions as [$canonicalPath, $companionPath]) {
-            $outputEntries[] = [
-                'sortKey'    => $companionPath,
-                'type'       => 'info',
-                'sourcePath' => FileHelper::relativizePath($companionPath, $sourceBaseDirectory),
-                'reason'     => sprintf(
+            $outputEntries[] = OutputEntry::info(
+                sortKey: $companionPath,
+                sourcePath: FileHelper::relativizePath($companionPath, $sourceBaseDirectory),
+                reason: sprintf(
                     'Live Photo pair across directories: ↔ %s',
                     FileHelper::relativizePath($canonicalPath, $sourceBaseDirectory),
                 ),
-                'tag' => OutputEntryTag::Info,
-            ];
+            );
         }
 
         return [$skippedCount, $errorCount];
@@ -649,9 +625,9 @@ final readonly class RenameOutputRenderer
      * Renders a list of output entries to the console and returns counters.
      * Used by both the ExecutionPlan and legacy rendering paths.
      *
-     * @param list<array<string, mixed>> $outputEntries       Sorted output entries
-     * @param string|null                $sourceBaseDirectory Base directory for linkified paths
-     * @param list<string>|null          $showFilter          Tag filter (null = show all)
+     * @param list<OutputEntry> $outputEntries       Sorted output entries
+     * @param string|null       $sourceBaseDirectory Base directory for linkified paths
+     * @param list<string>|null $showFilter          Tag filter (null = show all)
      *
      * @return array{fileCount: int, duplicateCount: int, plannedMoves: int, plannedSkips: int}
      */
@@ -664,16 +640,11 @@ final readonly class RenameOutputRenderer
         $maxFilenameLength = 0;
 
         foreach ($outputEntries as $entry) {
-            /** @var OutputEntryTag $entryTag */
-            $entryTag = $entry['tag'];
-
-            if (!$this->isTagVisible($entryTag, $showFilter)) {
+            if (!$this->isTagVisible($entry->tag, $showFilter)) {
                 continue;
             }
 
-            /** @var string $sourcePath */
-            $sourcePath        = $entry['sourcePath'];
-            $maxFilenameLength = max($maxFilenameLength, mb_strlen($sourcePath));
+            $maxFilenameLength = max($maxFilenameLength, mb_strlen($entry->sourcePath));
         }
 
         $linkConfig = LinkConfig::fromEnv();
@@ -684,94 +655,68 @@ final readonly class RenameOutputRenderer
         $plannedSkips   = 0;
 
         foreach ($outputEntries as $entry) {
-            /** @var string $sourcePath */
-            $sourcePath = $entry['sourcePath'];
+            $padding    = str_repeat(' ', max(0, $maxFilenameLength - mb_strlen($entry->sourcePath)));
+            $linkedPath = FileHelper::linkifyPath($entry->sourcePath, $entry->sourcePath, $sourceBaseDirectory, $linkConfig, 'yellow');
 
-            /** @var OutputEntryTag $entryTag */
-            $entryTag = $entry['tag'];
-
-            $padding    = str_repeat(' ', max(0, $maxFilenameLength - mb_strlen($sourcePath)));
-            $linkedPath = FileHelper::linkifyPath($sourcePath, $sourcePath, $sourceBaseDirectory, $linkConfig, 'yellow');
-
-            if ($entry['type'] === 'info') {
-                /** @var string $reason */
-                $reason = $entry['reason'];
-
+            if ($entry->isInfo()) {
                 // Render as continuation line under the previous entry (no tag, no filename)
                 $this->io->text(sprintf(
                     '     <fg=cyan>→</> <fg=%s>%s</>',
-                    $entryTag->color(),
-                    $reason,
+                    $entry->tag->color(),
+                    $entry->reason ?? '',
                 ));
 
                 continue;
             }
 
-            if ($entry['type'] === 'skip') {
-                /** @var string $reason */
-                $reason = $entry['reason'];
-
-                if ($this->isTagVisible($entryTag, $showFilter)) {
+            if ($entry->isSkip()) {
+                if ($this->isTagVisible($entry->tag, $showFilter)) {
                     $this->io->text(sprintf(
                         ' %s %s' . $padding . ' <fg=cyan>→</> <fg=%s>%s</>',
-                        $entryTag->formattedTag(),
+                        $entry->tag->formattedTag(),
                         $linkedPath,
-                        $entryTag->color(),
-                        $reason,
+                        $entry->tag->color(),
+                        $entry->reason ?? '',
                     ));
                 }
 
                 continue;
             }
 
-            /** @var string $targetPath */
-            $targetPath = $entry['targetPath'];
-
-            /** @var bool $isDuplicateTarget */
-            $isDuplicateTarget = $entry['isDuplicateTarget'];
-
-            /** @var bool $shouldSkip */
-            $shouldSkip = $entry['shouldSkip'];
-
-            /** @var bool $shouldPerformOperation */
-            $shouldPerformOperation = $entry['shouldPerformOperation'];
-
-            if ($this->isTagVisible($entryTag, $showFilter)) {
-                if ($shouldSkip) {
-                    /** @var string|null $warningReason */
-                    $warningReason = $entry['warningReason'] ?? null;
-
-                    $skipReason = match ($entryTag) {
+            // Rename entry
+            if ($this->isTagVisible($entry->tag, $showFilter)) {
+                if ($entry->shouldSkip) {
+                    $skipReason = match ($entry->tag) {
                         OutputEntryTag::Candidate => 'Conflicting Live Photo content ID across groups',
-                        OutputEntryTag::Warning   => $warningReason ?? 'Ambiguous timezone: QuickTime UTC without offset — use --timezone or rename:write-date --reason=timezone',
+                        OutputEntryTag::Warning   => $entry->warningReason ?? 'Ambiguous timezone: QuickTime UTC without offset — use --timezone or rename:write-date --reason=timezone',
                         OutputEntryTag::Fallback  => 'Fallback date: DateTime (0x0132) used instead of DateTimeOriginal',
                         default                   => 'Skipped',
                     };
 
                     $this->io->text(sprintf(
                         ' %s %s' . $padding . ' <fg=cyan>→</> <fg=%s>%s</>',
-                        $entryTag->formattedTag(),
+                        $entry->tag->formattedTag(),
                         $linkedPath,
-                        $entryTag->color(),
+                        $entry->tag->color(),
                         $skipReason,
                     ));
                 } else {
                     $this->io->text(sprintf(
                         ' %s %s' . $padding . ' <fg=cyan>→</> %s',
-                        $entryTag->formattedTag(),
+                        $entry->tag->formattedTag(),
                         $linkedPath,
-                        $this->highlightDiff($sourcePath, $targetPath, 'green'),
+                        $this->highlightDiff($entry->sourcePath, $entry->targetPath ?? '', 'green'),
                     ));
                 }
             }
 
-            if ($isDuplicateTarget) {
+            if ($entry->isDuplicateTarget) {
                 ++$duplicateCount;
             }
 
-            if ($shouldSkip) {
+            if ($entry->shouldSkip) {
                 ++$plannedSkips;
-            } elseif ($shouldPerformOperation) {
+            } elseif ($entry->shouldPerformOperation) {
                 ++$plannedMoves;
                 ++$fileCount;
             }

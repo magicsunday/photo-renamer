@@ -18,7 +18,6 @@ use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\MetadataExtractor;
-use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
 use MagicSunday\Renamer\Service\AssetGroupAdapter;
@@ -173,49 +172,43 @@ final class ExecutionPathDifferentialTest extends TestCase
                 $newEntry = $newEntries[$index];
                 $context  = sprintf('fixture=%s, index=%d', $scenarioDir, $index);
 
-                /** @var OutputEntryTag $oldTag */
-                $oldTag = $oldEntry['tag'];
-
-                /** @var OutputEntryTag $newTag */
-                $newTag = $newEntry['tag'];
-
                 // Same source path
                 self::assertSame(
-                    $oldEntry['sourcePath'],
-                    $newEntry['sourcePath'],
+                    $oldEntry->sourcePath,
+                    $newEntry->sourcePath,
                     sprintf('sourcePath mismatch (%s)', $context),
                 );
 
                 // Same target path
                 self::assertSame(
-                    $oldEntry['targetPath'],
-                    $newEntry['targetPath'],
+                    $oldEntry->targetPath,
+                    $newEntry->targetPath,
                     sprintf('targetPath mismatch (%s)', $context),
                 );
 
                 // Same tag
                 self::assertSame(
-                    $oldTag,
-                    $newTag,
+                    $oldEntry->tag,
+                    $newEntry->tag,
                     sprintf(
                         'tag mismatch (%s): old=%s, new=%s',
                         $context,
-                        $oldTag->value,
-                        $newTag->value,
+                        $oldEntry->tag->value,
+                        $newEntry->tag->value,
                     ),
                 );
 
                 // Same shouldSkip flag
                 self::assertSame(
-                    $oldEntry['shouldSkip'],
-                    $newEntry['shouldSkip'],
+                    $oldEntry->shouldSkip,
+                    $newEntry->shouldSkip,
                     sprintf('shouldSkip mismatch (%s)', $context),
                 );
 
                 // Same isDuplicateTarget flag
                 self::assertSame(
-                    $oldEntry['isDuplicateTarget'],
-                    $newEntry['isDuplicateTarget'],
+                    $oldEntry->isDuplicateTarget,
+                    $newEntry->isDuplicateTarget,
                     sprintf('isDuplicateTarget mismatch (%s)', $context),
                 );
             }

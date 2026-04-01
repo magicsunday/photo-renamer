@@ -19,8 +19,8 @@ use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
 use MagicSunday\Renamer\Model\Execution\ExecutionResult;
 use MagicSunday\Renamer\Model\LinkConfig;
+use MagicSunday\Renamer\Model\OutputEntry;
 use MagicSunday\Renamer\Model\OutputEntryTag;
-use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
 use Override;
@@ -272,9 +272,9 @@ final readonly class FileSystemService implements FileSystemServiceInterface
     /**
      * Renders the filtered output entries and executes file operations.
      *
-     * @param list<array<string, mixed>> $outputEntries
-     * @param array<string, true>        $occupiedPaths
-     * @param list<string>|null          $showFilter
+     * @param list<OutputEntry>   $outputEntries
+     * @param array<string, true> $occupiedPaths
+     * @param list<string>|null   $showFilter
      *
      * @return array{fileCount: int, duplicateCount: int, plannedMoves: int, plannedSkips: int}
      */
@@ -289,16 +289,11 @@ final readonly class FileSystemService implements FileSystemServiceInterface
         $maxFilenameLength = 0;
 
         foreach ($outputEntries as $entry) {
-            /** @var OutputEntryTag $entryTag */
-            $entryTag = $entry['tag'];
-
-            if (!$this->isTagVisible($entryTag, $showFilter)) {
+            if (!$this->isTagVisible($entry->tag, $showFilter)) {
                 continue;
             }
 
-            /** @var string $sourcePath */
-            $sourcePath        = $entry['sourcePath'];
-            $maxFilenameLength = max($maxFilenameLength, mb_strlen($sourcePath));
+            $maxFilenameLength = max($maxFilenameLength, mb_strlen($entry->sourcePath));
         }
 
         $linkConfig = LinkConfig::fromEnv();
@@ -309,55 +304,36 @@ final readonly class FileSystemService implements FileSystemServiceInterface
         $plannedSkips   = 0;
 
         foreach ($outputEntries as $entry) {
-            /** @var string $sourcePath */
-            $sourcePath = $entry['sourcePath'];
-
-            /** @var OutputEntryTag $entryTag */
-            $entryTag = $entry['tag'];
+            $sourcePath = $entry->sourcePath;
+            $entryTag   = $entry->tag;
 
             $padding    = str_repeat(' ', max(0, $maxFilenameLength - mb_strlen($sourcePath)));
             $linkedPath = FileHelper::linkifyPath($sourcePath, $sourcePath, $sourceBaseDirectory, $linkConfig, 'yellow');
 
-            if ($entry['type'] === 'skip') {
-                /** @var string $reason */
-                $reason = $entry['reason'];
-
+            if ($entry->isSkip()) {
                 if ($this->isTagVisible($entryTag, $showFilter)) {
                     $this->io->text(sprintf(
                         ' %s %s' . $padding . ' <fg=cyan>→</> <fg=%s>%s</>',
                         $entryTag->formattedTag(),
                         $linkedPath,
                         $entryTag->color(),
-                        $reason,
+                        $entry->reason,
                     ));
                 }
 
                 continue;
             }
 
-            /** @var string $targetPath */
-            $targetPath = $entry['targetPath'];
-
-            /** @var bool $isDuplicateTarget */
-            $isDuplicateTarget = $entry['isDuplicateTarget'];
-
-            /** @var bool $shouldSkip */
-            $shouldSkip = $entry['shouldSkip'];
-
-            /** @var bool $shouldPerformOperation */
-            $shouldPerformOperation = $entry['shouldPerformOperation'];
-
-            /** @var Rename $rename */
-            $rename = $entry['rename'];
+            $targetPath             = $entry->targetPath;
+            $isDuplicateTarget      = $entry->isDuplicateTarget;
+            $shouldSkip             = $entry->shouldSkip;
+            $shouldPerformOperation = $entry->shouldPerformOperation;
 
             if ($this->isTagVisible($entryTag, $showFilter)) {
                 if ($shouldSkip) {
-                    /** @var string|null $warningReason */
-                    $warningReason = $entry['warningReason'] ?? null;
-
                     $skipReason = match ($entryTag) {
                         OutputEntryTag::Candidate => 'Conflicting Live Photo content ID across groups',
-                        OutputEntryTag::Warning   => $warningReason ?? 'Ambiguous timezone: QuickTime UTC without offset — use --timezone or rename:write-date --reason=timezone',
+                        OutputEntryTag::Warning   => $entry->warningReason ?? 'Ambiguous timezone: QuickTime UTC without offset — use --timezone or rename:write-date --reason=timezone',
                         OutputEntryTag::Fallback  => 'Fallback date: DateTime (0x0132) used instead of DateTimeOriginal',
                         default                   => 'Skipped',
                     };
@@ -374,7 +350,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
                         ' %s %s' . $padding . ' <fg=cyan>→</> %s',
                         $entryTag->formattedTag(),
                         $linkedPath,
-                        $this->renderer->highlightDiff($sourcePath, $targetPath, 'green'),
+                        $this->renderer->highlightDiff($sourcePath, $targetPath ?? '', 'green'),
                     ));
                 }
             }
@@ -387,18 +363,25 @@ final readonly class FileSystemService implements FileSystemServiceInterface
                 ++$plannedSkips;
             }
 
+            // sortKey carries the absolute source path; reconstruct absolute
+            // target by prepending the base directory when paths were relativized.
+            $absoluteSource = $entry->sortKey;
+            $absoluteTarget = ($sourceBaseDirectory !== null && $targetPath !== null)
+                ? $sourceBaseDirectory . DIRECTORY_SEPARATOR . $targetPath
+                : ($targetPath ?? $absoluteSource);
+
             if ($shouldSkip) {
                 // Skipped file stays at its source path — keep it occupied so
                 // other files do not try to rename into it. Also mark the
                 // source path as occupied in case it was freed by a prior move.
-                $occupiedPaths[$rename->getSource()->getPathname()] = true;
+                $occupiedPaths[$absoluteSource] = true;
             } elseif ($shouldPerformOperation) {
                 ++$plannedMoves;
                 ++$fileCount;
 
                 $this->moveFile(
-                    $rename->getSource(),
-                    $rename->getTarget(),
+                    new SplFileInfo($absoluteSource),
+                    new SplFileInfo($absoluteTarget),
                     $occupiedPaths,
                     $options->dryRun,
                 );

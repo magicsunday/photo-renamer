@@ -95,8 +95,8 @@ final class RenameOutputRendererTest extends TestCase
 
         self::assertCount(2, $entries);
         // Entries should be sorted by source path: a-image before b-image
-        self::assertSame($sourceB, $entries[0]['sortKey']);
-        self::assertSame($sourceA, $entries[1]['sortKey']);
+        self::assertSame($sourceB, $entries[0]->sortKey);
+        self::assertSame($sourceA, $entries[1]->sortKey);
         self::assertSame(0, $skippedCount);
         self::assertSame(0, $errorCount);
     }
@@ -130,8 +130,8 @@ final class RenameOutputRendererTest extends TestCase
         );
 
         self::assertCount(1, $entries);
-        self::assertSame(OutputEntryTag::Duplicate, $entries[0]['tag']);
-        self::assertTrue($entries[0]['isDuplicateTarget']);
+        self::assertSame(OutputEntryTag::Duplicate, $entries[0]->tag);
+        self::assertTrue($entries[0]->isDuplicateTarget);
     }
 
     /**
@@ -165,8 +165,8 @@ final class RenameOutputRendererTest extends TestCase
         );
 
         self::assertCount(1, $entries);
-        self::assertSame(OutputEntryTag::Candidate, $entries[0]['tag']);
-        self::assertTrue($entries[0]['shouldSkip']);
+        self::assertSame(OutputEntryTag::Candidate, $entries[0]->tag);
+        self::assertTrue($entries[0]->shouldSkip);
     }
 
     /**
@@ -199,8 +199,8 @@ final class RenameOutputRendererTest extends TestCase
         self::assertSame(1, $skippedCount);
         self::assertSame(1, $errorCount);
         // Entries are sorted by source path: error.jpg before no-date.jpg
-        self::assertSame(OutputEntryTag::Error, $entries[0]['tag']);
-        self::assertSame(OutputEntryTag::Skipped, $entries[1]['tag']);
+        self::assertSame(OutputEntryTag::Error, $entries[0]->tag);
+        self::assertSame(OutputEntryTag::Skipped, $entries[1]->tag);
     }
 
     /**
@@ -396,8 +396,8 @@ final class RenameOutputRendererTest extends TestCase
         );
 
         self::assertCount(1, $entries);
-        self::assertSame(OutputEntryTag::Warning, $entries[0]['tag']);
-        self::assertTrue($entries[0]['shouldSkip']);
+        self::assertSame(OutputEntryTag::Warning, $entries[0]->tag);
+        self::assertTrue($entries[0]->shouldSkip);
     }
 
     /**
@@ -429,8 +429,8 @@ final class RenameOutputRendererTest extends TestCase
         );
 
         self::assertCount(1, $entries);
-        self::assertSame(OutputEntryTag::Rename, $entries[0]['tag']);
-        self::assertFalse($entries[0]['shouldSkip']);
+        self::assertSame(OutputEntryTag::Rename, $entries[0]->tag);
+        self::assertFalse($entries[0]->shouldSkip);
     }
 
     /**
@@ -462,8 +462,8 @@ final class RenameOutputRendererTest extends TestCase
         );
 
         self::assertCount(1, $entries);
-        self::assertSame(OutputEntryTag::Rename, $entries[0]['tag']);
-        self::assertFalse($entries[0]['shouldSkip']);
+        self::assertSame(OutputEntryTag::Rename, $entries[0]->tag);
+        self::assertFalse($entries[0]->shouldSkip);
     }
 
     /**
@@ -494,8 +494,8 @@ final class RenameOutputRendererTest extends TestCase
         );
 
         self::assertCount(1, $entries);
-        self::assertSame(OutputEntryTag::Rename, $entries[0]['tag']);
-        self::assertFalse($entries[0]['shouldSkip']);
+        self::assertSame(OutputEntryTag::Rename, $entries[0]->tag);
+        self::assertFalse($entries[0]->shouldSkip);
     }
 
     /**
@@ -527,8 +527,8 @@ final class RenameOutputRendererTest extends TestCase
         );
 
         self::assertCount(1, $entries);
-        self::assertSame(OutputEntryTag::Warning, $entries[0]['tag']);
-        self::assertTrue($entries[0]['shouldSkip']);
+        self::assertSame(OutputEntryTag::Warning, $entries[0]->tag);
+        self::assertTrue($entries[0]->shouldSkip);
     }
 
     /**
@@ -673,10 +673,10 @@ final class RenameOutputRendererTest extends TestCase
 
         self::assertCount(2, $entries);
         // Both should be [W], not [D]
-        self::assertSame(OutputEntryTag::Warning, $entries[0]['tag']);
-        self::assertSame(OutputEntryTag::Warning, $entries[1]['tag']);
-        self::assertTrue($entries[0]['shouldSkip']);
-        self::assertTrue($entries[1]['shouldSkip']);
+        self::assertSame(OutputEntryTag::Warning, $entries[0]->tag);
+        self::assertSame(OutputEntryTag::Warning, $entries[1]->tag);
+        self::assertTrue($entries[0]->shouldSkip);
+        self::assertTrue($entries[1]->shouldSkip);
     }
 
     /**
@@ -707,10 +707,10 @@ final class RenameOutputRendererTest extends TestCase
         );
 
         self::assertCount(1, $entries);
-        self::assertSame(OutputEntryTag::Warning, $entries[0]['tag']);
+        self::assertSame(OutputEntryTag::Warning, $entries[0]->tag);
 
         /** @var string $warningReason */
-        $warningReason = $entries[0]['warningReason'];
+        $warningReason = $entries[0]->warningReason;
         self::assertStringContainsString('Date drift:', $warningReason);
         self::assertStringContainsString('max 7', $warningReason);
     }
@@ -767,7 +767,7 @@ final class RenameOutputRendererTest extends TestCase
         );
 
         self::assertCount(1, $entries);
-        self::assertSame(OutputEntryTag::Fallback, $entries[0]['tag']);
+        self::assertSame(OutputEntryTag::Fallback, $entries[0]->tag);
     }
 
     /**
@@ -801,8 +801,8 @@ final class RenameOutputRendererTest extends TestCase
         );
 
         self::assertCount(1, $entries);
-        self::assertSame(OutputEntryTag::Fallback, $entries[0]['tag']);
-        self::assertFalse($entries[0]['shouldSkip']);
+        self::assertSame(OutputEntryTag::Fallback, $entries[0]->tag);
+        self::assertFalse($entries[0]->shouldSkip);
     }
 
     /**
@@ -840,8 +840,8 @@ final class RenameOutputRendererTest extends TestCase
         self::assertCount(2, $entries);
 
         // The duplicate entry (photo-b) must be [F], not [D].
-        $duplicateEntry = $entries[0]['sourcePath'] === 'photo-b.jpg' ? $entries[0] : $entries[1];
-        self::assertSame(OutputEntryTag::Fallback, $duplicateEntry['tag']);
+        $duplicateEntry = $entries[0]->sourcePath === 'photo-b.jpg' ? $entries[0] : $entries[1];
+        self::assertSame(OutputEntryTag::Fallback, $duplicateEntry->tag);
     }
 
     /**
@@ -874,8 +874,8 @@ final class RenameOutputRendererTest extends TestCase
         );
 
         self::assertCount(1, $entries);
-        self::assertSame(OutputEntryTag::Warning, $entries[0]['tag']);
-        self::assertTrue($entries[0]['shouldSkip']);
+        self::assertSame(OutputEntryTag::Warning, $entries[0]->tag);
+        self::assertTrue($entries[0]->shouldSkip);
     }
 
     // ---------------------------------------------------------------
@@ -979,8 +979,8 @@ final class RenameOutputRendererTest extends TestCase
 
         foreach ($entries as $entry) {
             /** @var string $sourcePath */
-            $sourcePath          = $entry['sourcePath'];
-            $tagMap[$sourcePath] = $entry['tag'];
+            $sourcePath          = $entry->sourcePath;
+            $tagMap[$sourcePath] = $entry->tag;
         }
 
         self::assertSame(OutputEntryTag::Rename, $tagMap['img.jpg']);
@@ -1167,7 +1167,7 @@ final class RenameOutputRendererTest extends TestCase
         );
 
         self::assertCount(1, $entries);
-        self::assertSame(OutputEntryTag::Original, $entries[0]['tag']);
+        self::assertSame(OutputEntryTag::Original, $entries[0]->tag);
     }
 
     /**
@@ -1202,8 +1202,8 @@ final class RenameOutputRendererTest extends TestCase
         );
 
         self::assertCount(1, $entries);
-        self::assertSame(OutputEntryTag::Duplicate, $entries[0]['tag']);
-        self::assertTrue($entries[0]['isDuplicateTarget']);
+        self::assertSame(OutputEntryTag::Duplicate, $entries[0]->tag);
+        self::assertTrue($entries[0]->isDuplicateTarget);
     }
 
     /**
@@ -1240,7 +1240,7 @@ final class RenameOutputRendererTest extends TestCase
         );
 
         self::assertCount(1, $entries);
-        self::assertSame(OutputEntryTag::Fallback, $entries[0]['tag']);
+        self::assertSame(OutputEntryTag::Fallback, $entries[0]->tag);
     }
 
     /**
@@ -1277,8 +1277,8 @@ final class RenameOutputRendererTest extends TestCase
         );
 
         self::assertCount(1, $entries);
-        self::assertSame(OutputEntryTag::Warning, $entries[0]['tag']);
-        self::assertTrue($entries[0]['shouldSkip']);
+        self::assertSame(OutputEntryTag::Warning, $entries[0]->tag);
+        self::assertTrue($entries[0]->shouldSkip);
     }
 
     /**
@@ -1359,11 +1359,11 @@ final class RenameOutputRendererTest extends TestCase
         );
 
         self::assertCount(1, $entries);
-        self::assertSame(OutputEntryTag::Warning, $entries[0]['tag']);
-        self::assertTrue($entries[0]['shouldSkip']);
+        self::assertSame(OutputEntryTag::Warning, $entries[0]->tag);
+        self::assertTrue($entries[0]->shouldSkip);
 
         /** @var string $warningReason */
-        $warningReason = $entries[0]['warningReason'];
+        $warningReason = $entries[0]->warningReason;
         self::assertStringContainsString('Date drift:', $warningReason);
     }
 
@@ -1398,7 +1398,7 @@ final class RenameOutputRendererTest extends TestCase
         );
 
         self::assertCount(1, $entries);
-        self::assertSame(OutputEntryTag::Skipped, $entries[0]['tag']);
+        self::assertSame(OutputEntryTag::Skipped, $entries[0]->tag);
     }
 
     /**
