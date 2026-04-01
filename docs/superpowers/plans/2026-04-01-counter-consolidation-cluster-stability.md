@@ -1,355 +1,212 @@
-# Counter-Consolidation + Cluster-Stability + Companion-Selection Plan
+# Counter-Consolidation + Cluster-Stability + Companion-Selection Plan (v3)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Eliminate counter-drift between Renderer and Executor (#2), harden cluster/subgroup stability for exotic edge cases (#9), and fix multi-companion selection bug.
+**Goal:** Eliminate counter-drift between Renderer and Executor, harden cluster/subgroup stability for exotic edge cases, and fix multi-companion selection bug.
 
-**Branch:** `feature/asset-group-pipeline` (continues existing work)
+**Branch:** `feature/asset-group-pipeline`
+
+---
+
+## Overarching rule
+
+**Existing semantically correct names are strong stability signals.**
+
+This applies everywhere:
+- Degraded subgroup preservation (Task 4)
+- Companion basename preference (Task 6)
+- Intra-cluster ordering (already implemented via clusterRank sort)
+
+The pipeline should never silently override a name that already matches the expected output pattern.
 
 ---
 
 ## Already completed (outside this plan)
 
-- [x] **CollisionResolver reclaimable No-Op fix** — Only source paths of items that are actually being renamed (source !== target) are treated as reclaimable. No-op items keep their path occupied. (commit 399b07e)
+- [x] CollisionResolver reclaimable No-Op fix (commit 399b07e)
 
 ---
 
-## Problem 1: Counter-Drift (#2)
+## Task 1: Separate counter ownership — ExecutionPreview + ExecutionResult
 
-### Current State
+### Problem
 
-Renderer (`RenameOutputRenderer::renderPlanEntries`) and Executor (`FileSystemService::executePlan`) each iterate the `ExecutionPlan` independently and maintain separate counters. Both read the same plan, but their counting logic can diverge when runtime collision fallback changes a target or exception handling skips an item.
+Renderer and Executor maintain separate counters independently. They can drift when runtime collision fallback changes targets or exception handling skips items. A shared mutable counter object would create hidden coupling and mix planned vs executed semantics.
 
 ### Solution
 
-Introduce `ExecutionCounters` — a single mutable counter object that both Renderer and Executor populate.
+Two immutable result objects with clear ownership:
 
----
+**`ExecutionPreview`** — produced by Renderer, **source of truth for plan-time counts**:
+- `plannedMoves: int` (replaces the misleading `fileCount` counter)
+- `plannedSkips: int`
+- `duplicateCount: int`
 
-## Problem 2: Cluster-Stability (#9)
+**`ExecutionResult`** — produced by Executor, **source of truth for runtime-only deltas/events**:
+- `executedMoves: int`
+- `runtimeFallbacks: int`
+- `runtimeErrors: int`
 
-### Current State
+No artificial symmetry — Preview covers what was planned/displayed, Result covers what actually happened at runtime. The Command currently only uses Renderer counters for the summary; `executePlan()` return value is unused. This change makes that implicit truth explicit.
 
-Three exotic edge cases can break subgroup idempotency:
+Summary renders from three sources:
+- `RenameResult` for scan/analysis values (scanned files, skipped, etc.)
+- `ExecutionPreview` for plan/dry-run values
+- `ExecutionResult` for actual execution values (all zeros in dry-run mode)
 
-**Case A — Degraded Classification Recovery:** Lauf 1: Hash-Fehler → degraded → keine clusterIds → flat duplicate naming. Lauf 2: Classification succeeds → clusterIds → subgroup naming. Result: completely different names.
+### Files
 
-**Case B — Cross-directory Companions in Subgroups:** Companion MOV in a subdirectory of a non-canonical subgroup. Already handled correctly in the code — Companions `continue` before the `isCrossDirNoConflict` check. Needs only a test to prove it.
-
-**Case C — Cluster renumbering after threshold change:** If `MERGE_THRESHOLD` changes between runs, new clusters appear, shifting subgroup numbers. Accepted behavior — alphabetical sort is deterministic. Needs documentation + test.
-
----
-
-## Problem 3: Multi-Companion Selection Bug
-
-### Current State
-
-When multiple files of the same media type share the same Content-Identifier (e.g. two MOVs both paired to the same HEIC), the `CompanionDetector` marks ALL of them as Companion. But only ONE should be the Companion — the others are duplicates of the Companion.
-
-Example:
-```
-...-272.heic  (Canonical)
-...-272.mov   (Companion — primary LP video)
-...-duplicate-001.jpg  (Duplicate of the still)
-...-duplicate-001.mov  (Duplicate of the LP video — NOT a second Companion)
-```
-
-Currently: both MOVs get Companion role → TargetNameResolver gives both `...-272.mov` → collision.
-
-### Solution
-
-CompanionDetector must select only ONE Companion per media type. Preference: the one whose basename already matches the canonical (idempotent). Fallback: first found.
-
----
-
-## Task Breakdown
-
-### Task 1: ExecutionCounters Value Object
-
-**Files:**
-- Create: `src/Model/Execution/ExecutionCounters.php`
-- Create: `tests/Unit/Model/Execution/ExecutionCountersTest.php`
-
-- [ ] **Step 1: Write failing tests** (countersStartAtZero, incrementMethodsWork, toArrayReturnsAllCounters)
-
-- [ ] **Step 2: Implement ExecutionCounters**
-
-```php
-final class ExecutionCounters
-{
-    public int $fileCount = 0;
-    public int $duplicateCount = 0;
-    public int $plannedMoves = 0;
-    public int $plannedSkips = 0;
-
-    public function incrementFileCount(): void { ++$this->fileCount; }
-    public function incrementDuplicateCount(): void { ++$this->duplicateCount; }
-    public function incrementPlannedMoves(): void { ++$this->plannedMoves; }
-    public function incrementPlannedSkips(): void { ++$this->plannedSkips; }
-
-    /** @return array{fileCount: int, duplicateCount: int, plannedMoves: int, plannedSkips: int} */
-    public function toArray(): array { ... }
-}
-```
-
-- [ ] **Step 3: Run tests, PHPStan, commit**
-
-```
-git commit -m "feat: add ExecutionCounters shared counter object"
-```
-
----
-
-### Task 2: Wire ExecutionCounters into Renderer + Executor
-
-**Files:**
-- Modify: `src/Service/RenameOutputRenderer.php`
-- Modify: `src/Service/FileSystemService.php`
+- Create: `src/Model/Execution/ExecutionPreview.php`
+- Create: `src/Model/Execution/ExecutionResult.php`
+- Modify: `src/Service/RenameOutputRenderer.php` — `renderPlanEntries()` returns `ExecutionPreview`
+- Modify: `src/Service/FileSystemService.php` — `executePlan()` returns `ExecutionResult`
 - Modify: `src/Service/FileSystemServiceInterface.php`
-- Modify: `src/Command/RenameByExifDateCommand.php`
+- Modify: `src/Command/RenameByExifDateCommand.php` — pass both to summary
+- Modify: `src/Service/RenameOutputRenderer.php` — `renderPlanSummary()` accepts both
+- Create: `tests/Unit/Model/Execution/ExecutionPreviewTest.php`
+- Create: `tests/Unit/Model/Execution/ExecutionResultTest.php`
+- Update: existing Renderer + Executor tests
 
-- [ ] **Step 1: Update renderPlanEntries signature**
+### Steps
 
-Current signature (after Copilot-fix):
-```php
-public function renderPlanEntries(
-    ExecutionPlan $plan,
-    RenameOptions $options,
-    ?string $sourceBaseDirectory = null,
-    ?array $showFilter = null,
-    ?RenameResult $result = null,
-): array
-```
-
-New signature:
-```php
-public function renderPlanEntries(
-    ExecutionPlan $plan,
-    RenameOptions $options,
-    ?string $sourceBaseDirectory = null,
-    ?array $showFilter = null,
-    ?RenameResult $result = null,
-    ?ExecutionCounters $counters = null,
-): void
-```
-
-Increment `$counters` instead of maintaining local counter variables. If null, create a local one (backwards compatible).
-
-- [ ] **Step 2: Update executePlan signature**
-
-```php
-public function executePlan(
-    ExecutionPlan $plan,
-    bool $dryRun = false,
-    ?ExecutionCounters $counters = null,
-): void
-```
-
-- [ ] **Step 3: Update command to share one instance**
-
-```php
-$counters = new ExecutionCounters();
-
-$this->renameOutputRenderer->renderPlanEntries(
-    $executionPlan, $options, $this->sourceDirectory, $this->showFilter, $result, $counters,
-);
-
-$this->fileSystemService->executePlan($executionPlan, $this->dryRun, $counters);
-
-$this->renameOutputRenderer->renderPlanSummary(
-    $executionPlan, $result, $counters->toArray(), $this->dryRun,
-);
-```
-
-- [ ] **Step 4: Update tests** (executePlan no longer returns array, renderPlanEntries no longer returns array)
-
-- [ ] **Step 5: Run make test, commit**
-
-```
-git commit -m "refactor: unify Renderer and Executor counters via shared ExecutionCounters"
-```
+- [ ] Create `ExecutionPreview` (final readonly class)
+- [ ] Create `ExecutionResult` (final readonly class)
+- [ ] Update `renderPlanEntries()` to return `ExecutionPreview` instead of `array`
+- [ ] Update `executePlan()` to return `ExecutionResult` instead of `array`
+- [ ] Update `renderPlanSummary()` to accept `ExecutionPreview` + `ExecutionResult`
+- [ ] Update command to pass both to summary
+- [ ] Update all tests
+- [ ] Run `make test`
+- [ ] Commit: `refactor: separate counter ownership into ExecutionPreview and ExecutionResult`
 
 ---
 
-### Task 3: Companion never enters cross-directory shortcut (Case B) — test only
+## Task 2: Companion cross-directory shortcut — test only
 
-**Files:**
-- Add test: `tests/Unit/Service/Pipeline/TargetNameResolverTest.php`
+### Problem
 
-The code is already correct: Companions `continue` at line 327 before the `isCrossDirNoConflict` check at line 353. This task only adds the test proving it.
+Companions in subdirectories could theoretically enter the cross-directory shortcut and lose their subgroup suffix. Code review shows Companions already `continue` at line 327 before the `isCrossDirNoConflict` check at line 353.
 
-- [ ] **Step 1: Write test**
+### Solution
 
-```php
-#[Test]
-public function companionInSubdirectoryKeepsSubgroupSuffix(): void
-{
-    // Group: canonical HEIC in /photos (cluster-a),
-    //        companion MOV in /photos/subdir (cluster-a),
-    //        duplicate JPG in /photos (cluster-b)
-    // MOV is alone in its directory but is a Companion
-    // Assert: MOV gets subgroup-matching name, NOT the unsuffixed canonical basename
-}
-```
+Test proving the code is already correct.
 
-- [ ] **Step 2: Run tests, commit**
+### Steps
 
-```
-git commit -m "test: verify companions never enter cross-directory shortcut"
-```
+- [ ] Write test `companionInSubdirectoryKeepsSubgroupSuffix`
+- [ ] Verify test passes without code changes
+- [ ] Commit: `test: verify companions never enter cross-directory shortcut`
 
 ---
 
-### Task 4: Degraded classification recovery respects existing names (Case A)
+## Task 3: Document cluster renumbering behavior — test only
 
-**Files:**
-- Modify: `src/Service/Pipeline/TargetNameResolver.php`
-- Add test: `tests/Unit/Service/Pipeline/TargetNameResolverTest.php`
+### Problem
 
-- [ ] **Step 1: Write failing test**
+When `MERGE_THRESHOLD` changes, new clusters appear, shifting subgroup numbers.
 
-```php
-#[Test]
-public function degradedGroupWithExistingSubgroupNamesPreservesNames(): void
-{
-    // Group with degraded classification (no clusterIds)
-    // Items: canonical ...-000.jpg, items ...-002.jpg and ...-003.jpg
-    // hasMultipleSubgroups returns false (no clusterIds)
-    // Without fix: falls through to flat naming → changes -002 to -duplicate-001
-    // With fix: preserves existing subgroup names (no-op)
-}
-```
+### Solution
 
-- [ ] **Step 2: Implement degraded-group name preservation**
+Accepted behavior. The test documents it as deterministic and intentional, without over-specifying the sort order (alphabetical is the current implementation, but the important property is "stable and documented").
 
-In `resolveGroup()`, after `hasMultipleSubgroups()` returns false:
+Test at the level where the numbering actually originates — SubgroupClassifier or TargetNameResolver's `buildSubgroupMap()`, depending on which is the actual ordering boundary.
 
-```php
-if ($group->isClassificationDegraded() && $this->hasExistingSubgroupPattern($items, $groupKey)) {
-    $this->preserveExistingSubgroupNames($group, $items, $groupKey, $canonicalExtension, $useFileExtensionFromSource);
-    return;
-}
-```
+### Steps
 
-`hasExistingSubgroupPattern()` — checks if any non-Canonical item basename matches `groupKey-NNN`.
-
-`preserveExistingSubgroupNames()` — assigns each matching item its current name as proposedName (no-op). Non-matching items get flat duplicate suffixes.
-
-- [ ] **Step 3: Run tests, commit**
-
-```
-git commit -m "fix: degraded classification respects existing subgroup names for stability"
-```
+- [ ] Write test `clusterRenumberingIsDeterministicWhenNewClusterAppears`
+  - Test that numbering is deterministic
+  - Test that adding a new cluster shifts existing numbers
+  - Document this as accepted behavior
+  - Do NOT hard-assert alphabetical — assert deterministic + documented
+- [ ] Commit: `test: document cluster renumbering as deterministic accepted behavior`
 
 ---
 
-### Task 5: Document cluster renumbering behavior (Case C) — test only
+## Task 4: Degraded classification recovery — strict conditions only
 
-**Files:**
-- Add test: `tests/Unit/Service/Pipeline/TargetNameResolverTest.php`
+### Problem
 
-The alphabetical sort in `buildSubgroupMap()` is stable for the common case. When a threshold change causes new clusters to appear, numbers shift. This is accepted behavior — the test documents it.
+When classification is degraded (Hash-Fehler) on one run but succeeds on the next, files get completely different names.
 
-- [ ] **Step 1: Write test**
+### Solution
 
-```php
-#[Test]
-public function newClusterBetweenExistingOnesShiftsSubgroupNumbers(): void
-{
-    // Cluster bases: "aaa", "ccc" → numbers 2, 3
-    // Add cluster "bbb" → numbers shift to 2, 3, 4
-    // Accepted behavior — deterministic and alphabetically ordered
-}
-```
+When classification is degraded AND existing filenames already match the subgroup pattern, preserve them — but only under strict conditions.
 
-- [ ] **Step 2: Run tests, commit**
+### Entry point
 
-```
-git commit -m "test: document cluster renumbering behavior when new clusters appear"
-```
+In `TargetNameResolver::resolveGroup()`, **before** the `hasMultipleSubgroups()` check. When degraded, `hasMultipleSubgroups()` returns false (all clusterIds null) and the group falls through to flat naming. The recovery must intercept before that.
+
+### Conscious exception to "filename must not influence pipeline"
+
+Normally the current filename must never drive pipeline decisions. This is a **deliberate, narrowly bounded degraded-mode exception**: when classification has failed, the existing filenames are the only signal available to avoid unnecessary churn. The 5 strict conditions exist precisely to limit this exception to cases where the names demonstrably come from a prior *successful* run.
+
+### Strict conditions (ALL must be true)
+
+1. Group `isClassificationDegraded()` is true
+2. At least one non-Canonical item basename matches `groupKey-NNN` pattern
+3. No two items claim the same clean subgroup basename (no conflicts)
+4. Existing duplicate numbering within subgroups is consistent (no gaps, no duplicates)
+5. No item has a clusterId set (truly degraded, not partial)
+
+If ANY condition fails → fall through to normal flat duplicate naming. Do not attempt to recover inconsistent state.
+
+### Important
+
+This is a **degraded-mode stability rule**, not new classification. It is narrow idempotency protection, not inference.
+
+### Steps
+
+- [ ] Write failing test `degradedGroupWithExistingSubgroupNamesPreservesNames`
+- [ ] Write test `degradedGroupWithConflictingSubgroupNamesFallsThrough`
+- [ ] Write test `degradedGroupWithPartialClusterIdsFallsThrough`
+- [ ] Implement `hasExistingSubgroupPattern()` with all 5 strict conditions
+- [ ] Implement `preserveExistingSubgroupNames()` — assigns current name as proposedName for matching items, flat duplicate for non-matching
+- [ ] Run `make test`
+- [ ] Commit: `fix: degraded classification preserves existing subgroup names under strict conditions`
 
 ---
 
-### Task 6: CompanionDetector — select only one Companion per media type
+## Task 5: CompanionDetector — select only one Companion per media type
 
-**Files:**
-- Modify: `src/Service/Pipeline/CompanionDetector.php`
-- Add test: `tests/Unit/Service/Pipeline/CompanionDetectorTest.php`
+### Problem
 
-- [ ] **Step 1: Write failing test**
+When multiple files of the same media type share the same Content-Identifier (e.g. two MOVs paired to the same HEIC), CompanionDetector marks ALL as Companion. Only ONE should be Companion — the rest are duplicates.
 
-```php
-#[Test]
-public function onlyOneCompanionPerMediaTypeWhenMultipleShareContentId(): void
-{
-    // Group: canonical HEIC (content-id=abc),
-    //        MOV #1 (content-id=abc),
-    //        MOV #2 (content-id=abc)
-    // Assert: only ONE MOV is detected as companion, not both
-}
+### Solution
 
-#[Test]
-public function companionWithMatchingBasenamePreferedOverOther(): void
-{
-    // Group: canonical HEIC named ...-272.heic (content-id=abc),
-    //        MOV #1 named ...-272.mov (content-id=abc),
-    //        MOV #2 named ...-duplicate-001.mov (content-id=abc)
-    // Assert: MOV #1 (matching basename) is companion, MOV #2 is not
-}
-```
+Collect candidates, select the best one via a stable preference chain:
 
-- [ ] **Step 2: Fix CompanionDetector Phase 1**
+1. **Basename matches canonical** — idempotent, file already has the correct companion name
+2. **Existing clean companion name** — file already named as a companion from a prior run
+3. **Stable tie-breaker** — clusterRank if available, otherwise shortest pathname (deterministic, rename-independent)
 
-In the Content-ID matching loop (current lines 67-83), instead of adding ALL matches to `$companions`, collect candidates and select the best one:
+NOT "first found" — that depends on iteration order which may change.
 
-```php
-// Phase 1: Content-ID matching — collect candidates, select best one
-$contentIdCandidates = [];
+### API unchanged (Option A)
 
-foreach ($group->getItems() as $item) {
-    if ($item === $canonical) { continue; }
+`detect()` signature stays `array<string, true>`. The selection happens **inside** CompanionDetector — it collects all candidates per media type, applies the preference chain, and returns only the winner. The losing candidates are simply not returned. They don't become duplicates *through* the detector; they retain whatever role the normal assignment process gives them (typically Duplicate).
 
-    $itemIsStill = $this->mediaTypeClassifier->isLivePhotoStill($item->file);
-    if ($canonicalIsStill === $itemIsStill) { continue; }
+### Steps
 
-    if ($item->contentIdentifier === $canonical->contentIdentifier) {
-        $contentIdCandidates[] = $item;
-    }
-}
-
-if ($contentIdCandidates !== []) {
-    // Prefer candidate whose basename matches canonical (idempotent)
-    $bestCandidate = $contentIdCandidates[0];
-
-    foreach ($contentIdCandidates as $candidate) {
-        if (FileHelper::basenameWithoutExtension($candidate->file) === $canonicalBasename) {
-            $bestCandidate = $candidate;
-            break;
-        }
-    }
-
-    $companions[$bestCandidate->file->getPathname()] = true;
-}
-```
-
-This selects ONE companion per content-ID match. The remaining MOVs stay as Duplicates (assigned by RoleAssigner).
-
-- [ ] **Step 3: Run tests, commit**
-
-```
-git commit -m "fix: CompanionDetector selects only one companion per media type"
-```
+- [ ] Write failing test `onlyOneCompanionPerMediaTypeWhenMultipleShareContentId`
+- [ ] Write test `companionWithMatchingBasenamePreferedOverOther`
+- [ ] Write test `companionFallbackUsesStableTieBreaker` (not first-found)
+- [ ] Refactor CompanionDetector Phase 1: collect candidates → select best via preference chain
+- [ ] Run `make test`
+- [ ] Verify with real data: `./renamer.sh rename:exif --dry-run /volume1/Fotos/MobileBackup/Test/ --list-all`
+- [ ] Commit: `fix: CompanionDetector selects one companion per media type with stable preference`
 
 ---
 
 ## Success Criteria
 
-- [ ] `ExecutionCounters` is the single source of truth for all rename operation counts
-- [ ] Renderer and Executor never produce different counts for the same plan
-- [ ] Companions in subdirectories never lose their subgroup suffix (proven by test)
-- [ ] Degraded groups with existing subgroup-pattern names remain stable (no-op on re-run)
-- [ ] Cluster renumbering on threshold change is documented, deterministic, and tested
-- [ ] CompanionDetector selects exactly one companion per media type per content-ID
+- [ ] Renderer produces `ExecutionPreview`, Executor produces `ExecutionResult` — clear ownership
+- [ ] Summary renders from three distinct sources (RenameResult + Preview + Result)
+- [ ] Companions in subdirectories never lose subgroup suffix (proven by test)
+- [ ] Degraded groups with existing subgroup names remain stable only under strict conditions
+- [ ] Degraded groups with inconsistent names fall through to safe flat naming
+- [ ] Cluster renumbering is documented as deterministic accepted behavior
+- [ ] CompanionDetector selects exactly one companion per media type with stable preference
 - [ ] Live Photo groups with duplicate companions are fully idempotent
 - [ ] All existing tests remain green
 - [ ] `make test` passes
