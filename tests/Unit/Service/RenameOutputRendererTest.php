@@ -16,6 +16,10 @@ use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\Collection\FileList;
 use MagicSunday\Renamer\Model\Collection\RenameList;
+use MagicSunday\Renamer\Model\Execution\ExecutionGroup;
+use MagicSunday\Renamer\Model\Execution\ExecutionItem;
+use MagicSunday\Renamer\Model\Execution\ExecutionItemType;
+use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\Rename;
@@ -48,6 +52,9 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
+#[UsesClass(ExecutionGroup::class)]
+#[UsesClass(ExecutionItem::class)]
+#[UsesClass(ExecutionPlan::class)]
 #[UsesClass(FileHelper::class)]
 #[UsesClass(FileList::class)]
 #[UsesClass(RenameList::class)]
@@ -762,10 +769,12 @@ final class RenameOutputRendererTest extends TestCase
     }
 
     /**
-     * Verifies that skipFallback option marks fallback entries as shouldSkip.
+     * Verifies that fallback date entries in the legacy path are tagged [F]
+     * but NOT skipped (execution blocking is handled by isExecutable in the
+     * plan path, not the legacy path).
      */
     #[Test]
-    public function buildOutputEntriesSkipsFallbackWhenOptionSet(): void
+    public function buildOutputEntriesFallbackNotSkippedInLegacyPath(): void
     {
         [$renderer] = $this->createRenderer();
 
@@ -782,7 +791,7 @@ final class RenameOutputRendererTest extends TestCase
 
         [$entries] = $renderer->buildOutputEntries(
             $collection,
-            new RenameOptions(skipFallback: true),
+            new RenameOptions(),
             new RenameResult(
                 fallbackDateFiles: [$source => true],
             ),
@@ -790,7 +799,8 @@ final class RenameOutputRendererTest extends TestCase
         );
 
         self::assertCount(1, $entries);
-        self::assertTrue($entries[0]['shouldSkip']);
+        self::assertSame(OutputEntryTag::Fallback, $entries[0]['tag']);
+        self::assertFalse($entries[0]['shouldSkip']);
     }
 
     /**
@@ -864,6 +874,529 @@ final class RenameOutputRendererTest extends TestCase
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Warning, $entries[0]['tag']);
         self::assertTrue($entries[0]['shouldSkip']);
+    }
+
+    // ---------------------------------------------------------------
+    //  ExecutionPlan rendering tests
+    // ---------------------------------------------------------------
+
+    /**
+     * Verifies that buildOutputEntriesFromPlan maps each quality flag
+     * to the correct OutputEntryTag.
+     */
+    #[Test]
+    public function buildOutputEntriesFromPlanAssignsCorrectTags(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $baseDir = '/tmp/source';
+
+        $plan = new ExecutionPlan([
+            new ExecutionGroup('group-rename', false, null, [
+                new ExecutionItem(
+                    $baseDir . '/img.jpg',
+                    $baseDir . '/2025-01-01_10-00-00-000.jpg',
+                    ExecutionItemType::Canonical,
+                    renameRequired: true,
+                    isNoOp: false,
+                    groupKey: 'group-rename',
+                ),
+            ]),
+            new ExecutionGroup('group-conflict', false, null, [
+                new ExecutionItem(
+                    $baseDir . '/conflict.mov',
+                    $baseDir . '/2025-01-01_10-00-00-000.mov',
+                    ExecutionItemType::Companion,
+                    renameRequired: true,
+                    isNoOp: false,
+                    groupKey: 'group-conflict',
+                    isLivePhotoConflict: true,
+                    isExecutable: false,
+                    executionBlockReason: 'Live Photo conflict',
+                ),
+            ]),
+            new ExecutionGroup('group-warn', false, null, [
+                new ExecutionItem(
+                    $baseDir . '/clip.mp4',
+                    $baseDir . '/2025-06-10_16-30-00-000.mp4',
+                    ExecutionItemType::Canonical,
+                    renameRequired: true,
+                    isNoOp: false,
+                    groupKey: 'group-warn',
+                    isAmbiguousTimezone: true,
+                    isExecutable: false,
+                    executionBlockReason: 'Ambiguous timezone',
+                ),
+            ]),
+            new ExecutionGroup('group-fallback', false, null, [
+                new ExecutionItem(
+                    $baseDir . '/scan.jpg',
+                    $baseDir . '/2024-01-01_00-00-00-000.jpg',
+                    ExecutionItemType::Canonical,
+                    renameRequired: true,
+                    isNoOp: false,
+                    groupKey: 'group-fallback',
+                    isFallbackDate: true,
+                    isExecutable: false,
+                    executionBlockReason: 'Fallback date',
+                ),
+            ]),
+            new ExecutionGroup('group-dup', false, null, [
+                new ExecutionItem(
+                    $baseDir . '/dup.jpg',
+                    $baseDir . '/2025-01-01_10-00-00-000' . Constants::DUPLICATE_IDENTIFIER . '001.jpg',
+                    ExecutionItemType::Duplicate,
+                    renameRequired: true,
+                    isNoOp: false,
+                    groupKey: 'group-dup',
+                    isDuplicateTarget: true,
+                ),
+            ]),
+            new ExecutionGroup('group-noop', false, null, [
+                new ExecutionItem(
+                    $baseDir . '/2025-01-01_10-00-00-000.jpg',
+                    $baseDir . '/2025-01-01_10-00-00-000.jpg',
+                    ExecutionItemType::Canonical,
+                    renameRequired: false,
+                    isNoOp: true,
+                    groupKey: 'group-noop',
+                ),
+            ]),
+        ]);
+
+        [$entries] = $renderer->buildOutputEntriesFromPlan(
+            $plan,
+            new RenameOptions(),
+            new RenameResult(),
+            $baseDir,
+        );
+
+        // Sorted by source path: 2025-01-01 (noop), clip, conflict, dup, img, scan
+        /** @var array<string, OutputEntryTag> $tagMap */
+        $tagMap = [];
+
+        foreach ($entries as $entry) {
+            /** @var string $sourcePath */
+            $sourcePath          = $entry['sourcePath'];
+            $tagMap[$sourcePath] = $entry['tag'];
+        }
+
+        self::assertSame(OutputEntryTag::Rename, $tagMap['img.jpg']);
+        self::assertSame(OutputEntryTag::Candidate, $tagMap['conflict.mov']);
+        self::assertSame(OutputEntryTag::Warning, $tagMap['clip.mp4']);
+        self::assertSame(OutputEntryTag::Fallback, $tagMap['scan.jpg']);
+        self::assertSame(OutputEntryTag::Duplicate, $tagMap['dup.jpg']);
+        self::assertSame(OutputEntryTag::Original, $tagMap['2025-01-01_10-00-00-000.jpg']);
+    }
+
+    /**
+     * Verifies that buildOutputEntriesFromPlan computes correct counters
+     * for skipped/error entries from RenameResult.
+     */
+    #[Test]
+    public function buildOutputEntriesFromPlanCountsCorrectly(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $baseDir = '/tmp/source';
+
+        $plan = new ExecutionPlan([
+            new ExecutionGroup('group-a', false, null, [
+                new ExecutionItem(
+                    $baseDir . '/a.jpg',
+                    $baseDir . '/2025-01-01_10-00-00-000.jpg',
+                    ExecutionItemType::Canonical,
+                    renameRequired: true,
+                    isNoOp: false,
+                    groupKey: 'group-a',
+                ),
+                new ExecutionItem(
+                    $baseDir . '/b.jpg',
+                    $baseDir . '/2025-01-01_10-00-00-000' . Constants::DUPLICATE_IDENTIFIER . '001.jpg',
+                    ExecutionItemType::Duplicate,
+                    renameRequired: true,
+                    isNoOp: false,
+                    groupKey: 'group-a',
+                    isDuplicateTarget: true,
+                ),
+            ]),
+        ]);
+
+        $result = new RenameResult(
+            skippedFiles: [
+                new SkippedFile(new SplFileInfo($baseDir . '/no-date.jpg'), 'no capture date'),
+                new SkippedFile(new SplFileInfo($baseDir . '/broken.jpg'), 'read error', true),
+            ],
+        );
+
+        [$entries, $skippedCount, $errorCount] = $renderer->buildOutputEntriesFromPlan(
+            $plan,
+            new RenameOptions(),
+            $result,
+            $baseDir,
+        );
+
+        // 2 items from plan + 2 skipped files = 4 entries
+        self::assertCount(4, $entries);
+        self::assertSame(1, $skippedCount);
+        self::assertSame(1, $errorCount);
+    }
+
+    /**
+     * Verifies that renderPlanEntries respects the showFilter parameter.
+     */
+    #[Test]
+    public function renderPlanEntriesRespectsShowFilter(): void
+    {
+        [$renderer, $output] = $this->createRenderer();
+
+        $baseDir = '/tmp/source';
+
+        $plan = new ExecutionPlan([
+            new ExecutionGroup('group-a', false, null, [
+                new ExecutionItem(
+                    $baseDir . '/a.jpg',
+                    $baseDir . '/2025-01-01_10-00-00-000.jpg',
+                    ExecutionItemType::Canonical,
+                    renameRequired: true,
+                    isNoOp: false,
+                    groupKey: 'group-a',
+                ),
+            ]),
+            new ExecutionGroup('group-b', false, null, [
+                new ExecutionItem(
+                    $baseDir . '/2025-02-01_10-00-00-000.jpg',
+                    $baseDir . '/2025-02-01_10-00-00-000.jpg',
+                    ExecutionItemType::Canonical,
+                    renameRequired: false,
+                    isNoOp: true,
+                    groupKey: 'group-b',
+                ),
+            ]),
+        ]);
+
+        // Only show [R] entries — the [O] no-op should not render
+        $counters = $renderer->renderPlanEntries(
+            $plan,
+            new RenameOptions(),
+            $baseDir,
+            ['R'],
+        );
+
+        $buffer = $output->fetch();
+
+        self::assertStringContainsString('a.jpg', $buffer);
+        self::assertStringNotContainsString('2025-02-01', $buffer);
+        self::assertSame(1, $counters['plannedMoves']);
+    }
+
+    /**
+     * Verifies countLivePhotoGroupsInPlan returns the correct count.
+     */
+    #[Test]
+    public function livePhotoGroupCountFromPlan(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $plan = new ExecutionPlan([
+            new ExecutionGroup('live-photo:cid-1', true, null, [
+                new ExecutionItem(
+                    '/tmp/a.heic',
+                    '/tmp/2025-01-01_10-00-00-000.heic',
+                    ExecutionItemType::Canonical,
+                    renameRequired: true,
+                    isNoOp: false,
+                    groupKey: 'live-photo:cid-1',
+                ),
+            ]),
+            new ExecutionGroup('live-photo:cid-2', true, null, [
+                new ExecutionItem(
+                    '/tmp/b.heic',
+                    '/tmp/2025-02-01_10-00-00-000.heic',
+                    ExecutionItemType::Canonical,
+                    renameRequired: true,
+                    isNoOp: false,
+                    groupKey: 'live-photo:cid-2',
+                ),
+            ]),
+            new ExecutionGroup('non-live', false, null, [
+                new ExecutionItem(
+                    '/tmp/c.jpg',
+                    '/tmp/2025-03-01_10-00-00-000.jpg',
+                    ExecutionItemType::Canonical,
+                    renameRequired: true,
+                    isNoOp: false,
+                    groupKey: 'non-live',
+                ),
+            ]),
+        ]);
+
+        self::assertSame(2, $renderer->countLivePhotoGroupsInPlan($plan));
+    }
+
+    /**
+     * Verifies that a no-op item is tagged as Original.
+     */
+    #[Test]
+    public function noOpItemGetsOriginalTag(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $baseDir = '/tmp/source';
+
+        $plan = new ExecutionPlan([
+            new ExecutionGroup('group-a', false, null, [
+                new ExecutionItem(
+                    $baseDir . '/2025-01-01_10-00-00-000.jpg',
+                    $baseDir . '/2025-01-01_10-00-00-000.jpg',
+                    ExecutionItemType::Canonical,
+                    renameRequired: false,
+                    isNoOp: true,
+                    groupKey: 'group-a',
+                ),
+            ]),
+        ]);
+
+        [$entries] = $renderer->buildOutputEntriesFromPlan(
+            $plan,
+            new RenameOptions(),
+            new RenameResult(),
+            $baseDir,
+        );
+
+        self::assertCount(1, $entries);
+        self::assertSame(OutputEntryTag::Original, $entries[0]['tag']);
+    }
+
+    /**
+     * Verifies that a duplicate-target item is tagged as Duplicate.
+     */
+    #[Test]
+    public function duplicateItemGetsDuplicateTag(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $baseDir = '/tmp/source';
+
+        $plan = new ExecutionPlan([
+            new ExecutionGroup('group-a', false, null, [
+                new ExecutionItem(
+                    $baseDir . '/photo-b.jpg',
+                    $baseDir . '/2025-01-01_10-00-00-000' . Constants::DUPLICATE_IDENTIFIER . '001.jpg',
+                    ExecutionItemType::Duplicate,
+                    renameRequired: true,
+                    isNoOp: false,
+                    groupKey: 'group-a',
+                    isDuplicateTarget: true,
+                ),
+            ]),
+        ]);
+
+        [$entries] = $renderer->buildOutputEntriesFromPlan(
+            $plan,
+            new RenameOptions(),
+            new RenameResult(),
+            $baseDir,
+        );
+
+        self::assertCount(1, $entries);
+        self::assertSame(OutputEntryTag::Duplicate, $entries[0]['tag']);
+        self::assertTrue($entries[0]['isDuplicateTarget']);
+    }
+
+    /**
+     * Verifies that a fallback-date item is tagged as Fallback.
+     */
+    #[Test]
+    public function fallbackDateItemGetsFallbackTag(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $baseDir = '/tmp/source';
+
+        $plan = new ExecutionPlan([
+            new ExecutionGroup('group-a', false, null, [
+                new ExecutionItem(
+                    $baseDir . '/scan.jpg',
+                    $baseDir . '/2024-01-01_00-00-00-000.jpg',
+                    ExecutionItemType::Canonical,
+                    renameRequired: true,
+                    isNoOp: false,
+                    groupKey: 'group-a',
+                    isFallbackDate: true,
+                    isExecutable: false,
+                    executionBlockReason: 'Fallback date',
+                ),
+            ]),
+        ]);
+
+        [$entries] = $renderer->buildOutputEntriesFromPlan(
+            $plan,
+            new RenameOptions(),
+            new RenameResult(),
+            $baseDir,
+        );
+
+        self::assertCount(1, $entries);
+        self::assertSame(OutputEntryTag::Fallback, $entries[0]['tag']);
+    }
+
+    /**
+     * Verifies that an ambiguous-timezone item is tagged as Warning.
+     */
+    #[Test]
+    public function ambiguousTimezoneItemGetsWarningTag(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $baseDir = '/tmp/source';
+
+        $plan = new ExecutionPlan([
+            new ExecutionGroup('group-a', false, null, [
+                new ExecutionItem(
+                    $baseDir . '/clip.mp4',
+                    $baseDir . '/2025-06-10_16-30-00-000.mp4',
+                    ExecutionItemType::Canonical,
+                    renameRequired: true,
+                    isNoOp: false,
+                    groupKey: 'group-a',
+                    isAmbiguousTimezone: true,
+                    isExecutable: false,
+                    executionBlockReason: 'Ambiguous timezone: QuickTime UTC without offset',
+                ),
+            ]),
+        ]);
+
+        [$entries] = $renderer->buildOutputEntriesFromPlan(
+            $plan,
+            new RenameOptions(),
+            new RenameResult(),
+            $baseDir,
+        );
+
+        self::assertCount(1, $entries);
+        self::assertSame(OutputEntryTag::Warning, $entries[0]['tag']);
+        self::assertTrue($entries[0]['shouldSkip']);
+    }
+
+    /**
+     * Verifies that renderDecisionLogFromPlan outputs decision log entries.
+     */
+    #[Test]
+    public function renderDecisionLogFromPlanOutputsEntries(): void
+    {
+        [$renderer, $output] = $this->createRenderer();
+
+        $plan = new ExecutionPlan([
+            new ExecutionGroup('group-a', false, null, [], [
+                'Canonical selected: a.heic (format priority)',
+                'Companion paired: a.mov (content-id match)',
+            ]),
+            new ExecutionGroup('group-b', false, null, [], []),
+        ]);
+
+        $renderer->renderDecisionLogFromPlan($plan);
+
+        $buffer = $output->fetch();
+
+        self::assertStringContainsString('Decision Log', $buffer);
+        self::assertStringContainsString('group-a', $buffer);
+        self::assertStringContainsString('Canonical selected: a.heic (format priority)', $buffer);
+        self::assertStringContainsString('Companion paired: a.mov (content-id match)', $buffer);
+        // group-b has no log entries, so it should not appear
+        self::assertStringNotContainsString('group-b', $buffer);
+    }
+
+    /**
+     * Verifies that renderDecisionLogFromPlan produces no output when no groups have logs.
+     */
+    #[Test]
+    public function renderDecisionLogFromPlanNoOutputWhenEmpty(): void
+    {
+        [$renderer, $output] = $this->createRenderer();
+
+        $plan = new ExecutionPlan([
+            new ExecutionGroup('group-a', false, null, [], []),
+        ]);
+
+        $renderer->renderDecisionLogFromPlan($plan);
+
+        $buffer = $output->fetch();
+
+        self::assertStringNotContainsString('Decision Log', $buffer);
+    }
+
+    /**
+     * Verifies that date drift detection works on ExecutionPlan entries.
+     */
+    #[Test]
+    public function buildOutputEntriesFromPlanDetectsDateDrift(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $baseDir = '/tmp/source';
+
+        $plan = new ExecutionPlan([
+            new ExecutionGroup('group-a', false, null, [
+                new ExecutionItem(
+                    $baseDir . '/2024-01-15_10-00-00.jpg',
+                    $baseDir . '/2024-06-20_10-00-00-000.jpg',
+                    ExecutionItemType::Canonical,
+                    renameRequired: true,
+                    isNoOp: false,
+                    groupKey: 'group-a',
+                ),
+            ]),
+        ]);
+
+        [$entries] = $renderer->buildOutputEntriesFromPlan(
+            $plan,
+            new RenameOptions(maxDateDrift: 7),
+            new RenameResult(),
+            $baseDir,
+        );
+
+        self::assertCount(1, $entries);
+        self::assertSame(OutputEntryTag::Warning, $entries[0]['tag']);
+        self::assertTrue($entries[0]['shouldSkip']);
+
+        /** @var string $warningReason */
+        $warningReason = $entries[0]['warningReason'];
+        self::assertStringContainsString('Date drift:', $warningReason);
+    }
+
+    /**
+     * Verifies that ExecutionItem with type Skipped gets OutputEntryTag::Skipped.
+     */
+    #[Test]
+    public function skippedItemTypeGetsSkippedTag(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $baseDir = '/tmp/source';
+
+        $plan = new ExecutionPlan([
+            new ExecutionGroup('group-a', false, null, [
+                new ExecutionItem(
+                    $baseDir . '/skip.jpg',
+                    $baseDir . '/skip.jpg',
+                    ExecutionItemType::Skipped,
+                    renameRequired: false,
+                    isNoOp: true,
+                    groupKey: 'group-a',
+                ),
+            ]),
+        ]);
+
+        [$entries] = $renderer->buildOutputEntriesFromPlan(
+            $plan,
+            new RenameOptions(),
+            new RenameResult(),
+            $baseDir,
+        );
+
+        self::assertCount(1, $entries);
+        self::assertSame(OutputEntryTag::Skipped, $entries[0]['tag']);
     }
 
     /**

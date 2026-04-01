@@ -109,7 +109,6 @@ final class AbstractRenameCommandTest extends TestCase
                 self::identicalTo($fileDuplicateCollection),
                 self::callback(static function (RenameOptions $options): bool {
                     self::assertTrue($options->dryRun);
-                    self::assertFalse($options->skipDuplicates);
                     self::assertFalse($options->listAll);
 
                     return true;
@@ -152,101 +151,6 @@ final class AbstractRenameCommandTest extends TestCase
 
         self::assertSame(Command::SUCCESS, $tester->getStatusCode());
         self::assertStringContainsString('Performing dry run', $tester->getDisplay());
-    }
-
-    /**
-     * Verifies that --skip-duplicates can be used for in-place renames.
-     * skipDuplicates is set to true in RenameOptions.
-     */
-    #[Test]
-    public function executeAllowsSkipDuplicatesForInPlaceRename(): void
-    {
-        $fileSystemService         = $this->createMock(FileSystemServiceInterface::class);
-        $duplicateDetectionService = $this->createMock(DuplicateDetectionServiceInterface::class);
-
-        $renameStrategy              = self::createStub(RenameStrategyInterface::class);
-        $duplicateIdentifierStrategy = self::createStub(DuplicateIdentifierStrategyInterface::class);
-
-        $iteratorOne             = new RecursiveIteratorIterator(new RecursiveArrayIterator([]));
-        $fileDuplicateCollection = new FileDuplicateCollection();
-
-        $fileSystemService
-            ->expects(self::once())
-            ->method('createFileIterator')
-            ->with('/source-directory')
-            ->willReturn($iteratorOne);
-
-        $duplicateDetectionService
-            ->expects(self::once())
-            ->method('groupFilesByDuplicateIdentifier')
-            ->with(
-                self::identicalTo($iteratorOne),
-                self::identicalTo($renameStrategy),
-                self::identicalTo($duplicateIdentifierStrategy),
-                '/source-directory',
-            )
-            ->willReturn($fileDuplicateCollection);
-
-        $duplicateDetectionService
-            ->expects(self::once())
-            ->method('createDuplicateFilenames')
-            ->with(
-                self::identicalTo($fileDuplicateCollection),
-                '/source-directory',
-                false,
-            )
-            ->willReturn($fileDuplicateCollection);
-
-        $fileSystemService
-            ->expects(self::once())
-            ->method('renameFiles')
-            ->with(
-                self::identicalTo($fileDuplicateCollection),
-                self::callback(static function (RenameOptions $options): bool {
-                    self::assertTrue($options->dryRun);
-                    self::assertTrue($options->skipDuplicates);
-                    self::assertFalse($options->listAll);
-
-                    return true;
-                }),
-            );
-
-        $command = new class($fileSystemService, $duplicateDetectionService, $renameStrategy, $duplicateIdentifierStrategy) extends AbstractRenameCommand {
-            public function __construct(
-                FileSystemServiceInterface $fileSystemService,
-                DuplicateDetectionServiceInterface $duplicateDetectionService,
-                private readonly RenameStrategyInterface $renameStrategy,
-                private readonly DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy,
-            ) {
-                parent::__construct($fileSystemService, $duplicateDetectionService);
-
-                $this->setName('test:rename');
-            }
-
-            protected function createFileIterator(): RecursiveIteratorIterator
-            {
-                return $this->fileSystemService->createFileIterator($this->sourceDirectory);
-            }
-
-            protected function getTargetFilenameStrategy(): RenameStrategyInterface
-            {
-                return $this->renameStrategy;
-            }
-
-            protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
-            {
-                return $this->duplicateIdentifierStrategy;
-            }
-        };
-
-        $tester = new CommandTester($command);
-        $tester->execute([
-            'source'            => '/source-directory',
-            '--dry-run'         => true,
-            '--skip-duplicates' => true,
-        ]);
-
-        self::assertSame(Command::SUCCESS, $tester->getStatusCode());
     }
 
     /**
@@ -302,7 +206,6 @@ final class AbstractRenameCommandTest extends TestCase
                 self::identicalTo($fileDuplicateCollection),
                 self::callback(static function (RenameOptions $options): bool {
                     self::assertFalse($options->dryRun);
-                    self::assertFalse($options->skipDuplicates);
                     self::assertTrue($options->listAll);
 
                     return true;
@@ -399,7 +302,6 @@ final class AbstractRenameCommandTest extends TestCase
                 self::identicalTo($fileDuplicateCollection),
                 self::callback(static function (RenameOptions $options): bool {
                     self::assertTrue($options->dryRun);
-                    self::assertFalse($options->skipDuplicates);
                     self::assertFalse($options->listAll);
 
                     return true;

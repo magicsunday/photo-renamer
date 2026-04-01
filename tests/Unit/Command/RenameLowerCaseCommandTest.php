@@ -124,7 +124,6 @@ final class RenameLowerCaseCommandTest extends TestCase
                     self::identicalTo($duplicateCollection),
                     self::callback(static function (RenameOptions $options): bool {
                         self::assertTrue($options->dryRun);
-                        self::assertFalse($options->skipDuplicates);
                         self::assertFalse($options->listAll);
 
                         return true;

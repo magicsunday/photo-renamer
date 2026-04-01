@@ -167,8 +167,8 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         $progressOutput = $output->fetch();
 
-        self::assertStringContainsString('| ETA:', $progressOutput);
-        self::assertStringContainsString('| Remaining:', $progressOutput);
+        self::assertStringContainsString('Elapsed:', $progressOutput);
+        self::assertStringContainsString('Remaining:', $progressOutput);
     }
 
     /**
@@ -207,8 +207,8 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         $progressOutput = $output->fetch();
 
-        self::assertStringContainsString('| ETA:', $progressOutput);
-        self::assertStringContainsString('| Remaining:', $progressOutput);
+        self::assertStringContainsString('Elapsed:', $progressOutput);
+        self::assertStringContainsString('Remaining:', $progressOutput);
     }
 
     /**

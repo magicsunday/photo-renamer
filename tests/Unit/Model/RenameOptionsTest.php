@@ -20,9 +20,9 @@ use PHPUnit\Framework\TestCase;
  * Verifies the value-object contract of RenameOptions, the immutable configuration
  * carrier passed from AbstractRenameCommand to FileSystemService::renameFiles().
  *
- * RenameOptions controls dry-run mode, duplicate skipping, list-all output, and
- * base directory paths. Correct defaults and explicit overrides are critical
- * because the FileSystemService branches on every one of these flags.
+ * RenameOptions controls dry-run mode, list-all output, and base directory paths.
+ * Correct defaults and explicit overrides are critical because the FileSystemService
+ * branches on every one of these flags.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -36,8 +36,8 @@ final class RenameOptionsTest extends TestCase
      * set to false, nullable paths set to null, and numeric counters at zero.
      *
      * This ensures that omitting options from the command line does not
-     * accidentally enable dry-run, copy mode, or duplicate skipping,
-     * which would change the rename behaviour in unexpected ways.
+     * accidentally enable dry-run or copy mode, which would change the rename
+     * behaviour in unexpected ways.
      */
     #[Test]
     public function itUsesDefaultValues(): void
@@ -45,7 +45,6 @@ final class RenameOptionsTest extends TestCase
         $options = new RenameOptions();
 
         self::assertFalse($options->dryRun);
-        self::assertFalse($options->skipDuplicates);
         self::assertFalse($options->listAll);
         self::assertNull($options->sourceBaseDirectory);
     }
@@ -63,13 +62,11 @@ final class RenameOptionsTest extends TestCase
     {
         $options = new RenameOptions(
             dryRun: true,
-            skipDuplicates: true,
             listAll: true,
             sourceBaseDirectory: '/source',
         );
 
         self::assertTrue($options->dryRun);
-        self::assertTrue($options->skipDuplicates);
         self::assertTrue($options->listAll);
         self::assertSame('/source', $options->sourceBaseDirectory);
     }

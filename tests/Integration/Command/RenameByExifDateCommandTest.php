@@ -30,7 +30,9 @@ use MagicSunday\Renamer\Model\RenameResult;
 use MagicSunday\Renamer\Model\TargetFileResult;
 use MagicSunday\Renamer\Regex\RegexMatchResult;
 use MagicSunday\Renamer\Regex\SafeRegex;
+use MagicSunday\Renamer\Service\CanonicalScorer;
 use MagicSunday\Renamer\Service\DuplicateDetectionService;
+use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilder;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoBasenameTargetMap;
@@ -46,7 +48,17 @@ use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
 use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzer;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualSignalCache;
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityResult;
+use MagicSunday\Renamer\Service\Pipeline\AssetGroupPipeline;
+use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuilder;
+use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuildState;
+use MagicSunday\Renamer\Service\Pipeline\CollisionResolver;
+use MagicSunday\Renamer\Service\Pipeline\CompanionDetector;
+use MagicSunday\Renamer\Service\Pipeline\ExifRenamePipelineResult;
+use MagicSunday\Renamer\Service\Pipeline\RoleAssigner;
+use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifier;
+use MagicSunday\Renamer\Service\Pipeline\TargetNameResolver;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
+use MagicSunday\Renamer\Service\RenamePlanValidator;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
@@ -120,10 +132,21 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(LivePhotoContentIdentifierTargetMap::class)]
 #[UsesClass(LivePhotoExistingFilePathnameIndex::class)]
 #[UsesClass(LivePhotoPairingCollection::class)]
-#[UsesClass(LivePhotoPairingService::class)]
 #[UsesClass(MediaTypeClassifier::class)]
 #[UsesClass(MetadataCache::class)]
 #[UsesClass(PerceptualSignalCache::class)]
+#[UsesClass(ExecutionPlanBuilder::class)]
+#[UsesClass(CanonicalScorer::class)]
+#[UsesClass(AssetGroupPipeline::class)]
+#[UsesClass(ExifRenamePipelineResult::class)]
+#[UsesClass(CaptureGroupBuilder::class)]
+#[UsesClass(CaptureGroupBuildState::class)]
+#[UsesClass(CollisionResolver::class)]
+#[UsesClass(CompanionDetector::class)]
+#[UsesClass(RoleAssigner::class)]
+#[UsesClass(SubgroupClassifier::class)]
+#[UsesClass(TargetNameResolver::class)]
+#[UsesClass(RenamePlanValidator::class)]
 #[UsesClass(RenameOutputRenderer::class)]
 #[UsesClass(SafeHashCalculator::class)]
 #[UsesClass(SimilarityResult::class)]
@@ -599,6 +622,127 @@ final class RenameByExifDateCommandTest extends TestCase
     }
 
     /**
+     * Verifies that the decision log is rendered in --dry-run --list-all output
+     * when the pipeline encounters a multi-file group that requires canonical
+     * selection. The RoleAssigner logs "Canonical: <file> (score N: ...)" for
+     * every group with more than one candidate, and the RenameOutputRenderer
+     * wraps these in a "Decision Log" section.
+     *
+     * Uses two files with the same EXIF date but different hashes so
+     * CaptureGroupBuilder creates a single group with two items, triggering
+     * canonical scoring and decision logging.
+     */
+    #[Test]
+    public function decisionLogVisibleInDryRunWithListAll(): void
+    {
+        $workspace = sys_get_temp_dir() . DIRECTORY_SEPARATOR . uniqid('renamer_declog_', true);
+
+        mkdir($workspace, 0o755);
+
+        try {
+            $metadataExtractor = new StubMetadataExtractor();
+            $dateTime          = new DateTimeImmutable(self::DATE_A);
+
+            // Two files, same date, different content → single capture group with two items
+            $fileA = $workspace . DIRECTORY_SEPARATOR . 'photo-a.jpg';
+            $fileB = $workspace . DIRECTORY_SEPARATOR . 'photo-b.jpg';
+
+            file_put_contents($fileA, 'content-AAA');
+            file_put_contents($fileB, 'content-BBB');
+
+            $metadataExtractor->withResponse($fileA, new TemporalMetadata($dateTime, null));
+            $metadataExtractor->withResponse($fileB, new TemporalMetadata($dateTime, null));
+
+            $output = $this->runDryRunOutput($workspace, $metadataExtractor);
+            $clean  = preg_replace('/<[^>]+>/', '', $output) ?? $output;
+
+            self::assertStringContainsString(
+                'Decision Log',
+                $clean,
+                'Dry-run --list-all output must contain the "Decision Log" header',
+            );
+
+            self::assertStringContainsString(
+                'Canonical:',
+                $clean,
+                'Decision log must contain a canonical selection entry',
+            );
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Verifies idempotency for cross-directory groups: when a canonical file in the
+     * root and a duplicate in a subdirectory are already correctly named from a
+     * previous run, re-running produces all no-ops (source == target).
+     *
+     * This proves that cross-directory group naming is stable across runs —
+     * the canonical keeps its clean name in the root and the duplicate keeps
+     * its -duplicate-001 suffix in the subdirectory.
+     *
+     * Source layout (output of a previous run):
+     *   2025-01-01_00-02-24-000.jpg                    hashA  -> canonical (root)
+     *   backup/2025-01-01_00-02-24-000-duplicate-001.jpg  hashA  -> duplicate (subdir)
+     *
+     * Uses zero-subsecond timestamp so the subsecond heuristic does not bypass
+     * sub-grouping (non-zero subseconds are treated as semantic duplicates).
+     *
+     * Expected: both files map to themselves (all [O], no renames).
+     */
+    #[Test]
+    public function secondRunOnCrossDirectoryGroupProducesNoOps(): void
+    {
+        $workspace = sys_get_temp_dir() . DIRECTORY_SEPARATOR . uniqid('renamer_crossdir_idem_', true);
+        $subDir    = $workspace . DIRECTORY_SEPARATOR . 'backup';
+
+        mkdir($workspace, 0o755);
+        mkdir($subDir, 0o755);
+
+        try {
+            $metadataExtractor = new StubMetadataExtractor();
+            $dateTime          = new DateTimeImmutable(self::DATE_SUBGROUP);
+
+            // Canonical in root — already correctly named
+            $canonicalPath = $workspace . DIRECTORY_SEPARATOR . '2025-01-01_00-02-24-000.jpg';
+            file_put_contents($canonicalPath, 'same-content');
+            $metadataExtractor->withResponse($canonicalPath, new TemporalMetadata($dateTime, null));
+
+            // Duplicate in subdirectory — already correctly named with -duplicate-001
+            $duplicatePath = $subDir . DIRECTORY_SEPARATOR . '2025-01-01_00-02-24-000-duplicate-001.jpg';
+            file_put_contents($duplicatePath, 'same-content');
+            $metadataExtractor->withResponse($duplicatePath, new TemporalMetadata($dateTime, null));
+
+            $mappings = $this->runDryRun($workspace, $metadataExtractor);
+
+            self::assertCount(2, $mappings, 'Both files must appear in the mapping');
+
+            // Canonical in root: source == target (no-op)
+            self::assertSame(
+                '2025-01-01_00-02-24-000.jpg',
+                $mappings['2025-01-01_00-02-24-000.jpg'],
+                'Canonical in root must be idempotent (source == target)',
+            );
+
+            // Duplicate in subdirectory: source == target (no-op)
+            self::assertSame(
+                'backup' . DIRECTORY_SEPARATOR . '2025-01-01_00-02-24-000-duplicate-001.jpg',
+                $mappings['backup' . DIRECTORY_SEPARATOR . '2025-01-01_00-02-24-000-duplicate-001.jpg'],
+                'Duplicate in subdirectory must be idempotent (source == target)',
+            );
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    // ---- Validation warnings for unsafe plans ----
+    // Circular swap warnings are impractical to trigger with real fixtures because
+    // they require two files whose source names are each other's target — a situation
+    // the pipeline is designed to prevent. The RenamePlanValidator unit tests
+    // (tests/Unit/Service/RenamePlanValidatorTest.php) already cover duplicate-target,
+    // case-conflict, and circular-swap detection exhaustively.
+
+    /**
      * Runs the command in dry-run mode and returns the source -> target mapping.
      *
      * @return array<string, string>
@@ -619,8 +763,34 @@ final class RenameByExifDateCommandTest extends TestCase
         $hashSubGroupingService    = new HashSubGroupingService(new SafeHashCalculator(), $style, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier()));
         $livePhotoConflictDetector = new LivePhotoConflictDetector($mediaTypeClassifier);
 
+        $captureGroupBuilder = new CaptureGroupBuilder(
+            $style,
+            $mediaTypeClassifier,
+            $livePhotoConflictDetector,
+            new LivePhotoPairingService(),
+        );
+        $subgroupClassifier   = new SubgroupClassifier($hashSubGroupingService, $mediaTypeClassifier, $style);
+        $companionDetector    = new CompanionDetector($mediaTypeClassifier);
+        $canonicalScorer      = new CanonicalScorer();
+        $roleAssigner         = new RoleAssigner($canonicalScorer, $companionDetector);
+        $targetNameResolver   = new TargetNameResolver();
+        $collisionResolver    = new CollisionResolver();
+        $renamePlanValidator  = new RenamePlanValidator();
+        $executionPlanBuilder = new ExecutionPlanBuilder();
+
+        $pipeline = new AssetGroupPipeline(
+            $captureGroupBuilder,
+            $subgroupClassifier,
+            $roleAssigner,
+            $targetNameResolver,
+            $collisionResolver,
+            $renamePlanValidator,
+        );
+
+        $renderer = new RenameOutputRenderer($style);
+
         $command = new RenameByExifDateCommand(
-            new FileSystemService($style, new RenameOutputRenderer($style)),
+            new FileSystemService($style, $renderer),
             new DuplicateDetectionService(
                 $style,
                 $hashSubGroupingService,
@@ -628,9 +798,12 @@ final class RenameByExifDateCommandTest extends TestCase
                 $livePhotoConflictDetector,
             ),
             new ExifMetadataProvider($metadataExtractor),
-            new LivePhotoPairingService(),
             new StubPerceptualHashCalculator(),
             $hashSubGroupingService,
+            $pipeline,
+            $canonicalScorer,
+            $executionPlanBuilder,
+            $renderer,
         );
 
         $tester   = new CommandTester($command);

@@ -60,7 +60,7 @@ use const DIRECTORY_SEPARATOR;
  * Verifies the FileSystemService, which executes the final stage of the rename
  * pipeline: creating target directories, moving or copying files, logging
  * operations with status prefixes, displaying summary statistics, and respecting
- * dry-run / skip-duplicates / copy-files options.
+ * dry-run / copy-files options.
  *
  * All tests use real temp directories on disk to exercise actual filesystem I/O,
  * ensuring that move, copy, and directory creation work end-to-end.
@@ -173,108 +173,6 @@ final class FileSystemServiceTest extends TestCase
         $buffer = $output->fetch();
         self::assertStringContainsString('Files to process', $buffer);
         self::assertStringContainsString('Planned moves', $buffer);
-    }
-
-    /**
-     * Verifies that --skip-duplicates leaves source files with -duplicate-NNN
-     * targets untouched, marks them as "Duplicate (--skip-duplicates)" in the output,
-     * and shows "Duplicates found" and "Planned skips" in the summary.
-     */
-    #[Test]
-    public function renameFilesSkipsDuplicateTargetsWhenRequested(): void
-    {
-        [$service, $output] = $this->createService();
-
-        $directory = $this->workspace . DIRECTORY_SEPARATOR . 'source-duplicate';
-        mkdir($directory);
-
-        $sourceFile      = $directory . DIRECTORY_SEPARATOR . 'image.jpg';
-        $canonicalTarget = $directory . DIRECTORY_SEPARATOR . 'image.jpg';
-        $targetFile      = $directory . DIRECTORY_SEPARATOR
-            . sprintf('image%s001.jpg', Constants::DUPLICATE_IDENTIFIER);
-
-        file_put_contents($sourceFile, 'duplicate');
-
-        $fileDuplicateCollection = $this->createFileDuplicateCollection(
-            $sourceFile,
-            $targetFile,
-            $canonicalTarget,
-        );
-
-        $service->renameFiles(
-            $fileDuplicateCollection,
-            new RenameOptions(
-                skipDuplicates: true,
-                sourceBaseDirectory: $directory,
-            ),
-        );
-
-        self::assertFileExists($sourceFile);
-        self::assertFileDoesNotExist($targetFile);
-
-        $buffer = $output->fetch();
-
-        self::assertStringContainsString('Duplicate (--skip-duplicates)', $buffer);
-        self::assertStringContainsString('Duplicates found', $buffer);
-        self::assertStringContainsString('Planned skips', $buffer);
-    }
-
-    /**
-     * Verifies that --skip-duplicates still processes files whose target has a
-     * -duplicate-NNN suffix but whose canonical target is already occupied on disk,
-     * because the file itself is not a true duplicate but a naming collision.
-     *
-     * This prevents false skips: a file that simply needs a suffixed name to
-     * avoid overwriting an existing file must be moved, not skipped.
-     */
-    #[Test]
-    public function renameFilesProcessesCanonicalTargetsWithDuplicateSuffixesWhenSkippingDuplicates(): void
-    {
-        [$service, $output] = $this->createService();
-
-        $directory = $this->workspace . DIRECTORY_SEPARATOR . 'source-canonical-duplicate';
-        mkdir($directory);
-
-        $existingCanonical = $directory . DIRECTORY_SEPARATOR . 'image.jpg';
-        file_put_contents($existingCanonical, 'existing');
-
-        $sourceFile = $directory . DIRECTORY_SEPARATOR . 'incoming.jpg';
-        $targetFile = $directory . DIRECTORY_SEPARATOR
-            . 'image' . Constants::DUPLICATE_IDENTIFIER . '001.jpg';
-
-        file_put_contents($sourceFile, 'incoming');
-
-        $fileDuplicateCollection = $this->createFileDuplicateCollection(
-            $sourceFile,
-            $targetFile,
-        );
-
-        $service->renameFiles(
-            $fileDuplicateCollection,
-            new RenameOptions(
-                skipDuplicates: true,
-                sourceBaseDirectory: $directory,
-            ),
-        );
-
-        self::assertFileDoesNotExist($sourceFile);
-        self::assertFileExists($targetFile);
-        self::assertSame('incoming', file_get_contents($targetFile));
-        self::assertFileExists($existingCanonical);
-        self::assertSame('existing', file_get_contents($existingCanonical));
-
-        $buffer = $output->fetch();
-
-        self::assertStringNotContainsString('Duplicate (--skip-duplicates)', $buffer);
-        self::assertStringContainsString('[R]', $buffer);
-
-        $relativeSource = FileHelper::relativizePath($sourceFile, $directory);
-        $relativeTarget = FileHelper::relativizePath($targetFile, $directory);
-
-        self::assertStringContainsString($relativeSource, $buffer);
-        self::assertStringContainsString($relativeTarget, $buffer);
-        self::assertStringContainsString('Files processed', $buffer);
-        self::assertStringNotContainsString('Duplicates found', $buffer);
     }
 
     /**
@@ -427,7 +325,7 @@ final class FileSystemServiceTest extends TestCase
     /**
      * Verifies that the summary includes "Live Photo groups" and "Duplicates found"
      * counters when the collection contains Live Photo groups and duplicate entries,
-     * along with "Planned moves" and "Planned skips" for the appropriate options.
+     * along with "Planned moves" and "Files processed".
      */
     #[Test]
     public function renameFilesSummarisesLivePhotoGroupsAndCollisions(): void
@@ -459,9 +357,7 @@ final class FileSystemServiceTest extends TestCase
 
         $service->renameFiles(
             $collection,
-            new RenameOptions(
-                skipDuplicates: true,
-            ),
+            new RenameOptions(),
             new RenameResult(
                 scannedFiles: 5,
             ),
@@ -471,7 +367,6 @@ final class FileSystemServiceTest extends TestCase
 
         self::assertStringContainsString('Scanned files', $buffer);
         self::assertStringContainsString('Planned moves', $buffer);
-        self::assertStringContainsString('Planned skips', $buffer);
         self::assertStringContainsString('Live Photo groups', $buffer);
         self::assertStringContainsString('Duplicates found', $buffer);
         self::assertStringContainsString('Files processed', $buffer);
@@ -673,18 +568,18 @@ final class FileSystemServiceTest extends TestCase
     }
 
     /**
-     * Verifies that findAvailableDuplicateTarget() throws a RuntimeException when
+     * Verifies that findAvailableDuplicatePath() throws a RuntimeException when
      * all 999 possible -duplicate-NNN suffixes are occupied in the occupiedPaths set.
      *
      * This is the safety limit preventing infinite suffix searches. The exception
      * message includes the base name to aid debugging.
      */
     #[Test]
-    public function findAvailableDuplicateTargetThrowsWhenMaxSuffixExceeded(): void
+    public function findAvailableDuplicatePathThrowsWhenMaxSuffixExceeded(): void
     {
         [$service] = $this->createService();
 
-        $target = new SplFileInfo('/tmp/dir/photo.jpg');
+        $targetPath = '/tmp/dir/photo.jpg';
 
         // Build occupiedPaths that block every suffix from 001..999
         /** @var array<string, true> $occupiedPaths */
@@ -694,12 +589,12 @@ final class FileSystemServiceTest extends TestCase
             $occupiedPaths[sprintf('/tmp/dir/photo%s%03d.jpg', Constants::DUPLICATE_IDENTIFIER, $i)] = true;
         }
 
-        $method = new ReflectionMethod($service, 'findAvailableDuplicateTarget');
+        $method = new ReflectionMethod($service, 'findAvailableDuplicatePath');
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Exceeded 999 attempts finding available target for "photo"');
 
-        $method->invoke($service, $target, $occupiedPaths);
+        $method->invoke($service, $targetPath, $occupiedPaths);
     }
 
     /**
@@ -770,7 +665,7 @@ final class FileSystemServiceTest extends TestCase
     }
 
     /**
-     * Verifies that findAvailableDuplicateTarget() strips an existing -duplicate-NNN
+     * Verifies that findAvailableDuplicatePath() strips an existing -duplicate-NNN
      * suffix from the basename before generating a new one, preventing nested suffixes
      * like "photo-duplicate-003-duplicate-001.jpg".
      *
@@ -779,71 +674,67 @@ final class FileSystemServiceTest extends TestCase
      * must produce "photo-duplicate-001.jpg" instead of stacking another suffix.
      */
     #[Test]
-    public function findAvailableDuplicateTargetStripsDuplicateSuffixBeforeGeneratingNew(): void
+    public function findAvailableDuplicatePathStripsDuplicateSuffixBeforeGeneratingNew(): void
     {
         [$service] = $this->createService();
 
-        $target = new SplFileInfo(
-            '/tmp/dir/photo' . Constants::DUPLICATE_IDENTIFIER . '003.jpg'
-        );
+        $targetPath = '/tmp/dir/photo' . Constants::DUPLICATE_IDENTIFIER . '003.jpg';
 
         // The unsuffixed "photo-duplicate-001.jpg" is free, so it should be selected.
         /** @var array<string, true> $occupiedPaths */
         $occupiedPaths = [
-            $target->getPathname() => true,
+            $targetPath => true,
         ];
 
-        $method = new ReflectionMethod($service, 'findAvailableDuplicateTarget');
+        $method = new ReflectionMethod($service, 'findAvailableDuplicatePath');
 
-        /** @var SplFileInfo $result */
-        $result = $method->invoke($service, $target, $occupiedPaths);
+        /** @var string $result */
+        $result = $method->invoke($service, $targetPath, $occupiedPaths);
 
         // The result should be "photo-duplicate-001.jpg", NOT "photo-duplicate-003-duplicate-001.jpg"
         self::assertSame(
             '/tmp/dir/photo' . Constants::DUPLICATE_IDENTIFIER . '001.jpg',
-            $result->getPathname(),
+            $result,
         );
 
         // Verify no nested -duplicate- pattern exists
         self::assertDoesNotMatchRegularExpression(
             '/-duplicate-\d+-duplicate-/',
-            $result->getPathname(),
+            $result,
             'Must not produce nested duplicate suffixes',
         );
     }
 
     /**
-     * Verifies that findAvailableDuplicateTarget() skips occupied suffix numbers and
+     * Verifies that findAvailableDuplicatePath() skips occupied suffix numbers and
      * returns the first available one after stripping the existing suffix.
      *
      * When "photo-duplicate-001.jpg" is occupied, the method should try 002, 003, etc.
      * until finding a free slot, all based on the stripped basename "photo".
      */
     #[Test]
-    public function findAvailableDuplicateTargetSkipsOccupiedSuffixesAfterStripping(): void
+    public function findAvailableDuplicatePathSkipsOccupiedSuffixesAfterStripping(): void
     {
         [$service] = $this->createService();
 
-        $target = new SplFileInfo(
-            '/tmp/dir/photo' . Constants::DUPLICATE_IDENTIFIER . '005.jpg'
-        );
+        $targetPath = '/tmp/dir/photo' . Constants::DUPLICATE_IDENTIFIER . '005.jpg';
 
         // Block suffix 001 and 002 to force the method to find 003.
         /** @var array<string, true> $occupiedPaths */
         $occupiedPaths = [
-            $target->getPathname()                                         => true,
+            $targetPath                                                    => true,
             '/tmp/dir/photo' . Constants::DUPLICATE_IDENTIFIER . '001.jpg' => true,
             '/tmp/dir/photo' . Constants::DUPLICATE_IDENTIFIER . '002.jpg' => true,
         ];
 
-        $method = new ReflectionMethod($service, 'findAvailableDuplicateTarget');
+        $method = new ReflectionMethod($service, 'findAvailableDuplicatePath');
 
-        /** @var SplFileInfo $result */
-        $result = $method->invoke($service, $target, $occupiedPaths);
+        /** @var string $result */
+        $result = $method->invoke($service, $targetPath, $occupiedPaths);
 
         self::assertSame(
             '/tmp/dir/photo' . Constants::DUPLICATE_IDENTIFIER . '003.jpg',
-            $result->getPathname(),
+            $result,
         );
     }
 
