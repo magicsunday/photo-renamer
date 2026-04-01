@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service;
 
+use Deprecated;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
@@ -63,6 +64,17 @@ use const DIRECTORY_SEPARATOR;
  * detects Live Photo companions, applies hash sub-grouping for naming collisions, and assigns
  * sequential "-duplicate-NNN" suffixes to remaining files. Maintains an in-memory disk index
  * to avoid stat() calls when checking target path availability.
+ *
+ * MIGRATION STATUS (Phase 4 complete):
+ * - rename:exif: FULLY MIGRATED to AssetGroup pipeline + ExecutionPlan runtime
+ * - rename:hash: uses legacy pipeline (no migration planned — simple command)
+ * - rename:pattern: uses legacy pipeline (no migration planned — simple command)
+ * - rename:date-pattern: uses legacy pipeline (no migration planned — simple command)
+ * - rename:lower: uses legacy pipeline (no migration planned — simple command)
+ *
+ * Legacy execution path (DuplicateDetectionService → FileDuplicateCollection → renameFiles)
+ * is intentionally retained for the above commands. This is End State B per the
+ * Phase 4 plan: bounded legacy exceptions with documented rationale.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -251,6 +263,10 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      * @return FileDuplicateCollection collection describing discovered duplicate groups
      */
     #[Override]
+    #[Deprecated(message: <<<'TXT'
+    Use CaptureGroupBuilder::build() for the AssetGroup pipeline.
+                 Retained for commands other than rename:exif.
+    TXT)]
     public function groupFilesByDuplicateIdentifier(
         RecursiveIteratorIterator $iterator,
         RenameStrategyInterface $renameStrategy,
@@ -536,6 +552,10 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      * @return FileDuplicateCollection updated collection with rename operations populated
      */
     #[Override]
+    #[Deprecated(message: <<<'TXT'
+    Use RoleAssigner::assign() + TargetNameResolver::resolve() + CollisionResolver::resolve()
+                 for the AssetGroup pipeline. Retained for commands other than rename:exif.
+    TXT)]
     public function createDuplicateFilenames(
         FileDuplicateCollection $fileDuplicateCollection,
         string $sourceDirectory,

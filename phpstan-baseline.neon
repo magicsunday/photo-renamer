@@ -1,2 +1,118 @@
 parameters:
-	ignoreErrors: []
+	ignoreErrors:
+		-
+			message: '''
+				#^Call to method toFileDuplicateCollection\(\) of deprecated class MagicSunday\\Renamer\\Service\\AssetGroupAdapter\:
+				Retained only for differential tests during migration\.
+				            Production execution uses ExecutionPlanBuilder \+ FileSystemService\:\:executePlan\(\)\.
+				            Will be removed once differential tests are no longer needed\.$#
+			'''
+			identifier: method.deprecatedClass
+			count: 1
+			path: tests/Integration/ExecutionPathDifferentialTest.php
+
+		-
+			message: '''
+				#^Instantiation of deprecated class MagicSunday\\Renamer\\Service\\AssetGroupAdapter\:
+				Retained only for differential tests during migration\.
+				            Production execution uses ExecutionPlanBuilder \+ FileSystemService\:\:executePlan\(\)\.
+				            Will be removed once differential tests are no longer needed\.$#
+			'''
+			identifier: new.deprecatedClass
+			count: 1
+			path: tests/Integration/ExecutionPathDifferentialTest.php
+
+		-
+			message: '''
+				#^Call to deprecated method createDuplicateFilenames\(\) of class MagicSunday\\Renamer\\Service\\DuplicateDetectionService\:
+				Use RoleAssigner\:\:assign\(\) \+ TargetNameResolver\:\:resolve\(\) \+ CollisionResolver\:\:resolve\(\)
+				             for the AssetGroup pipeline\. Retained for commands other than rename\:exif\.$#
+			'''
+			identifier: method.deprecated
+			count: 1
+			path: tests/Integration/PipelineDifferentialTest.php
+
+		-
+			message: '''
+				#^Call to deprecated method groupFilesByDuplicateIdentifier\(\) of class MagicSunday\\Renamer\\Service\\DuplicateDetectionService\:
+				Use CaptureGroupBuilder\:\:build\(\) for the AssetGroup pipeline\.
+				             Retained for commands other than rename\:exif\.$#
+			'''
+			identifier: method.deprecated
+			count: 1
+			path: tests/Integration/PipelineDifferentialTest.php
+
+		-
+			message: '''
+				#^Call to method toFileDuplicateCollection\(\) of deprecated class MagicSunday\\Renamer\\Service\\AssetGroupAdapter\:
+				Retained only for differential tests during migration\.
+				            Production execution uses ExecutionPlanBuilder \+ FileSystemService\:\:executePlan\(\)\.
+				            Will be removed once differential tests are no longer needed\.$#
+			'''
+			identifier: method.deprecatedClass
+			count: 1
+			path: tests/Integration/PipelineDifferentialTest.php
+
+		-
+			message: '''
+				#^Instantiation of deprecated class MagicSunday\\Renamer\\Service\\AssetGroupAdapter\:
+				Retained only for differential tests during migration\.
+				            Production execution uses ExecutionPlanBuilder \+ FileSystemService\:\:executePlan\(\)\.
+				            Will be removed once differential tests are no longer needed\.$#
+			'''
+			identifier: new.deprecatedClass
+			count: 1
+			path: tests/Integration/PipelineDifferentialTest.php
+
+		-
+			message: '''
+				#^Access to constant on deprecated class MagicSunday\\Renamer\\Service\\AssetGroupAdapter\:
+				Retained only for differential tests during migration\.
+				            Production execution uses ExecutionPlanBuilder \+ FileSystemService\:\:executePlan\(\)\.
+				            Will be removed once differential tests are no longer needed\.$#
+			'''
+			identifier: classConstant.deprecatedClass
+			count: 1
+			path: tests/Unit/Service/AssetGroupAdapterTest.php
+
+		-
+			message: '''
+				#^Call to method toFileDuplicateCollection\(\) of deprecated class MagicSunday\\Renamer\\Service\\AssetGroupAdapter\:
+				Retained only for differential tests during migration\.
+				            Production execution uses ExecutionPlanBuilder \+ FileSystemService\:\:executePlan\(\)\.
+				            Will be removed once differential tests are no longer needed\.$#
+			'''
+			identifier: method.deprecatedClass
+			count: 8
+			path: tests/Unit/Service/AssetGroupAdapterTest.php
+
+		-
+			message: '''
+				#^Instantiation of deprecated class MagicSunday\\Renamer\\Service\\AssetGroupAdapter\:
+				Retained only for differential tests during migration\.
+				            Production execution uses ExecutionPlanBuilder \+ FileSystemService\:\:executePlan\(\)\.
+				            Will be removed once differential tests are no longer needed\.$#
+			'''
+			identifier: new.deprecatedClass
+			count: 8
+			path: tests/Unit/Service/AssetGroupAdapterTest.php
+
+		-
+			message: '''
+				#^Call to deprecated method createDuplicateFilenames\(\) of class MagicSunday\\Renamer\\Service\\DuplicateDetectionService\:
+				Use RoleAssigner\:\:assign\(\) \+ TargetNameResolver\:\:resolve\(\) \+ CollisionResolver\:\:resolve\(\)
+				             for the AssetGroup pipeline\. Retained for commands other than rename\:exif\.$#
+			'''
+			identifier: method.deprecated
+			count: 28
+			path: tests/Unit/Service/DuplicateDetectionServiceTest.php
+
+		-
+			message: '''
+				#^Call to deprecated method groupFilesByDuplicateIdentifier\(\) of class MagicSunday\\Renamer\\Service\\DuplicateDetectionService\:
+				Use CaptureGroupBuilder\:\:build\(\) for the AssetGroup pipeline\.
+				             Retained for commands other than rename\:exif\.$#
+			'''
+			identifier: method.deprecated
+			count: 19
+			path: tests/Unit/Service/DuplicateDetectionServiceTest.php
