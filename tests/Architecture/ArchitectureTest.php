@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Architecture;
 
+use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use PHPat\Selector\Selector;
 use PHPat\Test\Attributes\TestRule;
 use PHPat\Test\Builder\Rule;
@@ -70,7 +71,8 @@ final class ArchitectureTest
             ->classes(Selector::inNamespace('MagicSunday\Renamer\Model'))
             ->shouldNot()->dependOn()
             ->classes(Selector::inNamespace('MagicSunday\Renamer\Metadata'))
-            ->because('Models are data holders, must not reference Metadata extraction');
+            ->excluding(Selector::classname(TemporalMetadata::class))
+            ->because('Models are data holders, must not reference Metadata extraction (TemporalMetadata allowed as VO)');
     }
 
     #[TestRule]
