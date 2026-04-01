@@ -103,7 +103,7 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
         }
 
         $progressBar->finish();
-        $this->io->newLine(3);
+        $this->io->newLine();
     }
 
     /**

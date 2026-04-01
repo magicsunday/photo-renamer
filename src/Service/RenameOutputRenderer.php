@@ -136,7 +136,24 @@ final readonly class RenameOutputRenderer
 
         [$skippedCount, $errorCount] = $this->appendSkippedFileEntries($outputEntries, $result, $sourceBaseDirectory);
 
-        usort($outputEntries, static fn (array $a, array $b): int => $a['sortKey'] <=> $b['sortKey']);
+        usort($outputEntries, static function (array $a, array $b): int {
+            $cmp = $a['sortKey'] <=> $b['sortKey'];
+
+            if ($cmp !== 0) {
+                return $cmp;
+            }
+
+            // Info entries sort after their parent entry (rename/skip)
+            $typeOrder = ['rename' => 0, 'skip' => 1, 'info' => 2];
+
+            /** @var string $aType */
+            $aType = $a['type'];
+
+            /** @var string $bType */
+            $bType = $b['type'];
+
+            return ($typeOrder[$aType] ?? 9) <=> ($typeOrder[$bType] ?? 9);
+        });
 
         return [$outputEntries, $skippedCount, $errorCount];
     }
@@ -370,7 +387,24 @@ final readonly class RenameOutputRenderer
 
         [$skippedCount, $errorCount] = $this->appendSkippedFileEntries($outputEntries, $result, $sourceBaseDirectory);
 
-        usort($outputEntries, static fn (array $a, array $b): int => $a['sortKey'] <=> $b['sortKey']);
+        usort($outputEntries, static function (array $a, array $b): int {
+            $cmp = $a['sortKey'] <=> $b['sortKey'];
+
+            if ($cmp !== 0) {
+                return $cmp;
+            }
+
+            // Info entries sort after their parent entry (rename/skip)
+            $typeOrder = ['rename' => 0, 'skip' => 1, 'info' => 2];
+
+            /** @var string $aType */
+            $aType = $a['type'];
+
+            /** @var string $bType */
+            $bType = $b['type'];
+
+            return ($typeOrder[$aType] ?? 9) <=> ($typeOrder[$bType] ?? 9);
+        });
 
         return [$outputEntries, $skippedCount, $errorCount];
     }
@@ -595,6 +629,19 @@ final readonly class RenameOutputRenderer
             ];
         }
 
+        foreach ($result->crossDirectoryCompanions as [$canonicalPath, $companionPath]) {
+            $outputEntries[] = [
+                'sortKey'    => $companionPath,
+                'type'       => 'info',
+                'sourcePath' => FileHelper::relativizePath($companionPath, $sourceBaseDirectory),
+                'reason'     => sprintf(
+                    'Live Photo pair across directories: ↔ %s',
+                    FileHelper::relativizePath($canonicalPath, $sourceBaseDirectory),
+                ),
+                'tag' => OutputEntryTag::Info,
+            ];
+        }
+
         return [$skippedCount, $errorCount];
     }
 
@@ -645,6 +692,20 @@ final readonly class RenameOutputRenderer
 
             $padding    = str_repeat(' ', max(0, $maxFilenameLength - mb_strlen($sourcePath)));
             $linkedPath = FileHelper::linkifyPath($sourcePath, $sourcePath, $sourceBaseDirectory, $linkConfig, 'yellow');
+
+            if ($entry['type'] === 'info') {
+                /** @var string $reason */
+                $reason = $entry['reason'];
+
+                // Render as continuation line under the previous entry (no tag, no filename)
+                $this->io->text(sprintf(
+                    '     <fg=cyan>→</> <fg=%s>%s</>',
+                    $entryTag->color(),
+                    $reason,
+                ));
+
+                continue;
+            }
 
             if ($entry['type'] === 'skip') {
                 /** @var string $reason */

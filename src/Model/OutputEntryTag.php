@@ -32,6 +32,7 @@ enum OutputEntryTag: string
     case Warning   = 'W';
     case Skipped   = 'S';
     case Error     = 'E';
+    case Info      = 'i';
 
     /**
      * Returns the single-character tag letter used for --show filtering.
@@ -63,6 +64,7 @@ enum OutputEntryTag: string
             self::Warning   => 'magenta',
             self::Skipped   => 'gray',
             self::Error     => 'red',
+            self::Info      => 'blue',
         };
     }
 }

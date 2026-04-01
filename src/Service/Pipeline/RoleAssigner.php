@@ -135,6 +135,9 @@ final readonly class RoleAssigner implements RoleAssignerInterface
 
         // 6. Propagate quality flags from still to companion
         $this->propagateQualityFlags($canonical, $companionPaths, $context);
+
+        // 7. Detect cross-directory companion pairs
+        $this->detectCrossDirectoryCompanions($group, $canonical, $allCompanionPaths, $context);
     }
 
     /**
@@ -223,6 +226,40 @@ final readonly class RoleAssigner implements RoleAssignerInterface
 
             if ($hasAmbiguousTimezone) {
                 $context->addAmbiguousTimezoneFile($companionPath);
+            }
+        }
+    }
+
+    /**
+     * Detects Live Photo companions that are in a different directory than their canonical.
+     *
+     * @param AssetGroup          $group          Group with assigned roles
+     * @param AssetItem           $canonical      The canonical item
+     * @param array<string, true> $companionPaths Pathnames of all detected companions
+     * @param PipelineContext     $context        Mutable pipeline state
+     */
+    private function detectCrossDirectoryCompanions(
+        AssetGroup $group,
+        AssetItem $canonical,
+        array $companionPaths,
+        PipelineContext $context,
+    ): void {
+        if ($companionPaths === []) {
+            return;
+        }
+
+        $canonicalDir = $canonical->file->getPath();
+
+        foreach ($group->getItems() as $item) {
+            if (!isset($companionPaths[$item->file->getPathname()])) {
+                continue;
+            }
+
+            if ($item->file->getPath() !== $canonicalDir) {
+                $context->addCrossDirectoryCompanion(
+                    $canonical->file->getPathname(),
+                    $item->file->getPathname(),
+                );
             }
         }
     }

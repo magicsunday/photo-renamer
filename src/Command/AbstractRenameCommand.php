@@ -400,35 +400,49 @@ abstract class AbstractRenameCommand extends Command
         $warningCount  = count($result->ambiguousTimezoneFiles);
         $fallbackCount = count($result->fallbackDateFiles);
         $conflictCount = count($result->livePhotoConflictFiles);
+        $crossDirCount = count($result->crossDirectoryCompanions);
         $issueCount    = $skippedCount + $warningCount + $fallbackCount + $conflictCount;
+        $infoCount     = $crossDirCount;
 
-        if ($issueCount > 0) {
-            /** @var list<string> $parts */
-            $parts = [];
-
-            if ($warningCount > 0) {
-                $parts[] = sprintf('%d ambiguous timezone', $warningCount);
-            }
-
-            if ($fallbackCount > 0) {
-                $parts[] = sprintf('%d fallback date', $fallbackCount);
-            }
-
-            if ($skippedCount > 0) {
-                $parts[] = sprintf('%d skipped', $skippedCount);
-            }
-
-            if ($conflictCount > 0) {
-                $parts[] = sprintf('%d LP conflict', $conflictCount);
-            }
-
+        if (($issueCount > 0) || ($infoCount > 0)) {
             $this->io->newLine(2);
+            $this->io->text('<fg=cyan>Scan results</>');
+            $this->io->newLine();
 
-            $this->io->text(sprintf(
-                '<fg=yellow>%d file(s) with issues:</> %s',
-                $issueCount,
-                implode(', ', $parts),
-            ));
+            if ($issueCount > 0) {
+                /** @var list<string> $parts */
+                $parts = [];
+
+                if ($warningCount > 0) {
+                    $parts[] = sprintf('%d ambiguous timezone', $warningCount);
+                }
+
+                if ($fallbackCount > 0) {
+                    $parts[] = sprintf('%d fallback date', $fallbackCount);
+                }
+
+                if ($skippedCount > 0) {
+                    $parts[] = sprintf('%d skipped', $skippedCount);
+                }
+
+                if ($conflictCount > 0) {
+                    $parts[] = sprintf('%d LP conflict', $conflictCount);
+                }
+
+                $this->io->text(sprintf(
+                    ' <fg=yellow>%d file(s) with issues:</> %s',
+                    $issueCount,
+                    implode(', ', $parts),
+                ));
+            }
+
+            if ($crossDirCount > 0) {
+                $this->io->text(sprintf(
+                    ' <fg=blue>%d notice(s):</> %d cross-directory LP pair(s)',
+                    $crossDirCount,
+                    $crossDirCount,
+                ));
+            }
 
             $this->io->newLine(2);
         }

@@ -63,6 +63,14 @@ final class PipelineContext
     private array $livePhotoConflictFiles = [];
 
     /**
+     * Live Photo pairs where canonical and companion are in different directories.
+     * Each entry is [canonicalPath, companionPath].
+     *
+     * @var list<array{string, string}>
+     */
+    private array $crossDirectoryCompanions = [];
+
+    /**
      * Files skipped because the rename strategy could not produce a target filename.
      *
      * @var list<SkippedFile>
@@ -146,6 +154,17 @@ final class PipelineContext
     }
 
     /**
+     * Records a Live Photo pair where canonical and companion are in different directories.
+     *
+     * @param string $canonicalPath Absolute path of the canonical item
+     * @param string $companionPath Absolute path of the companion item
+     */
+    public function addCrossDirectoryCompanion(string $canonicalPath, string $companionPath): void
+    {
+        $this->crossDirectoryCompanions[] = [$canonicalPath, $companionPath];
+    }
+
+    /**
      * Records a file that was skipped during the grouping phase.
      *
      * @param SkippedFile $skippedFile Skipped file entry with reason
@@ -183,6 +202,16 @@ final class PipelineContext
     public function getLivePhotoConflictFiles(): array
     {
         return $this->livePhotoConflictFiles;
+    }
+
+    /**
+     * Returns Live Photo pairs where canonical and companion are in different directories.
+     *
+     * @return list<array{string, string}>
+     */
+    public function getCrossDirectoryCompanions(): array
+    {
+        return $this->crossDirectoryCompanions;
     }
 
     /**
@@ -250,6 +279,7 @@ final class PipelineContext
             fallbackDateFiles: $this->fallbackDateFiles,
             ambiguousTimezoneFiles: $this->ambiguousTimezoneFiles,
             livePhotoConflictFiles: $this->livePhotoConflictFiles,
+            crossDirectoryCompanions: $this->crossDirectoryCompanions,
         );
     }
 }
