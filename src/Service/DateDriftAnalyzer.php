@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service;
 
+use DateTimeImmutable;
 use DateTimeInterface;
 use MagicSunday\Renamer\Helper\FileHelper;
 use SplFileInfo;
@@ -76,5 +77,35 @@ final readonly class DateDriftAnalyzer
         }
 
         return $this->calculateDateDriftInDays($filenameDateTime, $actualDateTime);
+    }
+
+    /**
+     * Calculates the drift in days between a file's date-based filename and a
+     * metadata timestamp using date-only semantics.
+     *
+     * This preserves the historical `rename:verify` behavior where drift means
+     * calendar-day mismatch rather than elapsed 24-hour intervals. Both sides are
+     * normalized to midnight before comparison, so values crossing midnight by a
+     * few minutes still count as one day of drift.
+     *
+     * @param SplFileInfo       $file           File whose pathname may contain a date
+     * @param DateTimeInterface $actualDateTime The metadata-derived date to compare against
+     *
+     * @return int|null Absolute drift in days, or null when the filename has no parseable date
+     */
+    public function calculateFilenameDateOnlyDriftInDays(
+        SplFileInfo $file,
+        DateTimeInterface $actualDateTime,
+    ): ?int {
+        $filenameDate = FileHelper::extractDateFromPath($file->getPathname());
+
+        if (!$filenameDate instanceof DateTimeInterface) {
+            return null;
+        }
+
+        return $this->calculateDateDriftInDays(
+            $filenameDate,
+            DateTimeImmutable::createFromInterface($actualDateTime)->setTime(0, 0),
+        );
     }
 }

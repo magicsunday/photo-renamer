@@ -77,6 +77,25 @@ final class DateDriftAnalyzerTest extends TestCase
     }
 
     /**
+     * Verifies that the date-only filename drift path treats a midnight crossing
+     * as a calendar-day drift even when less than 24 hours elapsed.
+     */
+    #[Test]
+    public function calculateFilenameDateOnlyDriftInDaysUsesCalendarDays(): void
+    {
+        $analyzer = new DateDriftAnalyzer();
+        $file     = new SplFileInfo('/tmp/2024-01-15_23-30-00.jpg');
+
+        self::assertSame(
+            1,
+            $analyzer->calculateFilenameDateOnlyDriftInDays(
+                $file,
+                new DateTimeImmutable('2024-01-16 00:15:00'),
+            ),
+        );
+    }
+
+    /**
      * Verifies that files without a date-based pathname return null so callers
      * can keep their existing "not comparable" behavior.
      */

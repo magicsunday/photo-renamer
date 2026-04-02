@@ -262,7 +262,7 @@ final class VerifyCommand extends Command
 
             // Check date drift
             if ($maxDateDrift > 0) {
-                $drift = $this->dateDriftAnalyzer->calculateFilenameDateDriftInDays($file, $captureDateTime);
+                $drift = $this->dateDriftAnalyzer->calculateFilenameDateOnlyDriftInDays($file, $captureDateTime);
 
                 if (($drift !== null) && ($drift > $maxDateDrift)) {
                     $categories['drift'][] = $relativePath;

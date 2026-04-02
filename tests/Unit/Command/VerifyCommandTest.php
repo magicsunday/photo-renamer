@@ -257,6 +257,46 @@ final class VerifyCommandTest extends TestCase
     }
 
     /**
+     * Verifies that date drift in verify mode uses calendar-day semantics, so a
+     * filename timestamp shortly before midnight still reports drift when metadata
+     * falls on the next calendar day.
+     */
+    #[Test]
+    public function executeReportsDateDriftAcrossMidnight(): void
+    {
+        $workspace = $this->createWorkspace();
+        $jpgPath   = $workspace . DIRECTORY_SEPARATOR . '2024-01-15_23-30-00.jpg';
+        file_put_contents($jpgPath, 'photo-data');
+
+        try {
+            $metadataExtractor = new StubMetadataExtractor();
+            $metadataExtractor->withResponse(
+                $jpgPath,
+                new TemporalMetadata(
+                    new DateTimeImmutable('2024-01-23T00:15:00+00:00'),
+                    null,
+                ),
+            );
+
+            $command  = $this->createCommand($metadataExtractor);
+            $tester   = new CommandTester($command);
+            $exitCode = $tester->execute([
+                'source'           => $workspace,
+                '--max-date-drift' => '7',
+            ]);
+
+            self::assertSame(Command::SUCCESS, $exitCode);
+
+            $output = $tester->getDisplay();
+            self::assertStringContainsString('Date drift', $output);
+            self::assertStringContainsString('2024-01-15_23-30-00.jpg', $output);
+        } finally {
+            @unlink($jpgPath);
+            $this->cleanupWorkspace($workspace);
+        }
+    }
+
+    /**
      * Verifies that the "--show" filter correctly limits the output to the specified
      * categories (e.g. only showing errors 'E' and skipping 'S').
      */
