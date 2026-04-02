@@ -64,7 +64,7 @@ final readonly class TimezoneRewritePlanner
         bool $localAsUtc,
         ?DateTimeZone $timezone,
     ): TimezoneRewritePlan {
-        if ($reasonKey !== 'timezone') {
+        if ($reasonKey !== WriteDateReasonCatalog::TIMEZONE) {
             return new TimezoneRewritePlan($filenameDateTime, false);
         }
 

@@ -11,6 +11,8 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\WriteDate;
 
+use MagicSunday\Renamer\Service\MetadataIssueKeyCatalog;
+
 use function sprintf;
 
 /**
@@ -30,22 +32,22 @@ final class WriteDateReasonCatalog
     /**
      * Reason key for files with no metadata date at all.
      */
-    public const string NODATA = 'nodata';
+    public const string NODATA = MetadataIssueKeyCatalog::NODATA;
 
     /**
      * Reason key for files using only ModifyDate (0x0132) as fallback.
      */
-    public const string FALLBACK = 'fallback';
+    public const string FALLBACK = MetadataIssueKeyCatalog::FALLBACK;
 
     /**
      * Reason key for QuickTime files with ambiguous UTC timestamps.
      */
-    public const string TIMEZONE = 'timezone';
+    public const string TIMEZONE = MetadataIssueKeyCatalog::TIMEZONE;
 
     /**
      * Reason key for files whose metadata date differs significantly from filename date.
      */
-    public const string DRIFT = 'drift';
+    public const string DRIFT = MetadataIssueKeyCatalog::DRIFT;
 
     /**
      * Maps reason keys to their default human-readable labels.

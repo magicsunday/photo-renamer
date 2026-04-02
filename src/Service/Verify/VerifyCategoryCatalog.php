@@ -11,6 +11,8 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Verify;
 
+use MagicSunday\Renamer\Service\MetadataIssueKeyCatalog;
+
 /**
  * Central catalog for verify category identifiers and labels.
  *
@@ -28,17 +30,17 @@ final class VerifyCategoryCatalog
     /**
      * Category for QuickTime timestamps whose local timezone cannot be inferred safely.
      */
-    public const string TIMEZONE = 'timezone';
+    public const string TIMEZONE = MetadataIssueKeyCatalog::TIMEZONE;
 
     /**
      * Category for metadata that only exposes fallback DateTime tags.
      */
-    public const string FALLBACK = 'fallback';
+    public const string FALLBACK = MetadataIssueKeyCatalog::FALLBACK;
 
     /**
      * Category for metadata dates that drift too far from the filename date.
      */
-    public const string DRIFT = 'drift';
+    public const string DRIFT = MetadataIssueKeyCatalog::DRIFT;
 
     /**
      * Category for missing Live Photo companions found in the second pass.
@@ -53,7 +55,7 @@ final class VerifyCategoryCatalog
     /**
      * Category for files without any usable capture metadata.
      */
-    public const string NODATA = 'nodata';
+    public const string NODATA = MetadataIssueKeyCatalog::NODATA;
 
     /**
      * Category for unsupported or unrecognized file types.
