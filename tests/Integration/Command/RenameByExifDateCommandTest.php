@@ -66,6 +66,7 @@ use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuildState;
 use MagicSunday\Renamer\Service\Pipeline\CollisionResolver;
 use MagicSunday\Renamer\Service\Pipeline\CompanionDetector;
 use MagicSunday\Renamer\Service\Pipeline\ExifRenamePipelineResult;
+use MagicSunday\Renamer\Service\Pipeline\OrphanLivePhotoVideoReconciler;
 use MagicSunday\Renamer\Service\Pipeline\RoleAssigner;
 use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifier;
 use MagicSunday\Renamer\Service\Pipeline\TargetNameResolver;
@@ -783,7 +784,12 @@ final class RenameByExifDateCommandTest extends TestCase
             $livePhotoConflictDetector,
             new LivePhotoPairingService(),
         );
-        $subgroupClassifier       = new SubgroupClassifier($hashSubGroupingService, $mediaTypeClassifier, new StubPerceptualHashCalculator(), $style);
+        $subgroupClassifier = new SubgroupClassifier(
+            $hashSubGroupingService,
+            $mediaTypeClassifier,
+            new OrphanLivePhotoVideoReconciler($mediaTypeClassifier, new StubPerceptualHashCalculator(), $style),
+            $style,
+        );
         $mediaCompatibilityPolicy = new MediaCompatibilityPolicy($mediaTypeClassifier);
         $companionDetector        = new CompanionDetector($mediaCompatibilityPolicy);
         $canonicalScorer          = new CanonicalScorer();

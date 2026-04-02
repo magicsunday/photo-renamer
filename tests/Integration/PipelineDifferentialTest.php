@@ -35,6 +35,7 @@ use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator;
 use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuilder;
 use MagicSunday\Renamer\Service\Pipeline\CollisionResolver;
 use MagicSunday\Renamer\Service\Pipeline\CompanionDetector;
+use MagicSunday\Renamer\Service\Pipeline\OrphanLivePhotoVideoReconciler;
 use MagicSunday\Renamer\Service\Pipeline\RoleAssigner;
 use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifier;
 use MagicSunday\Renamer\Service\Pipeline\TargetNameResolver;
@@ -295,7 +296,12 @@ final class PipelineDifferentialTest extends TestCase
         );
 
         // Step 2: SubgroupClassifier
-        $subgroupClassifier = new SubgroupClassifier($hashSubGroupingService, $mediaTypeClassifier, $perceptualHashCalculator, $io);
+        $subgroupClassifier = new SubgroupClassifier(
+            $hashSubGroupingService,
+            $mediaTypeClassifier,
+            new OrphanLivePhotoVideoReconciler($mediaTypeClassifier, $perceptualHashCalculator, $io),
+            $io,
+        );
         $subgroupClassifier->classify($groups);
 
         // Step 3: RoleAssigner (with empty format priority to match old pipeline behavior)

@@ -76,6 +76,7 @@ use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuildState;
 use MagicSunday\Renamer\Service\Pipeline\CollisionResolver;
 use MagicSunday\Renamer\Service\Pipeline\CompanionDetector;
 use MagicSunday\Renamer\Service\Pipeline\ExifRenamePipelineResult;
+use MagicSunday\Renamer\Service\Pipeline\OrphanLivePhotoVideoReconciler;
 use MagicSunday\Renamer\Service\Pipeline\RoleAssigner;
 use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifier;
 use MagicSunday\Renamer\Service\Pipeline\TargetNameResolver;
@@ -1111,7 +1112,12 @@ final class TestImageScenariosTest extends TestCase
             $livePhotoConflictDetector,
             new LivePhotoPairingService(),
         );
-        $subgroupClassifier       = new SubgroupClassifier($hashSubGroupingService, $mediaTypeClassifier, $perceptualHashCalculator, $style);
+        $subgroupClassifier = new SubgroupClassifier(
+            $hashSubGroupingService,
+            $mediaTypeClassifier,
+            new OrphanLivePhotoVideoReconciler($mediaTypeClassifier, $perceptualHashCalculator, $style),
+            $style,
+        );
         $mediaCompatibilityPolicy = new MediaCompatibilityPolicy($mediaTypeClassifier);
         $companionDetector        = new CompanionDetector($mediaCompatibilityPolicy);
         $canonicalScorer          = new CanonicalScorer();
