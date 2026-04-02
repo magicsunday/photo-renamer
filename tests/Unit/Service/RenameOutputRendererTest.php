@@ -231,6 +231,91 @@ final class RenameOutputRendererTest extends TestCase
     }
 
     /**
+     * Verifies that info-only notices respect the --show filter and do not leak into
+     * duplicate-only output as orphaned continuation lines.
+     *
+     * Cross-directory Live Photo notices are tagged as Info, not Duplicate. When the
+     * user requests only [D] entries, these notices must stay hidden.
+     */
+    #[Test]
+    public function renderEntryLinesHidesInfoEntriesWhenShowFilterExcludesThem(): void
+    {
+        [$renderer, $output] = $this->createRenderer();
+
+        $entries = [
+            OutputEntry::info(
+                sortKey: '/tmp/source/2019/companion.mov',
+                sourcePath: '2019/companion.mov',
+                reason: 'Live Photo pair across directories: <fg=cyan>2019/canonical.jpg</>',
+            ),
+        ];
+
+        $renderer->renderEntryLines($entries, '/tmp/source', ['D']);
+
+        self::assertSame('', $output->fetch());
+    }
+
+    /**
+     * Verifies that visible info entries render as a two-line block when their anchor
+     * entry is not visible in the current filter result.
+     *
+     * This keeps `--show=I` usable for standalone notices such as cross-directory
+     * Live Photo pair reports.
+     */
+    #[Test]
+    public function renderEntryLinesShowsTwoLineInfoBlockWithoutVisibleAnchor(): void
+    {
+        [$renderer, $output] = $this->createRenderer();
+
+        $entries = [
+            OutputEntry::info(
+                sortKey: '/tmp/source/2019/companion.mov',
+                sourcePath: '2019/companion.mov',
+                reason: 'Live Photo pair across directories: <fg=cyan>2019/canonical.jpg</>',
+            ),
+        ];
+
+        $renderer->renderEntryLines($entries, '/tmp/source', ['I']);
+
+        $buffer = $output->fetch();
+
+        self::assertStringContainsString('[I]', $buffer);
+        self::assertStringContainsString('2019/companion.mov', $buffer);
+        self::assertStringContainsString("\n      → ", $buffer);
+        self::assertStringContainsString('Live Photo pair across directories: 2019/canonical.jpg', $buffer);
+    }
+
+    /**
+     * Verifies that skipped warning entries also use the two-line block layout so
+     * long explanations do not continue on the same line as the source path.
+     */
+    #[Test]
+    public function renderEntryLinesShowsTwoLineWarningBlock(): void
+    {
+        [$renderer, $output] = $this->createRenderer();
+
+        $entries = [
+            OutputEntry::rename(
+                sortKey: '/tmp/source/2019/clip.mov',
+                sourcePath: '2019/clip.mov',
+                targetPath: '2019/clip.mov',
+                tag: OutputEntryTag::Warning,
+                shouldSkip: true,
+                warningReason: 'Ambiguous timezone: QuickTime UTC without offset — use --timezone or rename:write-date --reason=timezone',
+            ),
+        ];
+
+        $renderer->renderEntryLines($entries, '/tmp/source', ['W']);
+
+        $buffer = $output->fetch();
+
+        self::assertStringContainsString('[W]', $buffer);
+        self::assertStringContainsString('2019/clip.mov', $buffer);
+        self::assertStringContainsString("\n      → ", $buffer);
+        self::assertStringContainsString('Ambiguous timezone: QuickTime UTC without offset', $buffer);
+    }
+
+    /**
      * Verifies that the summary table includes all non-zero operational counters
      * like total renames, duplicates, and collisions.
      *

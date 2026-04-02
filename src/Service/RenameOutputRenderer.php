@@ -681,12 +681,14 @@ final readonly class RenameOutputRenderer
         }
 
         foreach ($result->crossDirectoryCompanions as [$canonicalPath, $companionPath]) {
+            $relativeCanonicalPath = FileHelper::relativizePath($canonicalPath, $sourceBaseDirectory);
+
             $outputEntries[] = OutputEntry::info(
                 sortKey: $companionPath,
                 sourcePath: FileHelper::relativizePath($companionPath, $sourceBaseDirectory),
                 reason: sprintf(
-                    'Live Photo pair across directories: ↔ %s',
-                    FileHelper::relativizePath($canonicalPath, $sourceBaseDirectory),
+                    'Live Photo pair across directories: <fg=cyan>%s</>',
+                    $relativeCanonicalPath,
                 ),
             );
         }
@@ -722,35 +724,44 @@ final readonly class RenameOutputRenderer
 
         $linkConfig = LinkConfig::fromEnv();
 
-        $fileCount      = 0;
-        $duplicateCount = 0;
-        $plannedMoves   = 0;
-        $plannedSkips   = 0;
+        $fileCount           = 0;
+        $duplicateCount      = 0;
+        $plannedMoves        = 0;
+        $plannedSkips        = 0;
+        $lastRenderedSortKey = null;
 
         foreach ($outputEntries as $entry) {
             $padding    = str_repeat(' ', max(0, $maxFilenameLength - mb_strlen($entry->sourcePath)));
             $linkedPath = FileHelper::linkifyPath($entry->sourcePath, $entry->sourcePath, $sourceBaseDirectory, $linkConfig, 'yellow');
 
             if ($entry->isInfo()) {
-                // Render as continuation line under the previous entry (no tag, no filename)
-                $this->io->text(sprintf(
-                    '     <fg=cyan>→</> <fg=%s>%s</>',
-                    $entry->tag->color(),
-                    $entry->reason ?? '',
-                ));
+                if (!$this->isTagVisible($entry->tag, $showFilter)) {
+                    continue;
+                }
+
+                if ($lastRenderedSortKey === $entry->sortKey) {
+                    // Render as continuation line under the previous entry.
+                    $this->io->text(sprintf(
+                        '     <fg=cyan>→</> <fg=%s>%s</>',
+                        $entry->tag->color(),
+                        $entry->reason ?? '',
+                    ));
+                } else {
+                    // No visible anchor line was rendered for this sort key, so show a
+                    // standalone two-line block with the path on the first line.
+                    $this->renderTwoLineReasonBlock($entry->tag, $linkedPath, $entry->reason ?? '');
+                }
+
+                $lastRenderedSortKey = $entry->sortKey;
 
                 continue;
             }
 
             if ($entry->isSkip()) {
                 if ($this->isTagVisible($entry->tag, $showFilter)) {
-                    $this->io->text(sprintf(
-                        ' %s %s' . $padding . ' <fg=cyan>→</> <fg=%s>%s</>',
-                        $entry->tag->formattedTag(),
-                        $linkedPath,
-                        $entry->tag->color(),
-                        $entry->reason ?? '',
-                    ));
+                    $this->renderTwoLineReasonBlock($entry->tag, $linkedPath, $entry->reason ?? '');
+
+                    $lastRenderedSortKey = $entry->sortKey;
                 }
 
                 continue;
@@ -766,13 +777,7 @@ final readonly class RenameOutputRenderer
                         default                   => 'Skipped',
                     };
 
-                    $this->io->text(sprintf(
-                        ' %s %s' . $padding . ' <fg=cyan>→</> <fg=%s>%s</>',
-                        $entry->tag->formattedTag(),
-                        $linkedPath,
-                        $entry->tag->color(),
-                        $skipReason,
-                    ));
+                    $this->renderTwoLineReasonBlock($entry->tag, $linkedPath, $skipReason);
                 } else {
                     $this->io->text(sprintf(
                         ' %s %s' . $padding . ' <fg=cyan>→</> %s',
@@ -781,6 +786,8 @@ final readonly class RenameOutputRenderer
                         $this->highlightDiff($entry->sourcePath, $entry->targetPath ?? '', 'green'),
                     ));
                 }
+
+                $lastRenderedSortKey = $entry->sortKey;
             }
 
             if ($entry->isDuplicateTarget) {
@@ -853,6 +860,31 @@ final readonly class RenameOutputRenderer
     private function isTagVisible(OutputEntryTag $tag, ?array $showFilter): bool
     {
         return ($showFilter === null) || in_array($tag->letter(), $showFilter, true);
+    }
+
+    /**
+     * Renders a two-line output block with the tagged source path on the first line
+     * and a colored reason on the second line.
+     *
+     * This layout keeps long warning/notice texts from pushing the source path out of
+     * view and matches the two-line style already used by rename:dedup.
+     *
+     * @param OutputEntryTag $tag        Visual tag of the rendered entry
+     * @param string         $linkedPath Source path, already linkified for console output
+     * @param string         $reason     Human-readable explanation shown on the second line
+     */
+    private function renderTwoLineReasonBlock(OutputEntryTag $tag, string $linkedPath, string $reason): void
+    {
+        $this->io->text(sprintf(
+            ' %s %s',
+            $tag->formattedTag(),
+            $linkedPath,
+        ));
+        $this->io->text(sprintf(
+            '     <fg=cyan>→</> <fg=%s>%s</>',
+            $tag->color(),
+            $reason,
+        ));
     }
 
     /**
