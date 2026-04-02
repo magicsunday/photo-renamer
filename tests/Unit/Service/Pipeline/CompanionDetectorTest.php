@@ -165,8 +165,8 @@ final class CompanionDetectorTest extends TestCase
     }
 
     /**
-     * Ensures that detection via basename also works when Content-IDs are
-     * different (e.g., for manually edited pairs).
+     * Ensures basename fallback refuses candidates whose non-null Content-ID
+     * conflicts with the canonical item's Content-ID and records the conflict.
      */
     #[Test]
     public function basenameFollowsDetectsConflictingContentId(): void

@@ -53,10 +53,12 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
     ];
 
     /**
-     * @param AssetGroupCollection $groups  Die zu projizierenden Asset-Gruppen.
-     * @param PipelineContext      $context Der Pipeline-Kontext mit Qualitäts-Flags.
+     * Builds the execution-layer projection for the already classified asset groups.
      *
-     * @return ExecutionPlan Der resultierende Ausführungsplan.
+     * @param AssetGroupCollection $groups  Asset groups to project into execution DTOs
+     * @param PipelineContext      $context Pipeline context carrying quality and conflict flags
+     *
+     * @return ExecutionPlan Execution-ready projection of the input groups
      */
     #[Override]
     public function build(
@@ -73,15 +75,15 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
     }
 
     /**
-     * Projiziert eine einzelne AssetGroup in eine ExecutionGroup.
+     * Projects a single asset group into its execution-layer representation.
      *
-     * Dabei werden die Items sortiert (Kanonisch → Companion → Duplikat),
-     * Qualitäts-Flags ausgewertet und Entscheidungslogs übernommen.
+     * Items are ordered canonically, quality flags are mapped onto execution entries,
+     * and the group's decision log is carried over without introducing new decisions.
      *
-     * @param AssetGroup      $group   Die Quell-Asset-Gruppe.
-     * @param PipelineContext $context Der aktuelle Pipeline-Status.
+     * @param AssetGroup      $group   Source asset group to project
+     * @param PipelineContext $context Current pipeline context with quality flags
      *
-     * @return ExecutionGroup Die resultierende Ausführungsgruppe.
+     * @return ExecutionGroup Execution-layer view of the source group
      */
     private function projectGroup(
         AssetGroup $group,
@@ -116,17 +118,17 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
     }
 
     /**
-     * Projiziert ein einzelnes AssetItem in ein ExecutionItem.
+     * Projects one asset item into an execution item and applies execution gating.
      *
-     * Hier wird die finale Entscheidung getroffen, ob ein Item ausführbar
-     * (executable) ist. Gründe für eine Blockierung können Konflikte bei
-     * Live Photos, mehrdeutige Zeitzonen oder Fallback-Daten sein.
+     * This is the final step where pipeline state flags are translated into runtime
+     * execution decisions. Items can be blocked here due to Live Photo conflicts,
+     * ambiguous timezones, fallback dates, or because the rename is a no-op.
      *
-     * @param AssetItem       $item     Das Quell-Asset-Item.
-     * @param string          $groupKey Der Schlüssel der Gruppe.
-     * @param PipelineContext $context  Der aktuelle Pipeline-Status.
+     * @param AssetItem       $item     Source asset item
+     * @param string          $groupKey Group key the item belongs to
+     * @param PipelineContext $context  Current pipeline context with quality flags
      *
-     * @return ExecutionItem Das resultierende Ausführungs-Item.
+     * @return ExecutionItem Execution-layer representation of the item
      */
     private function projectItem(
         AssetItem $item,

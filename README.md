@@ -92,7 +92,7 @@ Large photo collections accumulated from multiple devices and backup sources ten
 |-----------------------------|-------|-------------------|--------------------------------------------------------------------------------------------------------------------------------|
 | `--target-filename-pattern` | `-fp` | `Y-m-d_H-i-s-v`  | PHP [date format](https://www.php.net/manual/en/datetime.format.php) pattern for the target filename (without extension).      |
 | `--timezone`                |       |                   | Timezone for video files without timezone metadata (e.g. `Europe/Berlin`). Overrides `TIMEZONE` env var.                        |
-| `--merge-threshold`         |       | `0.06`            | Maximum RMSE (0.0–1.0) for merging visually similar files. Overrides `MERGE_THRESHOLD` env var.                                |
+| `--merge-threshold`         |       | `0.06`            | Maximum RMSE (0.0–1.0) for merging visually similar files. Internal safe limits cap the effective threshold, so lower values only make the policy stricter. Overrides `MERGE_THRESHOLD` env var. |
 
 Supported file types: `jpg`, `jpeg`, `heic`, `heif`, `avi`, `mov`, `mp4`, `m4v`.
 
@@ -300,7 +300,7 @@ cp .env.dist .env
 | `GROUPID`  | `1000`          | Group ID for the Docker container.                                          |
 | `TIMEZONE` | `Europe/Berlin` | Default timezone for video files without timezone metadata (see above).      |
 | `MAX_DATE_DRIFT` | `7`     | Maximum date drift in days between source filename date and target date. Set to `0` to disable. |
-| `MERGE_THRESHOLD` | `0.06`  | Maximum RMSE (0.0–1.0) for merging visually similar files. See `--merge-threshold`.                 |
+| `MERGE_THRESHOLD` | `0.06`  | Maximum RMSE (0.0–1.0) for merging visually similar files. Internal safe limits still cap the effective threshold. See `--merge-threshold`. |
 | `CACHE_DIR` | `.build/cache` | Directory for the persistent metadata cache. Speeds up subsequent runs by skipping unchanged files. |
 | `FILE_LINK_ROOT` | *(empty)* | Source path as seen inside Docker/NAS (e.g. `/srv/photos`). |
 | `FILE_LINK_BASE` | *(empty)* | Same path as seen from the terminal host (e.g. `Z:\Photos`). |
