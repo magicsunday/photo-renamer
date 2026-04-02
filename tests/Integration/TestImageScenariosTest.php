@@ -1111,7 +1111,7 @@ final class TestImageScenariosTest extends TestCase
             $livePhotoConflictDetector,
             new LivePhotoPairingService(),
         );
-        $subgroupClassifier       = new SubgroupClassifier($hashSubGroupingService, $mediaTypeClassifier, $style);
+        $subgroupClassifier       = new SubgroupClassifier($hashSubGroupingService, $mediaTypeClassifier, $perceptualHashCalculator, $style);
         $mediaCompatibilityPolicy = new MediaCompatibilityPolicy($mediaTypeClassifier);
         $companionDetector        = new CompanionDetector($mediaCompatibilityPolicy);
         $canonicalScorer          = new CanonicalScorer();

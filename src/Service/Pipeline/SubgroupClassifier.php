@@ -21,11 +21,15 @@ use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Service\HashSubGroupingServiceInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
+use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
 use Override;
 use SplFileInfo;
+use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Throwable;
 
+use function array_keys;
+use function count;
 use function sprintf;
 
 use const DIRECTORY_SEPARATOR;
@@ -45,13 +49,15 @@ use const DIRECTORY_SEPARATOR;
 final readonly class SubgroupClassifier implements SubgroupClassifierInterface
 {
     /**
-     * @param HashSubGroupingServiceInterface $hashSubGroupingService Existing hash-based sub-grouping service
-     * @param MediaTypeClassifierInterface    $mediaTypeClassifier    Classifies files as still or video
-     * @param SymfonyStyle                    $io                     Console output for progress feedback
+     * @param HashSubGroupingServiceInterface   $hashSubGroupingService   Existing hash-based sub-grouping service
+     * @param MediaTypeClassifierInterface      $mediaTypeClassifier      Classifies files as still or video
+     * @param PerceptualHashCalculatorInterface $perceptualHashCalculator Multi-frame similarity scoring for orphan video reconciliation
+     * @param SymfonyStyle                      $io                       Console output for progress feedback
      */
     public function __construct(
         private HashSubGroupingServiceInterface $hashSubGroupingService,
         private MediaTypeClassifierInterface $mediaTypeClassifier,
+        private PerceptualHashCalculatorInterface $perceptualHashCalculator,
         private SymfonyStyle $io,
     ) {
     }
@@ -67,6 +73,28 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
     public function classify(
         AssetGroupCollection $groups,
     ): void {
+        $candidateCompanions = $this->collectValidCompanionCandidates($groups);
+        $orphanGroupKeys     = $this->collectOrphanVideoGroupKeys($groups);
+
+        if (($candidateCompanions !== []) && ($orphanGroupKeys !== [])) {
+            $this->io->newLine();
+            $this->io->text('<fg=cyan>Reconciling orphan Live Photo videos</>');
+
+            $progressBar = $this->io->createProgressBar(count($orphanGroupKeys));
+            $progressBar->setFormat(Constants::PROGRESS_BAR_FORMAT);
+            $progressBar->start();
+
+            $this->mergeOrphanVideoDuplicatesIntoLivePhotoGroups(
+                $groups,
+                $candidateCompanions,
+                $orphanGroupKeys,
+                $progressBar,
+            );
+
+            $progressBar->finish();
+            $this->io->newLine();
+        }
+
         $groupsToClassify = 0;
 
         foreach ($groups as $group) {
@@ -104,6 +132,186 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
 
         $progressBar->finish();
         $this->io->newLine();
+    }
+
+    /**
+     * Merges standalone video-only groups into existing Live Photo groups when the
+     * video is perceptually identical to an already valid companion video.
+     *
+     * This covers cases where a MOV carries a wrong content identifier and was
+     * therefore grouped separately even though another MOV already forms the valid
+     * still+video pair. After merging, the orphan MOV can later be marked as a
+     * duplicate inside the correct group.
+     *
+     * @param AssetGroupCollection                            $groups              Groups discovered by CaptureGroupBuilder
+     * @param list<array{group: AssetGroup, item: AssetItem}> $candidateCompanions Valid existing companion videos
+     * @param list<string>                                    $orphanGroupKeys     Group keys of orphan singleton video groups
+     * @param ProgressBar|null                                $progressBar         Optional progress bar for CLI feedback
+     */
+    private function mergeOrphanVideoDuplicatesIntoLivePhotoGroups(
+        AssetGroupCollection $groups,
+        array $candidateCompanions,
+        array $orphanGroupKeys,
+        ?ProgressBar $progressBar = null,
+    ): void {
+        foreach ($orphanGroupKeys as $groupKey) {
+            $group = $groups->get($groupKey);
+
+            if (!$group instanceof AssetGroup) {
+                $progressBar?->advance();
+
+                continue;
+            }
+
+            $orphanVideo = $this->findOrphanVideo($group);
+
+            if (!$orphanVideo instanceof AssetItem) {
+                continue;
+            }
+
+            $bestMatch = null;
+            $bestScore = -1;
+
+            foreach ($candidateCompanions as $candidate) {
+                if ($candidate['group']->groupKey === $group->groupKey) {
+                    continue;
+                }
+
+                if ($candidate['item']->file->getPath() !== $orphanVideo->file->getPath()) {
+                    continue;
+                }
+
+                $similarity = $this->perceptualHashCalculator->similarityScore(
+                    $orphanVideo->file,
+                    $candidate['item']->file,
+                    $orphanVideo->metadata?->getVideoDurationSeconds(),
+                    $candidate['item']->metadata?->getVideoDurationSeconds(),
+                );
+
+                if (!$similarity->isDuplicateLikely()) {
+                    continue;
+                }
+
+                if ($similarity->score > $bestScore) {
+                    $bestScore = $similarity->score;
+                    $bestMatch = [
+                        'group' => $candidate['group'],
+                        'item'  => $candidate['item'],
+                        'score' => $similarity->score,
+                    ];
+                }
+            }
+
+            $this->perceptualHashCalculator->clearCache();
+            $progressBar?->advance();
+
+            if (!is_array($bestMatch)) {
+                continue;
+            }
+
+            /** @var AssetGroup $targetGroup */
+            $targetGroup = $bestMatch['group'];
+            /** @var AssetItem $targetVideo */
+            $targetVideo = $bestMatch['item'];
+
+            $targetGroup->addItem($orphanVideo);
+            $targetGroup->addDecision(sprintf(
+                'Merged orphan video duplicate: %s matched %s (score %d, content-id %s vs %s)',
+                $orphanVideo->file->getBasename(),
+                $targetVideo->file->getBasename(),
+                $bestMatch['score'],
+                $orphanVideo->contentIdentifier ?? 'none',
+                $targetVideo->contentIdentifier ?? 'none',
+            ));
+
+            $groups->remove($groupKey);
+        }
+    }
+
+    /**
+     * Collects videos that already belong to a valid still+video Live Photo pair.
+     *
+     * @param AssetGroupCollection $groups Available capture groups
+     *
+     * @return list<array{group: AssetGroup, item: AssetItem}> Candidate companion videos
+     */
+    private function collectValidCompanionCandidates(AssetGroupCollection $groups): array
+    {
+        $candidates = [];
+
+        foreach ($groups as $group) {
+            /** @var array<string, true> $stillContentIds */
+            $stillContentIds = [];
+
+            foreach ($group->getItems() as $item) {
+                if (
+                    ($item->contentIdentifier !== null)
+                    && $this->mediaTypeClassifier->isLivePhotoStill($item->file)
+                ) {
+                    $stillContentIds[$item->contentIdentifier] = true;
+                }
+            }
+
+            if ($stillContentIds === []) {
+                continue;
+            }
+
+            foreach ($group->getItems() as $item) {
+                if ($this->mediaTypeClassifier->isLivePhotoStill($item->file)) {
+                    continue;
+                }
+
+                if (($item->contentIdentifier !== null) && isset($stillContentIds[$item->contentIdentifier])) {
+                    $candidates[] = ['group' => $group, 'item' => $item];
+                }
+            }
+        }
+
+        return $candidates;
+    }
+
+    /**
+     * Collects the group keys of standalone orphan video groups.
+     *
+     * @param AssetGroupCollection $groups Available capture groups
+     *
+     * @return list<string> Group keys that contain exactly one video item with a content identifier
+     */
+    private function collectOrphanVideoGroupKeys(AssetGroupCollection $groups): array
+    {
+        $groupKeys = [];
+
+        foreach (array_keys($groups->asArray()) as $groupKey) {
+            $group = $groups->get($groupKey);
+
+            if (!$group instanceof AssetGroup) {
+                continue;
+            }
+
+            if ($this->findOrphanVideo($group) instanceof AssetItem) {
+                $groupKeys[] = $groupKey;
+            }
+        }
+
+        return $groupKeys;
+    }
+
+    /**
+     * Returns the singleton video item of a standalone orphan video group, or null.
+     */
+    private function findOrphanVideo(AssetGroup $group): ?AssetItem
+    {
+        if ($group->itemCount() !== 1) {
+            return null;
+        }
+
+        $item = $group->getItems()[0];
+
+        if ($this->mediaTypeClassifier->isLivePhotoStill($item->file)) {
+            return null;
+        }
+
+        return $item->contentIdentifier !== null ? $item : null;
     }
 
     /**

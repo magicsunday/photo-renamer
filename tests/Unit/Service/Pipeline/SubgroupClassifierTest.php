@@ -24,6 +24,9 @@ use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Service\HashSubGroupingServiceInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
+use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
+use MagicSunday\Renamer\Service\PerceptualHash\SimilarityClassification;
+use MagicSunday\Renamer\Service\PerceptualHash\SimilarityResult;
 use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifier;
 use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifierInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -36,6 +39,8 @@ use SplFileInfo;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
+
+use function implode;
 
 /**
  * Verifies SubgroupClassifier delegates to HashSubGroupingService and maps results
@@ -60,15 +65,22 @@ final class SubgroupClassifierTest extends TestCase
 {
     private HashSubGroupingServiceInterface&MockObject $hashSubGroupingService;
 
+    private BufferedOutput $output;
+
+    private PerceptualHashCalculatorInterface $perceptualHashCalculator;
+
     private SubgroupClassifierInterface $classifier;
 
     protected function setUp(): void
     {
-        $this->hashSubGroupingService = $this->createMock(HashSubGroupingServiceInterface::class);
-        $this->classifier             = new SubgroupClassifier(
+        $this->hashSubGroupingService   = $this->createMock(HashSubGroupingServiceInterface::class);
+        $this->output                   = new BufferedOutput();
+        $this->perceptualHashCalculator = self::createStub(PerceptualHashCalculatorInterface::class);
+        $this->classifier               = new SubgroupClassifier(
             $this->hashSubGroupingService,
             new MediaTypeClassifier(),
-            new SymfonyStyle(new ArrayInput([]), new BufferedOutput()),
+            $this->perceptualHashCalculator,
+            new SymfonyStyle(new ArrayInput([]), $this->output),
         );
     }
 
@@ -497,5 +509,112 @@ final class SubgroupClassifierTest extends TestCase
 
         // Verify group was marked degraded (exception was caught, not re-thrown)
         self::assertTrue($group->isClassificationDegraded());
+    }
+
+    /**
+     * Verifies that an orphan video with a conflicting content identifier is merged
+     * into an already valid Live Photo group when the companion videos are
+     * perceptually identical.
+     *
+     * This prevents the orphan MOV from staying as a standalone original when a
+     * proper still+video pair already exists in the same directory.
+     */
+    #[Test]
+    public function orphanVideoDuplicateMergesIntoExistingLivePhotoGroup(): void
+    {
+        $perceptualHashCalculator = $this->createMock(PerceptualHashCalculatorInterface::class);
+        $output                   = new BufferedOutput();
+        $classifier               = new SubgroupClassifier(
+            $this->hashSubGroupingService,
+            new MediaTypeClassifier(),
+            $perceptualHashCalculator,
+            new SymfonyStyle(new ArrayInput([]), $output),
+        );
+
+        $still = new AssetItem(
+            new SplFileInfo('/photos/Test/2019-09-28_16-57-59-738.jpg'),
+            contentIdentifier: 'good-id',
+        );
+        $validCompanion = new AssetItem(
+            new SplFileInfo('/photos/Test/2019-09-28_16-57-59-738.mov'),
+            metadata: new TemporalMetadata(new DateTimeImmutable('2019-09-28 16:57:59'), null, false, false, null, null, null, null, null, null, 2.17),
+            contentIdentifier: 'good-id',
+        );
+        $orphanDuplicate = new AssetItem(
+            new SplFileInfo('/photos/Test/2019-09-28_16-57-58-000.mov'),
+            metadata: new TemporalMetadata(new DateTimeImmutable('2019-10-19 08:43:12'), null, false, false, null, null, null, null, null, null, 2.17),
+            contentIdentifier: 'wrong-id',
+        );
+
+        $livePhotoGroup = new AssetGroup('2019-09-28_16-57-59-738');
+        $livePhotoGroup->addItem($still);
+        $livePhotoGroup->addItem($validCompanion);
+
+        $orphanGroup = new AssetGroup('2019-09-28_16-57-58-000');
+        $orphanGroup->addItem($orphanDuplicate);
+
+        $groups = new AssetGroupCollection();
+        $groups->set($livePhotoGroup->groupKey, $livePhotoGroup);
+        $groups->set($orphanGroup->groupKey, $orphanGroup);
+
+        $perceptualHashCalculator
+            ->expects(self::once())
+            ->method('similarityScore')
+            ->willReturn(new SimilarityResult(100, 0, 0, 0.0, 0.0, 0.0, SimilarityClassification::DuplicateLikely));
+
+        $perceptualHashCalculator
+            ->expects(self::once())
+            ->method('clearCache');
+
+        $this->hashSubGroupingService
+            ->expects(self::once())
+            ->method('apply')
+            ->willReturnCallback(static function (FileDuplicate $fileDuplicate, ?Rename $canonicalRename, ?Rename $companionRename): ?array {
+                self::assertCount(3, iterator_to_array($fileDuplicate->getFiles()));
+                self::assertInstanceOf(Rename::class, $companionRename);
+                self::assertSame('/photos/Test/2019-09-28_16-57-59-738.mov', $companionRename->getSource()->getPathname());
+
+                return null;
+            });
+
+        $this->hashSubGroupingService
+            ->expects(self::once())
+            ->method('clearCache');
+
+        $classifier->classify($groups);
+
+        self::assertCount(1, $groups);
+        self::assertCount(3, $livePhotoGroup->getItems());
+        self::assertInstanceOf(AssetItem::class, $livePhotoGroup->getItemByPath('/photos/Test/2019-09-28_16-57-58-000.mov'));
+        self::assertStringContainsString('Merged orphan video duplicate', implode("\n", $livePhotoGroup->getDecisionLog()));
+        self::assertStringContainsString('Reconciling orphan Live Photo videos', $output->fetch());
+    }
+
+    /**
+     * Verifies that the orphan-video reconciliation section stays hidden when no
+     * standalone candidate videos exist, keeping the normal pipeline output concise.
+     */
+    #[Test]
+    public function reconciliationStepIsSkippedWhenNoOrphanVideosExist(): void
+    {
+        $group = new AssetGroup('2024-01-01_12-00-00');
+        $group->addItem(new AssetItem(new SplFileInfo('/photos/IMG_0001.jpg')));
+        $group->addItem(new AssetItem(new SplFileInfo('/photos/IMG_0001.heic')));
+
+        $groups = new AssetGroupCollection();
+        $groups->set($group->groupKey, $group);
+
+        $this->hashSubGroupingService
+            ->expects(self::once())
+            ->method('apply')
+            ->willReturn(null);
+
+        $this->hashSubGroupingService
+            ->expects(self::once())
+            ->method('clearCache');
+
+        $this->classifier->classify($groups);
+
+        self::assertStringNotContainsString('Reconciling orphan Live Photo videos', $this->output->fetch());
     }
 }

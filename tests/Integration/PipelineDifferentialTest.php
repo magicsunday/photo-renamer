@@ -295,7 +295,7 @@ final class PipelineDifferentialTest extends TestCase
         );
 
         // Step 2: SubgroupClassifier
-        $subgroupClassifier = new SubgroupClassifier($hashSubGroupingService, $mediaTypeClassifier, $io);
+        $subgroupClassifier = new SubgroupClassifier($hashSubGroupingService, $mediaTypeClassifier, $perceptualHashCalculator, $io);
         $subgroupClassifier->classify($groups);
 
         // Step 3: RoleAssigner (with empty format priority to match old pipeline behavior)

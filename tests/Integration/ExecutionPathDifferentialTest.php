@@ -281,7 +281,7 @@ final class ExecutionPathDifferentialTest extends TestCase
             new LivePhotoPairingService(),
         );
 
-        $subgroupClassifier = new SubgroupClassifier($hashSubGroupingService, $mediaTypeClassifier, $io);
+        $subgroupClassifier = new SubgroupClassifier($hashSubGroupingService, $mediaTypeClassifier, $perceptualHashCalculator, $io);
 
         $canonicalScorer = new CanonicalScorer();
         $canonicalScorer->setFormatPriority([]);
