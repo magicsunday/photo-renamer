@@ -30,7 +30,6 @@ use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use Override;
 use RecursiveIterator;
 use RecursiveIteratorIterator;
-use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Style\SymfonyStyle;
@@ -40,15 +39,9 @@ use function array_key_exists;
 use function assert;
 use function count;
 use function is_string;
-use function rtrim;
 use function sprintf;
-use function str_contains;
-use function str_starts_with;
-use function strlen;
 use function strtolower;
-use function substr;
 use function substr_count;
-use function trim;
 use function usort;
 
 use const DIRECTORY_SEPARATOR;
@@ -178,6 +171,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      * @param LegacyLivePhotoTargetPromoter|null       $livePhotoTargetPromoter          Promotes live-photo canonicals from video targets to still targets.
      * @param LegacyLivePhotoQualityFlagPropagator     $livePhotoQualityFlagPropagator   Propagates still-side quality flags to paired companion videos.
      * @param LegacyLivePhotoDuplicateCoordinator|null $livePhotoDuplicateCoordinator    Coordinates companion detection and pair recording for legacy Live Photo groups.
+     * @param LegacyTargetPathResolver                 $targetPathResolver               Resolves absolute target pathnames while preserving legacy directory structure.
      */
     private readonly LegacyLivePhotoTargetPromoter $livePhotoTargetPromoter;
 
@@ -194,6 +188,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
         ?LegacyLivePhotoTargetPromoter $livePhotoTargetPromoter = null,
         private readonly LegacyLivePhotoQualityFlagPropagator $livePhotoQualityFlagPropagator = new LegacyLivePhotoQualityFlagPropagator(),
         ?LegacyLivePhotoDuplicateCoordinator $livePhotoDuplicateCoordinator = null,
+        private readonly LegacyTargetPathResolver $targetPathResolver = new LegacyTargetPathResolver(),
     ) {
         $livePhotoCompanionDetector ??= new LegacyLivePhotoCompanionDetector($this->mediaTypeClassifier);
         $this->livePhotoTargetPromoter = $livePhotoTargetPromoter
@@ -1042,28 +1037,11 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      */
     private function getTargetPathname(SplFileInfo $sourceFileInfo, string $targetFilename): string
     {
-        if (str_contains($targetFilename, DIRECTORY_SEPARATOR) || str_contains($targetFilename, '/')) {
-            throw new RuntimeException(
-                sprintf('Target filename "%s" must not contain directory separators', $targetFilename)
-            );
-        }
-
-        $sourcePath   = $sourceFileInfo->getPath();
-        $relativePath = $sourcePath;
-
-        if (str_starts_with($sourcePath, $this->sourceDirectory)) {
-            $relativePath = substr($sourcePath, strlen($this->sourceDirectory));
-        }
-
-        $relativePath = trim($relativePath, DIRECTORY_SEPARATOR);
-
-        $targetPath = rtrim($this->sourceDirectory, DIRECTORY_SEPARATOR);
-
-        if ($relativePath !== '') {
-            $targetPath .= DIRECTORY_SEPARATOR . $relativePath;
-        }
-
-        return $targetPath . DIRECTORY_SEPARATOR . $targetFilename;
+        return $this->targetPathResolver->resolve(
+            $this->sourceDirectory,
+            $sourceFileInfo,
+            $targetFilename,
+        );
     }
 
     /**
