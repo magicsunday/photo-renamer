@@ -201,6 +201,7 @@ final class DedupCommand extends Command
 
             $io->newLine();
         } elseif ($files !== []) {
+            $io->newLine();
             $io->text('<fg=green>No duplicate files found — nothing to do.</>');
             $io->newLine();
         }

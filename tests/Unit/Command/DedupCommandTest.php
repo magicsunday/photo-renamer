@@ -37,6 +37,7 @@ use Symfony\Component\Console\Tester\CommandTester;
 use function file_put_contents;
 use function is_dir;
 use function mkdir;
+use function preg_quote;
 use function str_repeat;
 
 use const DIRECTORY_SEPARATOR;
@@ -416,6 +417,37 @@ final class DedupCommandTest extends TestCase
             $output = $tester->getDisplay();
             self::assertStringNotContainsString('Original not found', $output);
             self::assertStringContainsString('[D]', $output);
+        } finally {
+            $this->cleanupWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Verifies that the no-duplicate message is separated from the preceding scan/progress
+     * output by two blank lines, making the "nothing to do" result visually stand apart.
+     */
+    #[Test]
+    public function executeWithoutDuplicatesLeavesTwoBlankLinesBeforeNothingToDoMessage(): void
+    {
+        $workspace    = $this->createWorkspace();
+        $originalPath = $workspace . DIRECTORY_SEPARATOR . '2025-04-13_17-29-26-411.jpg';
+
+        file_put_contents($originalPath, 'original-content');
+
+        try {
+            $command  = $this->createCommand();
+            $tester   = new CommandTester($command);
+            $exitCode = $tester->execute([
+                'source'    => $workspace,
+                '--dry-run' => true,
+            ]);
+
+            self::assertSame(Command::SUCCESS, $exitCode);
+
+            $output  = $tester->getDisplay();
+            $message = preg_quote('No duplicate files found — nothing to do.', '/');
+
+            self::assertMatchesRegularExpression('/\R\R\R\s' . $message . '/u', $output);
         } finally {
             $this->cleanupWorkspace($workspace);
         }
