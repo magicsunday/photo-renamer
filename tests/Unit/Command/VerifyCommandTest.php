@@ -257,12 +257,16 @@ final class VerifyCommandTest extends TestCase
     }
 
     /**
-     * Verifies that date drift in verify mode uses calendar-day semantics, so a
-     * filename timestamp shortly before midnight still reports drift when metadata
-     * falls on the next calendar day.
+     * Verifies that date drift in verify mode uses calendar-day semantics instead
+     * of elapsed 24-hour intervals.
+     *
+     * The filename timestamp lies late on January 15, while the metadata falls
+     * shortly after midnight on January 17. Elapsed-time drift is still only one
+     * full day, but calendar-day drift is two days, so verify mode must report a
+     * drift when the threshold is set to one day.
      */
     #[Test]
-    public function executeReportsDateDriftAcrossMidnight(): void
+    public function executeReportsCalendarDayDriftBeyondElapsedDays(): void
     {
         $workspace = $this->createWorkspace();
         $jpgPath   = $workspace . DIRECTORY_SEPARATOR . '2024-01-15_23-30-00.jpg';
@@ -273,7 +277,7 @@ final class VerifyCommandTest extends TestCase
             $metadataExtractor->withResponse(
                 $jpgPath,
                 new TemporalMetadata(
-                    new DateTimeImmutable('2024-01-23T00:15:00+00:00'),
+                    new DateTimeImmutable('2024-01-17T00:15:00+00:00'),
                     null,
                 ),
             );
@@ -282,7 +286,7 @@ final class VerifyCommandTest extends TestCase
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
                 'source'           => $workspace,
-                '--max-date-drift' => '7',
+                '--max-date-drift' => '1',
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
