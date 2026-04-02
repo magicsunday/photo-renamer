@@ -346,6 +346,237 @@ That is too much for one class even if the overall concept is coherent.
 - `CaptureGroupBuilder` becomes an orchestrator over clearly named stages
 - pending LP resolution is no longer hidden among unrelated grouping code
 - quality-flag propagation is structurally separate from group assembly
+- the pipeline has a clear extension point for cross-group video reconciliation
+  before strict target-basename grouping becomes final
+
+### Risk
+
+- high
+
+---
+
+## Phase 4a: Add Cross-Group Video Reconciliation
+
+**Goal:** Cover exact-content video duplicates that diverge in metadata time,
+container structure, or Live Photo identifiers before basename-based grouping
+locks them into separate capture groups.
+
+### Motivation
+
+The current blind spot is not primarily inside `HashSubGroupingService`, but one
+phase earlier. `rename:exif` groups by target basename, so two videos with the
+same visual payload but different metadata timestamps never reach the normal
+subgroup/perceptual merge path together.
+
+This is therefore a behavior track, not just a structural cleanup:
+
+- it addresses a real missed-duplicate case
+- it must run as a dedicated post-build, pre-classification phase
+- it needs explicit tests for group-crossing reconciliation
+
+### New classes
+
+- `src/Service/Pipeline/CrossGroupVideoDuplicateReconciler.php`
+- `src/Service/Video/VideoStreamFingerprintMatcher.php`
+- `src/Service/Pipeline/PipelineReviewMapper.php`
+- support DTOs:
+  - `src/Model/Pipeline/VideoFingerprintMatch.php`
+  - `src/Model/Pipeline/VideoDuplicateCandidate.php`
+
+### Responsibilities
+
+`CrossGroupVideoDuplicateReconciler`
+- run as an explicit regrouping step after `CaptureGroupBuilder::build()`
+  and before `SubgroupClassifier::classify()`
+- inspect candidate videos across existing groups
+- use cheap guards first:
+  - same normalized duration
+  - same media family
+  - conservative candidate filtering
+- ask `VideoStreamFingerprintMatcher` for exact-content evidence
+- merge groups only for exact-duplicate cases allowed by policy
+- write non-merged review findings only as structured `VideoDuplicateCandidate`
+  facts into `PipelineContext`
+
+`VideoStreamFingerprintMatcher`
+- extract/cache stream-level fingerprints for:
+  - video
+  - optional audio
+- ignore container-level metadata differences
+- return structured evidence, not grouping decisions
+
+### Policy
+
+The policy for exact-content video reconciliation must be explicit:
+
+- `video stream match + audio stream match`
+  - qualifies as an exact-content duplicate signal
+- `video stream match + no audio on both sides`
+  - qualifies as an exact-content duplicate signal
+- `video stream match + missing audio on one side`
+  - conservative candidate only, not auto-merge by default
+- `video stream match + audio mismatch`
+  - conservative candidate only, not auto-merge by default
+- `video/audio policy satisfied, non-A/V data tracks differ`
+  - still treat as container noise, not as a merge blocker
+- `video stream mismatch`
+  - not an exact-content duplicate
+
+This keeps the current safety bar:
+
+- identical picture track alone is not enough for silent auto-merge
+- cases like the Zoo MOV pair remain visible for follow-up analysis
+- true container-only rewrites still become detectable
+- extra QuickTime `data` tracks do not prevent otherwise valid matches
+
+### Required UX decisions
+
+The implementation must not stop at internal classification. It needs explicit
+user-visible behavior for non-exact-but-suspicious matches:
+
+- `exact duplicate`
+  - safe to auto-merge into the same duplicate/canonical flow
+- `candidate`
+  - surfaced in CLI output as a reviewable finding, not silently merged
+- `no match`
+  - no extra output beyond existing pipeline behavior
+
+For the initial rollout, `candidate` should stay conservative:
+
+- show both paths involved
+- show why the pair stopped short of auto-merge
+  - for example: `video stream identical, audio differs`
+- avoid reusing the existing duplicate tag for these entries
+- prefer a distinct warning/candidate-style output category over implicit merge behavior
+
+That makes the feature operationally useful even before the project is ready to
+auto-merge every stream-level near-match.
+
+Ownership rule:
+
+- `CrossGroupVideoDuplicateReconciler`
+  - classifies and records candidate facts into `PipelineContext`
+- `PipelineContext`
+  - owns a structured `videoDuplicateCandidates` collection
+- `PipelineReviewMapper`
+  - projects `VideoDuplicateCandidate` entries into output-ready review entries
+- `RenameResult`
+  - carries the projected review entries and their summary counts across the
+    execution/output boundary
+- `ExecutionPlanBuilder`
+  - remains focused on projecting grouped execution items only
+- `RenameOutputRenderer`
+  - remains the single output channel for rendering both:
+    - execution-plan entries
+    - review entries supplied via `RenameResult`
+  - may format them, but must not invent the underlying duplicate policy
+
+Recommended transport contract:
+
+- `PipelineReviewMapper` produces review entries before `PipelineContext::toRenameResult()`
+- `RenameResult` stores those review entries explicitly
+- `RenameOutputRenderer::buildOutputEntriesFromPlan()` appends them to the normal
+  execution-plan-derived entries
+- do not add a second renderer parameter just for this feature
+
+### Technical insertion point
+
+This track should be a dedicated phase between group building and subgroup
+classification:
+
+- `CaptureGroupBuilder::build()`
+- `CrossGroupVideoDuplicateReconciler::reconcile()`
+- `SubgroupClassifier::classify()`
+
+Why this exact position:
+
+- `TargetBasenameStrategy` groups by generated timestamp basename
+- metadata drift splits exact-content videos into different `AssetGroup`s
+- a later in-group matcher cannot repair a pair that never shared a group
+- embedding this logic inside `CaptureGroupBuilder` would overload the builder
+  with broader reconciliation policy instead of keeping it focused on initial grouping
+
+This is the only intended insertion point for the feature. The plan should not
+be interpreted as permission to embed the behavior inside `CaptureGroupBuilder`
+or to postpone it until `SubgroupClassifier`.
+
+### Interaction with existing orphan Live Photo reconciliation
+
+This broader cross-group video track must remain clearly separate from the
+existing orphan-Live-Photo special case in `SubgroupClassifier`.
+
+Separation rules:
+
+- orphan Live Photo reconciliation
+  - only for video-only orphan groups around an already-valid still+video pair
+  - may merge directly when the existing Live Photo-specific policy allows it
+- cross-group video reconciliation
+  - applies to normal videos regardless of Live Photo context
+  - must not assume a still anchor or content identifier relationship
+  - must not silently reuse Live Photo-specific decision messages
+
+Recommended integration rule:
+
+- run the new cross-group video reconciliation before the existing orphan-Live-Photo
+  step narrows the problem to companion-specific cases
+- keep separate decision logs and separate tests for both mechanisms
+- do not let one mechanism call the other internally; they may share low-level
+  fingerprinting/matching helpers, but not business ownership
+
+### Structural placement rule
+
+`VideoStreamFingerprintMatcher` should not live under `HashGrouping/` anymore.
+Its responsibility is broader than hash-subgrouping:
+
+- it supports pre-group reconciliation
+- it may later support orphan-video reconciliation
+- it answers a low-level video-fingerprinting question, not a hash-cluster question
+
+`src/Service/Video/` is therefore the preferred home unless a broader media-level
+package is introduced later.
+
+### Acceptance criteria
+
+- exact-content video duplicates with different container metadata can be
+  surfaced across groups
+- the policy for audio mismatch vs. exact duplicate is documented and tested
+- additional non-A/V data tracks are explicitly treated as container noise
+- the feature lands as an explicit behavior change, not as hidden refactor fallout
+- existing Live Photo–specific reconciliation remains separate from this broader track
+- candidate UX is defined up front so ambiguous matches do not disappear into logs
+- the data path is explicit:
+  - `PipelineContext` stores review facts
+  - `PipelineReviewMapper` projects them
+  - `RenameResult` transports them
+  - `RenameOutputRenderer` renders them centrally
+- review findings are counted in the summary, not only listed inline
+
+### Output-tag rule
+
+Do not reuse the existing `OutputEntryTag::Candidate` semantics for this feature.
+That tag already carries the meaning “conflicting Live Photo content IDs”.
+
+For cross-group video review findings, introduce a distinct output concept:
+
+- add `OutputEntryTag::Review`
+- assign it its own tag letter for `--show`
+- define its own color and skip/display semantics explicitly
+
+This preserves clear `--show` semantics:
+
+- Live Photo conflict review remains its own category
+- cross-group video review remains its own category
+- users must not have to infer the difference from free-form message text alone
+
+### Summary rule
+
+Cross-group video review findings should not only appear as individual lines.
+They should also contribute a dedicated summary counter:
+
+- `cross-group video review`
+
+This label should be used directly during implementation so the signal stays
+specific and does not get diluted into a generic catch-all review bucket.
 
 ### Risk
 
@@ -400,6 +631,10 @@ The legacy execution path is intentionally retained, but that does not require o
 
 `HashSubGroupingService` is domain-coherent, so it should be split only when the payoff is real.
 
+The video-specific duplicate behavior track belongs in Phase 4a. Phase 6 should
+only consume the already-defined `VideoStreamFingerprintMatcher` as a narrower
+collaborator if the subgrouping internals are later decomposed.
+
 ### New classes
 
 - `src/Service/HashGrouping/HashGroupBuilder.php`
@@ -436,10 +671,11 @@ Recommended commit sequence:
 2. `refactor: extract orphan live photo video reconciler`
 3. `refactor: extract verify issue scanner`
 4. `refactor: extract write-date candidate analyzer`
-5. `refactor: extract subgroup naming resolver`
-6. `refactor: extract capture group quality tracker`
-7. `refactor: split legacy duplicate detection internals`
-8. `refactor: extract perceptual hash group merger`
+5. `feat: add cross-group video duplicate reconciliation`
+6. `refactor: extract subgroup naming resolver`
+7. `refactor: extract capture group quality tracker`
+8. `refactor: split legacy duplicate detection internals`
+9. `refactor: extract perceptual hash group merger`
 
 Not every step must happen immediately, but each step should remain independently reviewable.
 
