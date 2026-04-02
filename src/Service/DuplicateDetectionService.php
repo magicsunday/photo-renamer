@@ -176,6 +176,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      * @param DuplicateSuffixAssigner                 $duplicateSuffixAssigner          Assigns unique `-duplicate-NNN` targets in the legacy flow.
      * @param LegacyLivePhotoCompanionDetector|null   $livePhotoCompanionDetector       Detects companion renames inside legacy Live Photo groups.
      * @param LegacyLivePhotoTargetPromoter|null      $livePhotoTargetPromoter          Promotes live-photo canonicals from video targets to still targets.
+     * @param LegacyLivePhotoQualityFlagPropagator    $livePhotoQualityFlagPropagator   Propagates still-side quality flags to paired companion videos.
      */
     private readonly LegacyLivePhotoCompanionDetector $livePhotoCompanionDetector;
 
@@ -190,6 +191,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
         private readonly DuplicateSuffixAssigner $duplicateSuffixAssigner = new DuplicateSuffixAssigner(),
         ?LegacyLivePhotoCompanionDetector $livePhotoCompanionDetector = null,
         ?LegacyLivePhotoTargetPromoter $livePhotoTargetPromoter = null,
+        private readonly LegacyLivePhotoQualityFlagPropagator $livePhotoQualityFlagPropagator = new LegacyLivePhotoQualityFlagPropagator(),
     ) {
         $this->livePhotoCompanionDetector = $livePhotoCompanionDetector
             ?? new LegacyLivePhotoCompanionDetector($this->mediaTypeClassifier);
@@ -813,18 +815,11 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      */
     private function propagateLivePhotoQualityFlags(array $livePhotoPairs): void
     {
-        foreach ($livePhotoPairs as $pair) {
-            $stillPath     = $pair['still'];
-            $companionPath = $pair['companion'];
-
-            if (isset($this->ambiguousTimezoneFiles[$stillPath])) {
-                $this->ambiguousTimezoneFiles[$companionPath] = true;
-            }
-
-            if (isset($this->fallbackDateFiles[$stillPath])) {
-                $this->fallbackDateFiles[$companionPath] = true;
-            }
-        }
+        $this->livePhotoQualityFlagPropagator->propagate(
+            $livePhotoPairs,
+            $this->ambiguousTimezoneFiles,
+            $this->fallbackDateFiles,
+        );
     }
 
     /**
