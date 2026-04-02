@@ -27,6 +27,7 @@ use MagicSunday\Renamer\Service\DuplicateDetectionService;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetector;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingService;
+use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
 use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzer;
@@ -302,8 +303,9 @@ final class PipelineDifferentialTest extends TestCase
         $canonicalScorer->setFormatPriority([]);
         $canonicalScorer->setSourceDirectory($workspace);
 
-        $companionDetector = new CompanionDetector($mediaTypeClassifier);
-        $roleAssigner      = new RoleAssigner($canonicalScorer, $companionDetector);
+        $mediaCompatibilityPolicy = new MediaCompatibilityPolicy($mediaTypeClassifier);
+        $companionDetector        = new CompanionDetector($mediaCompatibilityPolicy);
+        $roleAssigner             = new RoleAssigner($canonicalScorer, $companionDetector, $mediaCompatibilityPolicy);
         $roleAssigner->assign($groups, $context);
 
         // Step 4: TargetNameResolver

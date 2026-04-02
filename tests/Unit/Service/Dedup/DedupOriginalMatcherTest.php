@@ -14,6 +14,7 @@ namespace MagicSunday\Renamer\Test\Unit\Service\Dedup;
 use MagicSunday\Renamer\Service\Dedup\DedupOriginalMatcher;
 use MagicSunday\Renamer\Service\Dedup\OriginalCandidateIndex;
 use MagicSunday\Renamer\Service\FormatPriorityResolver;
+use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -41,6 +42,7 @@ use const DIRECTORY_SEPARATOR;
 #[CoversClass(DedupOriginalMatcher::class)]
 #[UsesClass(OriginalCandidateIndex::class)]
 #[UsesClass(MediaTypeClassifier::class)]
+#[UsesClass(MediaCompatibilityPolicy::class)]
 #[UsesClass(FormatPriorityResolver::class)]
 final class DedupOriginalMatcherTest extends TestCase
 {
@@ -228,6 +230,8 @@ final class DedupOriginalMatcherTest extends TestCase
      */
     private function createMatcher(): DedupOriginalMatcher
     {
-        return new DedupOriginalMatcher(new MediaTypeClassifier());
+        return new DedupOriginalMatcher(
+            new MediaCompatibilityPolicy(new MediaTypeClassifier()),
+        );
     }
 }

@@ -14,7 +14,7 @@ namespace MagicSunday\Renamer\Service\Dedup;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Service\FormatPriorityResolver;
-use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
+use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use SplFileInfo;
 
 use function str_contains;
@@ -49,10 +49,10 @@ final readonly class DedupOriginalMatcher
     private array $formatPriorityRanks;
 
     /**
-     * @param MediaTypeClassifierInterface $mediaTypeClassifier Classifies still and video asset families
+     * @param MediaCompatibilityPolicy $mediaCompatibilityPolicy Shared still/video compatibility rules
      */
     public function __construct(
-        private MediaTypeClassifierInterface $mediaTypeClassifier,
+        private MediaCompatibilityPolicy $mediaCompatibilityPolicy,
     ) {
         $this->formatPriorityRanks = $this->buildFormatPriorityRanks();
     }
@@ -183,8 +183,7 @@ final readonly class DedupOriginalMatcher
             return true;
         }
 
-        return $this->mediaTypeClassifier->isLivePhotoStill($duplicateFile)
-            && $this->mediaTypeClassifier->isLivePhotoStill($candidate);
+        return $this->mediaCompatibilityPolicy->areBothStillImages($duplicateFile, $candidate);
     }
 
     /**

@@ -20,6 +20,7 @@ use MagicSunday\Renamer\Service\Dedup\DedupOriginalMatcher;
 use MagicSunday\Renamer\Service\Dedup\OriginalCandidateIndex;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\FormatPriorityResolver;
+use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
@@ -56,6 +57,7 @@ use const PHP_EOL;
 #[UsesClass(SafeRegex::class)]
 #[UsesClass(FileSystemService::class)]
 #[UsesClass(MediaTypeClassifier::class)]
+#[UsesClass(MediaCompatibilityPolicy::class)]
 #[UsesClass(DedupOriginalMatcher::class)]
 #[UsesClass(OriginalCandidateIndex::class)]
 #[UsesClass(FormatPriorityResolver::class)]
@@ -436,7 +438,9 @@ final class DedupCommandTest extends TestCase
 
         $renderer          = new RenameOutputRenderer($style);
         $fileSystemService = new FileSystemService($style, $renderer);
-        $matcher           = new DedupOriginalMatcher(new MediaTypeClassifier());
+        $matcher           = new DedupOriginalMatcher(
+            new MediaCompatibilityPolicy(new MediaTypeClassifier()),
+        );
 
         return new DedupCommand(
             $fileSystemService,

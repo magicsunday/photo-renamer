@@ -17,6 +17,8 @@ use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\ItemRole;
 use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Service\CanonicalScorerInterface;
+use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
+use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\Pipeline\CompanionDetectorInterface;
 use MagicSunday\Renamer\Service\Pipeline\RoleAssigner;
 use MagicSunday\Renamer\Service\Pipeline\RoleAssignerInterface;
@@ -40,6 +42,8 @@ use SplFileInfo;
 #[UsesClass(AssetItem::class)]
 #[UsesClass(AssetGroupCollection::class)]
 #[UsesClass(PipelineContext::class)]
+#[UsesClass(MediaTypeClassifier::class)]
+#[UsesClass(MediaCompatibilityPolicy::class)]
 final class RoleAssignerTest extends TestCase
 {
     /**
@@ -504,7 +508,11 @@ final class RoleAssignerTest extends TestCase
         CanonicalScorerInterface $scorer,
         CompanionDetectorInterface $companionDetector,
     ): RoleAssignerInterface {
-        return new RoleAssigner($scorer, $companionDetector);
+        return new RoleAssigner(
+            $scorer,
+            $companionDetector,
+            new MediaCompatibilityPolicy(new MediaTypeClassifier()),
+        );
     }
 
     /**

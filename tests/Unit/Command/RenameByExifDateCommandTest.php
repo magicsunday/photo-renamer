@@ -56,6 +56,7 @@ use MagicSunday\Renamer\Service\LivePhoto\LivePhotoContentIdentifierTargetMap;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoExistingFilePathnameIndex;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingCollection;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingService;
+use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\MetadataCache;
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
@@ -264,14 +265,15 @@ final class RenameByExifDateCommandTest extends TestCase
                 $livePhotoConflictDetector,
                 new LivePhotoPairingService(),
             );
-            $subgroupClassifier   = new SubgroupClassifier($hashSubGroupingService, $mediaTypeClassifier, $style);
-            $companionDetector    = new CompanionDetector($mediaTypeClassifier);
-            $canonicalScorer      = new CanonicalScorer();
-            $roleAssigner         = new RoleAssigner($canonicalScorer, $companionDetector);
-            $targetNameResolver   = new TargetNameResolver();
-            $collisionResolver    = new CollisionResolver();
-            $renamePlanValidator  = new RenamePlanValidator();
-            $executionPlanBuilder = new ExecutionPlanBuilder();
+            $subgroupClassifier       = new SubgroupClassifier($hashSubGroupingService, $mediaTypeClassifier, $style);
+            $mediaCompatibilityPolicy = new MediaCompatibilityPolicy($mediaTypeClassifier);
+            $companionDetector        = new CompanionDetector($mediaCompatibilityPolicy);
+            $canonicalScorer          = new CanonicalScorer();
+            $roleAssigner             = new RoleAssigner($canonicalScorer, $companionDetector, $mediaCompatibilityPolicy);
+            $targetNameResolver       = new TargetNameResolver();
+            $collisionResolver        = new CollisionResolver();
+            $renamePlanValidator      = new RenamePlanValidator();
+            $executionPlanBuilder     = new ExecutionPlanBuilder();
 
             $pipeline = new AssetGroupPipeline(
                 $captureGroupBuilder,

@@ -17,14 +17,12 @@ use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\ItemRole;
 use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Service\CanonicalScorerInterface;
-use MagicSunday\Renamer\Service\MediaTypeClassifier;
+use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use Override;
 
 use function array_keys;
 use function implode;
-use function in_array;
 use function sprintf;
-use function strtolower;
 
 /**
  * Thin orchestrator that assigns roles (Canonical, Duplicate, Companion) to items
@@ -39,12 +37,14 @@ use function strtolower;
 final readonly class RoleAssigner implements RoleAssignerInterface
 {
     /**
-     * @param CanonicalScorerInterface   $scorer            Scores items and selects the canonical
-     * @param CompanionDetectorInterface $companionDetector Detects Live Photo companions
+     * @param CanonicalScorerInterface   $scorer                   Scores items and selects the canonical
+     * @param CompanionDetectorInterface $companionDetector        Detects Live Photo companions
+     * @param MediaCompatibilityPolicy   $mediaCompatibilityPolicy Shared still/video compatibility rules
      */
     public function __construct(
         private CanonicalScorerInterface $scorer,
         private CompanionDetectorInterface $companionDetector,
+        private MediaCompatibilityPolicy $mediaCompatibilityPolicy,
     ) {
     }
 
@@ -210,11 +210,7 @@ final readonly class RoleAssigner implements RoleAssignerInterface
         }
 
         $canonicalPath    = $canonical->file->getPathname();
-        $canonicalIsStill = !in_array(
-            strtolower($canonical->file->getExtension()),
-            MediaTypeClassifier::VIDEO_EXTENSIONS,
-            true,
-        );
+        $canonicalIsStill = $this->mediaCompatibilityPolicy->isStillImage($canonical->file);
 
         $hasFallbackDate      = $canonicalIsStill && isset($context->getFallbackDateFiles()[$canonicalPath]);
         $hasAmbiguousTimezone = isset($context->getAmbiguousTimezoneFiles()[$canonicalPath]);

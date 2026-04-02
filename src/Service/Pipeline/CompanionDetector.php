@@ -15,7 +15,7 @@ use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
-use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
+use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use Override;
 
 use function count;
@@ -39,10 +39,10 @@ use function usort;
 final readonly class CompanionDetector implements CompanionDetectorInterface
 {
     /**
-     * @param MediaTypeClassifierInterface $mediaTypeClassifier Classifies files as still or video
+     * @param MediaCompatibilityPolicy $mediaCompatibilityPolicy Shared still/video compatibility rules
      */
     public function __construct(
-        private MediaTypeClassifierInterface $mediaTypeClassifier,
+        private MediaCompatibilityPolicy $mediaCompatibilityPolicy,
     ) {
     }
 
@@ -62,7 +62,6 @@ final readonly class CompanionDetector implements CompanionDetectorInterface
             return [];
         }
 
-        $canonicalIsStill  = $this->mediaTypeClassifier->isLivePhotoStill($canonical->file);
         $canonicalBasename = FileHelper::basenameWithoutExtension($canonical->file);
 
         /** @var array<string, true> $companions */
@@ -79,14 +78,14 @@ final readonly class CompanionDetector implements CompanionDetectorInterface
             }
 
             // Only different media types can be companions
-            $itemIsStill = $this->mediaTypeClassifier->isLivePhotoStill($item->file);
-
-            if ($canonicalIsStill === $itemIsStill) {
+            if (!$this->mediaCompatibilityPolicy->areDifferentMediaFamilies($canonical->file, $item->file)) {
                 continue;
             }
 
             if ($item->contentIdentifier === $canonical->contentIdentifier) {
-                $mediaType                           = $itemIsStill ? 'still' : 'video';
+                $mediaType = $this->mediaCompatibilityPolicy->isStillImage($item->file)
+                    ? 'still'
+                    : 'video';
                 $candidatesByMediaType[$mediaType][] = $item;
             }
         }
@@ -111,9 +110,7 @@ final readonly class CompanionDetector implements CompanionDetectorInterface
                     continue;
                 }
 
-                $itemIsStill = $this->mediaTypeClassifier->isLivePhotoStill($item->file);
-
-                if ($canonicalIsStill === $itemIsStill) {
+                if (!$this->mediaCompatibilityPolicy->areDifferentMediaFamilies($canonical->file, $item->file)) {
                     continue;
                 }
 

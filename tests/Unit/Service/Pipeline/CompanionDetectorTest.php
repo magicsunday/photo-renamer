@@ -14,6 +14,7 @@ namespace MagicSunday\Renamer\Test\Unit\Service\Pipeline;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
+use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\Pipeline\CompanionDetector;
 use MagicSunday\Renamer\Service\Pipeline\CompanionDetectorInterface;
@@ -39,6 +40,7 @@ use SplFileInfo;
 #[UsesClass(AssetGroup::class)]
 #[UsesClass(AssetItem::class)]
 #[UsesClass(MediaTypeClassifier::class)]
+#[UsesClass(MediaCompatibilityPolicy::class)]
 final class CompanionDetectorTest extends TestCase
 {
     /**
@@ -462,7 +464,7 @@ final class CompanionDetectorTest extends TestCase
     private function createDetector(): CompanionDetectorInterface
     {
         return new CompanionDetector(
-            new MediaTypeClassifier(),
+            new MediaCompatibilityPolicy(new MediaTypeClassifier()),
         );
     }
 }

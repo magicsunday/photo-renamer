@@ -26,6 +26,7 @@ use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilder;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetector;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingService;
+use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
 use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzer;
@@ -286,8 +287,9 @@ final class ExecutionPathDifferentialTest extends TestCase
         $canonicalScorer->setFormatPriority([]);
         $canonicalScorer->setSourceDirectory($workspace);
 
-        $companionDetector = new CompanionDetector($mediaTypeClassifier);
-        $roleAssigner      = new RoleAssigner($canonicalScorer, $companionDetector);
+        $mediaCompatibilityPolicy = new MediaCompatibilityPolicy($mediaTypeClassifier);
+        $companionDetector        = new CompanionDetector($mediaCompatibilityPolicy);
+        $roleAssigner             = new RoleAssigner($canonicalScorer, $companionDetector, $mediaCompatibilityPolicy);
 
         $targetNameResolver = new TargetNameResolver();
         $collisionResolver  = new CollisionResolver();
