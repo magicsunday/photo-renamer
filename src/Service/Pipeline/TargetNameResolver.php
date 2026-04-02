@@ -510,18 +510,6 @@ final readonly class TargetNameResolver implements TargetNameResolverInterface
             return ($itemA->clusterRank ?? PHP_INT_MAX) <=> ($itemB->clusterRank ?? PHP_INT_MAX);
         });
 
-        /** @var array<string, int> $dirFileCounts */
-        $dirFileCounts = [];
-
-        foreach ($items as $item) {
-            if ($item->role === ItemRole::Companion) {
-                continue;
-            }
-
-            $dir                 = $item->file->getPath();
-            $dirFileCounts[$dir] = ($dirFileCounts[$dir] ?? 0) + 1;
-        }
-
         // Track duplicate counters per cluster base and a global counter for canonical cluster
         /** @var array<string, int> $clusterDuplicateCounter */
         $clusterDuplicateCounter = [];
@@ -560,14 +548,6 @@ final readonly class TargetNameResolver implements TargetNameResolverInterface
             $extension = $isCanonicalCluster
                 ? $this->resolveExtension($item, $canonicalExtension, $useFileExtensionFromSource)
                 : FileHelper::normalizeExtension($item->file->getExtension());
-
-            if ($this->isCrossDirNoConflict()) {
-                $group->replaceItem($item, $item->withProposedName(
-                    $this->buildCleanName($directory, $groupKey, $extension),
-                ));
-
-                continue;
-            }
 
             if ($isCanonicalCluster) {
                 $canonicalClusterDupCounterByExt[$extension] ??= 0;
@@ -631,19 +611,6 @@ final readonly class TargetNameResolver implements TargetNameResolverInterface
             : $this->buildSubgroupName($directory, $groupKey, $companionSubgroup, $extension);
 
         return $item->withProposedName($proposedName);
-    }
-
-    /**
-     * Always returns false: the cross-directory shortcut is disabled.
-     *
-     * Canonical-cluster duplicates must always receive -duplicate-NNN — an identical
-     * copy in another directory is still a duplicate. Non-canonical cluster items must
-     * always keep their subgroup suffix for idempotency (without the suffix, a re-run
-     * would see a canonical-looking basename and might re-assign the file as canonical).
-     */
-    private function isCrossDirNoConflict(): bool
-    {
-        return false;
     }
 
     /**

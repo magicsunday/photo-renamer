@@ -135,7 +135,7 @@ final class LocalDifferenceAnalyzerTest extends TestCase
 
         $result = $this->analyzer->analyzeRmse($colorImg, $grayImg);
 
-        // Chroma difference must be well above MAX_CHROMA_DIFFERENCE (0.05)
+        // Chroma difference must be well above the chroma merge-veto threshold
         // because the color image has high chroma and the gray version has zero
         self::assertGreaterThan(0.1, $result->chromaDifference);
         self::assertTrue($result->success);

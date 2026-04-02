@@ -53,7 +53,7 @@ interface DuplicateDetectionServiceInterface
     /**
      * Creates consecutive new filenames for all duplicate files.
      *
-     * Assigns a sequential duplicate suffix (e.g. "-duplicate-1") to all files
+     * Assigns a sequential duplicate suffix (e.g. "-duplicate-001") to all files
      * in each group except for the canonical representative.
      *
      * @param FileDuplicateCollection $fileDuplicateCollection    The collection whose entries should receive duplicate filenames.
