@@ -209,7 +209,7 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
                     continue;
                 }
 
-                $rank                              = $clusterRankCounters[$clusterKey] ?? 0;
+                $rank                             = $clusterRankCounters[$clusterKey] ?? 0;
                 $clusterRankCounters[$clusterKey] = $rank + 1;
 
                 $clusterIdAssignments[$sourcePath] = [

@@ -550,7 +550,7 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
                     $contentIdToClusterKey[$stillContentId] = $clusterKey;
                 }
 
-                $stillBasename                             = FileHelper::basenameWithoutExtension($stillRename->getSource());
+                $stillBasename                              = FileHelper::basenameWithoutExtension($stillRename->getSource());
                 $sourceBasenameToClusterKey[$stillBasename] = $clusterKey;
             }
 
@@ -759,8 +759,8 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
             return true;
         }
 
-        $start = microtime(true);
-        $diff  = $this->analyzeLocalDifferenceCached($fileA, $fileB, $imageCache);
+        $start   = microtime(true);
+        $diff    = $this->analyzeLocalDifferenceCached($fileA, $fileB, $imageCache);
         $elapsed = microtime(true) - $start;
 
         if (!$diff->success) {
@@ -787,8 +787,8 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
 
         // When the user sets --merge-threshold below the safe threshold, respect their stricter setting.
         $effectiveMergeThreshold = min($safeRmse, $this->maxMergeRmse);
-        $merge  = $diff->rmse <= $effectiveMergeThreshold;
-        $reason = $merge
+        $merge                   = $diff->rmse <= $effectiveMergeThreshold;
+        $reason                  = $merge
             ? sprintf('rmse %.4f <= %.4f (safe zone, dHash=%d)', $diff->rmse, $effectiveMergeThreshold, $similarity->dhashDistance)
             : sprintf('rmse %.4f > %.4f (dHash=%d)', $diff->rmse, $effectiveMergeThreshold, $similarity->dhashDistance);
 
@@ -817,7 +817,7 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
         $nameB   = basename($fileB->getPathname());
         $verdict = $merge ? '<info>MERGE</info>' : '<comment>NO MERGE</comment>';
         $time    = ($elapsed !== null) ? sprintf(' %.0fms', $elapsed * 1000) : '';
-        $rmse    = ($diff !== null) ? sprintf(' rmse=%.4f chroma=%.4f', $diff->rmse, $diff->chromaDifference) : '';
+        $rmse    = ($diff instanceof LocalDiffResult) ? sprintf(' rmse=%.4f chroma=%.4f', $diff->rmse, $diff->chromaDifference) : '';
 
         $this->io->writeln(sprintf(
             '  [merge] %s <-> %s | score=%d dHash=%d color=%.3f |%s | %s (%s)%s',

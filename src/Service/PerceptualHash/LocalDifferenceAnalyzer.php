@@ -58,50 +58,12 @@ final class LocalDifferenceAnalyzer
 
     /**
      * Computes Imagick grayscale RMSE + RGB chroma difference (fast path).
-     * Blob fields are zeroed.
-     *
-     * Downscales once, exports RGB for chroma check, then converts to grayscale
-     * in-place for RMSE. Uses Imagick's native COLORSPACE_GRAY (Rec.709 + sRGB
-     * gamma) to preserve calibrated SAFE_MERGE_RMSE thresholds.
-     *
-     * Returns success=false on Imagick errors.
+     * Blob fields are zeroed. Returns success=false on Imagick errors.
      */
     public function analyzeRmse(Imagick $imageA, Imagick $imageB): LocalDiffResult
     {
         try {
-            $scaledA = $this->downscale($imageA);
-            $scaledB = $this->downscale($imageB);
-
-            $width  = $scaledA->getImageWidth();
-            $height = $scaledA->getImageHeight();
-
-            if (($width !== $scaledB->getImageWidth()) || ($height !== $scaledB->getImageHeight())) {
-                $scaledB->resizeImage($width, $height, Imagick::FILTER_TRIANGLE, 1.0, false);
-            }
-
-            $totalPixels = $width * $height;
-
-            // RGB export for chroma difference
-            /** @var list<int> $rgbA */
-            $rgbA = $scaledA->exportImagePixels(0, 0, $width, $height, 'RGB', Imagick::PIXEL_CHAR);
-
-            /** @var list<int> $rgbB */
-            $rgbB = $scaledB->exportImagePixels(0, 0, $width, $height, 'RGB', Imagick::PIXEL_CHAR);
-
-            $chromaDiff = $this->computeChromaDifference($rgbA, $rgbB, $totalPixels);
-
-            // Convert to Imagick grayscale in-place for calibrated RMSE
-            $scaledA->transformImageColorspace(Imagick::COLORSPACE_GRAY);
-            $scaledB->transformImageColorspace(Imagick::COLORSPACE_GRAY);
-
-            /** @var list<int> $grayA */
-            $grayA = $scaledA->exportImagePixels(0, 0, $width, $height, 'I', Imagick::PIXEL_CHAR);
-
-            /** @var list<int> $grayB */
-            $grayB = $scaledB->exportImagePixels(0, 0, $width, $height, 'I', Imagick::PIXEL_CHAR);
-
-            $scaledA->clear();
-            $scaledB->clear();
+            [$grayA, $grayB, $totalPixels, , , $chromaDiff] = $this->exportPixelData($imageA, $imageB);
 
             $rmse = $this->computeGrayscaleRmse($grayA, $grayB, $totalPixels);
 
@@ -113,46 +75,12 @@ final class LocalDifferenceAnalyzer
 
     /**
      * Computes Imagick grayscale RMSE + chroma difference and runs legacy blob analysis.
-     * Downscales once, exports RGB for chroma, converts to grayscale for RMSE + blob mask.
      * Returns success=false on Imagick errors.
      */
     public function analyzeDetailed(Imagick $imageA, Imagick $imageB): LocalDiffResult
     {
         try {
-            // Downscale once, reuse for both RGB and grayscale export
-            $scaledA = $this->downscale($imageA);
-            $scaledB = $this->downscale($imageB);
-
-            $width  = $scaledA->getImageWidth();
-            $height = $scaledA->getImageHeight();
-
-            if (($width !== $scaledB->getImageWidth()) || ($height !== $scaledB->getImageHeight())) {
-                $scaledB->resizeImage($width, $height, Imagick::FILTER_TRIANGLE, 1.0, false);
-            }
-
-            $totalPixels = $width * $height;
-
-            // RGB export for chroma difference
-            /** @var list<int> $rgbA */
-            $rgbA = $scaledA->exportImagePixels(0, 0, $width, $height, 'RGB', Imagick::PIXEL_CHAR);
-
-            /** @var list<int> $rgbB */
-            $rgbB = $scaledB->exportImagePixels(0, 0, $width, $height, 'RGB', Imagick::PIXEL_CHAR);
-
-            $chromaDiff = $this->computeChromaDifference($rgbA, $rgbB, $totalPixels);
-
-            // Convert to Imagick grayscale in-place for calibrated RMSE + blob mask
-            $scaledA->transformImageColorspace(Imagick::COLORSPACE_GRAY);
-            $scaledB->transformImageColorspace(Imagick::COLORSPACE_GRAY);
-
-            /** @var list<int> $grayA */
-            $grayA = $scaledA->exportImagePixels(0, 0, $width, $height, 'I', Imagick::PIXEL_CHAR);
-
-            /** @var list<int> $grayB */
-            $grayB = $scaledB->exportImagePixels(0, 0, $width, $height, 'I', Imagick::PIXEL_CHAR);
-
-            $scaledA->clear();
-            $scaledB->clear();
+            [$grayA, $grayB, $totalPixels, $width, $height, $chromaDiff] = $this->exportPixelData($imageA, $imageB);
 
             $rmse   = $this->computeGrayscaleRmse($grayA, $grayB, $totalPixels);
             $result = $this->doLegacyBlobAnalysis($grayA, $grayB, $totalPixels, $width, $height, $rmse);
@@ -176,6 +104,51 @@ final class LocalDifferenceAnalyzer
     public function analyze(Imagick $imageA, Imagick $imageB): LocalDiffResult
     {
         return $this->analyzeRmse($imageA, $imageB);
+    }
+
+    /**
+     * Downscales once, exports RGB for chroma difference, then converts to
+     * Imagick grayscale (Rec.709 + sRGB gamma) for calibrated RMSE.
+     *
+     * @return array{list<int>, list<int>, int, int, int, float} [grayA, grayB, totalPixels, width, height, chromaDiff]
+     */
+    private function exportPixelData(Imagick $imageA, Imagick $imageB): array
+    {
+        $scaledA = $this->downscale($imageA);
+        $scaledB = $this->downscale($imageB);
+
+        $width  = $scaledA->getImageWidth();
+        $height = $scaledA->getImageHeight();
+
+        if (($width !== $scaledB->getImageWidth()) || ($height !== $scaledB->getImageHeight())) {
+            $scaledB->resizeImage($width, $height, Imagick::FILTER_TRIANGLE, 1.0, false);
+        }
+
+        $totalPixels = $width * $height;
+
+        // RGB export for chroma difference
+        /** @var list<int> $rgbA */
+        $rgbA = $scaledA->exportImagePixels(0, 0, $width, $height, 'RGB', Imagick::PIXEL_CHAR);
+
+        /** @var list<int> $rgbB */
+        $rgbB = $scaledB->exportImagePixels(0, 0, $width, $height, 'RGB', Imagick::PIXEL_CHAR);
+
+        $chromaDiff = $this->computeChromaDifference($rgbA, $rgbB, $totalPixels);
+
+        // Convert to Imagick grayscale in-place for calibrated RMSE
+        $scaledA->transformImageColorspace(Imagick::COLORSPACE_GRAY);
+        $scaledB->transformImageColorspace(Imagick::COLORSPACE_GRAY);
+
+        /** @var list<int> $grayA */
+        $grayA = $scaledA->exportImagePixels(0, 0, $width, $height, 'I', Imagick::PIXEL_CHAR);
+
+        /** @var list<int> $grayB */
+        $grayB = $scaledB->exportImagePixels(0, 0, $width, $height, 'I', Imagick::PIXEL_CHAR);
+
+        $scaledA->clear();
+        $scaledB->clear();
+
+        return [$grayA, $grayB, $totalPixels, $width, $height, $chromaDiff];
     }
 
     /**

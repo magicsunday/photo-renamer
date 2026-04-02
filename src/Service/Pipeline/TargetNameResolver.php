@@ -510,9 +510,6 @@ final readonly class TargetNameResolver implements TargetNameResolverInterface
             return ($a->clusterRank ?? PHP_INT_MAX) <=> ($b->clusterRank ?? PHP_INT_MAX);
         });
 
-        // Cross-directory conflict resolution: count non-Companion files per directory
-        $canonicalDir = ($canonical instanceof AssetItem) ? $canonical->file->getPath() : null;
-
         /** @var array<string, int> $dirFileCounts */
         $dirFileCounts = [];
 
@@ -564,7 +561,7 @@ final readonly class TargetNameResolver implements TargetNameResolverInterface
                 ? $this->resolveExtension($item, $canonicalExtension, $useFileExtensionFromSource)
                 : FileHelper::normalizeExtension($item->file->getExtension());
 
-            if ($this->isCrossDirNoConflict($isCanonicalCluster, $directory, $canonicalDir, $dirFileCounts)) {
+            if ($this->isCrossDirNoConflict()) {
                 $group->replaceItem($item, $item->withProposedName(
                     $this->buildCleanName($directory, $groupKey, $extension),
                 ));
@@ -643,15 +640,9 @@ final readonly class TargetNameResolver implements TargetNameResolverInterface
      * copy in another directory is still a duplicate. Non-canonical cluster items must
      * always keep their subgroup suffix for idempotency (without the suffix, a re-run
      * would see a canonical-looking basename and might re-assign the file as canonical).
-     *
-     * @param array<string, int> $dirFileCounts
      */
-    private function isCrossDirNoConflict(
-        bool $isCanonicalCluster,
-        string $directory,
-        ?string $canonicalDir,
-        array $dirFileCounts,
-    ): bool {
+    private function isCrossDirNoConflict(): bool
+    {
         return false;
     }
 
