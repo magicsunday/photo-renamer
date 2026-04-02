@@ -26,6 +26,7 @@ use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\MetadataCache;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
+use MagicSunday\Renamer\Service\Verify\LivePhotoCompletenessAnalyzer;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -631,6 +632,7 @@ final class VerifyCommandTest extends TestCase
             $mediaTypeClassifier,
             $fileSystemService,
             $renderer,
+            new LivePhotoCompletenessAnalyzer(),
         );
     }
 }

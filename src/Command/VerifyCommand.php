@@ -24,6 +24,7 @@ use MagicSunday\Renamer\Service\DateDriftAnalyzer;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
+use MagicSunday\Renamer\Service\Verify\LivePhotoCompletenessAnalyzer;
 use Override;
 use SplFileInfo;
 use Symfony\Component\Console\Command\Command;
@@ -78,11 +79,12 @@ final class VerifyCommand extends Command
     ];
 
     /**
-     * @param ExifMetadataProvider         $exifMetadataProvider Metadata provider with caching
-     * @param DateDriftAnalyzer            $dateDriftAnalyzer    Calculates filename-versus-metadata drift consistently
-     * @param MediaTypeClassifierInterface $mediaTypeClassifier  Classifies files as still or video
-     * @param FileSystemServiceInterface   $fileSystemService    Provides file iteration
-     * @param RenameOutputRenderer         $renderer             Shared output rendering utilities
+     * @param ExifMetadataProvider          $exifMetadataProvider          Metadata provider with caching
+     * @param DateDriftAnalyzer             $dateDriftAnalyzer             Calculates filename-versus-metadata drift consistently
+     * @param MediaTypeClassifierInterface  $mediaTypeClassifier           Classifies files as still or video
+     * @param FileSystemServiceInterface    $fileSystemService             Provides file iteration
+     * @param RenameOutputRenderer          $renderer                      Shared output rendering utilities
+     * @param LivePhotoCompletenessAnalyzer $livePhotoCompletenessAnalyzer Analyzes missing Live Photo companions after the scan
      */
     public function __construct(
         private readonly ExifMetadataProvider $exifMetadataProvider,
@@ -90,6 +92,7 @@ final class VerifyCommand extends Command
         private readonly MediaTypeClassifierInterface $mediaTypeClassifier,
         private readonly FileSystemServiceInterface $fileSystemService,
         private readonly RenameOutputRenderer $renderer,
+        private readonly LivePhotoCompletenessAnalyzer $livePhotoCompletenessAnalyzer,
     ) {
         parent::__construct();
     }
@@ -286,35 +289,7 @@ final class VerifyCommand extends Command
         $progressBar?->finish();
         $io->newLine(2);
 
-        // Check LP completeness per directory
-        foreach ($contentIdMap as $dirFiles) {
-            foreach ($dirFiles as $contentIdFiles) {
-                $hasStill = false;
-                $hasVideo = false;
-
-                foreach ($contentIdFiles as $entry) {
-                    if ($entry['isStill']) {
-                        $hasStill = true;
-                    } else {
-                        $hasVideo = true;
-                    }
-                }
-
-                if ($hasStill && $hasVideo) {
-                    continue;
-                }
-
-                foreach ($contentIdFiles as $entry) {
-                    $relativePath = FileHelper::relativizePath($entry['pathname'], $sourceDirectory);
-
-                    if ($entry['isStill']) {
-                        $categories['livephoto'][] = $relativePath . ' → no paired MOV';
-                    } else {
-                        $categories['livephoto'][] = $relativePath . ' → no paired JPG/HEIC';
-                    }
-                }
-            }
-        }
+        $categories['livephoto'] = $this->livePhotoCompletenessAnalyzer->analyze($contentIdMap, $sourceDirectory);
 
         // Flush metadata cache
         $cache->flush();
