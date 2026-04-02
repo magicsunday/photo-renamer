@@ -23,7 +23,7 @@ use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateCandidateAnalyzer;
 use MagicSunday\Renamer\Service\WriteDate\WriteDatePendingWrite;
-use MagicSunday\Renamer\Service\WriteDate\WriteDateReasonCatalog;
+use MagicSunday\Renamer\Service\WriteDate\WriteDateReportFormatter;
 use Override;
 use RuntimeException;
 use SplFileInfo;
@@ -35,7 +35,6 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function array_map;
-use function count;
 use function dirname;
 use function exec;
 use function explode;
@@ -43,7 +42,6 @@ use function function_exists;
 use function is_file;
 use function is_string;
 use function mb_strlen;
-use function sprintf;
 use function str_repeat;
 use function strtolower;
 use function trim;
@@ -75,6 +73,7 @@ final class WriteDateCommand extends Command
      * @param ExiftoolWriter             $exiftoolWriter             Writes metadata via exiftool
      * @param RenameOutputRenderer       $renderer                   Shared output rendering utilities
      * @param WriteDateCandidateAnalyzer $writeDateCandidateAnalyzer Scans files and produces pending metadata writes
+     * @param WriteDateReportFormatter   $writeDateReportFormatter   Formats write-date summaries and per-file entries
      * @param (Closure(): bool)|null     $exiftoolAvailabilityCheck  Overrides the default exiftool check (for testing)
      */
     public function __construct(
@@ -83,6 +82,7 @@ final class WriteDateCommand extends Command
         private readonly ExiftoolWriter $exiftoolWriter,
         private readonly RenameOutputRenderer $renderer,
         private readonly WriteDateCandidateAnalyzer $writeDateCandidateAnalyzer,
+        private readonly WriteDateReportFormatter $writeDateReportFormatter,
         ?Closure $exiftoolAvailabilityCheck = null,
     ) {
         $this->exiftoolAvailabilityCheck = $exiftoolAvailabilityCheck ?? static function (): bool {
@@ -236,26 +236,10 @@ final class WriteDateCommand extends Command
 
         // Post-scan summary before listing individual entries
         if ($pendingWrites !== []) {
-            $reasonCounts = [];
-
-            foreach ($pendingWrites as $entry) {
-                $rk                = $entry->reasonKey;
-                $reasonCounts[$rk] = ($reasonCounts[$rk] ?? 0) + 1;
-            }
-
-            $io->text(sprintf(
-                '<fg=cyan>Found %d file(s) needing metadata repair:</>',
-                count($pendingWrites),
-            ));
-
-            foreach ($reasonCounts as $reason => $cnt) {
-                $label = WriteDateReasonCatalog::formatLabel($reason);
-                $io->text(sprintf('  %d %s <fg=gray>(%s)</>', $cnt, $cnt === 1 ? 'file' : 'files', $label));
-            }
-
+            $io->text($this->writeDateReportFormatter->formatPendingWriteSummary($pendingWrites));
             $io->newLine();
         } elseif ($scannedFiles > 0) {
-            $io->text('<fg=green>All files have correct metadata — nothing to do.</>');
+            $io->text($this->writeDateReportFormatter->formatNothingToDoNotice());
             $io->newLine();
         }
 
@@ -284,17 +268,36 @@ final class WriteDateCommand extends Command
             $targetField  = $entry->isVideo ? 'QuickTime:CreateDate' : 'DateTimeOriginal';
 
             if ($dryRun) {
-                $this->renderWriteEntry($io, '<fg=yellow>[W]</>', $linkedPath, $padding, $targetField . ': ' . $entry->writeDateTime->format('Y:m:d H:i:s'), $entry->reasonKey, $entry->reasonLabel);
+                $io->text($this->writeDateReportFormatter->formatEntry(
+                    '<fg=yellow>[W]</>',
+                    $linkedPath,
+                    $padding,
+                    $targetField . ': ' . $entry->writeDateTime->format('Y:m:d H:i:s'),
+                    $entry->reasonKey,
+                    $entry->reasonLabel,
+                ));
                 ++$wouldWrite;
             } else {
                 $fileInfo = new SplFileInfo($entry->path);
                 $success  = $this->exiftoolWriter->writeDateTime($fileInfo, $entry->writeDateTime, $entry->isVideo, $entry->preserveCreateDate);
 
                 if ($success) {
-                    $this->renderWriteEntry($io, '<fg=green>[W]</>', $linkedPath, $padding, $targetField . ': ' . $entry->writeDateTime->format('Y:m:d H:i:s'), $entry->reasonKey, $entry->reasonLabel);
+                    $io->text($this->writeDateReportFormatter->formatEntry(
+                        '<fg=green>[W]</>',
+                        $linkedPath,
+                        $padding,
+                        $targetField . ': ' . $entry->writeDateTime->format('Y:m:d H:i:s'),
+                        $entry->reasonKey,
+                        $entry->reasonLabel,
+                    ));
                     ++$written;
                 } else {
-                    $this->renderWriteEntry($io, '<fg=red>[E]</>', $linkedPath, $padding, 'FAILED to write: ' . $entry->writeDateTime->format('Y:m:d H:i:s'));
+                    $io->text($this->writeDateReportFormatter->formatEntry(
+                        '<fg=red>[E]</>',
+                        $linkedPath,
+                        $padding,
+                        'FAILED to write: ' . $entry->writeDateTime->format('Y:m:d H:i:s'),
+                    ));
                     ++$writeFailed;
                 }
             }
@@ -309,25 +312,6 @@ final class WriteDateCommand extends Command
         $this->renderSummary($io, $scannedFiles, $alreadyCorrect, $wouldWrite, $written, $writeFailed, $noDateInName, $readErrors, $unsupportedWrite, $dryRun);
 
         return self::SUCCESS;
-    }
-
-    /**
-     * Renders a single write-date output entry with aligned formatting.
-     */
-    private function renderWriteEntry(
-        SymfonyStyle $io,
-        string $tag,
-        string $linkedPath,
-        string $padding,
-        string $detail,
-        ?string $reasonKey = null,
-        ?string $reasonLabel = null,
-    ): void {
-        $io->text(sprintf(' %s %s' . $padding . ' <fg=cyan>→</> %s', $tag, $linkedPath, $detail));
-
-        if ($reasonKey !== null) {
-            $io->text(sprintf('      <fg=gray>[%s] %s</>', $reasonKey, $reasonLabel ?? ''));
-        }
     }
 
     /**

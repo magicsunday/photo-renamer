@@ -30,6 +30,7 @@ use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\WriteDate\TimezoneRewritePlanner;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateCandidateAnalyzer;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateReasonAnalyzer;
+use MagicSunday\Renamer\Service\WriteDate\WriteDateReportFormatter;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -639,6 +640,7 @@ final class WriteDateCommandTest extends TestCase
                 new WriteDateReasonAnalyzer($metadataProvider, new DateDriftAnalyzer(), $mediaTypeClassifier),
                 new TimezoneRewritePlanner($metadataProvider),
             ),
+            new WriteDateReportFormatter(),
             static fn (): bool => false,
         );
     }
@@ -666,6 +668,7 @@ final class WriteDateCommandTest extends TestCase
                 new WriteDateReasonAnalyzer($metadataProvider, new DateDriftAnalyzer(), $mediaTypeClassifier),
                 new TimezoneRewritePlanner($metadataProvider),
             ),
+            new WriteDateReportFormatter(),
             static fn (): bool => true,
         );
     }

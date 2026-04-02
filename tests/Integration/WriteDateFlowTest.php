@@ -88,6 +88,7 @@ use MagicSunday\Renamer\Service\ValidationResult;
 use MagicSunday\Renamer\Service\WriteDate\TimezoneRewritePlanner;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateCandidateAnalyzer;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateReasonAnalyzer;
+use MagicSunday\Renamer\Service\WriteDate\WriteDateReportFormatter;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use MagicSunday\Renamer\Test\Fixtures\ConsoleOutputParserTrait;
@@ -455,6 +456,7 @@ final class WriteDateFlowTest extends TestCase
                 new WriteDateReasonAnalyzer($metadataProvider, new DateDriftAnalyzer(), $mediaTypeClassifier),
                 new TimezoneRewritePlanner($metadataProvider),
             ),
+            new WriteDateReportFormatter(),
             static fn (): bool => true,
         );
     }
