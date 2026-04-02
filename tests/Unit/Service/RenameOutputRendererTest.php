@@ -129,9 +129,11 @@ final class RenameOutputRendererTest extends TestCase
             $sourceDir,
         );
 
-        self::assertCount(1, $entries);
+        self::assertCount(2, $entries);
         self::assertSame(OutputEntryTag::Duplicate, $entries[0]->tag);
         self::assertTrue($entries[0]->isDuplicateTarget);
+        self::assertTrue($entries[1]->isInfo());
+        self::assertStringContainsString('Duplicate of', $entries[1]->reason ?? '');
     }
 
     /**
@@ -1038,8 +1040,8 @@ final class RenameOutputRendererTest extends TestCase
             $baseDir,
         );
 
-        // 2 items from plan + 2 skipped files = 4 entries
-        self::assertCount(4, $entries);
+        // 2 items from plan + 1 duplicate-info line + 2 skipped files = 5 entries
+        self::assertCount(5, $entries);
         self::assertSame(1, $skippedCount);
         self::assertSame(1, $errorCount);
     }

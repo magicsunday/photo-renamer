@@ -130,6 +130,19 @@ final readonly class RenameOutputRenderer
                     shouldPerformOperation: $shouldPerformOperation,
                     warningReason: $warningReason,
                 );
+
+                // Append info line showing which file this is a duplicate of
+                if (($tag === OutputEntryTag::Duplicate) && !$isNoOp) {
+                    $outputEntries[] = OutputEntry::info(
+                        sortKey: $rename->getSource()->getPathname(),
+                        sourcePath: $sourcePath,
+                        reason: sprintf(
+                            'Duplicate of %s',
+                            FileHelper::relativizePath($canonicalTargetPath, $sourceBaseDirectory),
+                        ),
+                        tag: OutputEntryTag::Duplicate,
+                    );
+                }
             }
         }
 
@@ -342,6 +355,17 @@ final readonly class RenameOutputRenderer
         $outputEntries = [];
 
         foreach ($plan->groups as $group) {
+            // Find the canonical target path for "Duplicate of" info lines
+            $canonicalTargetPath = null;
+
+            foreach ($group->items as $item) {
+                if ($item->type === ExecutionItemType::Canonical) {
+                    $canonicalTargetPath = $item->targetPath;
+
+                    break;
+                }
+            }
+
             foreach ($group->items as $item) {
                 $sourcePath = FileHelper::relativizePath($item->sourcePath, $sourceBaseDirectory);
                 $targetPath = FileHelper::relativizePath($item->targetPath, $sourceBaseDirectory);
@@ -367,6 +391,19 @@ final readonly class RenameOutputRenderer
                     shouldPerformOperation: $shouldPerformOperation,
                     warningReason: $warningReason,
                 );
+
+                // Append info line showing which file this is a duplicate of
+                if (($tag === OutputEntryTag::Duplicate) && !$item->isNoOp && ($canonicalTargetPath !== null)) {
+                    $outputEntries[] = OutputEntry::info(
+                        sortKey: $item->sourcePath,
+                        sourcePath: $sourcePath,
+                        reason: sprintf(
+                            'Duplicate of %s',
+                            FileHelper::relativizePath($canonicalTargetPath, $sourceBaseDirectory),
+                        ),
+                        tag: OutputEntryTag::Duplicate,
+                    );
+                }
             }
         }
 
