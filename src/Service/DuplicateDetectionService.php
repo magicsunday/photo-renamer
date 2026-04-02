@@ -38,7 +38,6 @@ use function array_key_exists;
 use function assert;
 use function count;
 use function is_string;
-use function sprintf;
 use function strtolower;
 use function substr_count;
 use function usort;
@@ -173,12 +172,15 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      * @param LegacyTargetPathResolver                 $targetPathResolver               Resolves absolute target pathnames while preserving legacy directory structure.
      * @param LegacyTargetFileResolver                 $targetFileResolver               Resolves target-file results from generated filenames and strategy failures.
      * @param LegacyTargetOccupancyChecker             $targetOccupancyChecker           Checks whether a target pathname is blocked by an external file.
+     * @param LegacyDuplicateTargetCandidateFactory    $duplicateTargetCandidateFactory  Builds concrete `-duplicate-NNN` target candidates in the legacy directory layout.
      */
     private readonly LegacyLivePhotoTargetPromoter $livePhotoTargetPromoter;
 
     private readonly LegacyLivePhotoDuplicateCoordinator $livePhotoDuplicateCoordinator;
 
     private readonly LegacyTargetFileResolver $targetFileResolver;
+
+    private readonly LegacyDuplicateTargetCandidateFactory $duplicateTargetCandidateFactory;
 
     public function __construct(
         private readonly SymfonyStyle $io,
@@ -194,6 +196,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
         private readonly LegacyTargetPathResolver $targetPathResolver = new LegacyTargetPathResolver(),
         ?LegacyTargetFileResolver $targetFileResolver = null,
         private readonly LegacyTargetOccupancyChecker $targetOccupancyChecker = new LegacyTargetOccupancyChecker(),
+        ?LegacyDuplicateTargetCandidateFactory $duplicateTargetCandidateFactory = null,
     ) {
         $livePhotoCompanionDetector ??= new LegacyLivePhotoCompanionDetector($this->mediaTypeClassifier);
         $this->livePhotoTargetPromoter = $livePhotoTargetPromoter
@@ -205,6 +208,8 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
             );
         $this->targetFileResolver = $targetFileResolver
             ?? new LegacyTargetFileResolver($this->targetPathResolver);
+        $this->duplicateTargetCandidateFactory = $duplicateTargetCandidateFactory
+            ?? new LegacyDuplicateTargetCandidateFactory($this->targetPathResolver);
     }
 
     /**
@@ -1020,18 +1025,13 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
         string $targetBasename,
         int $duplicateCount,
     ): SplFileInfo {
-        $newTargetBasename = sprintf(
-            '%s' . Constants::DUPLICATE_IDENTIFIER . '%003d',
-            $targetBasename,
-            $duplicateCount
-        );
-
-        $targetPathname = $this->getTargetPathname(
+        return $this->duplicateTargetCandidateFactory->create(
+            $this->sourceDirectory,
             $source,
-            $newTargetBasename . '.' . $target->getExtension()
+            $target,
+            $targetBasename,
+            $duplicateCount,
         );
-
-        return new SplFileInfo($targetPathname);
     }
 
     /**
