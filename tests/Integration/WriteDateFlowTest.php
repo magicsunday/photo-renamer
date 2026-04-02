@@ -48,6 +48,7 @@ use MagicSunday\Renamer\Model\TargetFileResult;
 use MagicSunday\Renamer\Regex\RegexMatchResult;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\CanonicalScorer;
+use MagicSunday\Renamer\Service\DateDriftAnalyzer;
 use MagicSunday\Renamer\Service\DuplicateDetectionService;
 use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilder;
 use MagicSunday\Renamer\Service\ExiftoolWriter;
@@ -436,6 +437,7 @@ final class WriteDateFlowTest extends TestCase
 
         return new WriteDateCommand(
             $metadataProvider,
+            new DateDriftAnalyzer(),
             $mediaTypeClassifier,
             $fileSystemService,
             new ExiftoolWriter(),

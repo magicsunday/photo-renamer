@@ -19,6 +19,7 @@ use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
+use MagicSunday\Renamer\Service\DateDriftAnalyzer;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
@@ -77,12 +78,14 @@ final class VerifyCommand extends Command
 
     /**
      * @param ExifMetadataProvider         $exifMetadataProvider Metadata provider with caching
+     * @param DateDriftAnalyzer            $dateDriftAnalyzer    Calculates filename-versus-metadata drift consistently
      * @param MediaTypeClassifierInterface $mediaTypeClassifier  Classifies files as still or video
      * @param FileSystemServiceInterface   $fileSystemService    Provides file iteration
      * @param RenameOutputRenderer         $renderer             Shared output rendering utilities
      */
     public function __construct(
         private readonly ExifMetadataProvider $exifMetadataProvider,
+        private readonly DateDriftAnalyzer $dateDriftAnalyzer,
         private readonly MediaTypeClassifierInterface $mediaTypeClassifier,
         private readonly FileSystemServiceInterface $fileSystemService,
         private readonly RenameOutputRenderer $renderer,
@@ -259,7 +262,7 @@ final class VerifyCommand extends Command
 
             // Check date drift
             if ($maxDateDrift > 0) {
-                $drift = FileHelper::computeDateDriftFromDateTime($file->getPathname(), $captureDateTime);
+                $drift = $this->dateDriftAnalyzer->calculateFilenameDateDriftInDays($file, $captureDateTime);
 
                 if (($drift !== null) && ($drift > $maxDateDrift)) {
                     $categories['drift'][] = $relativePath;

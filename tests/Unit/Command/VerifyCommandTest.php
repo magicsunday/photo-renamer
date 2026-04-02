@@ -21,6 +21,7 @@ use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Regex\RegexMatchResult;
 use MagicSunday\Renamer\Regex\SafeRegex;
+use MagicSunday\Renamer\Service\DateDriftAnalyzer;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\MetadataCache;
@@ -57,6 +58,7 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(TemporalMetadata::class)]
 #[UsesClass(RegexMatchResult::class)]
 #[UsesClass(SafeRegex::class)]
+#[UsesClass(DateDriftAnalyzer::class)]
 #[UsesClass(FileSystemService::class)]
 #[UsesClass(MediaTypeClassifier::class)]
 #[UsesClass(MetadataCache::class)]
@@ -581,6 +583,7 @@ final class VerifyCommandTest extends TestCase
 
         return new VerifyCommand(
             $metadataProvider,
+            new DateDriftAnalyzer(),
             $mediaTypeClassifier,
             $fileSystemService,
             $renderer,

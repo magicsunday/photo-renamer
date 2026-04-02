@@ -21,6 +21,7 @@ use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\LinkConfig;
 use MagicSunday\Renamer\Regex\RegexMatchResult;
 use MagicSunday\Renamer\Regex\SafeRegex;
+use MagicSunday\Renamer\Service\DateDriftAnalyzer;
 use MagicSunday\Renamer\Service\ExiftoolWriter;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
@@ -59,6 +60,7 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(LinkConfig::class)]
 #[UsesClass(RegexMatchResult::class)]
 #[UsesClass(SafeRegex::class)]
+#[UsesClass(DateDriftAnalyzer::class)]
 #[UsesClass(FileSystemService::class)]
 #[UsesClass(MediaTypeClassifier::class)]
 #[UsesClass(MetadataCache::class)]
@@ -625,6 +627,7 @@ final class WriteDateCommandTest extends TestCase
 
         return new WriteDateCommand(
             $metadataProvider,
+            new DateDriftAnalyzer(),
             $mediaTypeClassifier,
             $fileSystemService,
             $exiftoolWriter,
@@ -647,6 +650,7 @@ final class WriteDateCommandTest extends TestCase
 
         return new WriteDateCommand(
             $metadataProvider,
+            new DateDriftAnalyzer(),
             $mediaTypeClassifier,
             $fileSystemService,
             $exiftoolWriter,

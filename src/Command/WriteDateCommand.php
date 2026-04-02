@@ -20,6 +20,7 @@ use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Model\LinkConfig;
+use MagicSunday\Renamer\Service\DateDriftAnalyzer;
 use MagicSunday\Renamer\Service\ExiftoolWriter;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
@@ -110,6 +111,7 @@ final class WriteDateCommand extends Command
 
     /**
      * @param ExifMetadataProvider         $exifMetadataProvider      Metadata provider with caching
+     * @param DateDriftAnalyzer            $dateDriftAnalyzer         Calculates filename-versus-metadata drift consistently
      * @param MediaTypeClassifierInterface $mediaTypeClassifier       Classifies files as still or video
      * @param FileSystemServiceInterface   $fileSystemService         Provides file iteration
      * @param ExiftoolWriter               $exiftoolWriter            Writes metadata via exiftool
@@ -118,6 +120,7 @@ final class WriteDateCommand extends Command
      */
     public function __construct(
         private readonly ExifMetadataProvider $exifMetadataProvider,
+        private readonly DateDriftAnalyzer $dateDriftAnalyzer,
         private readonly MediaTypeClassifierInterface $mediaTypeClassifier,
         private readonly FileSystemServiceInterface $fileSystemService,
         private readonly ExiftoolWriter $exiftoolWriter,
@@ -497,9 +500,9 @@ final class WriteDateCommand extends Command
         // Date drift check — always runs, even for reliable dates. A large drift
         // indicates the metadata was written incorrectly (e.g. re-encoded file).
         if ($maxDateDrift > 0) {
-            $drift = $filenameDateTime->diff($captureDateTime)->days;
+            $drift = $this->dateDriftAnalyzer->calculateDateDriftInDays($filenameDateTime, $captureDateTime);
 
-            if (($drift !== false) && ($drift > $maxDateDrift)) {
+            if (($drift !== null) && ($drift > $maxDateDrift)) {
                 return [self::REASON_DRIFT, sprintf(self::REASON_LABELS[self::REASON_DRIFT], $drift)];
             }
         }
