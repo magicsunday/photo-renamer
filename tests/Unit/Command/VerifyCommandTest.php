@@ -29,6 +29,7 @@ use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\Verify\LivePhotoCompletenessAnalyzer;
 use MagicSunday\Renamer\Service\Verify\MetadataIssueScanner;
 use MagicSunday\Renamer\Service\Verify\VerifyDetailEntryFormatter;
+use MagicSunday\Renamer\Service\Verify\VerifyReportFormatter;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -635,6 +636,7 @@ final class VerifyCommandTest extends TestCase
             new VerifyDetailEntryFormatter(),
             new MetadataIssueScanner($metadataProvider, new DateDriftAnalyzer(), $mediaTypeClassifier),
             new LivePhotoCompletenessAnalyzer(),
+            new VerifyReportFormatter(),
         );
     }
 }

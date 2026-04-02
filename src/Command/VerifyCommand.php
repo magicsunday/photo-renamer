@@ -22,6 +22,7 @@ use MagicSunday\Renamer\Service\Verify\LivePhotoCompletenessAnalyzer;
 use MagicSunday\Renamer\Service\Verify\MetadataIssueScanner;
 use MagicSunday\Renamer\Service\Verify\VerifyCategoryCatalog;
 use MagicSunday\Renamer\Service\Verify\VerifyDetailEntryFormatter;
+use MagicSunday\Renamer\Service\Verify\VerifyReportFormatter;
 use Override;
 use SplFileInfo;
 use Symfony\Component\Console\Command\Command;
@@ -32,13 +33,10 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function array_map;
-use function count;
 use function dirname;
 use function explode;
-use function in_array;
 use function is_file;
 use function is_string;
-use function sort;
 use function sprintf;
 use function strtolower;
 use function strtoupper;
@@ -65,6 +63,7 @@ final class VerifyCommand extends Command
      * @param VerifyDetailEntryFormatter    $verifyDetailEntryFormatter    Formats detail-mode verify entries
      * @param MetadataIssueScanner          $metadataIssueScanner          Scans per-file metadata issues before LP completeness checks
      * @param LivePhotoCompletenessAnalyzer $livePhotoCompletenessAnalyzer Analyzes missing Live Photo companions after the scan
+     * @param VerifyReportFormatter         $verifyReportFormatter         Formats verify category sections and summary rows
      */
     public function __construct(
         private readonly ExifMetadataProvider $exifMetadataProvider,
@@ -73,6 +72,7 @@ final class VerifyCommand extends Command
         private readonly VerifyDetailEntryFormatter $verifyDetailEntryFormatter,
         private readonly MetadataIssueScanner $metadataIssueScanner,
         private readonly LivePhotoCompletenessAnalyzer $livePhotoCompletenessAnalyzer,
+        private readonly VerifyReportFormatter $verifyReportFormatter,
     ) {
         parent::__construct();
     }
@@ -270,27 +270,13 @@ final class VerifyCommand extends Command
      */
     private function renderCategories(SymfonyStyle $io, array $categories, ?array $showFilter): void
     {
-        foreach (VerifyCategoryCatalog::LABELS as $categoryId => $label) {
-            if (($showFilter !== null) && (!in_array($categoryId, $showFilter, true))) {
-                continue;
-            }
+        foreach ($this->verifyReportFormatter->formatCategorySections($categories, $showFilter) as $section) {
+            $io->text(sprintf('<fg=cyan>%s</> (%d files):', $section['label'], count($section['files'])));
 
-            $files = $categories[$categoryId];
-
-            if ($files === []) {
-                continue;
-            }
-
-            sort($files);
-
-            $io->text(sprintf('<fg=cyan>%s</> (%d files):', $label, count($files)));
-
-            $isDetail = str_contains($files[0], "\n");
-
-            foreach ($files as $file) {
+            foreach ($section['files'] as $file) {
                 $io->text(sprintf('  %s', $file));
 
-                if ($isDetail) {
+                if ($section['detail']) {
                     $io->newLine();
                 }
             }
@@ -312,20 +298,9 @@ final class VerifyCommand extends Command
      */
     private function renderSummary(SymfonyStyle $io, int $scanned, int $ok, array $categories): void
     {
-        /** @var list<array{string, string}> $rows */
-        $rows = [
-            ['Scanned files', (string) $scanned],
-            ['OK', (string) $ok],
-        ];
-
-        foreach (VerifyCategoryCatalog::LABELS as $categoryId => $label) {
-            $count = count($categories[$categoryId]);
-
-            if ($count > 0) {
-                $rows[] = [$label, (string) $count];
-            }
-        }
-
-        $this->renderer->renderSummarySection($rows, $io);
+        $this->renderer->renderSummarySection(
+            $this->verifyReportFormatter->formatSummaryRows($scanned, $ok, $categories),
+            $io,
+        );
     }
 }
