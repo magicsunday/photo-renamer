@@ -13,7 +13,6 @@ namespace MagicSunday\Renamer\Command;
 
 use Closure;
 use DateTimeImmutable;
-use DateTimeInterface;
 use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
 use MagicSunday\Renamer\Command\Concern\ResolvesSourcePath;
 use MagicSunday\Renamer\Constants;
@@ -21,12 +20,14 @@ use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Model\LinkConfig;
-use MagicSunday\Renamer\Service\DateDriftAnalyzer;
 use MagicSunday\Renamer\Service\ExiftoolWriter;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\WriteDate\TimezoneRewritePlanner;
+use MagicSunday\Renamer\Service\WriteDate\WriteDateReasonAnalyzer;
+use MagicSunday\Renamer\Service\WriteDate\WriteDateReasonCatalog;
+use MagicSunday\Renamer\Service\WriteDate\WriteDateReasonDecision;
 use Override;
 use RuntimeException;
 use SplFileInfo;
@@ -67,42 +68,10 @@ final class WriteDateCommand extends Command
     use ResolvesSourcePath;
 
     /**
-     * Reason key for files with no metadata date at all.
-     */
-    private const string REASON_NODATA = 'nodata';
-
-    /**
-     * Reason key for files using only ModifyDate (0x0132) as fallback.
-     */
-    private const string REASON_FALLBACK = 'fallback';
-
-    /**
-     * Reason key for QuickTime files with ambiguous UTC timestamps.
-     */
-    private const string REASON_TIMEZONE = 'timezone';
-
-    /**
-     * Reason key for files whose metadata date differs significantly from filename date.
-     */
-    private const string REASON_DRIFT = 'drift';
-
-    /**
      * Extensions where exiftool cannot write date metadata reliably.
      * AVI uses RIFF container — QuickTime atom writes silently fail.
      */
     private const array UNSUPPORTED_WRITE_EXTENSIONS = ['avi'];
-
-    /**
-     * Maps reason keys to human-readable labels for output.
-     *
-     * @var array<string, string>
-     */
-    private const array REASON_LABELS = [
-        self::REASON_NODATA   => 'no date in metadata',
-        self::REASON_FALLBACK => 'only ModifyDate (0x0132), no DateTimeOriginal',
-        self::REASON_TIMEZONE => 'QuickTime timestamp without timezone info',
-        self::REASON_DRIFT    => 'metadata date differs by %d days',
-    ];
 
     /**
      * Callable that checks whether exiftool is available. Injectable for testing.
@@ -113,21 +82,21 @@ final class WriteDateCommand extends Command
 
     /**
      * @param ExifMetadataProvider         $exifMetadataProvider      Metadata provider with caching
-     * @param DateDriftAnalyzer            $dateDriftAnalyzer         Calculates filename-versus-metadata drift consistently
      * @param MediaTypeClassifierInterface $mediaTypeClassifier       Classifies files as still or video
      * @param FileSystemServiceInterface   $fileSystemService         Provides file iteration
      * @param ExiftoolWriter               $exiftoolWriter            Writes metadata via exiftool
      * @param RenameOutputRenderer         $renderer                  Shared output rendering utilities
+     * @param WriteDateReasonAnalyzer      $writeDateReasonAnalyzer   Determines why a file needs metadata repair
      * @param TimezoneRewritePlanner       $timezoneRewritePlanner    Plans timezone-specific metadata rewrite values
      * @param (Closure(): bool)|null       $exiftoolAvailabilityCheck Overrides the default exiftool check (for testing)
      */
     public function __construct(
         private readonly ExifMetadataProvider $exifMetadataProvider,
-        private readonly DateDriftAnalyzer $dateDriftAnalyzer,
         private readonly MediaTypeClassifierInterface $mediaTypeClassifier,
         private readonly FileSystemServiceInterface $fileSystemService,
         private readonly ExiftoolWriter $exiftoolWriter,
         private readonly RenameOutputRenderer $renderer,
+        private readonly WriteDateReasonAnalyzer $writeDateReasonAnalyzer,
         private readonly TimezoneRewritePlanner $timezoneRewritePlanner,
         ?Closure $exiftoolAvailabilityCheck = null,
     ) {
@@ -301,7 +270,7 @@ final class WriteDateCommand extends Command
             // Determine if write is needed
             $force = (bool) $input->getOption('force');
 
-            [$reasonKey, $reasonLabel] = $this->determineWriteReason(
+            $reasonDecision = $this->writeDateReasonAnalyzer->analyze(
                 $file,
                 $captureDateTime,
                 $filenameDateTime,
@@ -309,14 +278,14 @@ final class WriteDateCommand extends Command
                 $force,
             );
 
-            if ($reasonKey === null) {
+            if (!$reasonDecision instanceof WriteDateReasonDecision) {
                 ++$alreadyCorrect;
 
                 continue;
             }
 
             // Apply reason filter
-            if (($reasonFilter !== null) && (!in_array($reasonKey, $reasonFilter, true))) {
+            if (($reasonFilter !== null) && (!in_array($reasonDecision->key, $reasonFilter, true))) {
                 ++$alreadyCorrect;
 
                 continue;
@@ -333,7 +302,7 @@ final class WriteDateCommand extends Command
 
             $rewritePlan = $this->timezoneRewritePlanner->plan(
                 $file,
-                $reasonKey,
+                $reasonDecision->key,
                 $filenameDateTime,
                 $force,
                 $localAsUtc,
@@ -343,8 +312,8 @@ final class WriteDateCommand extends Command
             $pendingWrites[] = [
                 'path'               => $file->getPathname(),
                 'date'               => $rewritePlan->writeDateTime->format('Y:m:d H:i:s'),
-                'reasonKey'          => $reasonKey,
-                'reason'             => $reasonLabel,
+                'reasonKey'          => $reasonDecision->key,
+                'reason'             => $reasonDecision->label,
                 'isVideo'            => $isVideo,
                 'dateTime'           => $rewritePlan->writeDateTime,
                 'preserveCreateDate' => $rewritePlan->preserveCreateDate,
@@ -370,7 +339,7 @@ final class WriteDateCommand extends Command
             ));
 
             foreach ($reasonCounts as $reason => $cnt) {
-                $label = self::REASON_LABELS[$reason] ?? $reason;
+                $label = WriteDateReasonCatalog::formatLabel($reason);
                 $io->text(sprintf('  %d %s <fg=gray>(%s)</>', $cnt, $cnt === 1 ? 'file' : 'files', $label));
             }
 
@@ -455,66 +424,6 @@ final class WriteDateCommand extends Command
         if ($reasonKey !== null) {
             $io->text(sprintf('      <fg=gray>[%s] %s</>', $reasonKey, $reasonLabel ?? ''));
         }
-    }
-
-    /**
-     * Determines whether a file requires a date update based on its filename
-     * and current capture date metadata.
-     *
-     * @param SplFileInfo            $file             The file to check.
-     * @param DateTimeInterface|null $captureDateTime  The currently extracted capture date (if any).
-     * @param DateTimeImmutable      $filenameDateTime The date parsed from the filename.
-     * @param int                    $maxDateDrift     Max allowed drift in days before tagging as a mismatch.
-     * @param bool                   $force            Whether to ignore the "already correct" state.
-     *
-     * @return array{0: string|null, 1: string|null} Tuple containing [reason key, reason label] or [null, null].
-     */
-    private function determineWriteReason(
-        SplFileInfo $file,
-        ?DateTimeInterface $captureDateTime,
-        DateTimeImmutable $filenameDateTime,
-        int $maxDateDrift,
-        bool $force = false,
-    ): array {
-        // No capture date at all
-        if (!$captureDateTime instanceof DateTimeInterface) {
-            return [self::REASON_NODATA, self::REASON_LABELS[self::REASON_NODATA]];
-        }
-
-        // Date drift check — always runs, even for reliable dates. A large drift
-        // indicates the metadata was written incorrectly (e.g. re-encoded file).
-        if ($maxDateDrift > 0) {
-            $drift = $this->dateDriftAnalyzer->calculateDateDriftInDays($filenameDateTime, $captureDateTime);
-
-            if (($drift !== null) && ($drift > $maxDateDrift)) {
-                return [self::REASON_DRIFT, sprintf(self::REASON_LABELS[self::REASON_DRIFT], $drift)];
-            }
-        }
-
-        // If the date is reliable (no issues, or raw matches filename) → no write needed.
-        // --force skips this check to allow correcting previously wrong writes.
-        if (!$force && $this->exifMetadataProvider->hasReliableDateTime($file)) {
-            return [null, null];
-        }
-
-        // Fallback DateTime only (0x0132)
-        if ($this->exifMetadataProvider->isFallbackDateTime($file)) {
-            return [self::REASON_FALLBACK, self::REASON_LABELS[self::REASON_FALLBACK]];
-        }
-
-        // Ambiguous timezone (QuickTime UTC ambiguity)
-        if ($this->exifMetadataProvider->isAmbiguousTimezone($file)) {
-            return [self::REASON_TIMEZONE, self::REASON_LABELS[self::REASON_TIMEZONE]];
-        }
-
-        // With --force on a video that has metadata but no detected issue:
-        // the file was likely already fixed. Allow re-writing as timezone reason
-        // so the user can correct a previous wrong write.
-        if ($force && !$this->mediaTypeClassifier->isLivePhotoStill($file)) {
-            return [self::REASON_TIMEZONE, 'forced re-write of timezone metadata'];
-        }
-
-        return [null, null];
     }
 
     /**

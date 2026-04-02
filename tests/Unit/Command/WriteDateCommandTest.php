@@ -28,6 +28,7 @@ use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\MetadataCache;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\WriteDate\TimezoneRewritePlanner;
+use MagicSunday\Renamer\Service\WriteDate\WriteDateReasonAnalyzer;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -628,11 +629,11 @@ final class WriteDateCommandTest extends TestCase
 
         return new WriteDateCommand(
             $metadataProvider,
-            new DateDriftAnalyzer(),
             $mediaTypeClassifier,
             $fileSystemService,
             $exiftoolWriter,
             $renderer,
+            new WriteDateReasonAnalyzer($metadataProvider, new DateDriftAnalyzer(), $mediaTypeClassifier),
             new TimezoneRewritePlanner($metadataProvider),
             static fn (): bool => false,
         );
@@ -652,11 +653,11 @@ final class WriteDateCommandTest extends TestCase
 
         return new WriteDateCommand(
             $metadataProvider,
-            new DateDriftAnalyzer(),
             $mediaTypeClassifier,
             $fileSystemService,
             $exiftoolWriter,
             $renderer,
+            new WriteDateReasonAnalyzer($metadataProvider, new DateDriftAnalyzer(), $mediaTypeClassifier),
             new TimezoneRewritePlanner($metadataProvider),
             static fn (): bool => true,
         );
