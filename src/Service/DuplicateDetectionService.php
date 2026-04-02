@@ -168,16 +168,18 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
     private array $livePhotoConflictFiles = [];
 
     /**
-     * @param SymfonyStyle                            $io                        Symfony Style IO for progress indicators and error output.
-     * @param HashSubGroupingServiceInterface         $hashSubGroupingService    Service for content-based sub-grouping (deduplication).
-     * @param MediaTypeClassifierInterface            $mediaTypeClassifier       Classifier for media types (Photo vs. Video).
-     * @param LivePhotoConflictDetectorInterface|null $livePhotoConflictDetector Detector for ID conflicts in Live Photos.
+     * @param SymfonyStyle                            $io                               Symfony Style IO for progress indicators and error output.
+     * @param HashSubGroupingServiceInterface         $hashSubGroupingService           Service for content-based sub-grouping (deduplication).
+     * @param MediaTypeClassifierInterface            $mediaTypeClassifier              Classifier for media types (Photo vs. Video).
+     * @param LivePhotoConflictDetectorInterface|null $livePhotoConflictDetector        Detector for ID conflicts in Live Photos.
+     * @param DuplicateCanonicalRenameSelector        $duplicateCanonicalRenameSelector Selector for canonical rename choice and promotion flags.
      */
     public function __construct(
         private readonly SymfonyStyle $io,
         private readonly HashSubGroupingServiceInterface $hashSubGroupingService,
         private readonly MediaTypeClassifierInterface $mediaTypeClassifier,
         private readonly ?LivePhotoConflictDetectorInterface $livePhotoConflictDetector = null,
+        private readonly DuplicateCanonicalRenameSelector $duplicateCanonicalRenameSelector = new DuplicateCanonicalRenameSelector(),
     ) {
     }
 
@@ -621,67 +623,14 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
 
             $renames = $fileDuplicate->getRenames();
 
-            $canonicalTargetPath     = $fileDuplicate->getTarget()->getPathname();
-            $canonicalTargetBasename = FileHelper::basenameWithoutExtension($fileDuplicate->getTarget());
+            $canonicalTargetPath = $fileDuplicate->getTarget()->getPathname();
 
-            /** @var Rename|null $canonicalRename */
-            $canonicalRename         = null;
-            $canonicalHasLivePhotoId = false;
-            $canonicalExactName      = false;
-
-            foreach ($renames as $rename) {
-                $sourcePath     = $rename->getSource()->getPathname();
-                $sourceBasename = FileHelper::basenameWithoutExtension($rename->getSource());
-                $exactName      = $sourceBasename === $canonicalTargetBasename;
-
-                // Allow files whose source already has the canonical name through
-                // regardless of target directory (idempotent canonical preference).
-                if (!$exactName && $rename->getTarget()->getPathname() !== $canonicalTargetPath) {
-                    continue;
-                }
-
-                $hasLivePhotoId = isset($this->contentIdentifierMap[$sourcePath]);
-
-                if ($canonicalRename === null) {
-                    $canonicalRename         = $rename;
-                    $canonicalHasLivePhotoId = $hasLivePhotoId;
-                    $canonicalExactName      = $exactName;
-                }
-
-                // Priority 1: source already has the canonical base name (idempotency).
-                if ($exactName && (!$canonicalExactName)) {
-                    $canonicalRename    = $rename;
-                    $canonicalExactName = true;
-
-                    break;
-                }
-
-                // Priority 2: file has a Live Photo content ID (original capture).
-                if ($hasLivePhotoId && (!$canonicalHasLivePhotoId) && (!$canonicalExactName)) {
-                    $canonicalRename         = $rename;
-                    $canonicalHasLivePhotoId = true;
-                }
-            }
-
-            // If another file in the group (any extension) already occupies the
-            // unsuffixed base name, the canonical does not need promotion — the
-            // base name is already taken by a different extension variant.
-            $canonicalNeedsPromotion = true;
-
-            if (($canonicalRename instanceof Rename) && (!$canonicalExactName)) {
-                foreach ($renames as $rename) {
-                    if ($rename === $canonicalRename) {
-                        continue;
-                    }
-
-                    if ($rename->getSource()->getPathname() === $rename->getTarget()->getPathname()) {
-                        // A file with base name already exists (source == target).
-                        $canonicalNeedsPromotion = false;
-
-                        break;
-                    }
-                }
-            }
+            $canonicalSelection = $this->duplicateCanonicalRenameSelector->select(
+                $fileDuplicate,
+                $this->contentIdentifierMap,
+            );
+            $canonicalRename         = $canonicalSelection->canonicalRename;
+            $canonicalNeedsPromotion = $canonicalSelection->canonicalNeedsPromotion;
 
             $renames->reindex();
             $fileDuplicate->setRenames($renames);
@@ -746,7 +695,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
             foreach ($fileDuplicate->getRenames() as $rename) {
                 $groupSourcePaths[$rename->getSource()->getPathname()] = true;
 
-                if (($canonicalRename !== null) && ($rename === $canonicalRename)) {
+                if (($canonicalRename instanceof Rename) && ($rename === $canonicalRename)) {
                     continue;
                 }
 
@@ -763,7 +712,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
             // Assign unique target filenames to remaining renames.
 
             foreach ($fileDuplicate->getRenames() as $rename) {
-                $isCanonicalRename = ($canonicalRename !== null)
+                $isCanonicalRename = ($canonicalRename instanceof Rename)
                     && ($rename === $canonicalRename)
                     && $canonicalNeedsPromotion;
                 $isCompanionRename = ($companionRename instanceof Rename) && ($rename === $companionRename);
