@@ -27,6 +27,7 @@ use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\MetadataCache;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\Verify\LivePhotoCompletenessAnalyzer;
+use MagicSunday\Renamer\Service\Verify\MetadataIssueScanner;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -628,10 +629,9 @@ final class VerifyCommandTest extends TestCase
 
         return new VerifyCommand(
             $metadataProvider,
-            new DateDriftAnalyzer(),
-            $mediaTypeClassifier,
             $fileSystemService,
             $renderer,
+            new MetadataIssueScanner($metadataProvider, new DateDriftAnalyzer(), $mediaTypeClassifier),
             new LivePhotoCompletenessAnalyzer(),
         );
     }

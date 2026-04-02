@@ -17,14 +17,13 @@ use DateTimeZone;
 use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
 use MagicSunday\Renamer\Command\Concern\ResolvesSourcePath;
 use MagicSunday\Renamer\Constants;
-use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
-use MagicSunday\Renamer\Service\DateDriftAnalyzer;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
-use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\Verify\LivePhotoCompletenessAnalyzer;
+use MagicSunday\Renamer\Service\Verify\MetadataIssueScanner;
+use MagicSunday\Renamer\Service\Verify\VerifyCategoryCatalog;
 use Override;
 use SplFileInfo;
 use Symfony\Component\Console\Command\Command;
@@ -64,34 +63,17 @@ final class VerifyCommand extends Command
     use ResolvesSourcePath;
 
     /**
-     * Category definitions mapping internal IDs to display labels.
-     *
-     * @var array<string, string>
-     */
-    private const array CATEGORY_LABELS = [
-        'timezone'  => 'Ambiguous timezone',
-        'fallback'  => 'No DateTimeOriginal',
-        'drift'     => 'Date drift',
-        'livephoto' => 'Missing Live Photo companion',
-        'error'     => 'Metadata read errors',
-        'nodata'    => 'No metadata',
-        'filetype'  => 'Unrecognized file types',
-    ];
-
-    /**
      * @param ExifMetadataProvider          $exifMetadataProvider          Metadata provider with caching
-     * @param DateDriftAnalyzer             $dateDriftAnalyzer             Calculates filename-versus-metadata drift consistently
-     * @param MediaTypeClassifierInterface  $mediaTypeClassifier           Classifies files as still or video
      * @param FileSystemServiceInterface    $fileSystemService             Provides file iteration
      * @param RenameOutputRenderer          $renderer                      Shared output rendering utilities
+     * @param MetadataIssueScanner          $metadataIssueScanner          Scans per-file metadata issues before LP completeness checks
      * @param LivePhotoCompletenessAnalyzer $livePhotoCompletenessAnalyzer Analyzes missing Live Photo companions after the scan
      */
     public function __construct(
         private readonly ExifMetadataProvider $exifMetadataProvider,
-        private readonly DateDriftAnalyzer $dateDriftAnalyzer,
-        private readonly MediaTypeClassifierInterface $mediaTypeClassifier,
         private readonly FileSystemServiceInterface $fileSystemService,
         private readonly RenameOutputRenderer $renderer,
+        private readonly MetadataIssueScanner $metadataIssueScanner,
         private readonly LivePhotoCompletenessAnalyzer $livePhotoCompletenessAnalyzer,
     ) {
         parent::__construct();
@@ -173,27 +155,6 @@ final class VerifyCommand extends Command
 
         $cache = $this->configureProviderCache($this->exifMetadataProvider);
 
-        /** @var array<string, list<string>> $categories */
-        $categories = [
-            'timezone'  => [],
-            'fallback'  => [],
-            'drift'     => [],
-            'livephoto' => [],
-            'error'     => [],
-            'nodata'    => [],
-            'filetype'  => [],
-        ];
-
-        /**
-         * Content identifier map: directory => { contentId => { pathname, isStill } }.
-         *
-         * @var array<string, array<string, list<array{pathname: string, isStill: bool}>>> $contentIdMap
-         */
-        $contentIdMap = [];
-
-        $scannedFiles = 0;
-        $okCount      = 0;
-
         $files = $isSingleFile
             ? [new SplFileInfo($source)]
             : $this->fileSystemService->collectFiles($sourceDirectory);
@@ -204,92 +165,25 @@ final class VerifyCommand extends Command
         $progressBar?->setFormat(Constants::PROGRESS_BAR_FORMAT);
         $progressBar?->start();
 
-        foreach ($files as $file) {
-            ++$scannedFiles;
-            $progressBar?->advance();
-
-            $relativePath = FileHelper::relativizePath($file->getPathname(), $sourceDirectory);
-            $extension    = strtolower($file->getExtension());
-
-            // Closure for detail-aware category entries (avoids ternary duplication).
-            $absolutePath = $file->getPathname();
-            $entry        = fn (string $cat, ?DateTimeInterface $dt = null): string => $detail
-                ? $this->formatDetailEntry($relativePath, $absolutePath, $cat, $dt, $configuredTimezone)
-                : $relativePath;
-
-            // Check for unrecognized file type
-            if (!in_array($extension, Constants::SUPPORTED_MEDIA_EXTENSIONS, true)) {
-                $categories['filetype'][] = $relativePath;
-
-                continue;
-            }
-
-            // Try to extract metadata
-            try {
-                $captureDateTime = $this->exifMetadataProvider->getCaptureDateTime($file);
-            } catch (ExifMetadataReadException) {
-                $categories['error'][] = $relativePath;
-
-                continue;
-            }
-
-            // No metadata at all
-            if (!$captureDateTime instanceof DateTimeInterface) {
-                // Still check for content identifier (LP video without date)
-                $contentId = $this->exifMetadataProvider->getContentIdentifier($file);
-
-                if (is_string($contentId)) {
-                    $this->addToContentIdMap($contentIdMap, $file, $contentId);
-                }
-
-                $categories['nodata'][] = $entry('nodata');
-
-                continue;
-            }
-
-            $hasIssue = false;
-
-            // Check ambiguous timezone and fallback date — but only if the
-            // date is not already reliable (hasReliableDateTime handles the
-            // "raw matches filename" check centrally).
-            if (!$this->exifMetadataProvider->hasReliableDateTime($file)) {
-                if ($this->exifMetadataProvider->isAmbiguousTimezone($file)) {
-                    $categories['timezone'][] = $entry('timezone', $captureDateTime);
-                    $hasIssue                 = true;
-                }
-
-                if ($this->exifMetadataProvider->isFallbackDateTime($file)) {
-                    $categories['fallback'][] = $entry('fallback', $captureDateTime);
-                    $hasIssue                 = true;
-                }
-            }
-
-            // Check date drift
-            if ($maxDateDrift > 0) {
-                $drift = $this->dateDriftAnalyzer->calculateFilenameDateOnlyDriftInDays($file, $captureDateTime);
-
-                if (($drift !== null) && ($drift > $maxDateDrift)) {
-                    $categories['drift'][] = $relativePath;
-                    $hasIssue              = true;
-                }
-            }
-
-            // Collect content identifier for LP check
-            $contentId = $this->exifMetadataProvider->getContentIdentifier($file);
-
-            if (is_string($contentId)) {
-                $this->addToContentIdMap($contentIdMap, $file, $contentId);
-            }
-
-            if (!$hasIssue) {
-                ++$okCount;
-            }
-        }
+        $scanResult = $this->metadataIssueScanner->scan(
+            $files,
+            $sourceDirectory,
+            $maxDateDrift,
+            fn (string $relativePath, string $absolutePath, string $category, ?DateTimeInterface $captureDateTime): string => $detail
+                ? $this->formatDetailEntry($relativePath, $absolutePath, $category, $captureDateTime, $configuredTimezone)
+                : $relativePath,
+            static function () use ($progressBar): void {
+                $progressBar?->advance();
+            },
+        );
 
         $progressBar?->finish();
         $io->newLine(2);
 
-        $categories['livephoto'] = $this->livePhotoCompletenessAnalyzer->analyze($contentIdMap, $sourceDirectory);
+        $categories                                   = $scanResult->categories;
+        $categories[VerifyCategoryCatalog::LIVEPHOTO] = $this->livePhotoCompletenessAnalyzer->analyze($scanResult->contentIdMap, $sourceDirectory);
+        $scannedFiles                                 = $scanResult->scannedFiles;
+        $okCount                                      = $scanResult->okCount;
 
         // Flush metadata cache
         $cache->flush();
@@ -309,7 +203,7 @@ final class VerifyCommand extends Command
                 $scannedFiles,
             ));
 
-            foreach (self::CATEGORY_LABELS as $categoryId => $label) {
+            foreach (VerifyCategoryCatalog::LABELS as $categoryId => $label) {
                 $cnt = count($categories[$categoryId]);
 
                 if ($cnt > 0) {
@@ -337,10 +231,10 @@ final class VerifyCommand extends Command
      * @var array<string, string>
      */
     private const array TAG_ALIASES = [
-        'W' => 'timezone',
-        'F' => 'fallback',
-        'S' => 'nodata',
-        'E' => 'error',
+        'W' => VerifyCategoryCatalog::TIMEZONE,
+        'F' => VerifyCategoryCatalog::FALLBACK,
+        'S' => VerifyCategoryCatalog::NODATA,
+        'E' => VerifyCategoryCatalog::ERROR,
     ];
 
     /**
@@ -370,22 +264,6 @@ final class VerifyCommand extends Command
     }
 
     /**
-     * Adds a file's content identifier to the per-directory content ID map.
-     *
-     * @param array<string, array<string, list<array{pathname: string, isStill: bool}>>> $contentIdMap
-     */
-    private function addToContentIdMap(array &$contentIdMap, SplFileInfo $file, string $contentId): void
-    {
-        $directory = dirname($file->getPathname());
-        $isStill   = $this->mediaTypeClassifier->isLivePhotoStill($file);
-
-        $contentIdMap[$directory][$contentId][] = [
-            'pathname' => $file->getPathname(),
-            'isStill'  => $isStill,
-        ];
-    }
-
-    /**
      * Formats a detail entry with problem description and fix suggestion.
      */
     private function formatDetailEntry(
@@ -406,10 +284,10 @@ final class VerifyCommand extends Command
 
         // Problem description per category
         $problem = match ($category) {
-            'timezone' => '     <fg=yellow>Problem:</>    Ambiguous timezone — QuickTime UTC without offset',
-            'fallback' => '     <fg=yellow>Problem:</>    Only ModifyDate (0x0132) — no DateTimeOriginal or CreateDate',
-            'nodata'   => '     <fg=yellow>Problem:</>    No capture date found (no DateTimeOriginal, CreateDate, or ModifyDate)',
-            default    => null,
+            VerifyCategoryCatalog::TIMEZONE => '     <fg=yellow>Problem:</>    Ambiguous timezone — QuickTime UTC without offset',
+            VerifyCategoryCatalog::FALLBACK => '     <fg=yellow>Problem:</>    Only ModifyDate (0x0132) — no DateTimeOriginal or CreateDate',
+            VerifyCategoryCatalog::NODATA   => '     <fg=yellow>Problem:</>    No capture date found (no DateTimeOriginal, CreateDate, or ModifyDate)',
+            default                         => null,
         };
 
         if ($problem !== null) {
@@ -418,7 +296,7 @@ final class VerifyCommand extends Command
 
         // Show what metadata IS present
         if ($captureDateTime instanceof DateTimeInterface) {
-            $label   = ($category === 'timezone') ? 'CreateDate (UTC)' : 'ModifyDate';
+            $label   = ($category === VerifyCategoryCatalog::TIMEZONE) ? 'CreateDate (UTC)' : 'ModifyDate';
             $lines[] = sprintf('     <fg=gray>Metadata:</>   %s = %s', $label, $captureDateTime->format('Y:m:d H:i:s'));
         } else {
             $lines[] = '     <fg=gray>Metadata:</>   (none)';
@@ -429,21 +307,21 @@ final class VerifyCommand extends Command
 
         if ($filenameDateTime instanceof DateTimeImmutable) {
             $lines[] = sprintf('     <fg=gray>Recovery:</>   date from filename: %s', $filenameDateTime->format('Y-m-d H:i:s'));
-        } elseif ($category === 'nodata') {
+        } elseif ($category === VerifyCategoryCatalog::NODATA) {
             $lines[] = '     <fg=gray>Recovery:</>   no date in filename — rename file first';
         }
 
         $suggestion = match ($category) {
-            'timezone' => sprintf(
+            VerifyCategoryCatalog::TIMEZONE => sprintf(
                 '     <fg=green>Fix:</>        rename:write-date --reason=timezone %s %s',
                 $tzFlag,
                 $escapedPath,
             ),
-            'fallback' => sprintf(
+            VerifyCategoryCatalog::FALLBACK => sprintf(
                 '     <fg=green>Fix:</>        rename:write-date --reason=fallback %s',
                 $escapedPath,
             ),
-            'nodata' => ($filenameDateTime instanceof DateTimeImmutable)
+            VerifyCategoryCatalog::NODATA => ($filenameDateTime instanceof DateTimeImmutable)
                 ? sprintf('     <fg=green>Fix:</>        rename:write-date --reason=nodata %s', $escapedPath)
                 : sprintf('     <fg=green>Fix:</>        Rename to date-based name, then: rename:write-date --reason=nodata %s', $escapedPath),
             default => null,
@@ -465,7 +343,7 @@ final class VerifyCommand extends Command
      */
     private function renderCategories(SymfonyStyle $io, array $categories, ?array $showFilter): void
     {
-        foreach (self::CATEGORY_LABELS as $categoryId => $label) {
+        foreach (VerifyCategoryCatalog::LABELS as $categoryId => $label) {
             if (($showFilter !== null) && (!in_array($categoryId, $showFilter, true))) {
                 continue;
             }
@@ -513,7 +391,7 @@ final class VerifyCommand extends Command
             ['OK', (string) $ok],
         ];
 
-        foreach (self::CATEGORY_LABELS as $categoryId => $label) {
+        foreach (VerifyCategoryCatalog::LABELS as $categoryId => $label) {
             $count = count($categories[$categoryId]);
 
             if ($count > 0) {
