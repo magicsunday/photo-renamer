@@ -174,7 +174,10 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      * @param LivePhotoConflictDetectorInterface|null $livePhotoConflictDetector        Detector for ID conflicts in Live Photos.
      * @param DuplicateCanonicalRenameSelector        $duplicateCanonicalRenameSelector Selector for canonical rename choice and promotion flags.
      * @param DuplicateSuffixAssigner                 $duplicateSuffixAssigner          Assigns unique `-duplicate-NNN` targets in the legacy flow.
+     * @param LegacyLivePhotoCompanionDetector|null   $livePhotoCompanionDetector       Detects companion renames inside legacy Live Photo groups.
      */
+    private readonly LegacyLivePhotoCompanionDetector $livePhotoCompanionDetector;
+
     public function __construct(
         private readonly SymfonyStyle $io,
         private readonly HashSubGroupingServiceInterface $hashSubGroupingService,
@@ -182,7 +185,10 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
         private readonly ?LivePhotoConflictDetectorInterface $livePhotoConflictDetector = null,
         private readonly DuplicateCanonicalRenameSelector $duplicateCanonicalRenameSelector = new DuplicateCanonicalRenameSelector(),
         private readonly DuplicateSuffixAssigner $duplicateSuffixAssigner = new DuplicateSuffixAssigner(),
+        ?LegacyLivePhotoCompanionDetector $livePhotoCompanionDetector = null,
     ) {
+        $this->livePhotoCompanionDetector = $livePhotoCompanionDetector
+            ?? new LegacyLivePhotoCompanionDetector($this->mediaTypeClassifier);
     }
 
     /**
@@ -1143,88 +1149,12 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
         ?Rename $canonicalRename,
         FileDuplicate $fileDuplicate,
     ): ?Rename {
-        if (!$canonicalRename instanceof Rename) {
-            return null;
-        }
-
-        $canonicalPath      = $canonicalRename->getSource()->getPathname();
-        $canonicalContentId = $this->contentIdentifierMap[$canonicalPath] ?? null;
-
-        if ($canonicalContentId === null) {
-            return null;
-        }
-
-        $canonicalIsStill = $this->mediaTypeClassifier->isLivePhotoStill($canonicalRename->getSource());
-
-        $canonicalTargetBasename = FileHelper::basenameWithoutExtension($canonicalRename->getTarget());
-
-        /** @var Rename|null $contentIdCompanion */
-        $contentIdCompanion = null;
-
-        /** @var Rename|null $fallbackCompanion */
-        $fallbackCompanion = null;
-
-        /** @var list<Rename> $fallbackCandidates */
-        $fallbackCandidates = [];
-
-        foreach ($fileDuplicate->getRenames() as $rename) {
-            if ($rename === $canonicalRename) {
-                continue;
-            }
-
-            $renameIsStill = $this->mediaTypeClassifier->isLivePhotoStill($rename->getSource());
-
-            // Only consider files of a different media type as companions.
-            if ($canonicalIsStill === $renameIsStill) {
-                continue;
-            }
-
-            $renamePath      = $rename->getSource()->getPathname();
-            $renameContentId = $this->contentIdentifierMap[$renamePath] ?? null;
-
-            if ($renameContentId === $canonicalContentId) {
-                $renameBasename = FileHelper::basenameWithoutExtension($rename->getSource());
-
-                // Idempotency: prefer the companion whose source name already matches
-                // the canonical target (file is already correctly named).
-                if ($renameBasename === $canonicalTargetBasename) {
-                    return $rename;
-                }
-
-                // Track first content-ID match as candidate.
-                $contentIdCompanion ??= $rename;
-
-                continue;
-            }
-
-            // Track the first different-media-type file as a fallback companion.
-            $fallbackCandidates[] = $rename;
-            $fallbackCompanion ??= $rename;
-        }
-
-        if ($contentIdCompanion instanceof Rename) {
-            return $contentIdCompanion;
-        }
-
-        if (
-            ($fallbackCompanion instanceof Rename)
-            && (count($fallbackCandidates) === 1)
-        ) {
-            $fallbackPath      = $fallbackCompanion->getSource()->getPathname();
-            $fallbackContentId = $this->contentIdentifierMap[$fallbackPath] ?? null;
-
-            if (
-                ($fallbackContentId !== null)
-                && ($fallbackContentId !== $canonicalContentId)
-            ) {
-                $this->livePhotoConflictFiles[$canonicalPath] = true;
-                $this->livePhotoConflictFiles[$fallbackPath]  = true;
-
-                return null;
-            }
-        }
-
-        return $fallbackCompanion;
+        return $this->livePhotoCompanionDetector->detect(
+            $canonicalRename,
+            $fileDuplicate,
+            $this->contentIdentifierMap,
+            $this->livePhotoConflictFiles,
+        );
     }
 
     /**
