@@ -58,11 +58,18 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
     private const float SAFE_MERGE_RMSE_EXACT = 0.04;
 
     /**
-     * RMSE threshold for dHash>0 pairs (gradient structure differs).
-     * Even 1 gradient bit flip indicates a real image change. Stricter
-     * threshold prevents minimal edits (RMSE ≈ 0.037) from merging.
+     * RMSE threshold for dHash 1–2 (near-identical gradient structure).
+     * Codec noise can flip 1–2 gradient bits in the 9×8 dHash grid due to
+     * quantization differences between HEIC and JPG encoders.
+     * Measured: HEIC→JPG with dHash=1 at RMSE 0.026, minimal edits at 0.037.
      */
-    private const float SAFE_MERGE_RMSE_APPROX = 0.025;
+    private const float SAFE_MERGE_RMSE_NEAR = 0.03;
+
+    /**
+     * RMSE threshold for dHash>=3 pairs (gradient structure clearly differs).
+     * Multiple gradient flips indicate a real image change. Strictest threshold.
+     */
+    private const float SAFE_MERGE_RMSE_CHANGED = 0.025;
 
     /**
      * Maximum chroma energy difference for merging. Detects color→grayscale
@@ -779,11 +786,12 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
             return false;
         }
 
-        // dHash-adaptive RMSE threshold: dHash==0 means identical gradient structure,
-        // only possible with codec noise → more permissive. dHash>0 means real change → stricter.
-        $safeRmse = ($similarity->dhashDistance === 0)
-            ? self::SAFE_MERGE_RMSE_EXACT
-            : self::SAFE_MERGE_RMSE_APPROX;
+        // dHash-adaptive RMSE threshold: fewer gradient flips → more likely codec noise → more permissive.
+        $safeRmse = match (true) {
+            $similarity->dhashDistance === 0 => self::SAFE_MERGE_RMSE_EXACT,
+            $similarity->dhashDistance <= 2  => self::SAFE_MERGE_RMSE_NEAR,
+            default                          => self::SAFE_MERGE_RMSE_CHANGED,
+        };
 
         // When the user sets --merge-threshold below the safe threshold, respect their stricter setting.
         $effectiveMergeThreshold = min($safeRmse, $this->maxMergeRmse);
