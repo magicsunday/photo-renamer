@@ -131,7 +131,14 @@ final class VerifyCommand extends Command
     }
 
     /**
-     * Executes the verify analysis: scans all files, checks metadata, and reports issues.
+     * Executes the verification process: scans all files, checks metadata,
+     * and categorizes findings into groups like "Duplicate Content", "Missing Date",
+     * or "Ambiguous Timezone" for reporting.
+     *
+     * @param InputInterface  $input  The input interface.
+     * @param OutputInterface $output The output interface.
+     *
+     * @return int The exit code (0 for success, non-zero for failure).
      */
     #[Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -345,7 +352,11 @@ final class VerifyCommand extends Command
     }
 
     /**
-     * Resolves the source path from input. Accepts both files and directories.
+     * Resolves the absolute path to the source directory or file from the input.
+     *
+     * @param InputInterface $input The input interface carrying the 'source' argument.
+     *
+     * @return string|null The resolved absolute path, or null if it does not exist.
      */
     private function resolveSource(InputInterface $input): ?string
     {
@@ -378,10 +389,14 @@ final class VerifyCommand extends Command
     ];
 
     /**
-     * Resolves the show filter from the --show option. Accepts both category IDs
-     * (timezone, fallback, drift, ...) and tag letter aliases (W, F, S, E).
+     * Resolves and parses the 'show' filter option.
      *
-     * @return list<string>|null Category IDs to display, or null for all
+     * Accepts both category IDs (timezone, fallback, drift, ...) and
+     * tag letter aliases (W, F, S, E).
+     *
+     * @param InputInterface $input The input interface carrying the 'show' option.
+     *
+     * @return list<string>|null A list of upper-cased filter tags, or null to show all.
      */
     private function resolveShowFilter(InputInterface $input): ?array
     {
@@ -525,12 +540,15 @@ final class VerifyCommand extends Command
     }
 
     /**
-     * Renders the summary table with file counts per category.
+     * Renders a summary of the verification results.
      *
-     * @param SymfonyStyle                $io         Console IO
-     * @param int                         $scanned    Total files scanned
-     * @param int                         $ok         Files without issues
-     * @param array<string, list<string>> $categories Categorized file lists
+     * Displays total scanned files, number of files with no issues (OK),
+     * and a breakdown of findings by category in a table format.
+     *
+     * @param SymfonyStyle                $io         The SymfonyStyle IO instance.
+     * @param int                         $scanned    Total number of files scanned.
+     * @param int                         $ok         Number of files with no identified issues.
+     * @param array<string, list<string>> $categories Map of category names to lists of formatted detail entries.
      */
     private function renderSummary(SymfonyStyle $io, int $scanned, int $ok, array $categories): void
     {

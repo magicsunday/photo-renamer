@@ -217,8 +217,8 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
         /** @var array<int, true> $nonCompanionLookup */
         $nonCompanionLookup = [];
 
-        foreach ($nonCompanionRenames as $r) {
-            $nonCompanionLookup[spl_object_id($r)] = true;
+        foreach ($nonCompanionRenames as $nonCompanionRename) {
+            $nonCompanionLookup[spl_object_id($nonCompanionRename)] = true;
         }
 
         // Heuristic 1: If all companion videos share the same hash, the stills
@@ -617,53 +617,53 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
             $durationByHash[$hash]       = $metadata?->getVideoDurationSeconds();
         }
 
-        // Union-find: parent[i] = index of parent in $hashes array.
+        // Union-find: parent[index] = index of parent in $hashes array.
         /** @var array<int, int> $parent */
         $parent = [];
 
-        for ($i = 0; $i < $count; ++$i) {
-            $parent[$i] = $i;
+        for ($hashIndex = 0; $hashIndex < $count; ++$hashIndex) {
+            $parent[$hashIndex] = $hashIndex;
         }
 
         // Stage B image cache: avoids redundant Imagick loads across pairwise comparisons.
-        // When comparing pairs (i,j) and (i,k), file i is loaded once instead of twice.
+        // When comparing pairs (index,j) and (index,k), file index is loaded once instead of twice.
         /** @var array<string, Imagick|null> $stageBImageCache */
         $stageBImageCache = [];
 
         // Pairwise comparison — 2-stage merge decision.
         // Stage A: multi-signal similarity score.
         // Stage B: local blob analysis for near-identical pairs (score ≥ 95).
-        for ($i = 0; $i < $count; ++$i) {
-            for ($j = $i + 1; $j < $count; ++$j) {
+        for ($indexA = 0; $indexA < $count; ++$indexA) {
+            for ($indexB = $indexA + 1; $indexB < $count; ++$indexB) {
                 // Skip pairs already in the same union-find group
-                if ($this->findRoot($parent, $i) === $this->findRoot($parent, $j)) {
+                if ($this->findRoot($parent, $indexA) === $this->findRoot($parent, $indexB)) {
                     continue;
                 }
 
                 $result = $this->perceptualHashCalculator->similarityScore(
-                    $representativeByHash[$hashes[$i]],
-                    $representativeByHash[$hashes[$j]],
-                    $durationByHash[$hashes[$i]],
-                    $durationByHash[$hashes[$j]],
+                    $representativeByHash[$hashes[$indexA]],
+                    $representativeByHash[$hashes[$indexB]],
+                    $durationByHash[$hashes[$indexA]],
+                    $durationByHash[$hashes[$indexB]],
                 );
 
                 $shouldMerge = false;
 
                 if ($result->isDuplicateLikely()) {
                     $shouldMerge = $this->shouldMergePerceptually(
-                        $representativeByHash[$hashes[$i]],
-                        $representativeByHash[$hashes[$j]],
+                        $representativeByHash[$hashes[$indexA]],
+                        $representativeByHash[$hashes[$indexB]],
                         $result,
                         $stageBImageCache,
                     );
                 }
 
                 if ($shouldMerge) {
-                    $rootI = $this->findRoot($parent, $i);
-                    $rootJ = $this->findRoot($parent, $j);
+                    $rootA = $this->findRoot($parent, $indexA);
+                    $rootB = $this->findRoot($parent, $indexB);
 
-                    if ($rootI !== $rootJ) {
-                        $parent[$rootJ] = $rootI;
+                    if ($rootA !== $rootB) {
+                        $parent[$rootB] = $rootA;
                     }
                 }
             }
@@ -677,13 +677,13 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
         // Deterministic root selection: re-root each component to the
         // lexicographically smallest hash string. This guarantees the same
         // cluster identity regardless of comparison order.
-        for ($i = 0; $i < $count; ++$i) {
-            $root     = $this->findRoot($parent, $i);
+        for ($hashIndex = 0; $hashIndex < $count; ++$hashIndex) {
+            $root     = $this->findRoot($parent, $hashIndex);
             $rootHash = $hashes[$root];
-            $myHash   = $hashes[$i];
+            $myHash   = $hashes[$hashIndex];
 
             if ($myHash < $rootHash) {
-                $parent[$root] = $i;
+                $parent[$root] = $hashIndex;
             }
         }
 
@@ -691,14 +691,14 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
         /** @var array<string, list<Rename>> $merged */
         $merged = [];
 
-        for ($i = 0; $i < $count; ++$i) {
-            $rootHash = $hashes[$this->findRoot($parent, $i)];
+        for ($hashIndex = 0; $hashIndex < $count; ++$hashIndex) {
+            $rootHash = $hashes[$this->findRoot($parent, $hashIndex)];
 
             if (!isset($merged[$rootHash])) {
                 $merged[$rootHash] = [];
             }
 
-            foreach ($hashGroups[$hashes[$i]] as $rename) {
+            foreach ($hashGroups[$hashes[$hashIndex]] as $rename) {
                 $merged[$rootHash][] = $rename;
             }
         }
@@ -728,26 +728,40 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
     }
 
     /**
-     * Finds the root of element $i in the union-find structure with path compression.
+     * Finds the root of element $index in the union-find structure with path compression.
      *
-     * @param array<int, int> $parent
+     * Part of a Disjoint Set Union (DSU) implementation to efficiently group
+     * perceptually similar hashes. Path compression ensures near-constant time
+     * complexity for subsequent lookups.
+     *
+     * @param array<int, int> $parent The disjoint set parent array.
+     * @param int             $index  The index to find the root for.
+     *
+     * @return int The root index of the set.
      */
-    private function findRoot(array &$parent, int $i): int
+    private function findRoot(array &$parent, int $index): int
     {
-        while ($parent[$i] !== $i) {
-            $parent[$i] = $parent[$parent[$i]];
-            $i          = $parent[$i];
+        while ($parent[$index] !== $index) {
+            $parent[$index] = $parent[$parent[$index]];
+            $index          = $parent[$index];
         }
 
-        return $i;
+        return $index;
     }
 
     /**
      * Determines whether two perceptually similar files should be merged into
-     * the same cluster. Uses RMSE zones: safe merge (codec noise) vs. conservative
-     * no-merge (gray zone and above-threshold).
+     * the same cluster.
      *
-     * @param array<string, Imagick|null> $imageCache shared cache, populated on first access
+     * Uses adaptive RMSE thresholds based on dHash distance to distinguish between
+     * negligible compression noise and actual image content differences.
+     *
+     * @param SplFileInfo                 $fileA      First file to compare.
+     * @param SplFileInfo                 $fileB      Second file to compare.
+     * @param SimilarityResult            $similarity The pre-calculated similarity.
+     * @param array<string, Imagick|null> $imageCache Shared image cache for efficiency.
+     *
+     * @return bool True if the files should be merged.
      */
     private function shouldMergePerceptually(
         SplFileInfo $fileA,
@@ -806,7 +820,19 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
     }
 
     /**
-     * Writes a merge-decision debug line when running with -vvv.
+     * Writes a detailed merge-decision debug line to the console.
+     *
+     * Only outputs when the command is run with debugging enabled (-vvv).
+     * Includes perceptual similarity metrics, local difference results (RMSE, chroma),
+     * and the final merge verdict with its technical justification.
+     *
+     * @param SplFileInfo          $fileA      First file in the comparison.
+     * @param SplFileInfo          $fileB      Second file in the comparison.
+     * @param SimilarityResult     $similarity Perceptual similarity metrics (dHash, color, etc.).
+     * @param LocalDiffResult|null $diff       Pixel-level difference metrics or null for videos.
+     * @param bool                 $merge      Whether the decision was to merge the groups.
+     * @param string               $reason     Technical explanation for the decision.
+     * @param float|null           $elapsed    Time taken for the analysis in seconds.
      */
     private function debugMergeDecision(
         SplFileInfo $fileA,
@@ -842,13 +868,19 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
     }
 
     /**
-     * Stage B with per-merge image cache: avoids redundant Imagick loads when the
+     * Performs a cached local difference analysis between two images.
+     *
+     * Utilizes a per-group image cache to avoid redundant Imagick loads when the
      * same file appears in multiple pairwise comparisons (O(K) loads instead of O(K^2)).
      *
-     * Returns the raw LocalDiffResult without interpretation, so the caller
-     * can apply zone-based merge decisions.
+     * Returns the raw LocalDiffResult without interpretation, allowing the caller
+     * to apply zone-based or context-aware merge decisions.
      *
-     * @param array<string, Imagick|null> $imageCache shared cache, populated on first access
+     * @param SplFileInfo                 $fileA      First file to compare.
+     * @param SplFileInfo                 $fileB      Second file to compare.
+     * @param array<string, Imagick|null> $imageCache Shared cache of normalized Imagick instances.
+     *
+     * @return LocalDiffResult The computed difference metrics or an unsuccessful result on failure.
      */
     private function analyzeLocalDifferenceCached(
         SplFileInfo $fileA,

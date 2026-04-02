@@ -36,6 +36,13 @@ final class RenameByHashCommand extends AbstractRenameCommand
 
     private ?DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy = null;
 
+    /**
+     * Constructor.
+     *
+     * @param FileSystemServiceInterface         $fileSystemService         Service to handle file system operations
+     * @param DuplicateDetectionServiceInterface $duplicateDetectionService Service to handle grouping and duplicate resolution
+     * @param SafeHashCalculatorInterface        $hashCalculator            Service to calculate secure file hashes
+     */
     public function __construct(
         FileSystemServiceInterface $fileSystemService,
         DuplicateDetectionServiceInterface $duplicateDetectionService,
@@ -59,18 +66,41 @@ final class RenameByHashCommand extends AbstractRenameCommand
             );
     }
 
+    /**
+     * Returns the rename strategy.
+     *
+     * Uses the InheritFilenameStrategy, which keeps the original filename
+     * but removes any existing duplicate suffixes.
+     *
+     * @return RenameStrategyInterface The rename strategy
+     */
     #[Override]
     protected function getTargetFilenameStrategy(): RenameStrategyInterface
     {
         return $this->renameStrategy ??= new InheritFilenameStrategy();
     }
 
+    /**
+     * Returns the duplicate identifier strategy.
+     *
+     * Uses the ContentHashStrategy to group files by their binary content.
+     *
+     * @return DuplicateIdentifierStrategyInterface The duplicate identifier strategy
+     */
     #[Override]
     protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
     {
         return $this->duplicateIdentifierStrategy ??= new ContentHashStrategy($this->hashCalculator);
     }
 
+    /**
+     * Skips content-hash sub-grouping.
+     *
+     * Since the main grouping is already based on content hashes, there is
+     * no need for a second pass of sub-grouping by hash.
+     *
+     * @return bool Always true
+     */
     #[Override]
     protected function skipHashSubGrouping(): bool
     {

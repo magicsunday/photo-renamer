@@ -129,8 +129,8 @@ final class RoleAssignerTest extends TestCase
     }
 
     /**
-     * A MOV companion detected by CompanionDetector should receive
-     * the Companion role.
+     * Verifies that companions are correctly identified and assigned the
+     * appropriate role.
      */
     #[Test]
     public function companionDetectedAndRoleAssigned(): void
@@ -175,8 +175,8 @@ final class RoleAssignerTest extends TestCase
     }
 
     /**
-     * In a 3-item group: 1 canonical, 1 companion, 1 remaining item.
-     * The remaining item should become a Duplicate.
+     * Ensures that items that are neither main nor companion files receive
+     * the role "Duplicate".
      */
     #[Test]
     public function nonCanonicalNonCompanionBecomesDuplicate(): void
@@ -246,7 +246,8 @@ final class RoleAssignerTest extends TestCase
     }
 
     /**
-     * The decision log should contain a canonical choice entry.
+     * Verifies that the canonical choice is documented in the asset group's
+     * decision log.
      */
     #[Test]
     public function decisionLogDocumentsCanonicalChoice(): void
@@ -284,7 +285,8 @@ final class RoleAssignerTest extends TestCase
     }
 
     /**
-     * The decision log should contain an entry for each detected companion.
+     * Checks if the assignment of a companion file is correctly documented
+     * in the decision log.
      */
     #[Test]
     public function decisionLogDocumentsCompanion(): void
@@ -330,8 +332,9 @@ final class RoleAssignerTest extends TestCase
     }
 
     /**
-     * When the canonical still has a fallback date flag, its companion
-     * should inherit that flag in the PipelineContext.
+     * Ensures that quality flags (e.g., fallback date) are transferred from
+     * the main file to the companion file to guarantee consistency during
+     * renaming.
      */
     #[Test]
     public function qualityFlagsPropagateFromStillToCompanion(): void
@@ -379,8 +382,8 @@ final class RoleAssignerTest extends TestCase
     }
 
     /**
-     * When the canonical is a video (MOV), the fallback date flag must NOT
-     * propagate to companions; the ambiguous timezone flag still must propagate.
+     * Verifies that fallback date information from video main files is NOT
+     * transferred to still images (special case of consistency rules).
      */
     #[Test]
     public function videoCanonicalDoesNotPropagateFallbackDateToCompanion(): void

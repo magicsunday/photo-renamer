@@ -22,6 +22,7 @@ use MagicSunday\Renamer\Model\Collection\FileList;
 use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\LinkConfig;
+use MagicSunday\Renamer\Model\OutputEntry;
 use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Model\RenameOptions;
@@ -98,6 +99,7 @@ use const DIRECTORY_SEPARATOR;
  */
 #[UsesClass(FileList::class)]
 #[UsesClass(LinkConfig::class)]
+#[UsesClass(OutputEntry::class)]
 #[UsesClass(OutputEntryTag::class)]
 #[UsesClass(RenameOptions::class)]
 #[UsesClass(RenameResult::class)]
@@ -213,12 +215,11 @@ final class DuplicateDetectionServiceTest extends TestCase
 
     /**
      * Verifies that a TargetFilenameException thrown by the rename strategy during
-     * grouping is caught, logged as a warning, and the file is skipped without
-     * aborting the entire batch.
+     * grouping is caught, logged as a warning, and the file is tracked as skipped.
      *
      * This protects against corrupt or unreadable EXIF data in individual files.
      * The resulting collection must be empty (the single file was skipped), and
-     * the error message must appear in the console output.
+     * the error message must be stored in the skipped files list of the service.
      */
     #[Test]
     public function groupFilesByDuplicateIdentifierHandlesTargetFilenameException(): void

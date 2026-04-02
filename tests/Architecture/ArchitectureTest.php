@@ -34,6 +34,11 @@ final class ArchitectureTest
     // Model: DTOs and value objects — no upward dependencies
     // =========================================================================
 
+    /**
+     * Ensures that model classes do not depend on command classes.
+     * Models function as pure data containers (DTOs/Value Objects) and must
+     * not possess any logic or dependencies on higher layers.
+     */
     #[TestRule]
     public function modelDoesNotDependOnCommand(): Rule
     {
@@ -44,6 +49,11 @@ final class ArchitectureTest
             ->because('Models are data holders, must not reference Commands');
     }
 
+    /**
+     * Ensures that model classes do not depend on service classes.
+     * This prevents circular dependencies and ensures the independence of
+     * data structures from processing logic.
+     */
     #[TestRule]
     public function modelDoesNotDependOnService(): Rule
     {
@@ -54,6 +64,11 @@ final class ArchitectureTest
             ->because('Models are data holders, must not reference Services');
     }
 
+    /**
+     * Ensures that model classes do not depend on strategies.
+     * Since strategies are interchangeable algorithms, the underlying data
+     * models must not have knowledge of their implementation.
+     */
     #[TestRule]
     public function modelDoesNotDependOnStrategy(): Rule
     {
@@ -64,6 +79,11 @@ final class ArchitectureTest
             ->because('Models are data holders, must not reference Strategies');
     }
 
+    /**
+     * Ensures that model classes do not depend on the metadata namespace.
+     * TemporalMetadata is an exception as it is used as a pure value object
+     * for time information within models.
+     */
     #[TestRule]
     public function modelDoesNotDependOnMetadata(): Rule
     {
@@ -75,6 +95,11 @@ final class ArchitectureTest
             ->because('Models are data holders, must not reference Metadata extraction (TemporalMetadata allowed as VO)');
     }
 
+    /**
+     * Ensures that model classes do not depend on regex utilities.
+     * Regex operations belong in the processing or helper layer, not in
+     * the definition of data structures.
+     */
     #[TestRule]
     public function modelDoesNotDependOnRegex(): Rule
     {
@@ -89,6 +114,11 @@ final class ArchitectureTest
     // Exception: leaf classes — no dependencies on any layer
     // =========================================================================
 
+    /**
+     * Ensures that exceptions do not depend on commands.
+     * Exceptions are leaf classes and must have no knowledge of the
+     * calling layers or business logic.
+     */
     #[TestRule]
     public function exceptionDoesNotDependOnCommand(): Rule
     {
@@ -99,6 +129,10 @@ final class ArchitectureTest
             ->because('Exceptions are leaf classes with no dependencies');
     }
 
+    /**
+     * Ensures that exceptions do not depend on services.
+     * To guarantee reusability, exceptions must be free of service dependencies.
+     */
     #[TestRule]
     public function exceptionDoesNotDependOnService(): Rule
     {
@@ -109,6 +143,9 @@ final class ArchitectureTest
             ->because('Exceptions are leaf classes with no dependencies');
     }
 
+    /**
+     * Ensures that exceptions do not depend on strategies.
+     */
     #[TestRule]
     public function exceptionDoesNotDependOnStrategy(): Rule
     {
@@ -119,6 +156,9 @@ final class ArchitectureTest
             ->because('Exceptions are leaf classes with no dependencies');
     }
 
+    /**
+     * Ensures that exceptions do not depend on the metadata namespace.
+     */
     #[TestRule]
     public function exceptionDoesNotDependOnMetadata(): Rule
     {
@@ -129,6 +169,10 @@ final class ArchitectureTest
             ->because('Exceptions are leaf classes with no dependencies');
     }
 
+    /**
+     * Ensures that exceptions do not depend on models.
+     * This prevents error states from being too tightly coupled to data structures.
+     */
     #[TestRule]
     public function exceptionDoesNotDependOnModel(): Rule
     {
@@ -139,6 +183,9 @@ final class ArchitectureTest
             ->because('Exceptions are leaf classes with no dependencies');
     }
 
+    /**
+     * Ensures that exceptions do not depend on helper classes.
+     */
     #[TestRule]
     public function exceptionDoesNotDependOnHelper(): Rule
     {
@@ -149,6 +196,9 @@ final class ArchitectureTest
             ->because('Exceptions are leaf classes with no dependencies');
     }
 
+    /**
+     * Ensures that exceptions do not depend on regex utilities.
+     */
     #[TestRule]
     public function exceptionDoesNotDependOnRegex(): Rule
     {
@@ -163,6 +213,10 @@ final class ArchitectureTest
     // Regex: leaf utilities — only Exception allowed
     // =========================================================================
 
+    /**
+     * Ensures that regex utilities do not depend on commands.
+     * Regex classes are fundamental tools that must not know any business logic.
+     */
     #[TestRule]
     public function regexDoesNotDependOnCommand(): Rule
     {
@@ -173,6 +227,9 @@ final class ArchitectureTest
             ->because('Regex utilities are leaf tools, only Exception allowed');
     }
 
+    /**
+     * Ensures that regex utilities do not depend on services.
+     */
     #[TestRule]
     public function regexDoesNotDependOnService(): Rule
     {
@@ -183,6 +240,9 @@ final class ArchitectureTest
             ->because('Regex utilities are leaf tools, only Exception allowed');
     }
 
+    /**
+     * Ensures that regex utilities do not depend on strategies.
+     */
     #[TestRule]
     public function regexDoesNotDependOnStrategy(): Rule
     {
@@ -193,6 +253,9 @@ final class ArchitectureTest
             ->because('Regex utilities are leaf tools, only Exception allowed');
     }
 
+    /**
+     * Ensures that regex utilities do not depend on the metadata namespace.
+     */
     #[TestRule]
     public function regexDoesNotDependOnMetadata(): Rule
     {
@@ -203,6 +266,9 @@ final class ArchitectureTest
             ->because('Regex utilities are leaf tools, only Exception allowed');
     }
 
+    /**
+     * Ensures that regex utilities do not depend on models.
+     */
     #[TestRule]
     public function regexDoesNotDependOnModel(): Rule
     {
@@ -213,6 +279,9 @@ final class ArchitectureTest
             ->because('Regex utilities are leaf tools, only Exception allowed');
     }
 
+    /**
+     * Ensures that regex utilities do not depend on helper classes.
+     */
     #[TestRule]
     public function regexDoesNotDependOnHelper(): Rule
     {
@@ -227,6 +296,9 @@ final class ArchitectureTest
     // Helper: shared utilities — may use Model, Exception, Regex, Constants
     // =========================================================================
 
+    /**
+     * Ensures that helper classes do not depend on commands.
+     */
     #[TestRule]
     public function helperDoesNotDependOnCommand(): Rule
     {
@@ -237,6 +309,9 @@ final class ArchitectureTest
             ->because('Helpers are shared utilities, must not reference Commands');
     }
 
+    /**
+     * Ensures that helper classes do not depend on services.
+     */
     #[TestRule]
     public function helperDoesNotDependOnService(): Rule
     {
@@ -247,6 +322,9 @@ final class ArchitectureTest
             ->because('Helpers are shared utilities, must not reference Services');
     }
 
+    /**
+     * Ensures that helper classes do not depend on strategies.
+     */
     #[TestRule]
     public function helperDoesNotDependOnStrategy(): Rule
     {
@@ -257,6 +335,9 @@ final class ArchitectureTest
             ->because('Helpers are shared utilities, must not reference Strategies');
     }
 
+    /**
+     * Ensures that helper classes do not depend on metadata classes.
+     */
     #[TestRule]
     public function helperDoesNotDependOnMetadata(): Rule
     {
@@ -271,6 +352,11 @@ final class ArchitectureTest
     // Strategy: may use Service interfaces, Metadata, Helper, Exception, Regex
     // =========================================================================
 
+    /**
+     * Ensures that strategies do not depend on commands.
+     * Strategies are configured and injected by commands but must not
+     * have any reference to concrete CLI commands themselves.
+     */
     #[TestRule]
     public function strategyDoesNotDependOnCommand(): Rule
     {
@@ -285,6 +371,11 @@ final class ArchitectureTest
     // Service: may use Strategy, Metadata, Model, Helper, Exception, Regex
     // =========================================================================
 
+    /**
+     * Ensures that services do not depend on commands.
+     * Services are agnostic to their use and should be usable by both
+     * CLI commands and other interfaces.
+     */
     #[TestRule]
     public function serviceDoesNotDependOnCommand(): Rule
     {

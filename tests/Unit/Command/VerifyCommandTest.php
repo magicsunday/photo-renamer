@@ -77,7 +77,8 @@ final class VerifyCommandTest extends TestCase
     }
 
     /**
-     * Verifies that an invalid source directory returns FAILURE.
+     * Verifies that the command fails with an appropriate exit code when
+     * the provided source directory does not exist.
      */
     #[Test]
     public function executeFailsForNonExistentDirectory(): void
@@ -92,7 +93,8 @@ final class VerifyCommandTest extends TestCase
     }
 
     /**
-     * Verifies that an empty directory produces a clean summary with zero scanned files.
+     * Verifies that processing an empty directory results in a successful
+     * execution with a summary showing zero files were scanned.
      */
     #[Test]
     public function executeWithEmptyDirectoryProducesCleanSummary(): void
@@ -117,7 +119,8 @@ final class VerifyCommandTest extends TestCase
     }
 
     /**
-     * Verifies that an unrecognized file extension is reported in the filetype category.
+     * Verifies that files with unsupported or unknown extensions (like .txt)
+     * are correctly identified and listed in the "unrecognized" category.
      */
     #[Test]
     public function executeReportsUnrecognizedFileType(): void
@@ -145,7 +148,8 @@ final class VerifyCommandTest extends TestCase
     }
 
     /**
-     * Verifies that a file whose metadata cannot be read is reported in the error category.
+     * Verifies that files causing a metadata extraction error (e.g. corrupt files)
+     * are caught and listed in the dedicated "Metadata read errors" section.
      */
     #[Test]
     public function executeReportsMetadataReadError(): void
@@ -179,7 +183,8 @@ final class VerifyCommandTest extends TestCase
     }
 
     /**
-     * Verifies that a file with no metadata is reported in the nodata category.
+     * Verifies that files that can be read but contain no usable metadata (like
+     * screenshots without EXIF) are reported in the "No metadata" section.
      */
     #[Test]
     public function executeReportsNoMetadata(): void
@@ -210,7 +215,8 @@ final class VerifyCommandTest extends TestCase
     }
 
     /**
-     * Verifies that a file with ambiguous timezone is reported.
+     * Verifies that files with ambiguous timezones (dates that could belong to multiple
+     * UTC offsets depending on the local time) are flagged for manual review.
      */
     #[Test]
     public function executeReportsAmbiguousTimezone(): void
@@ -249,7 +255,8 @@ final class VerifyCommandTest extends TestCase
     }
 
     /**
-     * Verifies that the --show filter limits output to selected categories.
+     * Verifies that the "--show" filter correctly limits the output to the specified
+     * categories (e.g. only showing errors 'E' and skipping 'S').
      */
     #[Test]
     public function executeShowFilterLimitsOutput(): void
@@ -295,7 +302,8 @@ final class VerifyCommandTest extends TestCase
     }
 
     /**
-     * Verifies that a Live Photo without its companion is reported.
+     * Verifies that orphaned Live Photo components (e.g. a still image without
+     * its paired video) are detected and flagged in the output.
      */
     #[Test]
     public function executeReportsMissingLivePhotoCompanion(): void
@@ -333,7 +341,8 @@ final class VerifyCommandTest extends TestCase
     }
 
     /**
-     * Verifies that a complete Live Photo pair (still + video) is NOT reported as missing.
+     * Verifies that complete Live Photo pairs (still + video) are recognized
+     * as valid and do not trigger any warnings or errors.
      */
     #[Test]
     public function executeDoesNotReportCompleteLivePhotoPair(): void
@@ -380,7 +389,8 @@ final class VerifyCommandTest extends TestCase
     }
 
     /**
-     * Verifies that the summary always appears and counts are correct.
+     * Verifies that the numeric counts in the final summary accurately reflect
+     * the sum of entries listed in each detailed category.
      */
     #[Test]
     public function executeSummaryCountsMatchCategoryCounts(): void

@@ -61,7 +61,11 @@ final class Application extends \Symfony\Component\Console\Application
     /**
      * Constructor.
      *
-     * @param iterable<Command> $commands
+     * Registers all commands injected via the DI container. The commands
+     * are expected to be provided as an iterable, typically from a
+     * service tag in the container configuration.
+     *
+     * @param iterable<Command> $commands The list of commands to register
      */
     public function __construct(iterable $commands)
     {

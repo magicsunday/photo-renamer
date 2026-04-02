@@ -17,13 +17,24 @@ use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
+use MagicSunday\Renamer\Model\AssetGroup;
+use MagicSunday\Renamer\Model\AssetItem;
 use MagicSunday\Renamer\Model\Collection\AbstractCollection;
+use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\Collection\FileList;
 use MagicSunday\Renamer\Model\Collection\RenameList;
+use MagicSunday\Renamer\Model\Execution\ExecutionGroup;
+use MagicSunday\Renamer\Model\Execution\ExecutionItem;
+use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
+use MagicSunday\Renamer\Model\Execution\ExecutionPreview;
+use MagicSunday\Renamer\Model\Execution\ExecutionResult;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\LinkConfig;
+use MagicSunday\Renamer\Model\OutputEntry;
 use MagicSunday\Renamer\Model\OutputEntryTag;
+use MagicSunday\Renamer\Model\OutputEntryType;
+use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
@@ -60,6 +71,7 @@ use MagicSunday\Renamer\Service\Pipeline\TargetNameResolver;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\RenamePlanValidator;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
+use MagicSunday\Renamer\Service\ValidationResult;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
@@ -105,6 +117,18 @@ use const DIRECTORY_SEPARATOR;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(RenameByExifDateCommand::class)]
+#[UsesClass(AssetGroup::class)]
+#[UsesClass(AssetItem::class)]
+#[UsesClass(AssetGroupCollection::class)]
+#[UsesClass(ExecutionGroup::class)]
+#[UsesClass(ExecutionItem::class)]
+#[UsesClass(ExecutionPlan::class)]
+#[UsesClass(ExecutionPreview::class)]
+#[UsesClass(ExecutionResult::class)]
+#[UsesClass(OutputEntry::class)]
+#[UsesClass(OutputEntryType::class)]
+#[UsesClass(PipelineContext::class)]
+#[UsesClass(ValidationResult::class)]
 #[UsesClass(RecursiveRegexFileFilterIterator::class)]
 #[UsesClass(FileHelper::class)]
 #[UsesClass(ExifMetadataProvider::class)]
@@ -127,6 +151,7 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(HashSubGroupingService::class)]
 #[UsesClass(ImagickImageLoader::class)]
 #[UsesClass(LivePhotoBasenameTargetMap::class)]
+#[UsesClass(LivePhotoPairingService::class)]
 #[UsesClass(LivePhotoConflictDetector::class)]
 #[UsesClass(LivePhotoContentIdentifierTarget::class)]
 #[UsesClass(LivePhotoContentIdentifierTargetMap::class)]
@@ -174,33 +199,6 @@ final class RenameByExifDateCommandTest extends TestCase
     private const string DATE_SUBGROUP = '2025-01-01T00:02:24.000+00:00';
 
     /**
-     * Comprehensive rename mapping covering:
-     *
-     * - True duplicates (same hash, same date)
-     * - Hash sub-grouping (different hash, same date → sequential -NNN)
-     * - Live Photo pairing (JPG + MOV with same content ID)
-     * - Live Photo companion inherits sub-group number
-     * - Subdirectory duplicates (parent dir first)
-     * - Unique files (single file per date)
-     * - Mixed extensions (.jpg/.JPG) preserve source extension
-     * - Already-suffixed files get renumbered correctly
-     *
-     * Source layout:
-     *   1.jpg       hash:123  dateA  LP-1    → canonical jpg  (Live Photo)
-     *   2.jpg       hash:123  dateA  —       → duplicate of 1 (same hash, no LP)
-     *   3.jpg       hash:456  dateB  —       → unique
-     *   4.jpg       hash:789  dateC  —       → unique
-     *   sub/1.jpg   hash:456  dateE  —       → unique (subdirectory, different date)
-     *   a.jpg       hash:234  dateD  —       → canonical for dateD
-     *   A.jpg       hash:234  dateD  —       → duplicate of a (same hash)
-     *   A.JPG       hash:123  dateA  —       → duplicate of 1 (same hash, uppercase ext)
-     *   1-dup.jpg   hash:123  dateA  —       → duplicate of 1 (already suffixed)
-     *   1.mov       hash:abc  dateA  LP-1    → companion mov (Live Photo)
-     *   mov.mov     hash:abc  —     LP-1    → duplicate mov (paired by content ID)
-     *   B.jpg       hash:cde  dateA  LP-B    → hash sub-group 002 (Live Photo)
-     *   B.mov       hash:fgh  —     LP-B    → companion inherits sub-group 002
-     */
-    /**
      * Verifies the complete rename mapping for 13 files across multiple scenarios:
      *
      * - Live Photo LP-1: canonical HEIC gets unsuffixed name, MOV companion inherits
@@ -214,6 +212,21 @@ final class RenameByExifDateCommandTest extends TestCase
      * - Subdirectory: nested file gets its relative path preserved with own date
      * - Parent-before-child ordering: parent dir files are processed before nested ones
      * - No nested -duplicate--duplicate- patterns in any target name
+     *
+     * File scenarios:
+     *   1.jpg       hash:123  dateA  LP-1    → canonical (Live Photo)
+     *   2.jpg       hash:123  dateA  —       → duplicate of 1 (same hash, no LP)
+     *   3.jpg       hash:456  dateB  —       → unique
+     *   4.jpg       hash:789  dateC  —       → unique
+     *   sub/1.jpg   hash:456  dateE  —       → unique (subdirectory, different date)
+     *   a.jpg       hash:234  dateD  —       → canonical for dateD
+     *   A.jpg       hash:234  dateD  —       → duplicate of a (same hash)
+     *   A.JPG       hash:123  dateA  —       → duplicate of 1 (same hash, uppercase ext)
+     *   1-dup.jpg   hash:123  dateA  —       → duplicate of 1 (already suffixed)
+     *   1.mov       hash:abc  dateA  LP-1    → companion mov (Live Photo)
+     *   mov.mov     hash:abc  —     LP-1    → duplicate mov (paired by content ID)
+     *   B.jpg       hash:cde  dateA  LP-B    → hash sub-group 002 (Live Photo)
+     *   B.mov       hash:fgh  —     LP-B    → companion inherits sub-group 002
      */
     #[Test]
     public function executeProducesExpectedRenameMapping(): void
@@ -405,7 +418,7 @@ final class RenameByExifDateCommandTest extends TestCase
 
             $suffixedTargets = array_filter(
                 $targets,
-                static fn (string $t): bool => $t !== '2025-01-01_00-02-20-016.jpg',
+                static fn (string $targetPath): bool => $targetPath !== '2025-01-01_00-02-20-016.jpg',
             );
 
             foreach ($suffixedTargets as $target) {
@@ -831,7 +844,7 @@ final class RenameByExifDateCommandTest extends TestCase
         $absolutePrefix = rtrim($workspace, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
         $relativePrefix = basename(rtrim($workspace, DIRECTORY_SEPARATOR)) . DIRECTORY_SEPARATOR;
 
-        if (preg_match_all('/\[(?:O|D|R)]\s+(\S+)\s+→\s+(\S+)/', $clean, $matches, PREG_SET_ORDER) > 0) {
+        if (preg_match_all('/\[(?:O|D|R)]\s+(\S+)\s+→\s+(\S+)/u', $clean, $matches, PREG_SET_ORDER) > 0) {
             foreach ($matches as $match) {
                 $source = $this->stripPrefix($match[1], $absolutePrefix, $relativePrefix);
                 $target = $this->stripPrefix($match[2], $absolutePrefix, $relativePrefix);

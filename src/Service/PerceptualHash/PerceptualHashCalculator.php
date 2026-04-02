@@ -76,14 +76,19 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
     private const int HIST_BINS = 8;
 
     /**
-     * In-memory cache: pathname → [dHash, Imagick] for pairwise reuse within a group.
+     * In-memory cache for the current processing session.
+     * Maps file pathnames to their loaded Imagick instances and computed dHash
+     * values to avoid redundant image loading during pairwise comparisons within
+     * the same group.
      *
      * @var array<string, array{dhash: string|null, img: Imagick|null}>
      */
     private array $loadCache = [];
 
     /**
-     * In-memory cache: pathname → all signals from disk cache (avoids Imagick load entirely).
+     * Cache for disk-based signal hits to avoid any Imagick interaction.
+     * Maps file pathnames to the full set of perceptual signals retrieved from
+     * the persistent PerceptualSignalCache.
      *
      * @var array<string, array{dhash: string|null, whash: string|null, hf: float|null, hist: list<float>|null}>
      */
@@ -91,6 +96,9 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
 
     private ?PerceptualSignalCache $signalCache = null;
 
+    /**
+     * @param ImagickImageLoader $imageLoader Loader for normalized images and video frames.
+     */
     public function __construct(
         private readonly ImagickImageLoader $imageLoader,
     ) {
@@ -105,11 +113,15 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
     }
 
     /**
-     * Loads and normalizes a file, computes dHash, caches both for reuse.
+     * Loads and normalizes a file, computes dHash, and caches both for reuse.
+     *
      * When the same file appears in multiple pairwise comparisons, the
      * Imagick instance and dHash are reused without redundant disk I/O.
+     * If the persistent disk cache contains all signals, the image load is skipped entirely.
      *
-     * @return array{Imagick|null, string|null}
+     * @param SplFileInfo $file The file to process.
+     *
+     * @return array{Imagick|null, string|null} An array containing the Imagick instance (if loaded) and the dHash string.
      */
     private function loadAndComputeDhash(SplFileInfo $file): array
     {
@@ -143,6 +155,14 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
 
     /**
      * Computes dHash from an already-loaded normalized Imagick instance.
+     *
+     * The dHash (difference hash) captures visual gradients by comparing
+     * adjacent pixel brightness on a small grid. It is extremely fast and robust
+     * against aspect ratio changes.
+     *
+     * @param Imagick $img The normalized image.
+     *
+     * @return string|null The 64-bit hex dHash or null on failure.
      */
     private function computeDhashFromImage(Imagick $img): ?string
     {
@@ -177,6 +197,14 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
 
     /**
      * Computes wHash from an already-loaded normalized Imagick instance.
+     *
+     * The wHash (wavelet hash) uses a 2D Haar wavelet transform to capture
+     * frequency information. It is more robust against rotations and shifts
+     * than dHash but more computationally expensive.
+     *
+     * @param Imagick $img The normalized image.
+     *
+     * @return string|null The 64-bit hex wHash or null on failure.
      */
     private function computeWhashFromImage(Imagick $img): ?string
     {
@@ -218,9 +246,14 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
     }
 
     /**
-     * Computes color histogram from an already-resized Imagick instance (no resize needed).
+     * Computes color histogram from an already-resized Imagick instance.
      *
-     * @return list<float>|null
+     * Generates a 3D RGB histogram with 8 bins per channel (512 total bins).
+     * The histogram is normalized so that all bin values sum to 1.0.
+     *
+     * @param Imagick $resized The image resized to HIST_SIZE x HIST_SIZE.
+     *
+     * @return list<float>|null The normalized histogram bins or null on failure.
      */
     private function computeColorHistogramFromResized(Imagick $resized): ?array
     {
@@ -240,19 +273,19 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
             $hist   = array_fill(0, $bins * $bins * $bins, 0.0);
             $count  = intdiv(count($pixels), 3);
 
-            for ($i = 0; $i < $count; ++$i) {
-                $rb = min($bins - 1, intdiv($pixels[$i * 3], $binDiv));
-                $gb = min($bins - 1, intdiv($pixels[$i * 3 + 1], $binDiv));
-                $bb = min($bins - 1, intdiv($pixels[$i * 3 + 2], $binDiv));
+            for ($pixelIndex = 0; $pixelIndex < $count; ++$pixelIndex) {
+                $redBinIndex   = min($bins - 1, intdiv($pixels[$pixelIndex * 3], $binDiv));
+                $greenBinIndex = min($bins - 1, intdiv($pixels[$pixelIndex * 3 + 1], $binDiv));
+                $blueBinIndex  = min($bins - 1, intdiv($pixels[$pixelIndex * 3 + 2], $binDiv));
 
-                $hist[($rb * $bins * $bins) + ($gb * $bins) + $bb] += 1.0;
+                $hist[($redBinIndex * $bins * $bins) + ($greenBinIndex * $bins) + $blueBinIndex] += 1.0;
             }
 
             $sum = array_sum($hist);
 
             if ($sum > 0.0) {
-                foreach ($hist as $k => $v) {
-                    $hist[$k] = $v / $sum;
+                foreach ($hist as $binIndex => $binValue) {
+                    $hist[$binIndex] = $binValue / $sum;
                 }
             }
 
@@ -264,6 +297,15 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
 
     /**
      * Computes HF-energy from an already-resized grayscale Imagick instance.
+     *
+     * HF-energy (high-frequency energy) measures the amount of texture/detail
+     * by calculating the mean absolute difference between the original and a
+     * Gaussian-blurred version of the image.
+     *
+     * @param Imagick $gray The grayscale image resized to $size x $size.
+     * @param int     $size The size (width/height) of the square image.
+     *
+     * @return float|null The mean absolute difference or null on failure.
      */
     private function computeHfEnergyFromGray(Imagick $gray, int $size): ?float
     {
@@ -278,19 +320,19 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
             $sum   = 0.0;
             $count = count($original);
 
-            for ($i = 0; $i < $count; ++$i) {
-                $v = $original[$i] + 0.0;
-                $s = $smooth[$i] + 0.0;
+            for ($pixelIndex = 0; $pixelIndex < $count; ++$pixelIndex) {
+                $pixelValue  = $original[$pixelIndex] + 0.0;
+                $smoothValue = $smooth[$pixelIndex] + 0.0;
 
-                if ($v > 1.0) {
-                    $v /= 65535.0;
+                if ($pixelValue > 1.0) {
+                    $pixelValue /= 65535.0;
                 }
 
-                if ($s > 1.0) {
-                    $s /= 65535.0;
+                if ($smoothValue > 1.0) {
+                    $smoothValue /= 65535.0;
                 }
 
-                $sum += abs($v - $s);
+                $sum += abs($pixelValue - $smoothValue);
             }
 
             return $sum / $count;
@@ -302,16 +344,22 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
     /**
      * Computes the L1 distance between two normalized histograms (0.0–1.0).
      *
-     * @param list<float> $a Normalized histogram A
-     * @param list<float> $b Normalized histogram B
+     * The L1 distance (Manhattan distance) is calculated as half the sum of
+     * absolute differences between corresponding bins. For normalized histograms,
+     * this results in a value between 0.0 (identical) and 1.0 (completely disjoint).
+     *
+     * @param list<float> $histA Normalized histogram A.
+     * @param list<float> $histB Normalized histogram B.
+     *
+     * @return float The L1 distance.
      */
-    private function histogramDistance(array $a, array $b): float
+    private function histogramDistance(array $histA, array $histB): float
     {
-        $sum = 0.0;
-        $n   = min(count($a), count($b));
+        $sum     = 0.0;
+        $numBins = min(count($histA), count($histB));
 
-        for ($i = 0; $i < $n; ++$i) {
-            $sum += abs($a[$i] - $b[$i]);
+        for ($binIndex = 0; $binIndex < $numBins; ++$binIndex) {
+            $sum += abs($histA[$binIndex] - $histB[$binIndex]);
         }
 
         return $sum / 2.0;
@@ -469,10 +517,23 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
     }
 
     /**
-     * Computes the weighted multi-signal score (0–100).
+     * Computes the weighted multi-signal similarity score (0–100).
      *
-     * For images: dHash 30%, wHash 25%, HF-energy 20%, color 25%.
-     * For videos: dHash 25%, wHash 20%, HF-energy 15%, color 10%, duration 30%.
+     * Combines multiple perceptual signals with specific weights to determine a
+     * final similarity percentage. Weights differ for images and videos to
+     * account for temporal consistency (duration) and codec-induced noise.
+     *
+     * Weights (Images): dHash 30%, wHash 25%, HF-energy 20%, color 25%.
+     * Weights (Videos): dHash 25%, wHash 20%, HF-energy 15%, color 10%, duration 30%.
+     *
+     * @param int        $dhashDistance Hamming distance of dHash (0-64).
+     * @param int        $whashDistance Hamming distance of wHash (0-64).
+     * @param float      $hfEnergyDelta Absolute difference in HF-energy (0.0-1.0).
+     * @param float      $colorDistance L1 distance of color histograms (0.0-1.0).
+     * @param float|null $durDelta      Absolute duration difference in seconds (videos only).
+     * @param bool       $isVideo       Whether the comparison is between video files.
+     *
+     * @return int The final similarity score as a percentage (0-100).
      */
     private function computeWeightedScore(
         int $dhashDistance,
@@ -502,6 +563,17 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         return (int) round($score * 100);
     }
 
+    /**
+     * Computes the Hamming distance between two hex hashes.
+     *
+     * The distance is calculated as the number of differing bits.
+     * If lengths differ, the difference is added to the bit-level distance.
+     *
+     * @param string $hashA First hex hash.
+     * @param string $hashB Second hex hash.
+     *
+     * @return int The Hamming distance in bits.
+     */
     private function hammingDistance(string $hashA, string $hashB): int
     {
         $binA = $this->decodeHex($hashA);
@@ -547,6 +619,15 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
 
     /**
      * Creates a grayscale, resized clone of the given Imagick instance.
+     *
+     * Used as a pre-processing step for various perceptual hashing algorithms
+     * to reduce noise and normalize the input for faster computation.
+     *
+     * @param Imagick $source The original image instance to clone and process.
+     * @param int     $width  The target width for resizing.
+     * @param int     $height The target height for resizing.
+     *
+     * @return Imagick A new, processed Imagick instance.
      */
     private function grayscaleClone(Imagick $source, int $width, int $height): Imagick
     {
@@ -560,9 +641,14 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
     /**
      * Converts a flat pixel array to a 2D matrix, normalizing values to 0.0–1.0.
      *
-     * @param list<int> $pixels Flat pixel values from Imagick::exportImagePixels()
+     * Supports both 8-bit (0-255) and 16-bit (0-65535) integer input values,
+     * mapping them to a consistent float range for mathematical transforms.
      *
-     * @return array<int, array<int, float>>
+     * @param list<int> $pixels Flat pixel values from Imagick::exportImagePixels().
+     * @param int       $width  Width of the image in pixels.
+     * @param int       $height Height of the image in pixels.
+     *
+     * @return array<int, array<int, float>> A 2D matrix of normalized floats.
      */
     private function pixelsToMatrix(array $pixels, int $width, int $height): array
     {
@@ -572,13 +658,13 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
             $row = [];
 
             for ($x = 0; $x < $width; ++$x) {
-                $v = $pixels[$y * $width + $x] + 0.0;
+                $pixelValue = $pixels[$y * $width + $x] + 0.0;
 
-                if ($v > 1.0) {
-                    $v /= 65535.0;
+                if ($pixelValue > 1.0) {
+                    $pixelValue /= 65535.0;
                 }
 
-                $row[] = max(0.0, min(1.0, $v));
+                $row[] = max(0.0, min(1.0, $pixelValue));
             }
 
             $matrix[] = $row;
@@ -588,11 +674,14 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
     }
 
     /**
-     * 2D Haar wavelet transform (one level).
+     * Performs a single level of 2D Haar wavelet transform on the input matrix.
      *
-     * @param array<int, array<int, float>> $matrix
+     * The transform is applied first to rows, then to columns, decomposing the
+     * image into four sub-bands: LL (averages), LH, HL, and HH (details).
      *
-     * @return array<int, array<int, float>>
+     * @param array<int, array<int, float>> $matrix The input 2D image matrix.
+     *
+     * @return array<int, array<int, float>> The transformed 2D matrix.
      */
     private function haar2D(array $matrix): array
     {
@@ -600,76 +689,91 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         $width  = count($matrix[0]);
 
         // Transform rows
-        $tmp = [];
+        $transformedRows = [];
 
         for ($y = 0; $y < $height; ++$y) {
-            $tmp[$y] = $this->haar1D($matrix[$y]);
+            $transformedRows[$y] = $this->haar1D($matrix[$y]);
         }
 
         // Transform columns
-        $out = array_fill(0, $height, array_fill(0, $width, 0.0));
+        $transformedMatrix = array_fill(0, $height, array_fill(0, $width, 0.0));
 
         for ($x = 0; $x < $width; ++$x) {
-            $col = [];
+            $columnValues = [];
 
             for ($y = 0; $y < $height; ++$y) {
-                $col[] = $tmp[$y][$x];
+                $columnValues[] = $transformedRows[$y][$x];
             }
 
-            $colTransformed = $this->haar1D($col);
+            $colTransformed = $this->haar1D($columnValues);
 
             for ($y = 0; $y < $height; ++$y) {
-                $out[$y][$x] = $colTransformed[$y];
+                $transformedMatrix[$y][$x] = $colTransformed[$y];
             }
         }
 
-        return $out;
+        return $transformedMatrix;
     }
 
     /**
-     * 1D Haar wavelet transform: pairs → average + difference.
+     * Performs a 1D Haar wavelet transform on an array of values.
      *
-     * @param array<int, float> $values
+     * Computes pairwise sums (averages) and differences (details), effectively
+     * separating the signal into low and high frequency components.
      *
-     * @return array<int, float>
+     * @param array<int, float> $values The input signal array.
+     *
+     * @return array<int, float> The transformed signal (averages in first half, details in second).
      */
     private function haar1D(array $values): array
     {
-        $n    = count($values);
-        $half = intdiv($n, 2);
-        $out  = array_fill(0, $n, 0.0);
+        $numValues = count($values);
+        $halfSize  = intdiv($numValues, 2);
+        $output    = array_fill(0, $numValues, 0.0);
 
-        for ($i = 0; $i < $half; ++$i) {
-            $a = $values[2 * $i];
-            $b = $values[2 * $i + 1];
+        for ($index = 0; $index < $halfSize; ++$index) {
+            $valueA = $values[2 * $index];
+            $valueB = $values[2 * $index + 1];
 
-            $out[$i]         = ($a + $b) / 2.0;
-            $out[$half + $i] = ($a - $b) / 2.0;
+            $output[$index]             = ($valueA + $valueB) / 2.0;
+            $output[$halfSize + $index] = ($valueA - $valueB) / 2.0;
         }
 
-        return $out;
+        return $output;
     }
 
     /**
-     * Extracts the top-left square submatrix.
+     * Extracts the top-left square submatrix of a given size.
      *
-     * @param array<int, array<int, float>> $matrix
+     * Used in wavelet transforms (wHash) to extract the lowest frequency components
+     * after multiple transform passes, effectively capturing the most stable image features.
      *
-     * @return array<int, array<int, float>>
+     * @param array<int, array<int, float>> $matrix Input 2D matrix (usually from Haar/DCT).
+     * @param int                           $size   The dimension of the square to extract.
+     *
+     * @return array<int, array<int, float>> The $size x $size submatrix.
      */
     private function topLeft(array $matrix, int $size): array
     {
-        $out = [];
+        $subMatrix = [];
 
         for ($y = 0; $y < $size; ++$y) {
-            $out[] = array_slice($matrix[$y], 0, $size);
+            $subMatrix[] = array_slice($matrix[$y], 0, $size);
         }
 
-        return $out;
+        return $subMatrix;
     }
 
     /**
-     * Converts a bit string to a hex string with safe padding.
+     * Converts a bit string to a hex string with safe padding and optional fixed width.
+     *
+     * Ensures the bit string length is a multiple of 4 (nibble-aligned) by prepending
+     * zero-bits if necessary, then converts each 4-bit chunk to its hexadecimal representation.
+     *
+     * @param string   $bits       The string of '0' and '1' characters to convert.
+     * @param int|null $targetBits Optional target bit length to pad to before nibble alignment.
+     *
+     * @return string The resulting lowercase hex string.
      */
     private function bitsToHex(string $bits, ?int $targetBits = null): string
     {
@@ -697,6 +801,16 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         return $hex;
     }
 
+    /**
+     * Decodes a hex string to its binary representation safely.
+     *
+     * Performs strict validation for hex characters and even string length
+     * to prevent errors during binary conversion.
+     *
+     * @param string $value The hex string to decode.
+     *
+     * @return string|null The binary string or null if invalid hex or odd length.
+     */
     private function decodeHex(string $value): ?string
     {
         if ((strlen($value) & 1) === 1) {
@@ -712,15 +826,25 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         return $decoded !== false ? $decoded : null;
     }
 
-    private function bitcount(int $v): int
+    /**
+     * Returns the number of set bits (population count) in an integer.
+     *
+     * Efficiently calculates the bit count by iteratively clearing the
+     * least significant set bit using the `$value & ($value - 1)` trick.
+     *
+     * @param int $value The integer to check.
+     *
+     * @return int The number of bits set to 1.
+     */
+    private function bitcount(int $value): int
     {
-        $c = 0;
+        $count = 0;
 
-        while ($v !== 0) {
-            $v &= $v - 1;
-            ++$c;
+        while ($value !== 0) {
+            $value &= $value - 1;
+            ++$count;
         }
 
-        return $c;
+        return $count;
     }
 }

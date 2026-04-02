@@ -64,6 +64,19 @@ use function sprintf;
  */
 final class RenameByExifDateCommand extends AbstractRenameCommand
 {
+    /**
+     * Constructor.
+     *
+     * @param FileSystemServiceInterface         $fileSystemService         Service to handle file system operations
+     * @param DuplicateDetectionServiceInterface $duplicateDetectionService Service to handle grouping and duplicate resolution
+     * @param ExifMetadataProvider               $exifMetadataProvider      Provider for EXIF metadata from files
+     * @param PerceptualHashCalculatorInterface  $perceptualHashCalculator  Calculator for perceptual image hashes (visual similarity)
+     * @param HashSubGroupingServiceInterface    $hashSubGroupingService    Service to further group files by perceptual hash
+     * @param AssetGroupPipeline                 $pipeline                  The main asset processing pipeline
+     * @param CanonicalScorerInterface           $canonicalScorer           Scorer to determine the "best" file in a group
+     * @param ExecutionPlanBuilderInterface      $executionPlanBuilder      Builder for the final execution plan
+     * @param RenameOutputRenderer               $renameOutputRenderer      Renderer for the rename operation output
+     */
     public function __construct(
         FileSystemServiceInterface $fileSystemService,
         DuplicateDetectionServiceInterface $duplicateDetectionService,
@@ -122,8 +135,13 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
     }
 
     /**
-     * Executes the command and resets cached strategies when the filename pattern changes.
-     * Sets up the persistent metadata cache before the pipeline and flushes it afterwards.
+     * Executes the command logic.
+     *
+     * Initializes the filename pattern, configures metadata providers,
+     * perceptual hash calculation, and canonical scoring before running
+     * the asset group pipeline.
+     *
+     * @return int The exit code (0 for success, non-zero for failure).
      */
     #[Override]
     protected function executeCommand(): int
@@ -175,6 +193,10 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
     }
 
     /**
+     * Creates the file iterator.
+     *
+     * Filters files by supported media extensions (JPG, HEIC, MOV, etc.).
+     *
      * @return RecursiveIteratorIterator<RecursiveIterator<string, SplFileInfo>>
      */
     #[Override]
@@ -208,7 +230,12 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
     }
 
     /**
-     * Returns the strategy that builds the target filename based on EXIF dates.
+     * Returns the target filename strategy for EXIF-based renames.
+     *
+     * This strategy extracts the capture date from EXIF/QuickTime metadata
+     * and formats it into the target basename.
+     *
+     * @return RenameStrategyInterface The EXIF date rename strategy.
      */
     #[Override]
     protected function getTargetFilenameStrategy(): RenameStrategyInterface
@@ -217,7 +244,13 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
     }
 
     /**
-     * Provides the duplicate identifier strategy capable of handling Live Photos.
+     * Returns the duplicate identifier strategy.
+     *
+     * Uses the TargetBasenameStrategy to group files. This ensures that
+     * files with different extensions (e.g. .JPG and .MOV) that share the
+     * same capture time are placed in the same duplicate group.
+     *
+     * @return DuplicateIdentifierStrategyInterface The duplicate identifier strategy.
      */
     #[Override]
     protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
@@ -226,7 +259,19 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
     }
 
     /**
-     * Executes the new 8-step AssetGroup pipeline.
+     * Executes the asset group processing pipeline.
+     *
+     * This follows an 8-step process:
+     * 1. Building groups
+     * 2. Classification
+     * 3. Role assignment
+     * 4. Target name resolution
+     * 5. Collision resolution
+     * 6. Validation
+     * 7. Execution plan building
+     * 8. Output rendering and optional execution
+     *
+     * @throws RuntimeException If circular swaps are detected
      */
     private function processWithAssetGroups(): void
     {
@@ -319,7 +364,9 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
     }
 
     /**
-     * Renders validation warnings for the rename plan.
+     * Renders validation warnings if issues were detected during the pipeline.
+     *
+     * @param ValidationResult $validationResult The validation result containing warnings
      */
     private function renderValidationWarnings(ValidationResult $validationResult): void
     {

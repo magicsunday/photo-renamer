@@ -67,7 +67,8 @@ final class DedupCommandTest extends TestCase
     }
 
     /**
-     * Verifies that dry-run mode finds duplicates and lists them without modifying files.
+     * Verifies that the command correctly lists files with the "-duplicate-" marker
+     * in dry-run mode, without actually moving or deleting them from the filesystem.
      */
     #[Test]
     public function executeDryRunFindsDuplicates(): void
@@ -107,7 +108,8 @@ final class DedupCommandTest extends TestCase
     }
 
     /**
-     * Verifies that orphaned duplicates (without a matching original) show a warning.
+     * Verifies that duplicate files without a corresponding original file (same name but without
+     * "-duplicate-") are flagged with a warning instead of being treated as safe-to-remove.
      */
     #[Test]
     public function executeDryRunSkipsOrphans(): void
@@ -137,7 +139,8 @@ final class DedupCommandTest extends TestCase
     }
 
     /**
-     * Verifies that the summary includes space reclaimable information.
+     * Verifies that the summary at the end of execution correctly calculates and displays
+     * the total file size that would be reclaimed by removing the detected duplicates.
      */
     #[Test]
     public function executeDryRunShowsSpaceReclaimable(): void
@@ -169,7 +172,8 @@ final class DedupCommandTest extends TestCase
     }
 
     /**
-     * Verifies that duplicates are actually moved to the target directory.
+     * Verifies that in non-dry-run mode, duplicates are moved to the default "_duplicates"
+     * target directory when the user confirms the operation.
      */
     #[Test]
     public function executeMoveDuplicatesToTargetDirectory(): void
@@ -210,7 +214,8 @@ final class DedupCommandTest extends TestCase
     }
 
     /**
-     * Verifies that --delete flag actually removes duplicate files.
+     * Verifies that using the "--delete" option actually removes duplicate files from
+     * the source directory instead of moving them to a target folder.
      */
     #[Test]
     public function executeDeleteDuplicates(): void
@@ -247,7 +252,8 @@ final class DedupCommandTest extends TestCase
     }
 
     /**
-     * Verifies that --target option moves duplicates to a custom directory.
+     * Verifies that the user can specify a custom target directory for moving duplicates,
+     * overriding the default "_duplicates" folder name.
      */
     #[Test]
     public function executeCustomTarget(): void
@@ -283,8 +289,8 @@ final class DedupCommandTest extends TestCase
     }
 
     /**
-     * Verifies that non-dry-run execution requires confirmation (Fix 5).
-     * When the user declines, no files are moved.
+     * Verifies that the command halts and performs no operations if the user declines
+     * the interactive confirmation prompt in non-dry-run mode.
      */
     #[Test]
     public function executeNonDryRunRequiresConfirmation(): void
@@ -318,8 +324,8 @@ final class DedupCommandTest extends TestCase
     }
 
     /**
-     * Verifies that a cross-directory duplicate (original in root, duplicate in
-     * subdirectory) is correctly found and not flagged as orphaned (Fix 4).
+     * Verifies that original files are found even if they are in a different directory
+     * than their duplicates, ensuring global matching within the source tree.
      */
     #[Test]
     public function executeFindsCrossDirectoryOriginal(): void

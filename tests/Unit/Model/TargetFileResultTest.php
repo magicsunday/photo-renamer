@@ -28,6 +28,10 @@ use SplFileInfo;
 #[CoversClass(TargetFileResult::class)]
 final class TargetFileResultTest extends TestCase
 {
+    /**
+     * Verifies that TargetFileResult::success() correctly stores the target file
+     * and that the instance reports itself as not skipped and not an error.
+     */
     #[Test]
     public function successCarriesTargetFile(): void
     {
@@ -40,6 +44,10 @@ final class TargetFileResultTest extends TestCase
         self::assertFalse($result->isError());
     }
 
+    /**
+     * Verifies that TargetFileResult::skipped() correctly captures the reason
+     * for skipping and that the instance reports itself as skipped but not as an error.
+     */
     #[Test]
     public function skippedCarriesReason(): void
     {
@@ -51,6 +59,11 @@ final class TargetFileResultTest extends TestCase
         self::assertFalse($result->isError());
     }
 
+    /**
+     * Verifies that TargetFileResult::error() correctly captures the reason
+     * for skipping due to a processing error and that the instance reports
+     * itself as both skipped and an error.
+     */
     #[Test]
     public function errorCarriesReasonAndFlag(): void
     {

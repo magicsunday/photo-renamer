@@ -70,18 +70,14 @@ use function substr;
 use const DIRECTORY_SEPARATOR;
 
 /**
- * Differential integration test that runs both the old pipeline (DuplicateDetectionService)
- * and the new pipeline (CaptureGroupBuilder -> SubgroupClassifier -> RoleAssigner ->
- * TargetNameResolver -> CollisionResolver -> AssetGroupAdapter) on the same test fixtures
- * and compares their resulting rename maps.
+ * Runs both the legacy (DuplicateDetectionService) and the new refactored pipeline
+ * (CaptureGroupBuilder, SubgroupClassifier, etc.) on the same test fixtures and
+ * verifies that they produce identical rename results.
  *
- * Proves behavioral equivalence for scenarios where no intentional change exists (no HEIC
- * vs JPG format-priority competition). Tests for intentional changes (format-dominant
- * canonical selection) belong in Phase 3 when the new pipeline is wired into the command.
- *
- * @author  Rico Sonntag <mail@ricosonntag.de>
- * @license https://opensource.org/licenses/MIT
- * @link    https://github.com/magicsunday/photo-renamer/
+ * This test acts as a high-level regression suite to ensure that the complex
+ * logic of the new modular pipeline (which handles Live Photo pairing, collision
+ * resolution, and canonical selection) perfectly matches the behavior of the
+ * original monolithic service for all supported scenarios.
  */
 #[CoversNothing]
 final class PipelineDifferentialTest extends TestCase
@@ -89,7 +85,7 @@ final class PipelineDifferentialTest extends TestCase
     use WorkspaceTrait;
 
     /**
-     * Returns the absolute path to the committed test-images directory.
+     * Resolves the absolute path to the committed test image fixtures.
      */
     private function testImagesDir(): string
     {
@@ -97,9 +93,10 @@ final class PipelineDifferentialTest extends TestCase
     }
 
     /**
-     * Run both old and new pipelines on the same fixture and compare rename maps.
+     * Executes both pipelines on a temporary workspace copy of the fixture
+     * and asserts that the resulting file-to-target-path maps are equivalent.
      *
-     * @param string $scenarioDir Fixture directory name relative to tests/Fixtures/Images
+     * @param string $scenarioDir Sub-directory within tests/Fixtures/Images to use
      */
     #[Test]
     #[DataProvider('equivalentScenarioProvider')]
@@ -328,9 +325,12 @@ final class PipelineDifferentialTest extends TestCase
      * Extracts a normalized rename map from a FileDuplicateCollection.
      *
      * The map uses relative paths (stripped of the workspace prefix) for
-     * stability across temp directories. Entries are sorted by key.
+     * stability across temp directories. Entries are sorted by source path.
      *
-     * @return array<string, string> Sorted map of relative source to relative target
+     * @param FileDuplicateCollection $collection The collection of duplicates.
+     * @param string                  $workspace  The base directory for relative paths.
+     *
+     * @return array<string, string> Sorted map of relative source to relative target.
      */
     private function extractRenameMap(FileDuplicateCollection $collection, string $workspace): array
     {

@@ -57,8 +57,9 @@ use const DIRECTORY_SEPARATOR;
 final class ExifMetadataProviderTest extends TestCase
 {
     /**
-     * Verifies that a TemporalMetadata with a capture date yields a DateTimeInterface
-     * with the correct date and microsecond precision preserved.
+     * Verifies that the capture timestamp is correctly extracted from the EXIF
+     * metadata. This ensures that the primary sorting and naming criterion
+     * (the capture time) is accurately preserved.
      */
     #[Test]
     public function itReturnsCaptureDateTime(): void
@@ -81,8 +82,9 @@ final class ExifMetadataProviderTest extends TestCase
     }
 
     /**
-     * Verifies that both getCaptureDateTime() and getContentIdentifier() return null
-     * when the metadata extractor has no response for the given file path.
+     * Verifies that both `getCaptureDateTime()` and `getContentIdentifier()`
+     * return null when no relevant metadata is found in the file. This is
+     * crucial for graceful fallbacks during the grouping phase.
      */
     #[Test]
     public function itReturnsNullWhenMetadataMissing(): void
@@ -97,8 +99,10 @@ final class ExifMetadataProviderTest extends TestCase
     }
 
     /**
-     * Verifies that a capture date with full microsecond precision (6 fractional
-     * digits) is preserved in the returned DateTimeInterface.
+     * Verifies that microsecond precision (up to 6 fractional digits) is
+     * preserved during extraction. This allows distinguishing between photos
+     * taken in rapid succession (burst mode) that would otherwise share
+     * the same timestamp.
      */
     #[Test]
     public function itPreservesMicrosecondPrecision(): void
@@ -187,7 +191,11 @@ final class ExifMetadataProviderTest extends TestCase
 
     /**
      * Verifies that when a persistent MetadataCache is set and contains a valid
-     * entry, the extractor is NOT called (cache hit skips extraction).
+     * entry, the extractor is NOT called.
+     *
+     * This test ensures that the provider correctly respects the persistent
+     * cache, skipping expensive metadata extraction via Exiftool if the
+     * data is already known from a previous run.
      */
     #[Test]
     public function itSkipsExtractionOnPersistentCacheHit(): void
@@ -244,7 +252,11 @@ final class ExifMetadataProviderTest extends TestCase
 
     /**
      * Verifies that on a persistent cache miss, the extractor is called and the
-     * result is stored in the persistent cache for future runs.
+     * result is stored in the persistent cache.
+     *
+     * This ensures that new files are correctly analyzed and their metadata
+     * is persisted, allowing subsequent runs or pairwise comparisons to
+     * benefit from the cached results.
      */
     #[Test]
     public function itStoresExtractionResultInPersistentCacheOnMiss(): void
@@ -362,8 +374,12 @@ final class ExifMetadataProviderTest extends TestCase
     }
 
     /**
-     * Verifies that hasReliableDateTime returns true when raw metadata matches
-     * the filename date, even though isAmbiguousTimezone is true.
+     * Verifies that `hasReliableDateTime()` returns true when raw metadata matches
+     * the filename date, even if the timezone is marked as ambiguous.
+     *
+     * For some video formats, the timezone is uncertain, but if the local time
+     * in the filename matches the UTC time in the metadata, we assume the
+     * date is reliable enough for naming.
      */
     #[Test]
     public function hasReliableDateTimeReturnsTrueWhenRawMatchesFilename(): void
@@ -392,8 +408,12 @@ final class ExifMetadataProviderTest extends TestCase
     }
 
     /**
-     * Verifies that hasReliableDateTime returns false when ambiguous and raw
-     * does NOT match the filename date.
+     * Verifies that `hasReliableDateTime()` returns false when the timezone is
+     * ambiguous and the raw metadata does NOT match the filename date.
+     *
+     * If the filename says one thing and the metadata says another (e.g. shifted
+     * by a few hours), and the timezone is already marked as unreliable, we
+     * cannot trust the date for renaming without user intervention or fallback.
      */
     #[Test]
     public function hasReliableDateTimeReturnsFalseWhenAmbiguousAndMismatch(): void

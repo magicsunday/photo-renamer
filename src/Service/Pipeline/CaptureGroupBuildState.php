@@ -48,8 +48,9 @@ final class CaptureGroupBuildState
     public array $filesByPath = [];
 
     /**
-     * Cache for content identifier resolution. Maps normalized content identifiers
-     * to their associated duplicate identifier, pending files, and target.
+     * Cache for content identifier resolution during grouping.
+     * Maps normalized content identifiers to their currently associated duplicate
+     * identifier, pending companion files, and the canonical target file.
      *
      * @var array<string, array{
      *     duplicateIdentifier: string|null,

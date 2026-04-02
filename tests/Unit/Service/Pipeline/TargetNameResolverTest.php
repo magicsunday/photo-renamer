@@ -25,8 +25,18 @@ use PHPUnit\Framework\TestCase;
 use SplFileInfo;
 
 /**
- * Verifies pure semantic naming: role + group key produce the correct proposed name
- * without any collision checks.
+ * Verifies the semantic naming logic of the TargetNameResolver.
+ *
+ * This test suite ensures that asset groups are correctly renamed based on their
+ * role (Canonical, Companion, Duplicate, Subgroup) and the group key (usually
+ * a timestamp). It covers:
+ * - Simple renaming (canonical, companions, duplicates)
+ * - Subgroup numbering (clusters of similar files)
+ * - Idempotency (preventing unnecessary re-naming of already correct files)
+ * - Stability of naming across dry-runs or partial executions
+ *
+ * The resolver only proposes names; it does not perform physical disk checks for
+ * collisions with existing unrelated files (that is handled by CollisionResolver).
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -41,7 +51,8 @@ use SplFileInfo;
 final class TargetNameResolverTest extends TestCase
 {
     /**
-     * Single canonical HEIC gets the clean group key as basename.
+     * Ensures that the main file (canonical) receives a clean filename without
+     * suffixes (except for the date pattern).
      */
     #[Test]
     public function canonicalGetsCleanBasename(): void
@@ -63,7 +74,8 @@ final class TargetNameResolverTest extends TestCase
     }
 
     /**
-     * Companion MOV gets the same group key basename but its own extension.
+     * Verifies that companion files (e.g., sidecars) receive the same basename
+     * as the main file but keep their own file extension.
      */
     #[Test]
     public function companionGetsSameBasenameWithOwnExtension(): void
@@ -86,7 +98,8 @@ final class TargetNameResolverTest extends TestCase
     }
 
     /**
-     * Duplicates get sequential suffixes: -duplicate-001, -duplicate-002.
+     * Verifies that duplicate files receive a sequential suffix (e.g., -duplicate-001)
+     * to avoid name collisions within the group.
      */
     #[Test]
     public function duplicateGetsSequentialSuffix(): void
@@ -133,7 +146,8 @@ final class TargetNameResolverTest extends TestCase
     }
 
     /**
-     * File already at target path has renameRequired = false.
+     * Ensures that files that already carry the correct name are marked
+     * as "No-Op" (renameRequired = false).
      */
     #[Test]
     public function alreadyCorrectFileHasRenameRequiredFalse(): void
@@ -155,7 +169,8 @@ final class TargetNameResolverTest extends TestCase
     }
 
     /**
-     * Items in different directories preserve their source directory.
+     * Verifies that files remain within their original directories and only
+     * the filename is adjusted.
      */
     #[Test]
     public function filesStayInTheirOwnDirectory(): void
@@ -246,7 +261,8 @@ final class TargetNameResolverTest extends TestCase
     }
 
     /**
-     * Items in a non-canonical cluster get a subgroup suffix (-002).
+     * Verifies that items in subgroups receive a corresponding subgroup suffix
+     * (e.g. "-002") if the group was split by perceptual hashing.
      */
     #[Test]
     public function subgroupItemsGetSubgroupSuffix(): void
@@ -310,7 +326,8 @@ final class TargetNameResolverTest extends TestCase
     }
 
     /**
-     * Three distinct clusters produce sequential subgroup numbers: -002, -003.
+     * Verifies that multiple subgroups (clusters) within the same group
+     * receive deterministic sequential suffixes (e.g., -002, -003).
      */
     #[Test]
     public function multipleSubgroupsGetSequentialNumbers(): void
@@ -593,8 +610,8 @@ final class TargetNameResolverTest extends TestCase
     }
 
     /**
-     * When both subgroup items are already correctly named (-002.jpg and -002-duplicate-001.jpg),
-     * both should receive [O] (proposedName === sourcePath) with no renames required.
+     * Verifies idempotency for subgroups: files that already carry a
+     * matching name should keep it to avoid unnecessary renames.
      */
     #[Test]
     public function subgroupIdempotencyAlreadyCorrectlyNamedFilesRemainNoOp(): void

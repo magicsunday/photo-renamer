@@ -31,16 +31,31 @@ use function sprintf;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
+/**
+ * Comprehensive tests for FileHelper covering path manipulation, extension
+ * normalization, date extraction from filenames and drift computation.
+ *
+ * Verifies that:
+ * - Basenames and extensions are extracted correctly across OS boundaries.
+ * - Duplicate suffixes are stripped reliably before re-processing.
+ * - Capture dates are correctly parsed from common filename patterns.
+ * - Directory URLs and relative paths are computed correctly for CLI output.
+ * - Semantic date drift (distance in days) is calculated for validation.
+ */
 #[CoversClass(FileHelper::class)]
 #[UsesClass(LinkConfig::class)]
 final class FileHelperTest extends TestCase
 {
     /**
-     * Tests basename extraction without extension for various file types.
+     * Verifies that basenameWithoutExtension() handles multiple dots and
+     * path separators correctly, returning only the filename portion.
      *
-     * @param string $path        The file path to test
-     * @param string $expected    The expected basename without extension
-     * @param string $description Human-readable description of the test case
+     * This is critical for generating consistent target names from varied source
+     * file naming conventions (e.g., WhatsApp-style names vs. camera raw files).
+     *
+     * @param string $path        The file path to analyze
+     * @param string $expected    The expected filename without extension
+     * @param string $description Context description for failure messages
      */
     #[Test]
     #[DataProvider('basenameWithoutExtensionProvider')]
@@ -85,11 +100,16 @@ final class FileHelperTest extends TestCase
     }
 
     /**
-     * Tests duplicate suffix stripping from basenames.
+     * Verifies that stripDuplicateSuffix() removes the "-duplicate-NNN" portion
+     * while preserving the base filename.
      *
-     * @param string $basename    The input basename without extension
-     * @param string $expected    The expected result after stripping
-     * @param string $description Human-readable description of the test case
+     * This is essential for the renamer to be idempotent when running multiple
+     * times on the same target directory, ensuring that previously suffixed
+     * files are correctly recognized as potential matches.
+     *
+     * @param string $basename    The base filename to clean (without extension)
+     * @param string $expected    The expected name after stripping the suffix
+     * @param string $description Context description for failure messages
      */
     #[Test]
     #[DataProvider('stripDuplicateSuffixProvider')]
@@ -132,11 +152,16 @@ final class FileHelperTest extends TestCase
     }
 
     /**
-     * Tests date+time extraction from filename paths.
+     * Verifies the extraction of a capture timestamp from the filename
+     * using the {@see FileHelper::ISO8601_FILENAME_PATTERN}.
      *
-     * @param string      $path        The file path to test
-     * @param string|null $expected    The expected date+time string (Y-m-d H:i:s), or null
-     * @param string      $description Human-readable description of the test case
+     * This logic is used to validate metadata against the filename, or as
+     * a source for cross-directory duplicate detection when no metadata
+     * is present but the file follows the renamer's own naming convention.
+     *
+     * @param string      $path        The filename or path to analyze
+     * @param string|null $expected    The expected timestamp string (Y-m-d H:i:s) or null
+     * @param string      $description Context description for failure messages
      */
     #[Test]
     #[DataProvider('extractDateTimeFromPathProvider')]
@@ -351,8 +376,12 @@ final class FileHelperTest extends TestCase
     // =========================================================================
 
     /**
-     * @param string $path     Input path
-     * @param string $expected Expected file:// URL
+     * Verifies the transformation of a file path into a file:// URL.
+     * Supports both Unix paths and Windows drive letters, and correctly
+     * performs URL encoding of special characters (e.g., spaces).
+     *
+     * @param string $path     The input path
+     * @param string $expected The expected file:// URL
      */
     #[Test]
     #[DataProvider('pathToFileUrlProvider')]
@@ -395,9 +424,13 @@ final class FileHelperTest extends TestCase
     // =========================================================================
 
     /**
-     * @param string      $pathname Input pathname
-     * @param string|null $base     Base directory
-     * @param string      $expected Expected relative path
+     * Verifies the shortening of an absolute path to a relative path based
+     * on a base directory. If the path is not within the base directory
+     * or no base directory is specified, the original path is returned.
+     *
+     * @param string      $pathname The absolute path
+     * @param string|null $base     The base directory
+     * @param string      $expected The expected relative path
      */
     #[Test]
     #[DataProvider('relativizePathProvider')]
@@ -449,6 +482,10 @@ final class FileHelperTest extends TestCase
     // normalizeExtension
     // =========================================================================
 
+    /**
+     * Ensures that the extension ".jpeg" (case-insensitive)
+     * is correctly mapped to ".jpg".
+     */
     #[Test]
     public function normalizeExtensionMapsJpeg(): void
     {
@@ -456,6 +493,10 @@ final class FileHelperTest extends TestCase
         self::assertSame('jpg', FileHelper::normalizeExtension('JPEG'));
     }
 
+    /**
+     * Ensures that other extensions (e.g., ".png") are not
+     * modified by the normalization.
+     */
     #[Test]
     public function normalizeExtensionPreservesOthers(): void
     {
@@ -468,6 +509,10 @@ final class FileHelperTest extends TestCase
     // computeDateDrift
     // =========================================================================
 
+    /**
+     * Verifies the calculation of the temporal deviation (drift) in days between
+     * two dates extracted from filenames.
+     */
     #[Test]
     public function computeDateDriftReturnsDaysBetweenFilenameDates(): void
     {
@@ -475,6 +520,10 @@ final class FileHelperTest extends TestCase
         self::assertSame(65, FileHelper::computeDateDrift('2024-01-15_photo.jpg', '2024-03-20_10-00-00.jpg'));
     }
 
+    /**
+     * Ensures that null is returned if one of the filenames
+     * does not contain a recognizable date.
+     */
     #[Test]
     public function computeDateDriftReturnsNullWithoutDateInFilename(): void
     {
@@ -482,6 +531,10 @@ final class FileHelperTest extends TestCase
         self::assertNull(FileHelper::computeDateDrift('2024-01-15_photo.jpg', 'IMG_1234.jpg'));
     }
 
+    /**
+     * Verifies the calculation of the deviation between a date extracted from
+     * the filename and a provided metadata date.
+     */
     #[Test]
     public function computeDateDriftFromDateTimeReturnsDays(): void
     {
@@ -496,6 +549,10 @@ final class FileHelperTest extends TestCase
     // extractDateTimeFromPath — boundary cases for tryCreateDateTime
     // =========================================================================
 
+    /**
+     * Ensures that invalid months (e.g., 13 or 00) are correctly detected
+     * during date extraction.
+     */
     #[Test]
     public function extractDateTimeRejectsInvalidMonth(): void
     {
@@ -503,6 +560,10 @@ final class FileHelperTest extends TestCase
         self::assertNull(FileHelper::extractDateTimeFromPath('2024-00-01.jpg'));
     }
 
+    /**
+     * Ensures that invalid days (e.g., 32 or February 30) are correctly detected
+     * during date extraction.
+     */
     #[Test]
     public function extractDateTimeRejectsInvalidDay(): void
     {
@@ -510,6 +571,10 @@ final class FileHelperTest extends TestCase
         self::assertNull(FileHelper::extractDateTimeFromPath('2024-01-32.jpg'));
     }
 
+    /**
+     * Ensures that invalid time specifications (e.g., 25 hours or 60 minutes)
+     * are correctly detected during extraction.
+     */
     #[Test]
     public function extractDateTimeRejectsInvalidTime(): void
     {
@@ -518,6 +583,10 @@ final class FileHelperTest extends TestCase
         self::assertNull(FileHelper::extractDateTimeFromPath('2024-01-15_12-00-60.jpg'));
     }
 
+    /**
+     * Verifies the acceptance of boundary values for date and time
+     * (e.g., 23:59:59 or December 31).
+     */
     #[Test]
     public function extractDateTimeAcceptsBoundaryValues(): void
     {

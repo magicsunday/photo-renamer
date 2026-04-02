@@ -15,6 +15,7 @@ use MagicSunday\Renamer\Command\RenameByHashCommand;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\Collection\AbstractCollection;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
+use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
@@ -52,6 +53,7 @@ use function uniqid;
 #[UsesClass(AbstractCollection::class)]
 #[UsesClass(RenameOptions::class)]
 #[UsesClass(RenameResult::class)]
+#[UsesClass(OutputEntryTag::class)]
 #[UsesClass(ContentHashStrategy::class)]
 final class RenameByHashCommandTest extends TestCase
 {

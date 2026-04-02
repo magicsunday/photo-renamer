@@ -51,11 +51,12 @@ use const DIRECTORY_SEPARATOR;
 final class FileHelper
 {
     /**
-     * Reads an environment variable and returns null for missing or empty values.
+     * Reads an environment variable and returns its value as a string.
      *
-     * @param string $name Environment variable name
+     * @param string $name The name of the environment variable to retrieve.
      *
-     * @return string|null Value, or null when absent/empty
+     * @return string|null The value of the environment variable, or null if it
+     *                     is not set, is empty, or consists only of whitespace.
      */
     public static function env(string $name): ?string
     {
@@ -65,10 +66,14 @@ final class FileHelper
     }
 
     /**
-     * Returns the filename without extension. Handles the edge case where
-     * a file has no extension (avoids stripping a trailing dot).
+     * Returns the filename without its extension.
      *
-     * @param SplFileInfo $file File to extract the basename from
+     * This method correctly handles edge cases where a file has no extension,
+     * ensuring that no trailing dot is accidentally stripped or added.
+     *
+     * @param SplFileInfo $file The file from which to extract the basename.
+     *
+     * @return string The filename without extension.
      */
     public static function basenameWithoutExtension(SplFileInfo $file): string
     {
@@ -83,11 +88,13 @@ final class FileHelper
 
     /**
      * Normalizes a file extension to lowercase and maps common aliases.
-     * Currently maps: jpeg -> jpg. Empty extensions are returned as-is.
      *
-     * @param string $extension Raw file extension (without leading dot)
+     * Currently, this method primarily maps 'jpeg' to 'jpg' for consistency
+     * across the application. Extensions are always returned in lowercase.
      *
-     * @return string Normalized lowercase extension
+     * @param string $extension The raw file extension (without the leading dot).
+     *
+     * @return string The normalized lowercase extension.
      */
     public static function normalizeExtension(string $extension): string
     {
@@ -104,10 +111,15 @@ final class FileHelper
     }
 
     /**
-     * Strips an existing "-duplicate-NNN" suffix from a basename.
-     * Uses proper regex escaping and end-of-string anchoring.
+     * Strips an existing duplicate identifier suffix from a basename.
      *
-     * @param string $basename Basename without extension
+     * This method removes suffixes like "-duplicate-001" from the end of a
+     * filename, which is necessary when re-processing files that have already
+     * been renamed as duplicates in a previous run.
+     *
+     * @param string $basename The basename without extension to be cleaned.
+     *
+     * @return string The cleaned basename without the duplicate suffix.
      */
     public static function stripDuplicateSuffix(string $basename): string
     {
@@ -119,15 +131,16 @@ final class FileHelper
     }
 
     /**
-     * Converts an absolute pathname to a display-friendly relative path by stripping
-     * the base directory prefix and prepending the base directory's own name. Falls back
-     * to the full pathname when the path does not start with the base or when the base
-     * directory is a relative path.
+     * Converts an absolute pathname to a display-friendly relative path.
      *
-     * @param string      $pathname      Absolute file path
-     * @param string|null $baseDirectory Normalized base directory (trailing separator stripped)
+     * This is used to shorten long absolute paths in the console output by
+     * removing the common base directory prefix. If the path is not within
+     * the base directory, the original absolute path is returned.
      *
-     * @return string Relative or absolute path suitable for display
+     * @param string      $pathname      The absolute file path to be relativized.
+     * @param string|null $baseDirectory The normalized base directory.
+     *
+     * @return string The relativized path or the original absolute path.
      */
     public static function relativizePath(string $pathname, ?string $baseDirectory): string
     {
@@ -438,6 +451,11 @@ final class FileHelper
 
     /**
      * Formats a byte count as a human-readable string (e.g. "1.5 MB").
+     * Supports B, KB, MB, and GB units.
+     *
+     * @param int $bytes Number of bytes to format
+     *
+     * @return string Human-readable size string
      */
     public static function formatSize(int $bytes): string
     {

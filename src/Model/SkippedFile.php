@@ -14,9 +14,12 @@ namespace MagicSunday\Renamer\Model;
 use SplFileInfo;
 
 /**
- * Represents a file that was skipped during the grouping phase because the
- * rename strategy could not produce a target filename. Captures both the
- * source file and a human-readable reason for diagnostic output.
+ * Represents a file that was excluded from the renaming process.
+ *
+ * This value object captures the source file along with the specific reason
+ * why it was skipped (e.g., missing metadata, read errors, or user-defined
+ * filters). It is used to provide detailed diagnostic feedback to the user
+ * at the end of a run.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -25,9 +28,13 @@ use SplFileInfo;
 final readonly class SkippedFile
 {
     /**
-     * @param SplFileInfo $file    The source file that was skipped
-     * @param string      $reason  Human-readable explanation (e.g. "no capture date", "audio sample entry vendor must be 0")
-     * @param bool        $isError Whether the skip was caused by a metadata read error (true) or simply missing metadata (false)
+     * @param SplFileInfo $file    The source file that was skipped.
+     * @param string      $reason  A human-readable explanation of why the file
+     *                             was skipped (e.g., "no capture date found").
+     * @param bool        $isError True if the skip was caused by an actual
+     *                             processing error (e.g., corrupted file);
+     *                             false if it was a normal skip (e.g., missing
+     *                             optional metadata).
      */
     public function __construct(
         private SplFileInfo $file,
@@ -37,7 +44,9 @@ final readonly class SkippedFile
     }
 
     /**
-     * Returns the source file that was skipped.
+     * Returns the file that was skipped.
+     *
+     * @return SplFileInfo The skipped file information.
      */
     public function getFile(): SplFileInfo
     {
@@ -45,7 +54,9 @@ final readonly class SkippedFile
     }
 
     /**
-     * Returns the human-readable skip reason.
+     * Returns the human-readable explanation for skipping the file.
+     *
+     * @return string The skip reason.
      */
     public function getReason(): string
     {
@@ -53,7 +64,9 @@ final readonly class SkippedFile
     }
 
     /**
-     * Returns whether the skip was caused by a metadata read error.
+     * Indicates whether the skip was due to an error.
+     *
+     * @return bool True if an error occurred during processing, false otherwise.
      */
     public function isError(): bool
     {

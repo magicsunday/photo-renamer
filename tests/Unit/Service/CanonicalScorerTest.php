@@ -29,7 +29,7 @@ use SplFileInfo;
  * Format priority is the dominant signal — a preferred format (HEIC) always beats
  * a correctly-named lower-priority format (JPG).
  *
- * Note: assertGreaterThan($a, $b) asserts $b > $a (PHPUnit convention: expected, actual).
+ * Note: assertGreaterThan($lowerScore, $higherScore) asserts $higherScore > $lowerScore (PHPUnit convention: expected, actual).
  * Higher priorityScore = more likely to be selected as canonical. The assertions below
  * are correct — the item expected to win canonical selection has the higher score.
  *

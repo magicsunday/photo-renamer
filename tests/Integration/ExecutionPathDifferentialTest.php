@@ -96,9 +96,14 @@ final class ExecutionPathDifferentialTest extends TestCase
     }
 
     /**
-     * Run both execution paths on the same pipeline result and compare output entries.
+     * Executes both the legacy and the new execution paths on the same set of
+     * assets and verifies that they produce identical output entries.
      *
-     * @param string $scenarioDir Fixture directory name relative to tests/Fixtures/Images
+     * This test is critical for ensuring that the migration from the
+     * `FileDuplicateCollection` based rendering to the `ExecutionPlan` based
+     * rendering does not change the behavior or naming of any files.
+     *
+     * @param string $scenarioDir The subdirectory name within the test images fixture.
      */
     #[Test]
     #[DataProvider('parityScenarioProvider')]
@@ -231,9 +236,14 @@ final class ExecutionPathDifferentialTest extends TestCase
     }
 
     /**
-     * Runs the full AssetGroupPipeline and returns its result.
+     * Executes the full AssetGroupPipeline for a specific workspace and returns the result.
      *
-     * @param string $workspace Absolute path to the fixture workspace
+     * This method bootstraps all required services (metadata extraction, perceptual hashing,
+     * subgrouping, etc.) to mirror the real application logic.
+     *
+     * @param string $workspace Absolute path to the temporary test workspace
+     *
+     * @return ExifRenamePipelineResult The result of the pipeline execution
      */
     private function runPipeline(string $workspace): ExifRenamePipelineResult
     {

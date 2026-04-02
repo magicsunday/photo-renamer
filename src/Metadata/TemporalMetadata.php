@@ -75,7 +75,9 @@ final readonly class TemporalMetadata
     }
 
     /**
-     * Returns the capture timestamp, or null when the file contained no date information.
+     * Returns the capture timestamp.
+     *
+     * @return DateTimeInterface|null The capture date and time, or null if missing.
      */
     public function getCaptureDateTime(): ?DateTimeInterface
     {
@@ -83,8 +85,12 @@ final readonly class TemporalMetadata
     }
 
     /**
-     * Returns the raw QuickTime CreateDate atom value (UTC) without Keys:CreationDate
-     * resolution. Returns null for non-QuickTime files or when not populated.
+     * Returns the raw QuickTime CreateDate atom value (UTC).
+     *
+     * This value is returned without Keys:CreationDate resolution. Returns null
+     * for non-QuickTime files or when not populated.
+     *
+     * @return DateTimeInterface|null The raw QuickTime CreateDate.
      */
     public function getRawQuickTimeCreateDate(): ?DateTimeInterface
     {
@@ -92,8 +98,9 @@ final readonly class TemporalMetadata
     }
 
     /**
-     * Returns the raw Apple Live Photo content identifier string, or null when
-     * the file is not part of a Live Photo pair.
+     * Returns the raw Apple Live Photo content identifier string.
+     *
+     * @return string|null The identifier, or null when not part of a Live Photo pair.
      */
     public function getLivePhotoId(): ?string
     {
@@ -101,8 +108,12 @@ final readonly class TemporalMetadata
     }
 
     /**
-     * Returns whether the capture date was derived from the fallback DateTime
-     * tag (0x0132) instead of DateTimeOriginal (0x9003) or CreateDate (0x9004).
+     * Returns whether the capture date was derived from the fallback DateTime tag.
+     *
+     * Fallback tags are 0x0132 (DateTime) instead of 0x9003 (DateTimeOriginal)
+     * or 0x9004 (CreateDate).
+     *
+     * @return bool True if a fallback tag was used.
      */
     public function isFallbackDateTime(): bool
     {
@@ -110,55 +121,112 @@ final readonly class TemporalMetadata
     }
 
     /**
-     * Returns whether the timezone is ambiguous — the file modification time
-     * was altered so we cannot determine if the QuickTime timestamp is UTC
-     * or local time. These files should be flagged as warnings.
+     * Returns whether the timezone is ambiguous.
+     *
+     * A timezone is ambiguous when the file modification time was altered
+     * so we cannot determine if the QuickTime timestamp is UTC or local time.
+     * These files should be flagged as warnings.
+     *
+     * @return bool True if the timezone is ambiguous.
      */
     public function isAmbiguousTimezone(): bool
     {
         return $this->isAmbiguousTimezone;
     }
 
+    /**
+     * Returns the Apple still-side Live Photo index from maker notes.
+     * This index is typically used to identify the representative frame
+     * within the video stream.
+     *
+     * @return int|null Still-side index, or null when not present
+     */
     public function getLivePhotoVideoIndex(): ?int
     {
         return $this->livePhotoVideoIndex;
     }
 
+    /**
+     * Returns the camera manufacturer (e.g. "Apple", "Canon").
+     * Values are normalized to lowercase and trimmed.
+     *
+     * @return string|null Normalized camera make, or null when absent
+     */
     public function getCameraMake(): ?string
     {
         return $this->cameraMake;
     }
 
+    /**
+     * Returns the camera model (e.g. "iPhone 15 Pro", "EOS R6").
+     * Values are normalized to lowercase and trimmed.
+     *
+     * @return string|null Normalized camera model, or null when absent
+     */
     public function getCameraModel(): ?string
     {
         return $this->cameraModel;
     }
 
+    /**
+     * Returns the device software or firmware version string.
+     * Values are normalized to lowercase and trimmed.
+     *
+     * @return string|null Normalized software string, or null when absent
+     */
     public function getSoftware(): ?string
     {
         return $this->software;
     }
 
+    /**
+     * Returns the signed GPS latitude in decimal degrees.
+     * Positive values are North, negative values are South.
+     *
+     * @return float|null GPS latitude, or null when absent
+     */
     public function getLatitude(): ?float
     {
         return $this->latitude;
     }
 
+    /**
+     * Returns the signed GPS longitude in decimal degrees.
+     * Positive values are East, negative values are West.
+     *
+     * @return float|null GPS longitude, or null when absent
+     */
     public function getLongitude(): ?float
     {
         return $this->longitude;
     }
 
+    /**
+     * Returns the video duration in seconds.
+     * Only available for MOV/MP4 assets.
+     *
+     * @return float|null Duration in seconds, or null when absent
+     */
     public function getVideoDurationSeconds(): ?float
     {
         return $this->videoDurationSeconds;
     }
 
+    /**
+     * Returns true when the QuickTime container exposes Live Photo marker
+     * keys such as "still-image-time" or "live-photo-info".
+     */
     public function hasQuickTimeLivePhotoMarker(): bool
     {
         return $this->hasQuickTimeLivePhotoMarker;
     }
 
+    /**
+     * Returns a new instance with the capture date updated.
+     * Used when the original date is missing or needs manual correction.
+     *
+     * @param DateTimeInterface $captureDateTime New capture date
+     */
     public function withCaptureDateTime(DateTimeInterface $captureDateTime): self
     {
         return new self(
@@ -177,6 +245,10 @@ final readonly class TemporalMetadata
         );
     }
 
+    /**
+     * Returns true if the metadata indicates this is a still image of a Live Photo.
+     * Checks for either a Content Identifier (UUID) or a still-side video index.
+     */
     public function hasStillLivePhotoMarker(): bool
     {
         if ($this->normalizeString($this->livePhotoId) !== null) {
@@ -186,6 +258,10 @@ final readonly class TemporalMetadata
         return $this->livePhotoVideoIndex !== null;
     }
 
+    /**
+     * Returns true if the metadata indicates this is the video component of a Live Photo.
+     * Checks for either a Content Identifier (UUID) or specialized QuickTime markers.
+     */
     public function hasVideoLivePhotoMarker(): bool
     {
         if ($this->normalizeString($this->livePhotoId) !== null) {
@@ -195,11 +271,22 @@ final readonly class TemporalMetadata
         return $this->hasQuickTimeLivePhotoMarker;
     }
 
+    /**
+     * Returns the normalized Live Photo content identifier.
+     *
+     * Strips leading/trailing whitespace and converts to lowercase.
+     *
+     * @return string|null Normalized content ID, or null if absent.
+     */
     public function getNormalizedLivePhotoId(): ?string
     {
         return $this->normalizeString($this->livePhotoId);
     }
 
+    /**
+     * Returns true if either the camera make or model is present, allowing
+     * for device-based grouping or similarity scoring.
+     */
     public function hasComparableDeviceIdentity(): bool
     {
         if ($this->normalizeString($this->cameraMake) !== null) {
@@ -213,6 +300,13 @@ final readonly class TemporalMetadata
         return $this->normalizeString($this->software) !== null;
     }
 
+    /**
+     * Returns a combined key of make, model, and software for device identification.
+     *
+     * Used for grouping assets from the same source.
+     *
+     * @return string The combined device key.
+     */
     public function getNormalizedDeviceKey(): string
     {
         return ($this->normalizeString($this->cameraMake) ?? '')
@@ -222,6 +316,9 @@ final readonly class TemporalMetadata
             . ($this->normalizeString($this->software) ?? '');
     }
 
+    /**
+     * Internal helper to normalize strings by trimming and lowercasing.
+     */
     private function normalizeString(?string $value): ?string
     {
         if ($value === null) {

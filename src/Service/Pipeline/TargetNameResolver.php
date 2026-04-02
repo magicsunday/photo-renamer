@@ -430,22 +430,22 @@ final readonly class TargetNameResolver implements TargetNameResolverInterface
         // Priority 1: Idempotent match — source basename equals the expected clean name.
         // Priority 2: Existing duplicate number — items with -duplicate-NNN suffix, sorted by NNN.
         // Priority 3: clusterRank — the stable rank assigned by SubgroupClassifier.
-        usort($items, function (AssetItem $a, AssetItem $b) use ($subgroupMap, $groupKey, $unclassifiedSubgroup): int {
+        usort($items, function (AssetItem $itemA, AssetItem $itemB) use ($subgroupMap, $groupKey, $unclassifiedSubgroup): int {
             // Only reorder within the same cluster
-            if ($a->role === ItemRole::Companion || $b->role === ItemRole::Companion) {
+            if ($itemA->role === ItemRole::Companion || $itemB->role === ItemRole::Companion) {
                 return 0;
             }
 
-            if ($a->role === ItemRole::Canonical || $b->role === ItemRole::Canonical) {
-                if ($a->role === ItemRole::Canonical) {
+            if ($itemA->role === ItemRole::Canonical || $itemB->role === ItemRole::Canonical) {
+                if ($itemA->role === ItemRole::Canonical) {
                     return -1;
                 }
 
                 return 1;
             }
 
-            $aCluster = ($a->clusterId !== null) ? $this->normalizeClusterId($a->clusterId) : null;
-            $bCluster = ($b->clusterId !== null) ? $this->normalizeClusterId($b->clusterId) : null;
+            $aCluster = ($itemA->clusterId !== null) ? $this->normalizeClusterId($itemA->clusterId) : null;
+            $bCluster = ($itemB->clusterId !== null) ? $this->normalizeClusterId($itemB->clusterId) : null;
 
             // Different clusters: preserve order
             if ($aCluster !== $bCluster) {
@@ -458,8 +458,8 @@ final readonly class TargetNameResolver implements TargetNameResolverInterface
 
             // Canonical cluster: sort by existing duplicate number for stability
             if ($subgroup === 0) {
-                $aDupNum = $this->extractDuplicateNumber($a->file);
-                $bDupNum = $this->extractDuplicateNumber($b->file);
+                $aDupNum = $this->extractDuplicateNumber($itemA->file);
+                $bDupNum = $this->extractDuplicateNumber($itemB->file);
 
                 if ($aDupNum !== null && $bDupNum !== null) {
                     return $aDupNum <=> $bDupNum;
@@ -473,14 +473,14 @@ final readonly class TargetNameResolver implements TargetNameResolverInterface
                     return -1;
                 }
 
-                return ($a->clusterRank ?? PHP_INT_MAX) <=> ($b->clusterRank ?? PHP_INT_MAX);
+                return ($itemA->clusterRank ?? PHP_INT_MAX) <=> ($itemB->clusterRank ?? PHP_INT_MAX);
             }
 
             $expectedBasename = sprintf('%s-%03d', $groupKey, $subgroup);
 
             // P1: Idempotent match — source basename equals clean subgroup name
-            $aMatch = FileHelper::basenameWithoutExtension($a->file) === $expectedBasename;
-            $bMatch = FileHelper::basenameWithoutExtension($b->file) === $expectedBasename;
+            $aMatch = FileHelper::basenameWithoutExtension($itemA->file) === $expectedBasename;
+            $bMatch = FileHelper::basenameWithoutExtension($itemB->file) === $expectedBasename;
 
             if ($aMatch && !$bMatch) {
                 return -1;
@@ -491,8 +491,8 @@ final readonly class TargetNameResolver implements TargetNameResolverInterface
             }
 
             // P2: Existing duplicate number — lower number first
-            $aDupNum = $this->extractDuplicateNumber($a->file);
-            $bDupNum = $this->extractDuplicateNumber($b->file);
+            $aDupNum = $this->extractDuplicateNumber($itemA->file);
+            $bDupNum = $this->extractDuplicateNumber($itemB->file);
 
             if ($aDupNum !== null && $bDupNum !== null) {
                 return $aDupNum <=> $bDupNum;
@@ -507,7 +507,7 @@ final readonly class TargetNameResolver implements TargetNameResolverInterface
             }
 
             // P3: clusterRank from SubgroupClassifier
-            return ($a->clusterRank ?? PHP_INT_MAX) <=> ($b->clusterRank ?? PHP_INT_MAX);
+            return ($itemA->clusterRank ?? PHP_INT_MAX) <=> ($itemB->clusterRank ?? PHP_INT_MAX);
         });
 
         /** @var array<string, int> $dirFileCounts */

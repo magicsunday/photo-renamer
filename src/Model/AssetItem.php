@@ -21,10 +21,16 @@ use function substr_count;
 use const DIRECTORY_SEPARATOR;
 
 /**
- * Immutable value object — all mutations return new instances via with*() methods.
- * Trade-off: 6 with*() methods × 11 params = maintenance cost on field addition.
- * Accepted because: pipeline phases get explicit data flow (no hidden mutation),
- * and AssetGroup::replaceItem() makes updates visible at the call site.
+ * Represents a single file within the renaming pipeline. This is an immutable value
+ * object; all state changes return a new instance via with*() methods.
+ *
+ * It carries all information required to decide how the file should be handled:
+ * - Metadata (capture date, camera info, Live Photo IDs)
+ * - Assigned role (is it the 'original' or a duplicate/companion?)
+ * - Proposed target path and why it was chosen (scoring/reasoning)
+ *
+ * Immutability ensures that data flow between pipeline phases remains explicit
+ * and predictable, preventing side effects when sharing items across groups.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -33,18 +39,18 @@ use const DIRECTORY_SEPARATOR;
 final readonly class AssetItem
 {
     /**
-     * @param SplFileInfo            $file              The source file
-     * @param ItemRole               $role              Role within the asset group
-     * @param DuplicateRelation|null $duplicateRelation How this relates to the canonical (null for non-duplicates)
-     * @param TemporalMetadata|null  $metadata          Cached temporal metadata
-     * @param string|null            $contentIdentifier Normalized Live Photo content identifier
-     * @param string|null            $proposedName      Full proposed target pathname
-     * @param bool                   $renameRequired    Whether the file needs renaming
-     * @param int                    $priorityScore     Canonical selection score
-     * @param list<string>           $reasoning         Human-readable scoring breakdown
-     * @param int|null               $sequenceNumber    Duplicate sequence number (1-based)
-     * @param string|null            $clusterId         Subgroup/cluster ID from SubgroupClassifier
-     * @param int|null               $clusterRank       Stable intra-cluster rank from SubgroupClassifier (0-based)
+     * @param SplFileInfo            $file              The source file on disk.
+     * @param ItemRole               $role              Role within the asset group (e.g., Canonical, Duplicate).
+     * @param DuplicateRelation|null $duplicateRelation Relationship to the canonical item (only set for duplicates).
+     * @param TemporalMetadata|null  $metadata          Extracted capture date and associated metadata.
+     * @param string|null            $contentIdentifier Normalized content identifier for Live Photos.
+     * @param string|null            $proposedName      Proposed absolute target pathname for renaming.
+     * @param bool                   $renameRequired    Whether the file actually needs to be moved/renamed.
+     * @param int                    $priorityScore     Score for canonical selection (higher is better).
+     * @param list<string>           $reasoning         List of reasons for the assigned score.
+     * @param int|null               $sequenceNumber    Sequential number for duplicates (1-based).
+     * @param string|null            $clusterId         Subgroup/cluster ID (e.g., burst ID).
+     * @param int|null               $clusterRank       Stable rank within the cluster (0-based).
      */
     public function __construct(
         public SplFileInfo $file,
@@ -65,10 +71,10 @@ final readonly class AssetItem
     /**
      * Returns a new instance with the given role and optional duplicate relation.
      *
-     * @param ItemRole               $role     New role to assign
-     * @param DuplicateRelation|null $relation How this item relates to its canonical (null clears)
+     * @param ItemRole               $role     New role (Canonical, Duplicate, Companion).
+     * @param DuplicateRelation|null $relation Relationship to the canonical item.
      *
-     * @return self New instance with updated role
+     * @return self New instance with updated role/relation.
      */
     public function withRole(ItemRole $role, ?DuplicateRelation $relation = null): self
     {
@@ -89,12 +95,12 @@ final readonly class AssetItem
     }
 
     /**
-     * Returns a new instance with the given metadata and optional content identifier.
+     * Returns a new instance with the given metadata and content identifier.
      *
-     * @param TemporalMetadata|null $metadata          Temporal metadata to attach
-     * @param string|null           $contentIdentifier Normalized Live Photo content identifier
+     * @param TemporalMetadata|null $metadata          Capture date metadata (EXIF or filesystem).
+     * @param string|null           $contentIdentifier Normalized Live Photo content identifier.
      *
-     * @return self New instance with updated metadata
+     * @return self New instance with updated metadata.
      */
     public function withMetadata(?TemporalMetadata $metadata, ?string $contentIdentifier = null): self
     {
@@ -115,12 +121,12 @@ final readonly class AssetItem
     }
 
     /**
-     * Returns a new instance with the given proposed pathname.
-     * Automatically computes renameRequired by comparing with the current file pathname.
+     * Returns a new instance with the proposed target pathname.
+     * Automatically computes renameRequired by comparing the target with the source path.
      *
-     * @param string $pathname Full proposed target pathname
+     * @param string $pathname Absolute target pathname.
      *
-     * @return self New instance with updated proposed name and renameRequired flag
+     * @return self New instance with updated proposed name and rename flag.
      */
     public function withProposedName(string $pathname): self
     {
@@ -142,11 +148,12 @@ final readonly class AssetItem
 
     /**
      * Returns a new instance with the given score and reasoning.
+     * The score determines which file within a group is selected as canonical.
      *
-     * @param int          $score     Canonical selection priority score
-     * @param list<string> $reasoning Human-readable scoring breakdown entries
+     * @param int          $score     Quality score (higher is better).
+     * @param list<string> $reasoning Reasons for this score.
      *
-     * @return self New instance with updated score and reasoning
+     * @return self New instance with updated score/reasoning.
      */
     public function withScore(int $score, array $reasoning): self
     {
@@ -168,10 +175,11 @@ final readonly class AssetItem
 
     /**
      * Returns a new instance with the given sequence number.
+     * Used to differentiate duplicates in the target filename (e.g., "-001").
      *
-     * @param int $number 1-based duplicate sequence number
+     * @param int $number Sequential number (1-based).
      *
-     * @return self New instance with updated sequence number
+     * @return self New instance with updated sequence number.
      */
     public function withSequenceNumber(int $number): self
     {
@@ -194,11 +202,11 @@ final readonly class AssetItem
     /**
      * Returns a new instance with the given cluster ID.
      *
-     * @param string $clusterId Subgroup/cluster ID from SubgroupClassifier
+     * @param string|null $clusterId ID of the cluster (e.g., burst ID).
      *
-     * @return self New instance with updated cluster ID
+     * @return self New instance with updated cluster ID.
      */
-    public function withClusterId(string $clusterId): self
+    public function withClusterId(?string $clusterId): self
     {
         return new self(
             $this->file,
@@ -219,11 +227,11 @@ final readonly class AssetItem
     /**
      * Returns a new instance with the given cluster rank.
      *
-     * @param int $rank 0-based stable intra-cluster rank from SubgroupClassifier
+     * @param int|null $rank Rank within the cluster (0-based).
      *
-     * @return self New instance with updated cluster rank
+     * @return self New instance with updated cluster rank.
      */
-    public function withClusterRank(int $rank): self
+    public function withClusterRank(?int $rank): self
     {
         return new self(
             $this->file,
@@ -242,7 +250,9 @@ final readonly class AssetItem
     }
 
     /**
-     * Returns true when the proposed name is set and matches the current file pathname exactly.
+     * Returns true when the proposed target pathname matches the source pathname exactly.
+     *
+     * @return bool True if path and filename are identical.
      */
     public function matchesProposedNameExactly(): bool
     {
@@ -250,7 +260,10 @@ final readonly class AssetItem
     }
 
     /**
-     * Returns true when the file basename (without extension) matches the date-based naming pattern.
+     * Returns true when the current filename already matches the target naming pattern.
+     * Uses a regex-based heuristic.
+     *
+     * @return bool True if the pattern was recognized.
      */
     public function matchesNamingPattern(): bool
     {
@@ -258,7 +271,9 @@ final readonly class AssetItem
     }
 
     /**
-     * Returns the lowercase file extension.
+     * Returns the file extension in lowercase.
+     *
+     * @return string File extension (e.g., "jpg").
      */
     public function extension(): string
     {
@@ -266,7 +281,10 @@ final readonly class AssetItem
     }
 
     /**
-     * Returns the directory depth (count of directory separators in the file path).
+     * Returns the directory depth of the file path.
+     * Used to prefer shallower hierarchies when selecting the canonical item.
+     *
+     * @return int Number of directories in the path.
      */
     public function dirDepth(): int
     {

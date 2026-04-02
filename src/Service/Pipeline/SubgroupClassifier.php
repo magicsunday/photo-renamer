@@ -195,10 +195,20 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
             // Assign clusterIds directly from hash-based cluster membership (Regel 1:
             // cluster formation is filename-free). The cluster map keys are source
             // pathnames, values are merged hash group root keys.
-            /** @var array<string, array{clusterId: string, clusterRank: int}> $clusterIdAssignments */
+            /**
+             * Temporary map for cluster assignments, ensuring atomic updates to the
+             * items in the AssetGroup only after all items have been successfully
+             * categorized.
+             *
+             * @var array<string, array{clusterId: string, clusterRank: int}>
+             */
             $clusterIdAssignments = [];
 
-            /** @var array<string, int> $clusterRankCounters */
+            /**
+             * Counters for assigning stable numeric ranks within each detected cluster.
+             *
+             * @var array<string, int>
+             */
             $clusterRankCounters = [];
 
             foreach ($group->getItems() as $item) {

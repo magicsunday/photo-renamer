@@ -18,7 +18,9 @@ use MagicSunday\Renamer\Model\Collection\FileList;
 use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\LinkConfig;
+use MagicSunday\Renamer\Model\OutputEntry;
 use MagicSunday\Renamer\Model\OutputEntryTag;
+use MagicSunday\Renamer\Model\OutputEntryType;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
@@ -73,7 +75,9 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(FileList::class)]
 #[UsesClass(RenameList::class)]
 #[UsesClass(LinkConfig::class)]
+#[UsesClass(OutputEntry::class)]
 #[UsesClass(OutputEntryTag::class)]
+#[UsesClass(OutputEntryType::class)]
 final class FileSystemServiceTest extends TestCase
 {
     use WorkspaceTrait;

@@ -127,15 +127,15 @@ final class StubPerceptualHashCalculator implements PerceptualHashCalculatorInte
         return $decoded !== false ? $decoded : null;
     }
 
-    private function bitcount(int $v): int
+    private function bitcount(int $value): int
     {
-        $c = 0;
+        $count = 0;
 
-        while ($v !== 0) {
-            $v &= $v - 1;
-            ++$c;
+        while ($value !== 0) {
+            $value &= $value - 1;
+            ++$count;
         }
 
-        return $c;
+        return $count;
     }
 }

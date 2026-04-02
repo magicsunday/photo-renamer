@@ -88,7 +88,7 @@ final class PipelineContext
     private int $namingCollisions = 0;
 
     /**
-     * @param string $sourceDirectory Absolute path to the directory being processed
+     * @param string $sourceDirectory Canonical absolute path to the directory being processed.
      */
     public function __construct(
         public readonly string $sourceDirectory,
@@ -100,9 +100,10 @@ final class PipelineContext
     // -------------------------------------------------------------------------
 
     /**
-     * Marks a target pathname as occupied so the assign phase can avoid it.
+     * Marks a target pathname as occupied so the assign phase can avoid it
+     * or generate a suffix if needed to prevent naming collisions.
      *
-     * @param string $pathname Absolute target path to reserve
+     * @param string $pathname Absolute target path to reserve.
      */
     public function markOccupied(string $pathname): void
     {
@@ -112,7 +113,9 @@ final class PipelineContext
     /**
      * Returns true when the pathname has been marked occupied.
      *
-     * @param string $pathname Absolute target path to check
+     * @param string $pathname Absolute target path to check.
+     *
+     * @return bool True if the path is already reserved.
      */
     public function isOccupied(string $pathname): bool
     {
@@ -124,9 +127,10 @@ final class PipelineContext
     // -------------------------------------------------------------------------
 
     /**
-     * Records a pathname as having used the DateTime (0x0132) fallback date.
+     * Records a pathname as having used the DateTime (0x0132) fallback date
+     * because the primary DateTimeOriginal tag was absent.
      *
-     * @param string $pathname Absolute path of the affected file
+     * @param string $pathname Absolute path of the affected file.
      */
     public function addFallbackDateFile(string $pathname): void
     {
@@ -134,9 +138,10 @@ final class PipelineContext
     }
 
     /**
-     * Records a pathname as having an ambiguous timezone.
+     * Records a pathname as having an ambiguous timezone (e.g. UTC recorded
+     * by a camera that stores local time as UTC without offset information).
      *
-     * @param string $pathname Absolute path of the affected file
+     * @param string $pathname Absolute path of the affected file.
      */
     public function addAmbiguousTimezoneFile(string $pathname): void
     {
@@ -144,9 +149,10 @@ final class PipelineContext
     }
 
     /**
-     * Records a pathname as having a Live Photo content-identifier conflict.
+     * Records a pathname as having a Live Photo content-identifier conflict
+     * during the pairing phase.
      *
-     * @param string $pathname Absolute path of the affected file
+     * @param string $pathname Absolute path of the affected file.
      */
     public function addLivePhotoConflictFile(string $pathname): void
     {
@@ -156,8 +162,8 @@ final class PipelineContext
     /**
      * Records a Live Photo pair where canonical and companion are in different directories.
      *
-     * @param string $canonicalPath Absolute path of the canonical item
-     * @param string $companionPath Absolute path of the companion item
+     * @param string $canonicalPath Absolute path of the canonical item.
+     * @param string $companionPath Absolute path of the companion item.
      */
     public function addCrossDirectoryCompanion(string $canonicalPath, string $companionPath): void
     {
@@ -167,7 +173,7 @@ final class PipelineContext
     /**
      * Records a file that was skipped during the grouping phase.
      *
-     * @param SkippedFile $skippedFile Skipped file entry with reason
+     * @param SkippedFile $skippedFile Skipped file entry including the reason.
      */
     public function addSkippedFile(SkippedFile $skippedFile): void
     {
@@ -175,9 +181,9 @@ final class PipelineContext
     }
 
     /**
-     * Returns pathnames recorded as fallback-date files.
+     * Returns pathnames recorded as having capture date sourced from a fallback.
      *
-     * @return array<string, true>
+     * @return array<string, true> Map of pathnames (path as key for O(1) access).
      */
     public function getFallbackDateFiles(): array
     {
@@ -187,7 +193,7 @@ final class PipelineContext
     /**
      * Returns pathnames recorded as having an ambiguous timezone.
      *
-     * @return array<string, true>
+     * @return array<string, true> Map of pathnames with ambiguous timezone.
      */
     public function getAmbiguousTimezoneFiles(): array
     {
@@ -195,9 +201,9 @@ final class PipelineContext
     }
 
     /**
-     * Returns pathnames recorded as having a Live Photo content-identifier conflict.
+     * Returns pathnames recorded as having Live Photo content-identifier conflicts.
      *
-     * @return array<string, true>
+     * @return array<string, true> Map of pathnames with ID conflicts.
      */
     public function getLivePhotoConflictFiles(): array
     {
@@ -205,9 +211,9 @@ final class PipelineContext
     }
 
     /**
-     * Returns Live Photo pairs where canonical and companion are in different directories.
+     * Returns Live Photo pairs where files are located in different directories.
      *
-     * @return list<array{string, string}>
+     * @return list<array{string, string}> List of pairs [canonical path, companion path].
      */
     public function getCrossDirectoryCompanions(): array
     {
@@ -215,9 +221,9 @@ final class PipelineContext
     }
 
     /**
-     * Returns files skipped during the grouping phase.
+     * Returns the list of files skipped during the grouping phase.
      *
-     * @return list<SkippedFile>
+     * @return list<SkippedFile> List of skipped files.
      */
     public function getSkippedFiles(): array
     {
@@ -231,7 +237,7 @@ final class PipelineContext
     /**
      * Sets the total number of files discovered during the scan phase.
      *
-     * @param int $count Total file count
+     * @param int $count Total file count.
      */
     public function setScannedFileCount(int $count): void
     {
@@ -240,6 +246,8 @@ final class PipelineContext
 
     /**
      * Returns the total number of files discovered during the scan phase.
+     *
+     * @return int Total scanned file count.
      */
     public function getScannedFileCount(): int
     {
@@ -247,7 +255,7 @@ final class PipelineContext
     }
 
     /**
-     * Increments the naming-collision counter by one.
+     * Increments the count of resolved naming collisions.
      */
     public function incrementNamingCollisions(): void
     {
@@ -256,6 +264,8 @@ final class PipelineContext
 
     /**
      * Returns the count of naming collisions resolved so far.
+     *
+     * @return int Total number of collisions.
      */
     public function getNamingCollisions(): int
     {
@@ -268,7 +278,9 @@ final class PipelineContext
 
     /**
      * Converts the accumulated mutable state into an immutable RenameResult
-     * ready for the execution phase.
+     * for the final execution phase.
+     *
+     * @return RenameResult The analysis result.
      */
     public function toRenameResult(): RenameResult
     {

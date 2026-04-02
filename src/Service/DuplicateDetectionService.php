@@ -168,9 +168,10 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
     private array $livePhotoConflictFiles = [];
 
     /**
-     * @param SymfonyStyle                    $io                     Console IO for progress bars and error output
-     * @param HashSubGroupingServiceInterface $hashSubGroupingService Service for content-hash-based sub-grouping
-     * @param MediaTypeClassifierInterface    $mediaTypeClassifier    Classifies files by media type (still vs. video)
+     * @param SymfonyStyle                            $io                        Symfony Style IO for progress indicators and error output.
+     * @param HashSubGroupingServiceInterface         $hashSubGroupingService    Service for content-based sub-grouping (deduplication).
+     * @param MediaTypeClassifierInterface            $mediaTypeClassifier       Classifier for media types (Photo vs. Video).
+     * @param LivePhotoConflictDetectorInterface|null $livePhotoConflictDetector Detector for ID conflicts in Live Photos.
      */
     public function __construct(
         private readonly SymfonyStyle $io,
@@ -251,16 +252,20 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
     }
 
     /**
-     * Creates a collection of duplicates. Files with the same unique identifier are grouped together.
+     * Groups files based on a unique identifier (e.g., capture date).
+     *
+     * This grouping is the foundation for duplicate detection. Files that
+     * generate the same grouping key (duplicate identifier) are collected
+     * into a {@see FileDuplicate} group.
      *
      * @template TInner of RecursiveIterator
      *
-     * @param RecursiveIteratorIterator<TInner>    $iterator                    iterator yielding candidate files
-     * @param RenameStrategyInterface              $renameStrategy              strategy used to generate target filenames
-     * @param DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy strategy that identifies duplicate groups
-     * @param string                               $sourceDirectory             absolute path to the source directory
+     * @param RecursiveIteratorIterator<TInner>    $iterator                    Iterator over the source files.
+     * @param RenameStrategyInterface              $renameStrategy              Strategy for generating target filenames.
+     * @param DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy Strategy for determining the grouping keys.
+     * @param string                               $sourceDirectory             Absolute path to the source directory.
      *
-     * @return FileDuplicateCollection collection describing discovered duplicate groups
+     * @return FileDuplicateCollection Collection of identified duplicate groups.
      */
     #[Override]
     #[Deprecated(message: <<<'TXT'
@@ -289,7 +294,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
          *     pendingFiles: list<SplFileInfo>,
          *     target: SplFileInfo|null,
          *     captureDate: string|null
-         * }> $contentIdentifierCache
+         * }> Map for coordinating Live Photo still/video pairing during the first pass.
          */
         $contentIdentifierCache = [];
 
@@ -539,17 +544,22 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
     }
 
     /**
-     * Creates consecutive filenames for duplicate files in the supplied collection.
+     * Generates unique target filenames for all files in the collection.
      *
-     * NOTE: {@see groupFilesByDuplicateIdentifier()} must be called first to populate
-     * {@see $contentIdentifierMap}, which is required for Live Photo companion detection.
+     * This method assigns a final path to each file within a group. It ensures that:
+     * 1. Canonical files (the "main file" of a group) keep or receive their target name.
+     * 2. Real duplicates receive a sequential suffix (e.g., -duplicate-001).
+     * 3. Live Photo partners (video + photo) share the same base path.
+     * 4. Files with identical content (same hash) are grouped into subgroups.
      *
-     * @param FileDuplicateCollection $fileDuplicateCollection    collection whose entries should receive duplicate filenames
-     * @param string                  $sourceDirectory            absolute path to the source directory
-     * @param bool                    $useFileExtensionFromSource when true, source extension is retained
-     * @param bool                    $skipHashSubGrouping        when true, content-hash sub-grouping is skipped entirely
+     * NOTE: {@see groupFilesByDuplicateIdentifier()} must have been called beforehand.
      *
-     * @return FileDuplicateCollection updated collection with rename operations populated
+     * @param FileDuplicateCollection $fileDuplicateCollection    The collection to process.
+     * @param string                  $sourceDirectory            Base directory for relative paths.
+     * @param bool                    $useFileExtensionFromSource Whether to keep the original file extension.
+     * @param bool                    $skipHashSubGrouping        Whether to skip content-based sub-grouping.
+     *
+     * @return FileDuplicateCollection Updated collection with assigned renames.
      */
     #[Override]
     #[Deprecated(message: <<<'TXT'
@@ -891,13 +901,13 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
             $files[] = $fileInfo;
         }
 
-        usort($files, static function (SplFileInfo $a, SplFileInfo $b): int {
-            $depthA = substr_count($a->getPath(), DIRECTORY_SEPARATOR);
-            $depthB = substr_count($b->getPath(), DIRECTORY_SEPARATOR);
+        usort($files, static function (SplFileInfo $fileA, SplFileInfo $fileB): int {
+            $depthA = substr_count($fileA->getPath(), DIRECTORY_SEPARATOR);
+            $depthB = substr_count($fileB->getPath(), DIRECTORY_SEPARATOR);
 
             return ($depthA !== $depthB)
                 ? $depthA <=> $depthB
-                : $a->getPathname() <=> $b->getPathname();
+                : $fileA->getPathname() <=> $fileB->getPathname();
         });
 
         return $files;

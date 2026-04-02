@@ -23,13 +23,23 @@ use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\MetadataExtractor;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
+use MagicSunday\Renamer\Model\AssetGroup;
+use MagicSunday\Renamer\Model\AssetItem;
 use MagicSunday\Renamer\Model\Collection\AbstractCollection;
+use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\Collection\FileList;
 use MagicSunday\Renamer\Model\Collection\RenameList;
+use MagicSunday\Renamer\Model\Execution\ExecutionGroup;
+use MagicSunday\Renamer\Model\Execution\ExecutionItem;
+use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
+use MagicSunday\Renamer\Model\Execution\ExecutionPreview;
+use MagicSunday\Renamer\Model\Execution\ExecutionResult;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\LinkConfig;
+use MagicSunday\Renamer\Model\OutputEntry;
 use MagicSunday\Renamer\Model\OutputEntryTag;
+use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
@@ -71,6 +81,7 @@ use MagicSunday\Renamer\Service\Pipeline\TargetNameResolver;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\RenamePlanValidator;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
+use MagicSunday\Renamer\Service\ValidationResult;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use MagicSunday\Renamer\Test\Fixtures\ConsoleOutputParserTrait;
@@ -98,6 +109,17 @@ use function copy;
  */
 #[CoversClass(WriteDateCommand::class)]
 #[CoversClass(RenameByExifDateCommand::class)]
+#[UsesClass(AssetGroup::class)]
+#[UsesClass(AssetItem::class)]
+#[UsesClass(AssetGroupCollection::class)]
+#[UsesClass(ExecutionGroup::class)]
+#[UsesClass(ExecutionItem::class)]
+#[UsesClass(ExecutionPlan::class)]
+#[UsesClass(ExecutionPreview::class)]
+#[UsesClass(ExecutionResult::class)]
+#[UsesClass(OutputEntry::class)]
+#[UsesClass(PipelineContext::class)]
+#[UsesClass(ValidationResult::class)]
 #[UsesClass(RecursiveRegexFileFilterIterator::class)]
 #[UsesClass(ExifMetadataReadException::class)]
 #[UsesClass(HashComputationException::class)]
@@ -125,6 +147,7 @@ use function copy;
 #[UsesClass(FileSystemService::class)]
 #[UsesClass(HashSubGroupingService::class)]
 #[UsesClass(LivePhotoBasenameTargetMap::class)]
+#[UsesClass(LivePhotoPairingService::class)]
 #[UsesClass(LivePhotoConflictDetector::class)]
 #[UsesClass(LivePhotoContentIdentifierTarget::class)]
 #[UsesClass(LivePhotoContentIdentifierTargetMap::class)]
@@ -167,11 +190,9 @@ final class WriteDateFlowTest extends TestCase
     }
 
     /**
-     * Scenario 37: write-date timezone flow.
-     * MOV with ambiguous TZ → first rename to UTC-based name → then write-date
-     * fixes the timezone → final rename:exif produces [R] with corrected time.
-     *
-     * Real workflow: rename:exif (accepts UTC) → write-date --reason=timezone → rename:exif again.
+     * Scenario 37: Correction of ambiguous timezones in videos.
+     * Ensures that after writing the correct EXIF tags, the file is no longer
+     * recognized as ambiguous in the next run.
      */
     #[Test]
     public function scenario37WriteDateTimezoneFlowFixesAmbiguousTz(): void
@@ -224,9 +245,9 @@ final class WriteDateFlowTest extends TestCase
     }
 
     /**
-     * Scenario 38: write-date nodata flow.
-     * File named with date but no metadata → write-date --reason=nodata
-     * → rename:exif should now produce [O] (metadata matches filename).
+     * Scenario 38: Writing metadata to files without EXIF headers.
+     * Verifies that a timestamp from the filename is successfully written
+     * into the file.
      */
     #[Test]
     public function scenario38WriteDateNodataFlowWritesMetadata(): void
@@ -273,9 +294,9 @@ final class WriteDateFlowTest extends TestCase
     }
 
     /**
-     * Scenario 41: Cache invalidation.
-     * After write-date modifies metadata, the metadata cache must not serve stale data.
-     * Verifies: fresh ExifMetadataProvider after write-date reads updated metadata.
+     * Scenario 41: Validation of cache invalidation after writing.
+     * Ensures that the metadata cache is cleared when the file on disk
+     * changes, so that subsequent commands read current data.
      */
     #[Test]
     public function scenario41CacheInvalidationAfterWriteDate(): void
@@ -319,7 +340,9 @@ final class WriteDateFlowTest extends TestCase
     }
 
     /**
-     * Runs rename:exif in dry-run mode and returns tag assignments.
+     * Helper method to execute the `rename:exif` command and collect tag assignments.
+     *
+     * @param string $workspace The path to the test workspace
      *
      * @return array<string, string> source filename => tag letter
      */

@@ -360,6 +360,16 @@ powershell -ExecutionPolicy Bypass -File \\YOUR-NAS-IP\docker\renamer\scripts\wi
 | "Handler: Microsoft.PowerShell.Core\FileSystem::..." | Old install script | Update to latest version and re-run install |
 | Links open photo viewer instead of Explorer | `FILE_LINK_PROTOCOL` not set | Set `FILE_LINK_PROTOCOL=photo-select` in `.env` |
 
+### Documentation
+
+This project follows strict documentation standards. Every class and method must have a DocBlock.
+- **Classes:** Purpose, high-level responsibility, and architecture.
+- **Methods:** Detailed description, including why certain logic was chosen.
+- **Parameters:** All parameters must be documented with `@param`.
+- **Tests:** Every test must describe exactly what scenario is being tested. No "Standard-Blah-Blah".
+
+See `AGENTS.md` and `CLAUDE.md` for more details.
+
 ## 🛠️ Development
 
 Prerequisites: Docker.

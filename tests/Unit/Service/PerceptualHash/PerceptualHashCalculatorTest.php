@@ -59,6 +59,10 @@ final class PerceptualHashCalculatorTest extends TestCase
         return new PerceptualHashCalculator(new ImagickImageLoader(new MediaTypeClassifier()));
     }
 
+    /**
+     * Verifies that two identical images produce a 100% similarity score
+     * and are classified as likely duplicates.
+     */
     #[Test]
     public function similarityScoreReturnsValidResultForIdenticalImages(): void
     {
@@ -73,6 +77,10 @@ final class PerceptualHashCalculatorTest extends TestCase
         self::assertSame(0, $result->dhashDistance);
     }
 
+    /**
+     * Verifies that a comparison involving a non-existent file returns a
+     * classification of "Different" and reports no duplicate likelihood.
+     */
     #[Test]
     public function similarityScoreReturnsDifferentForNonExistentFile(): void
     {
@@ -88,6 +96,10 @@ final class PerceptualHashCalculatorTest extends TestCase
         self::assertSame(SimilarityClassification::Different, $result->classification);
     }
 
+    /**
+     * Verifies that clearing the internal hash cache allows re-computation
+     * of scores without affecting the result accuracy.
+     */
     #[Test]
     public function clearCacheResetsState(): void
     {
@@ -102,6 +114,10 @@ final class PerceptualHashCalculatorTest extends TestCase
         self::assertSame($result1->score, $result2->score, 'Same files should produce same score after cache clear');
     }
 
+    /**
+     * Verifies that perceptual hashing also works for video files by extracting
+     * and comparing frames at specific timestamps.
+     */
     #[Test]
     public function similarityScoreWorksForVideo(): void
     {
@@ -125,6 +141,11 @@ final class PerceptualHashCalculatorTest extends TestCase
         self::assertTrue($result->isDuplicateLikely());
     }
 
+    /**
+     * Verifies that two files containing the same image but different EXIF metadata
+     * (e.g. different Software tag) still result in a very high similarity score.
+     * This confirms that perceptual hashing ignores non-visual metadata.
+     */
     #[Test]
     public function sameImageWithDifferentExifProducesHighScore(): void
     {

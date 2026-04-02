@@ -219,11 +219,11 @@ final readonly class CompanionDetector implements CompanionDetectorInterface
     /**
      * Stable tie-breaker comparison: clusterRank (lower wins), then shorter pathname, then lexicographic.
      */
-    private function compareTieBreaker(AssetItem $a, AssetItem $b): int
+    private function compareTieBreaker(AssetItem $itemA, AssetItem $itemB): int
     {
         // clusterRank: lower wins (null sorts after non-null)
-        $aRank = $a->clusterRank;
-        $bRank = $b->clusterRank;
+        $aRank = $itemA->clusterRank;
+        $bRank = $itemB->clusterRank;
 
         if ($aRank !== null && $bRank !== null) {
             if ($aRank !== $bRank) {
@@ -236,8 +236,8 @@ final readonly class CompanionDetector implements CompanionDetectorInterface
         }
 
         // Shorter pathname wins
-        $aPath  = $a->file->getPathname();
-        $bPath  = $b->file->getPathname();
+        $aPath  = $itemA->file->getPathname();
+        $bPath  = $itemB->file->getPathname();
         $lenCmp = strlen($aPath) <=> strlen($bPath);
 
         if ($lenCmp !== 0) {

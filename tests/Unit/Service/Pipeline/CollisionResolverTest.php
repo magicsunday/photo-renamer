@@ -42,7 +42,8 @@ use SplFileInfo;
 final class CollisionResolverTest extends TestCase
 {
     /**
-     * Free target is accepted as-is: proposedName unchanged, marked occupied.
+     * Ensures that a proposed target name is accepted without changes
+     * if the path is neither occupied by other items nor exists on disk.
      */
     #[Test]
     public function freeTargetIsAcceptedAsIs(): void
@@ -66,7 +67,8 @@ final class CollisionResolverTest extends TestCase
     }
 
     /**
-     * Occupied target gets incremented suffix: -duplicate-001.
+     * Verifies that a numeric suffix (e.g., "-duplicate-001") is appended
+     * when the target path is already occupied by another item.
      */
     #[Test]
     public function occupiedTargetGetsIncrementedSuffix(): void
@@ -93,7 +95,8 @@ final class CollisionResolverTest extends TestCase
     }
 
     /**
-     * Multiple collisions increment correctly: -duplicate-001, -duplicate-002.
+     * Ensures that the duplicate suffix is correctly incremented (e.g., "-001", "-002")
+     * until a free name is found.
      */
     #[Test]
     public function multipleCollisionsIncrementCorrectly(): void
@@ -120,7 +123,8 @@ final class CollisionResolverTest extends TestCase
     }
 
     /**
-     * No-op file (source === proposed) is marked occupied but proposedName unchanged.
+     * Verifies that files already having the correct name (No-Op) mark their path
+     * as occupied without receiving an additional suffix.
      */
     #[Test]
     public function noOpFileMarkedOccupiedButUnchanged(): void
@@ -147,7 +151,8 @@ final class CollisionResolverTest extends TestCase
     }
 
     /**
-     * Existing disk file blocks target: PipelineContext pre-populated causes collision.
+     * Verifies that a file physically present on disk (that is not part of
+     * the current renaming process) is recognized as a collision.
      */
     #[Test]
     public function existingDiskFileBlocksTarget(): void
@@ -173,7 +178,8 @@ final class CollisionResolverTest extends TestCase
     }
 
     /**
-     * Cross-group collision detected: group A occupies target, group B item gets suffix.
+     * Verifies that collisions are also detected and resolved across
+     * different asset groups using suffixes.
      */
     #[Test]
     public function crossGroupCollisionDetected(): void
@@ -202,7 +208,8 @@ final class CollisionResolverTest extends TestCase
     }
 
     /**
-     * Naming collision counter is incremented for each collision resolved.
+     * Ensures that the naming collision counter in the PipelineContext is correctly
+     * incremented for each resolved collision.
      */
     #[Test]
     public function namingCollisionCounterIncremented(): void
@@ -226,8 +233,8 @@ final class CollisionResolverTest extends TestCase
     }
 
     /**
-     * Idempotent suffixed file stays unchanged: file already named -duplicate-001
-     * and that candidate matches source path, so no rename needed.
+     * Checks idempotency: a file that already carries a correct duplicate suffix
+     * should not receive another suffix in a subsequent run.
      */
     #[Test]
     public function idempotentSuffixedFileStaysUnchanged(): void
@@ -259,7 +266,7 @@ final class CollisionResolverTest extends TestCase
     }
 
     /**
-     * Items with null proposedName are skipped entirely.
+     * Verifies that items without a proposed target name (null) are skipped.
      */
     #[Test]
     public function nullProposedNameIsSkipped(): void
@@ -282,9 +289,8 @@ final class CollisionResolverTest extends TestCase
     }
 
     /**
-     * Group source paths are reclaimable, not collisions: when A.jpg targets
-     * B.jpg and B.jpg is a source within the same group, the target should
-     * NOT receive a -duplicate- suffix because B.jpg will be renamed away.
+     * Ensures that the original source path of an asset is not considered a collision
+     * for its own target (self-collision) within the same group.
      */
     #[Test]
     public function groupSourcePathsAreReclaimableNotCollisions(): void

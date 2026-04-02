@@ -47,12 +47,26 @@ final class RenameLowerCaseCommand extends AbstractRenameCommand
             );
     }
 
+    /**
+     * Returns the target filename strategy.
+     *
+     * Uses the LowerCaseFilenameStrategy to convert filenames to lowercase.
+     *
+     * @return RenameStrategyInterface The rename strategy
+     */
     #[Override]
     protected function getTargetFilenameStrategy(): RenameStrategyInterface
     {
         return $this->renameStrategy ??= new LowerCaseFilenameStrategy();
     }
 
+    /**
+     * Returns the duplicate identifier strategy.
+     *
+     * Uses the TargetPathnameStrategy to group files by their full target path.
+     *
+     * @return DuplicateIdentifierStrategyInterface The duplicate identifier strategy
+     */
     #[Override]
     protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
     {

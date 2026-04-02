@@ -43,7 +43,9 @@ final readonly class ExecutionGroup
     }
 
     /**
-     * Returns the number of items in this group.
+     * Returns the number of individual items contained in this group.
+     *
+     * @return int<0, max>
      */
     public function itemCount(): int
     {
@@ -51,9 +53,13 @@ final readonly class ExecutionGroup
     }
 
     /**
-     * Returns items filtered by the given execution item type.
+     * Returns items filtered by their execution role. Useful for rendering
+     * groups with specific layout requirements (e.g., showing the canonical
+     * item first, then companions).
      *
-     * @return list<ExecutionItem>
+     * @param ExecutionItemType $type The role to filter for.
+     *
+     * @return list<ExecutionItem> A filtered list of execution items.
      */
     public function getItemsByType(ExecutionItemType $type): array
     {

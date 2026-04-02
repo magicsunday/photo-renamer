@@ -36,12 +36,9 @@ use PHPUnit\Framework\TestCase;
 final class DatePlaceholderExpressionMapTest extends TestCase
 {
     /**
-     * Verifies that all standard date placeholders ({Y}, {m}, {d}) in a pattern
-     * are replaced with the correct regex capture groups while preserving literal
-     * characters like the dash separators and anchors.
-     *
-     * A failure would mean the date-pattern command cannot extract year, month,
-     * or day from filenames that follow the configured naming convention.
+     * Verifies that known placeholders ({Y}, {m}, {d}) in the pattern are
+     * correctly replaced by the corresponding regex capture groups.
+     * This forms the basis for extracting date components from filenames.
      */
     #[Test]
     public function itReplacesKnownPlaceholders(): void
@@ -54,13 +51,9 @@ final class DatePlaceholderExpressionMapTest extends TestCase
     }
 
     /**
-     * Verifies that placeholders not present in the default map (e.g. {X}) are
-     * left as literal text in the output, while recognised placeholders next to
-     * them are still substituted correctly.
-     *
-     * This is important for forward compatibility: if a user includes a future
-     * or custom placeholder, it must not corrupt the regex of the surrounding
-     * recognised tokens.
+     * Ensures that unknown placeholders (e.g., {X}) in the pattern remain
+     * unchanged as literals, while known placeholders next to them continue
+     * to be correctly replaced.
      */
     #[Test]
     public function itKeepsUnknownPlaceholdersUntouched(): void

@@ -12,9 +12,12 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Model;
 
 /**
- * Immutable value object carrying pipeline-computed results for a single
- * rename execution. Created after the scan/group/assign phases and passed
- * alongside {@see RenameOptions} to the file system service for summary output.
+ * Represents the final state and statistics of a complete renaming operation.
+ *
+ * This immutable value object aggregates all relevant metadata, statistics,
+ * and edge-case detections from the entire renaming pipeline (scanning,
+ * grouping, and classification phases). It is primarily used to provide
+ * a comprehensive summary to the user at the end of an execution.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -23,14 +26,13 @@ namespace MagicSunday\Renamer\Model;
 final readonly class RenameResult
 {
     /**
-     * @param int                         $scannedFiles             Total number of files discovered during the scan phase
-     * @param int                         $namingCollisions         Count of target filename collisions resolved by the safe-rename fallback
-     * @param list<SkippedFile>           $skippedFiles             Files skipped because the rename strategy produced no target filename
-     * @param array<string, true>         $fallbackDateFiles        Pathnames of files using the DateTime (0x0132) fallback
-     * @param array<string, true>         $ambiguousTimezoneFiles   Pathnames of files with ambiguous timezone (UTC vs local)
-     * @param array<string, true>         $livePhotoConflictFiles   Pathnames of files that look like a Live Photo pair by heuristic
-     *                                                              but carry conflicting non-null content identifiers
-     * @param list<array{string, string}> $crossDirectoryCompanions Live Photo pairs in different directories [canonical, companion]
+     * @param int                         $scannedFiles             The total number of files discovered during the initial scan phase.
+     * @param int                         $namingCollisions         The number of target filename collisions that had to be resolved.
+     * @param list<SkippedFile>           $skippedFiles             The list of files that were skipped during the process (e.g., due to errors or missing metadata).
+     * @param array<string, true>         $fallbackDateFiles        A map (pathname => true) of files where the capture date was retrieved from a fallback metadata field.
+     * @param array<string, true>         $ambiguousTimezoneFiles   A map (pathname => true) of files with ambiguous timezone data (e.g., UTC vs. local time).
+     * @param array<string, true>         $livePhotoConflictFiles   A map (pathname => true) of files identified as potential Live Photo pairs that have conflicting content identifiers.
+     * @param list<array{string, string}> $crossDirectoryCompanions A list of Live Photo pairs where canonical and companion are located in different directories.
      */
     public function __construct(
         public int $scannedFiles = 0,

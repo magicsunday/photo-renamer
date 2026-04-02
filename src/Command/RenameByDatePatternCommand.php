@@ -48,6 +48,13 @@ final class RenameByDatePatternCommand extends AbstractRenameCommand
 
     private ?DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy = null;
 
+    /**
+     * Constructor.
+     *
+     * @param FileSystemServiceInterface         $fileSystemService         Service to handle file system operations
+     * @param DuplicateDetectionServiceInterface $duplicateDetectionService Service to handle grouping and duplicate resolution
+     * @param SafeRegex                          $safeRegex                 Service to execute regular expressions safely
+     */
     public function __construct(
         FileSystemServiceInterface $fileSystemService,
         DuplicateDetectionServiceInterface $duplicateDetectionService,
@@ -89,6 +96,14 @@ final class RenameByDatePatternCommand extends AbstractRenameCommand
             );
     }
 
+    /**
+     * Executes the command logic.
+     *
+     * Initializes the pattern regex and replacement template from CLI options
+     * before delegating to the parent rename pipeline.
+     *
+     * @return int The exit code (0 for success, non-zero for failure).
+     */
     #[Override]
     protected function executeCommand(): int
     {
@@ -118,6 +133,10 @@ final class RenameByDatePatternCommand extends AbstractRenameCommand
     }
 
     /**
+     * Creates the file iterator.
+     *
+     * Uses a regex filter based on the date-placeholder pattern to select files.
+     *
      * @return RecursiveIteratorIterator<RecursiveIterator<string, SplFileInfo>>
      */
     #[Override]
@@ -140,6 +159,14 @@ final class RenameByDatePatternCommand extends AbstractRenameCommand
             );
     }
 
+    /**
+     * Returns the target filename strategy.
+     *
+     * Uses the DatePatternFilenameStrategy to extract date components
+     * from filenames and reformat them.
+     *
+     * @return RenameStrategyInterface The rename strategy
+     */
     #[Override]
     protected function getTargetFilenameStrategy(): RenameStrategyInterface
     {
@@ -155,6 +182,13 @@ final class RenameByDatePatternCommand extends AbstractRenameCommand
         );
     }
 
+    /**
+     * Returns the duplicate identifier strategy.
+     *
+     * Uses the TargetPathnameStrategy to group files by their full target path.
+     *
+     * @return DuplicateIdentifierStrategyInterface The duplicate identifier strategy
+     */
     #[Override]
     protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
     {

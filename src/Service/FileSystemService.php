@@ -129,10 +129,14 @@ final readonly class FileSystemService implements FileSystemServiceInterface
     /**
      * Renames or copies files represented by the provided duplicate collection.
      *
-     * @param FileDuplicateCollection $fileDuplicateCollection Collection describing source/target file pairs grouped by duplicate identifier
-     * @param RenameOptions           $options                 Options controlling the rename operation
-     * @param RenameResult            $result                  Pipeline-computed results (scanned files, collisions, skips)
-     * @param list<string>|null       $showFilter              When set, only output entries matching these tags are shown
+     * This is the main entry point for the "legacy" rename flow (not using
+     * the ExecutionPlan). It handles building output entries, rendering
+     * progress, and performing the actual move operations.
+     *
+     * @param FileDuplicateCollection $fileDuplicateCollection The collection of planned renames.
+     * @param RenameOptions           $options                 Configuration for the rename run.
+     * @param RenameResult            $result                  Aggregate results from the pipeline.
+     * @param list<string>|null       $showFilter              Optional tag filter for console output.
      */
     #[Override]
     public function renameFiles(
@@ -168,14 +172,16 @@ final readonly class FileSystemService implements FileSystemServiceInterface
     }
 
     /**
-     * Execute a runtime plan, performing the actual file rename operations.
+     * Executes a runtime plan, performing the actual file rename operations.
+     *
      * Builds an occupied-path index from the plan and uses runtime collision
-     * fallback as a safety layer.
+     * fallback as a safety layer to ensure no files are overwritten even if
+     * the plan had a logic error.
      *
-     * @param ExecutionPlan $plan   The runtime execution plan
-     * @param bool          $dryRun When true, simulate without touching filesystem
+     * @param ExecutionPlan $plan   The runtime execution plan to process.
+     * @param bool          $dryRun When true, simulate without touching the filesystem.
      *
-     * @return ExecutionResult Runtime execution counters (moves, fallbacks, errors)
+     * @return ExecutionResult Runtime execution counters (moves, fallbacks, errors).
      */
     #[Override]
     public function executePlan(ExecutionPlan $plan, bool $dryRun = false): ExecutionResult

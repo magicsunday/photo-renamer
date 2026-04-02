@@ -21,9 +21,13 @@ use function array_key_exists;
 use function count;
 
 /**
- * Generic array-backed collection providing iteration, filtering, sorting and
- * slice operations. Concrete subclasses narrow the key and value types via
- * template specialization.
+ * A generic array-backed collection providing iteration and basic management.
+ *
+ * This abstract class serves as the foundation for all specialized collections
+ * in the application. It provides common functionality for adding, retrieving,
+ * and iterating over elements while maintaining their insertion order.
+ * Concrete subclasses use PHPStan templates to enforce type safety for keys
+ * and values.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -37,11 +41,12 @@ use function count;
 abstract class AbstractCollection implements Countable, IteratorAggregate
 {
     /**
-     * @param array<TKey, TValue> $elements Initial elements to populate the collection
+     * @param array<TKey, TValue> $elements Initial elements to populate the collection.
      */
     public function __construct(
         /**
-         * Internal storage holding all elements indexed by their key.
+         * The internal storage holding all elements. Elements are indexed
+         * by their key to allow O(1) lookups.
          *
          * @var array<TKey, TValue>
          */
@@ -50,9 +55,9 @@ abstract class AbstractCollection implements Countable, IteratorAggregate
     }
 
     /**
-     * Returns the number of elements currently stored in the collection.
+     * Returns the total number of elements currently in the collection.
      *
-     * @return int<0, max>
+     * @return int<0, max> The number of elements.
      */
     #[Override]
     public function count(): int
@@ -61,9 +66,12 @@ abstract class AbstractCollection implements Countable, IteratorAggregate
     }
 
     /**
-     * Appends an element to the end of the collection using an auto-incremented integer key.
+     * Appends an element to the end of the collection using an auto-incremented key.
      *
-     * @param TValue $value The element to append
+     * This is useful for simple lists where the specific key is either
+     * irrelevant or not yet determined.
+     *
+     * @param TValue $value The element to append.
      */
     public function append(object $value): void
     {
@@ -71,9 +79,9 @@ abstract class AbstractCollection implements Countable, IteratorAggregate
     }
 
     /**
-     * Returns the collection as a plain array.
+     * Returns the internal elements as a plain PHP array.
      *
-     * @return array<TKey, TValue>
+     * @return array<TKey, TValue> The underlying array storage.
      */
     public function asArray(): array
     {
@@ -81,11 +89,11 @@ abstract class AbstractCollection implements Countable, IteratorAggregate
     }
 
     /**
-     * Retrieves an element by its key, returning null when the key does not exist.
+     * Retrieves an element by its key.
      *
-     * @param TKey $key
+     * @param TKey $key The key to look up (either an integer or a string).
      *
-     * @return TValue|null
+     * @return TValue|null The element if it exists, or null otherwise.
      */
     public function get(int|string $key): ?object
     {
@@ -93,10 +101,12 @@ abstract class AbstractCollection implements Countable, IteratorAggregate
     }
 
     /**
-     * Stores an element at the specified key, overwriting any previous value at that position.
+     * Stores an element under the specified key.
      *
-     * @param TKey   $key
-     * @param TValue $value
+     * If an element already exists at the given key, it will be overwritten.
+     *
+     * @param TKey   $key   The key under which the value should be stored.
+     * @param TValue $value The element to store.
      */
     public function set(int|string $key, object $value): void
     {
@@ -104,9 +114,11 @@ abstract class AbstractCollection implements Countable, IteratorAggregate
     }
 
     /**
-     * Checks whether an element with the given key exists in the collection.
+     * Checks if an element with the given key exists in the collection.
      *
-     * @param TKey $key
+     * @param TKey $key The key to check.
+     *
+     * @return bool True if the key exists, false otherwise.
      */
     public function has(int|string $key): bool
     {
@@ -114,9 +126,11 @@ abstract class AbstractCollection implements Countable, IteratorAggregate
     }
 
     /**
-     * Removes the element at the given key. No-op if the key does not exist.
+     * Removes the element associated with the given key.
      *
-     * @param TKey $key
+     * If the key does not exist, this operation does nothing.
+     *
+     * @param TKey $key The key of the element to remove.
      */
     public function remove(int|string $key): void
     {
@@ -124,9 +138,9 @@ abstract class AbstractCollection implements Countable, IteratorAggregate
     }
 
     /**
-     * Returns an iterator over all elements in insertion order.
+     * Returns an iterator to allow looping over the collection.
      *
-     * @return Traversable<TKey, TValue>
+     * @return Traversable<TKey, TValue> An iterator for the collection elements.
      */
     #[Override]
     public function getIterator(): Traversable

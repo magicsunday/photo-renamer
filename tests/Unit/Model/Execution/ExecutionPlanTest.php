@@ -33,6 +33,9 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(ExecutionItem::class)]
 final class ExecutionPlanTest extends TestCase
 {
+    /**
+     * Verifies that groupCount() returns the total number of ExecutionGroups in the plan.
+     */
     #[Test]
     public function groupCountReturnsCorrectValue(): void
     {
@@ -46,6 +49,10 @@ final class ExecutionPlanTest extends TestCase
         self::assertSame(2, $plan->groupCount());
     }
 
+    /**
+     * Verifies that livePhotoGroupCount() correctly filters and counts groups
+     * that are identified as Live Photo pairs.
+     */
     #[Test]
     public function livePhotoGroupCountFiltersCorrectly(): void
     {
@@ -59,6 +66,9 @@ final class ExecutionPlanTest extends TestCase
         self::assertSame(1, $plan->livePhotoGroupCount());
     }
 
+    /**
+     * Verifies that totalItemCount() returns the sum of all items across all groups.
+     */
     #[Test]
     public function totalItemCountSumsAllGroups(): void
     {
@@ -77,6 +87,10 @@ final class ExecutionPlanTest extends TestCase
         self::assertSame(3, $plan->totalItemCount());
     }
 
+    /**
+     * Verifies that executableItemCount() counts only items that are marked as isExecutable.
+     * Items are typically non-executable if their target path is already occupied.
+     */
     #[Test]
     public function executableItemCountFiltersIsExecutable(): void
     {
@@ -94,6 +108,10 @@ final class ExecutionPlanTest extends TestCase
         self::assertSame(2, $plan->executableItemCount());
     }
 
+    /**
+     * Verifies that nonExecutableItemCount() counts items that are blocked (isExecutable = false)
+     * but excludes items that are already correctly named (isNoOp = true).
+     */
     #[Test]
     public function nonExecutableItemCountExcludesNoOps(): void
     {
@@ -111,6 +129,10 @@ final class ExecutionPlanTest extends TestCase
         self::assertSame(1, $plan->nonExecutableItemCount());
     }
 
+    /**
+     * Verifies that noOpItemCount() correctly counts items where no action is needed
+     * because they already match their target name.
+     */
     #[Test]
     public function noOpItemCountFiltersNoOps(): void
     {
@@ -127,6 +149,9 @@ final class ExecutionPlanTest extends TestCase
         self::assertSame(2, $plan->noOpItemCount());
     }
 
+    /**
+     * Verifies that a default/empty plan returns zero for all aggregation metrics.
+     */
     #[Test]
     public function emptyPlanReturnsZeros(): void
     {

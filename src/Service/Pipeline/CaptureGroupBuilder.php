@@ -225,13 +225,13 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
             $files[] = $fileInfo;
         }
 
-        usort($files, static function (SplFileInfo $a, SplFileInfo $b): int {
-            $depthA = substr_count($a->getPath(), DIRECTORY_SEPARATOR);
-            $depthB = substr_count($b->getPath(), DIRECTORY_SEPARATOR);
+        usort($files, static function (SplFileInfo $fileA, SplFileInfo $fileB): int {
+            $depthA = substr_count($fileA->getPath(), DIRECTORY_SEPARATOR);
+            $depthB = substr_count($fileB->getPath(), DIRECTORY_SEPARATOR);
 
             return ($depthA !== $depthB)
                 ? $depthA <=> $depthB
-                : $a->getPathname() <=> $b->getPathname();
+                : $fileA->getPathname() <=> $fileB->getPathname();
         });
 
         return $files;

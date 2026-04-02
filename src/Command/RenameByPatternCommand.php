@@ -45,6 +45,13 @@ final class RenameByPatternCommand extends AbstractRenameCommand
 
     private ?DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy = null;
 
+    /**
+     * Constructor.
+     *
+     * @param FileSystemServiceInterface         $fileSystemService         Service to handle file system operations
+     * @param DuplicateDetectionServiceInterface $duplicateDetectionService Service to handle grouping and duplicate resolution
+     * @param SafeRegex                          $safeRegex                 Service to execute regular expressions safely
+     */
     public function __construct(
         FileSystemServiceInterface $fileSystemService,
         DuplicateDetectionServiceInterface $duplicateDetectionService,
@@ -84,6 +91,14 @@ final class RenameByPatternCommand extends AbstractRenameCommand
             );
     }
 
+    /**
+     * Executes the command logic.
+     *
+     * Validates the replacement and pattern options and initializes
+     * internal state before calling the parent execution.
+     *
+     * @return int The exit code
+     */
     #[Override]
     protected function executeCommand(): int
     {
@@ -108,6 +123,10 @@ final class RenameByPatternCommand extends AbstractRenameCommand
     }
 
     /**
+     * Creates the file iterator.
+     *
+     * Uses a regex filter based on the provided pattern to select files.
+     *
      * @return RecursiveIteratorIterator<RecursiveIterator<string, SplFileInfo>>
      */
     #[Override]
@@ -126,6 +145,13 @@ final class RenameByPatternCommand extends AbstractRenameCommand
             );
     }
 
+    /**
+     * Returns the target filename strategy.
+     *
+     * Uses the PatternFilenameStrategy to perform regex-based renames.
+     *
+     * @return RenameStrategyInterface The rename strategy
+     */
     #[Override]
     protected function getTargetFilenameStrategy(): RenameStrategyInterface
     {
@@ -136,6 +162,13 @@ final class RenameByPatternCommand extends AbstractRenameCommand
         );
     }
 
+    /**
+     * Returns the duplicate identifier strategy.
+     *
+     * Uses the TargetPathnameStrategy to group files by their full target path.
+     *
+     * @return DuplicateIdentifierStrategyInterface The duplicate identifier strategy
+     */
     #[Override]
     protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
     {

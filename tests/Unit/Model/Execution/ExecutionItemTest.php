@@ -28,6 +28,10 @@ use PHPUnit\Framework\TestCase;
 #[CoversClass(ExecutionItem::class)]
 final class ExecutionItemTest extends TestCase
 {
+    /**
+     * Verifies that the constructor correctly initializes all 12 properties
+     * of the ExecutionItem DTO.
+     */
     #[Test]
     public function constructorSetsAllFields(): void
     {
@@ -60,6 +64,10 @@ final class ExecutionItemTest extends TestCase
         self::assertSame('test warning', $item->warningReason);
     }
 
+    /**
+     * Verifies that relativeSourcePath() correctly strips the given base directory
+     * from the absolute source path.
+     */
     #[Test]
     public function relativeSourcePathStripsBaseDirectory(): void
     {
@@ -75,6 +83,10 @@ final class ExecutionItemTest extends TestCase
         self::assertSame('a.jpg', $item->relativeSourcePath('/photos'));
     }
 
+    /**
+     * Verifies that relativeTargetPath() correctly strips the given base directory
+     * from the absolute target path.
+     */
     #[Test]
     public function relativeTargetPathStripsBaseDirectory(): void
     {
@@ -90,6 +102,10 @@ final class ExecutionItemTest extends TestCase
         self::assertSame('sub/b.jpg', $item->relativeTargetPath('/photos'));
     }
 
+    /**
+     * Verifies that an item is marked as isNoOp (no operation) when the source
+     * and target paths are identical, and that renameRequired is false in this case.
+     */
     #[Test]
     public function isNoOpWhenSourceEqualsTarget(): void
     {
@@ -106,6 +122,9 @@ final class ExecutionItemTest extends TestCase
         self::assertFalse($item->renameRequired);
     }
 
+    /**
+     * Verifies that renameRequired is true when source and target paths differ.
+     */
     #[Test]
     public function renameRequiredWhenDifferentPaths(): void
     {
@@ -122,6 +141,10 @@ final class ExecutionItemTest extends TestCase
         self::assertFalse($item->isNoOp);
     }
 
+    /**
+     * Verifies that isExecutable defaults to true for new items.
+     * An item remains executable unless blocked by a specific reason (e.g. target path occupied).
+     */
     #[Test]
     public function isExecutableDefaultsToTrue(): void
     {
@@ -137,6 +160,9 @@ final class ExecutionItemTest extends TestCase
         self::assertTrue($item->isExecutable);
     }
 
+    /**
+     * Verifies that executionBlockReason is null by default.
+     */
     #[Test]
     public function executionBlockReasonDefaultsToNull(): void
     {

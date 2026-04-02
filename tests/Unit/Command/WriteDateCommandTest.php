@@ -79,7 +79,8 @@ final class WriteDateCommandTest extends TestCase
     }
 
     /**
-     * Verifies that the command fails when exiftool is not available.
+     * Verifies that the command fails gracefully with an informative error message
+     * if the "exiftool" binary is not found on the system.
      */
     #[Test]
     public function executeFailsWhenExiftoolUnavailable(): void
@@ -144,7 +145,9 @@ final class WriteDateCommandTest extends TestCase
     }
 
     /**
-     * Verifies that a file with no date in its name is counted as "no date in name".
+     * Verifies that the command correctly identifies files where the filename does
+     * not contain a recognizable date pattern, which is a prerequisite for writing
+     * that date back into the metadata.
      */
     #[Test]
     public function executeCountsFilesWithNoDateInName(): void
@@ -172,7 +175,8 @@ final class WriteDateCommandTest extends TestCase
     }
 
     /**
-     * Verifies that a file with correct metadata is counted as "already correct".
+     * Verifies that files that already have accurate metadata matching the date
+     * in their filename are skipped and counted as "already correct".
      */
     #[Test]
     public function executeCountsAlreadyCorrectFiles(): void
@@ -211,7 +215,8 @@ final class WriteDateCommandTest extends TestCase
     }
 
     /**
-     * Verifies that a file with no metadata is detected as needing a write.
+     * Verifies that in dry-run mode, the command detects files with no metadata
+     * and lists them as candidates for metadata writing.
      */
     #[Test]
     public function executeDryRunDetectsNoMetadata(): void
@@ -244,7 +249,8 @@ final class WriteDateCommandTest extends TestCase
     }
 
     /**
-     * Verifies that a file with fallback DateTime is detected as needing a write.
+     * Verifies that files using the fallback DateTime tag (0x0132) are detected
+     * in dry-run mode as needing an update to more specific tags like DateTimeOriginal.
      */
     #[Test]
     public function executeDryRunDetectsFallbackDateTime(): void
@@ -283,7 +289,8 @@ final class WriteDateCommandTest extends TestCase
     }
 
     /**
-     * Verifies that a file with QuickTime timestamp without timezone info is detected as needing a write.
+     * Verifies that QuickTime/MP4 files with ambiguous timezones (missing offset)
+     * are detected and listed as requiring a metadata update to include the offset.
      */
     #[Test]
     public function executeDryRunDetectsAmbiguousTimezone(): void
@@ -324,7 +331,8 @@ final class WriteDateCommandTest extends TestCase
     }
 
     /**
-     * Verifies that date drift detection works in dry-run mode.
+     * Verifies that the command detects significant time differences between the
+     * filename date and the internal metadata date, flagging them for correction.
      */
     #[Test]
     public function executeDryRunDetectsDateDrift(): void

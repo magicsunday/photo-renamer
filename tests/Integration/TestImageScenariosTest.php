@@ -23,13 +23,24 @@ use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\MetadataExtractor;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
+use MagicSunday\Renamer\Model\AssetGroup;
+use MagicSunday\Renamer\Model\AssetItem;
 use MagicSunday\Renamer\Model\Collection\AbstractCollection;
+use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\Collection\FileList;
 use MagicSunday\Renamer\Model\Collection\RenameList;
+use MagicSunday\Renamer\Model\Execution\ExecutionGroup;
+use MagicSunday\Renamer\Model\Execution\ExecutionItem;
+use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
+use MagicSunday\Renamer\Model\Execution\ExecutionPreview;
+use MagicSunday\Renamer\Model\Execution\ExecutionResult;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\LinkConfig;
+use MagicSunday\Renamer\Model\OutputEntry;
 use MagicSunday\Renamer\Model\OutputEntryTag;
+use MagicSunday\Renamer\Model\OutputEntryType;
+use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
@@ -70,6 +81,7 @@ use MagicSunday\Renamer\Service\Pipeline\TargetNameResolver;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\RenamePlanValidator;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
+use MagicSunday\Renamer\Service\ValidationResult;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use MagicSunday\Renamer\Test\Fixtures\ConsoleOutputParserTrait;
@@ -116,6 +128,18 @@ use const PREG_SET_ORDER;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(RenameByExifDateCommand::class)]
+#[UsesClass(AssetGroup::class)]
+#[UsesClass(AssetItem::class)]
+#[UsesClass(AssetGroupCollection::class)]
+#[UsesClass(ExecutionGroup::class)]
+#[UsesClass(ExecutionItem::class)]
+#[UsesClass(ExecutionPlan::class)]
+#[UsesClass(ExecutionPreview::class)]
+#[UsesClass(ExecutionResult::class)]
+#[UsesClass(OutputEntry::class)]
+#[UsesClass(OutputEntryType::class)]
+#[UsesClass(PipelineContext::class)]
+#[UsesClass(ValidationResult::class)]
 #[UsesClass(RecursiveRegexFileFilterIterator::class)]
 #[UsesClass(Constants::class)]
 #[UsesClass(ExifMetadataReadException::class)]
@@ -143,6 +167,7 @@ use const PREG_SET_ORDER;
 #[UsesClass(FileSystemService::class)]
 #[UsesClass(HashSubGroupingService::class)]
 #[UsesClass(LivePhotoBasenameTargetMap::class)]
+#[UsesClass(LivePhotoPairingService::class)]
 #[UsesClass(LivePhotoConflictDetector::class)]
 #[UsesClass(LivePhotoContentIdentifierTarget::class)]
 #[UsesClass(LivePhotoContentIdentifierTargetMap::class)]

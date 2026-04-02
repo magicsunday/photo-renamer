@@ -37,6 +37,10 @@ final class LocalDifferenceAnalyzerTest extends TestCase
         $this->analyzer = new LocalDifferenceAnalyzer();
     }
 
+    /**
+     * Ensures that identical images produce no differences.
+     * RMSE, changed area, and blob count must be exactly 0.
+     */
     #[Test]
     public function identicalImagesProduceZeroChanges(): void
     {
@@ -52,6 +56,10 @@ final class LocalDifferenceAnalyzerTest extends TestCase
         self::assertFalse($result->hasCompactRetouch);
     }
 
+    /**
+     * Verifies that completely different images (white vs. black) produce a
+     * high Root Mean Square Error (RMSE) value.
+     */
     #[Test]
     public function completelyDifferentImagesProduceHighRmse(): void
     {
@@ -63,6 +71,10 @@ final class LocalDifferenceAnalyzerTest extends TestCase
         self::assertGreaterThan(0.5, $result->rmse);
     }
 
+    /**
+     * Checks if a single differing pixel results only in a minimal,
+     * negligible RMSE value.
+     */
     #[Test]
     public function singlePixelDifferenceProducesNearZeroRmse(): void
     {
@@ -81,6 +93,11 @@ final class LocalDifferenceAnalyzerTest extends TestCase
         self::assertLessThan(0.02, $result->rmse);
     }
 
+    /**
+     * Simulates a local retouch (10x10 square) and checks if the RMSE is in a
+     * moderate range that signals a retouch without the image being considered
+     * completely different.
+     */
     #[Test]
     public function localRetouchProducesModerateRmse(): void
     {
@@ -101,6 +118,11 @@ final class LocalDifferenceAnalyzerTest extends TestCase
         self::assertLessThan(0.5, $result->rmse);
     }
 
+    /**
+     * Checks the color difference (chroma) when comparing a color image
+     * with its grayscale version. The chroma difference must be significantly
+     * above the threshold.
+     */
     #[Test]
     public function colorToGrayscaleConversionProducesHighChromaDifference(): void
     {
@@ -119,6 +141,11 @@ final class LocalDifferenceAnalyzerTest extends TestCase
         self::assertTrue($result->success);
     }
 
+    /**
+     * Ensures that in case of errors (e.g., invalid image data), a
+     * "conservative" result (no changes) is returned instead of
+     * aborting the process with an exception.
+     */
     #[Test]
     public function analyzeReturnsConservativeResultOnFailure(): void
     {

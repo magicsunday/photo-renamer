@@ -24,46 +24,55 @@ use function array_key_exists;
 use function is_string;
 
 /**
- * Thin caching layer over the MetadataExtractor that provides direct access to
- * the capture timestamp and Live Photo content identifier. Maintains a per-file
- * pathname-keyed cache so each file is extracted at most once even when queried
- * from multiple pipeline stages.
+ * Thin caching layer over the MetadataExtractor that provides unified access
+ * to capture timestamps and Live Photo content identifiers.
  *
- * @author  Rico Sonntag <mail@ricosonntag.de>
- * @license https://opensource.org/licenses/MIT
- * @link    https://github.com/magicsunday/photo-renamer/
+ * This provider implements two levels of caching:
+ * 1. An in-memory cache ($metadataCache) for the current process run, ensuring
+ *    that each file is analyzed at most once even if accessed by multiple
+ *    pipeline stages (e.g., grouping and target resolution).
+ * 2. An optional persistent disk cache (via MetadataCache) that survives across
+ *    different command executions, avoiding expensive re-reads for unchanged files.
+ *
+ * It also handles timezone normalization for video files (QuickTime/MP4) which
+ * often store timestamps in UTC without explicit offset information.
  */
 final class ExifMetadataProvider
 {
     /**
-     * Per-file cache of extracted temporal metadata (null when the file lacks usable metadata).
+     * Per-file in-memory cache of extracted temporal metadata.
+     * Maps the absolute file pathname to the metadata object or null if extraction failed.
      *
      * @var array<string, TemporalMetadata|null>
      */
     private array $metadataCache = [];
 
     /**
-     * Timezone used to convert UTC timestamps from video files that lack explicit
-     * timezone metadata (e.g. QuickTime/MP4). Null means no conversion is applied.
+     * Default timezone used for normalizing UTC timestamps from video containers.
+     * This is applied when the metadata indicates an ambiguous timezone (e.g., QuickTime
+     * 'CreationDate' without offset).
      */
     private ?DateTimeZone $defaultTimezone = null;
 
     /**
-     * Optional persistent disk cache for metadata extraction results. When set,
-     * extraction results survive across runs so unchanged files are never re-read.
+     * Persistent disk cache service. If set, metadata results are persisted
+     * to disk based on file modification time and size to detect changes.
      */
     private ?MetadataCache $cache = null;
 
     /**
-     * @param MetadataExtractorInterface $metadataExtractor Underlying extractor for reading file metadata
+     * @param MetadataExtractorInterface $metadataExtractor The strategy used to actually parse the file bits
      */
     public function __construct(private readonly MetadataExtractorInterface $metadataExtractor)
     {
     }
 
     /**
-     * Sets the default timezone for converting UTC timestamps from video files
-     * without explicit timezone metadata. Pass null to disable conversion.
+     * Configures the local timezone for video UTC normalization.
+     *
+     * Video files (MP4/MOV) often store timestamps in UTC. To match the local
+     * wall-clock time shown in photo viewers, this timezone is used as a fallback
+     * when no explicit offset is present in the file metadata.
      */
     public function setDefaultTimezone(?DateTimeZone $defaultTimezone): void
     {
@@ -71,9 +80,10 @@ final class ExifMetadataProvider
     }
 
     /**
-     * Sets the persistent disk cache for metadata extraction results. When set,
-     * extraction results are cached to disk and survive across process runs.
-     * Pass null to disable persistent caching.
+     * Attaches a persistent disk cache to speed up subsequent runs.
+     *
+     * When enabled, the provider first checks the disk cache for a matching
+     * file entry (mtime/size check). If found, extraction is skipped entirely.
      */
     public function setCache(?MetadataCache $cache): void
     {
@@ -81,9 +91,11 @@ final class ExifMetadataProvider
     }
 
     /**
-     * Releases all cached metadata to free memory.
-     * Safe to call after the grouping phase when all content identifiers
-     * have been captured into the content identifier map.
+     * Clears the internal in-memory cache.
+     *
+     * This should be called between large batch operations or after the grouping
+     * phase to prevent excessive memory consumption when processing tens of
+     * thousands of files.
      */
     public function clearCache(): void
     {
@@ -91,20 +103,17 @@ final class ExifMetadataProvider
     }
 
     /**
-     * Returns the capture timestamp for the given file, extracting and caching
-     * metadata on first access. Returns null when the file contains no usable
-     * capture date information.
+     * Returns the capture timestamp for the given file, utilizing all cache layers.
      *
-     * When the metadata indicates an ambiguous timezone (typical for QuickTime/MP4
-     * files without explicit timezone info) and a default timezone is configured,
-     * the timestamp is converted to the configured local timezone.
+     * If the metadata indicates an ambiguous timezone (e.g. QuickTime without offset)
+     * and a default timezone is configured, the timestamp is converted from UTC
+     * to the configured local timezone to ensure consistent naming across devices.
      *
-     * @param SplFileInfo $splFileInfo File to extract metadata from
+     * @param SplFileInfo $splFileInfo The file to query.
      *
-     * @return DateTimeInterface|null Capture timestamp with potential microsecond precision,
-     *                                or null when unavailable
+     * @return DateTimeInterface|null The resolved capture date/time, or null if missing/unreadable.
      *
-     * @throws ExifMetadataReadException When the underlying metadata reader fails
+     * @throws ExifMetadataReadException When the physical file cannot be read or parsed.
      */
     public function getCaptureDateTime(SplFileInfo $splFileInfo): ?DateTimeInterface
     {
@@ -114,11 +123,17 @@ final class ExifMetadataProvider
     }
 
     /**
-     * Returns the raw capture timestamp without timezone conversion. Used by
-     * write-date to preserve the original time when resolving timezone ambiguity
-     * (non-Apple cameras store local time as UTC in QuickTime containers).
+     * Returns the raw capture timestamp without timezone conversion.
      *
-     * @throws ExifMetadataReadException When the underlying metadata reader fails
+     * Used by write-date to preserve the original time when resolving timezone
+     * ambiguity (non-Apple cameras often store local time as UTC in QuickTime
+     * containers).
+     *
+     * @param SplFileInfo $splFileInfo The file to query.
+     *
+     * @return DateTimeInterface|null The raw capture date/time.
+     *
+     * @throws ExifMetadataReadException When the underlying metadata reader fails.
      */
     public function getRawCaptureDateTime(SplFileInfo $splFileInfo): ?DateTimeInterface
     {
@@ -126,9 +141,17 @@ final class ExifMetadataProvider
     }
 
     /**
-     * Returns the raw QuickTime CreateDate atom value (UTC), bypassing
-     * Keys:CreationDate resolution. Used by --force to read the underlying
-     * timestamp when Keys:CreationDate was incorrectly written.
+     * Returns the raw QuickTime CreateDate atom value (UTC).
+     *
+     * This bypasses Keys:CreationDate resolution. Used by --force to read the
+     * underlying timestamp when Keys:CreationDate was incorrectly written
+     * or is missing.
+     *
+     * @param SplFileInfo $splFileInfo The file to query.
+     *
+     * @return DateTimeInterface|null The raw CreateDate timestamp.
+     *
+     * @throws ExifMetadataReadException When the underlying metadata reader fails.
      */
     public function getRawQuickTimeCreateDate(SplFileInfo $splFileInfo): ?DateTimeInterface
     {
@@ -136,10 +159,16 @@ final class ExifMetadataProvider
     }
 
     /**
-     * Returns whether the given file has an ambiguous timezone — the QuickTime
-     * timestamp could be UTC or local time but we cannot determine which.
+     * Returns whether the given file has an ambiguous timezone.
      *
-     * @throws ExifMetadataReadException When the underlying metadata reader fails
+     * A timezone is ambiguous when the QuickTime timestamp could be either
+     * UTC or local time and we cannot determine which due to missing offset info.
+     *
+     * @param SplFileInfo $splFileInfo The file to query.
+     *
+     * @return bool True if the timezone is ambiguous.
+     *
+     * @throws ExifMetadataReadException When the underlying metadata reader fails.
      */
     public function isAmbiguousTimezone(SplFileInfo $splFileInfo): bool
     {
@@ -150,11 +179,11 @@ final class ExifMetadataProvider
      * Returns whether the capture date for the given file was derived from
      * the fallback DateTime tag (0x0132) instead of DateTimeOriginal/CreateDate.
      *
-     * @param SplFileInfo $splFileInfo File to query
+     * @param SplFileInfo $splFileInfo The file to query.
      *
-     * @return bool True when the date came from the fallback tag, false otherwise
+     * @return bool True when the date came from the fallback tag, false otherwise.
      *
-     * @throws ExifMetadataReadException When the underlying metadata reader fails
+     * @throws ExifMetadataReadException When the underlying metadata reader fails.
      */
     public function isFallbackDateTime(SplFileInfo $splFileInfo): bool
     {
@@ -162,14 +191,20 @@ final class ExifMetadataProvider
     }
 
     /**
-     * Returns whether the file has a reliable capture date. A date is reliable when:
-     * - It is not a fallback (0x0132) AND not ambiguous timezone, OR
-     * - The raw metadata date matches the filename date (file was already fixed).
+     * Returns whether the file has a reliable capture date.
      *
-     * This is the single source of truth for "should we flag this file as problematic?"
+     * A date is reliable when:
+     * - It is not a fallback (0x0132) AND not an ambiguous timezone, OR
+     * - The raw metadata date matches the filename date (indicating the file was already fixed).
+     *
+     * This is the single source of truth for "should we flag this file as problematic?".
      * Used by rename:exif ([W]/[F] tags), rename:verify, and rename:write-date.
      *
-     * @throws ExifMetadataReadException When the underlying metadata reader fails
+     * @param SplFileInfo $splFileInfo The file to query.
+     *
+     * @return bool True if the date is considered reliable.
+     *
+     * @throws ExifMetadataReadException When the underlying metadata reader fails.
      */
     public function hasReliableDateTime(SplFileInfo $splFileInfo): bool
     {
@@ -195,17 +230,17 @@ final class ExifMetadataProvider
 
     /**
      * Returns the normalized Live Photo content identifier for the given file.
-     * Triggers metadata extraction if not yet cached.
      *
-     * The identifier is lowercased and trimmed for case-insensitive companion
-     * detection between photo and video assets.
+     * Triggers metadata extraction if not yet cached. The identifier is
+     * lowercased and trimmed for case-insensitive companion detection
+     * between photo and video assets.
      *
-     * @param SplFileInfo $splFileInfo File to query
+     * @param SplFileInfo $splFileInfo The file to query.
      *
      * @return string|null Lowercased, trimmed content identifier, or null when
-     *                     the file is not part of an Apple Live Photo pair
+     *                     the file is not part of an Apple Live Photo pair.
      *
-     * @throws ExifMetadataReadException When the underlying metadata reader fails
+     * @throws ExifMetadataReadException When the underlying metadata reader fails.
      */
     public function getContentIdentifier(SplFileInfo $splFileInfo): ?string
     {
@@ -213,14 +248,18 @@ final class ExifMetadataProvider
     }
 
     /**
-     * Returns the full temporal metadata payload for the file, including
-     * additional camera/location/live-photo fields used by conflict heuristics.
+     * Returns the full temporal metadata payload for the file.
      *
-     * The returned capture timestamp is adjusted in the same way as
+     * This includes additional camera/location/live-photo fields used by conflict
+     * heuristics. The returned capture timestamp is adjusted in the same way as
      * {@see getCaptureDateTime()} so consumers compare the effective local
      * capture times seen by the rest of the pipeline.
      *
-     * @throws ExifMetadataReadException When the underlying metadata reader fails
+     * @param SplFileInfo $splFileInfo The file to query.
+     *
+     * @return TemporalMetadata|null The extracted metadata payload, or null if missing.
+     *
+     * @throws ExifMetadataReadException When the underlying metadata reader fails.
      */
     public function getTemporalMetadata(SplFileInfo $splFileInfo): ?TemporalMetadata
     {
@@ -234,16 +273,18 @@ final class ExifMetadataProvider
     }
 
     /**
-     * Extracts and caches temporal metadata for the given file. Returns the cached
-     * result on subsequent calls for the same pathname. When a persistent disk cache
-     * is configured, it is checked before invoking the metadata extractor, and
-     * extraction results are stored in it for future runs.
+     * Extracts and caches temporal metadata for the given file.
      *
-     * @param SplFileInfo $splFileInfo File to extract metadata from
+     * Returns the cached result on subsequent calls for the same pathname.
+     * When a persistent disk cache is configured, it is checked before
+     * invoking the metadata extractor, and extraction results are stored
+     * in it for future runs.
      *
-     * @return TemporalMetadata|null Extracted metadata, or null when no relevant fields exist
+     * @param SplFileInfo $splFileInfo The file to extract metadata from.
      *
-     * @throws ExifMetadataReadException When the underlying metadata reader fails
+     * @return TemporalMetadata|null Extracted metadata, or null when no relevant fields exist.
+     *
+     * @throws ExifMetadataReadException When the underlying metadata reader fails.
      */
     private function resolveMetadata(SplFileInfo $splFileInfo): ?TemporalMetadata
     {
@@ -282,6 +323,7 @@ final class ExifMetadataProvider
 
     /**
      * Reconstructs a TemporalMetadata instance from a persistent cache entry.
+     *
      * Returns null when the cached entry represents a file with no usable metadata.
      *
      * @param array{
@@ -300,9 +342,10 @@ final class ExifMetadataProvider
      *     videoDurationSeconds?: float|null,
      *     hasQuickTimeLivePhotoMarker?: bool,
      *     rawQuickTimeCreateDate?: string|null
-     * } $cached
+     * } $cached The cached metadata values.
      *
-     * @return TemporalMetadata|null Reconstructed metadata, or null when the cache entry has no date or content ID
+     * @return TemporalMetadata|null Reconstructed metadata, or null when the cache
+     *                               entry has no date or content ID.
      */
     private function reconstructFromCache(array $cached): ?TemporalMetadata
     {
@@ -342,7 +385,11 @@ final class ExifMetadataProvider
     }
 
     /**
-     * Parses a cached ISO 8601 date string into a DateTimeImmutable, returning null on failure.
+     * Parses a date string from the persistent cache.
+     *
+     * @param mixed $value The value from the cache.
+     *
+     * @return DateTimeImmutable|null The parsed date, or null if invalid.
      */
     private function parseCachedDateTime(mixed $value): ?DateTimeImmutable
     {
@@ -357,6 +404,17 @@ final class ExifMetadataProvider
         }
     }
 
+    /**
+     * Applies the configured default timezone to ambiguous timestamps.
+     *
+     * If the metadata is flagged as having an ambiguous timezone (e.g. UTC
+     * from QuickTime), it is converted to the configured default timezone.
+     *
+     * @param TemporalMetadata $metadata    The metadata to adjust.
+     * @param SplFileInfo      $splFileInfo The file context.
+     *
+     * @return TemporalMetadata The adjusted metadata.
+     */
     private function applyConfiguredTimezone(TemporalMetadata $metadata, SplFileInfo $splFileInfo): TemporalMetadata
     {
         $dateTime = $metadata->getCaptureDateTime();

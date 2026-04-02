@@ -49,10 +49,18 @@ use function ucfirst;
 use function usort;
 
 /**
- * Handles all console output rendering for the rename phase: building the
- * merged output entry list, rendering the summary statistics table, and
- * providing display-related query helpers. Extracted from {@see FileSystemService}
- * to separate rendering concerns from file I/O operations.
+ * Handles all console output rendering for the rename phase.
+ *
+ * This class centralizes all display logic, including:
+ * - Building merged and sorted output entry lists from rename operations.
+ * - Rendering summary statistics tables with aligned columns.
+ * - Managing different output tags (Canonical, Duplicate, Warning, etc.).
+ * - Highlighting differences between source and target filenames for readability.
+ * - Providing display-related query helpers (e.g., counting Live Photo groups).
+ *
+ * It was extracted from {@see FileSystemService} to strictly separate rendering
+ * concerns from physical file I/O operations, making the display logic more
+ * testable and maintainable.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -61,7 +69,7 @@ use function usort;
 final readonly class RenameOutputRenderer
 {
     /**
-     * @param SymfonyStyle $io Console IO for status output
+     * @param SymfonyStyle $io Symfony Style IO for consistent console output formatting
      */
     public function __construct(private SymfonyStyle $io)
     {
@@ -71,12 +79,23 @@ final readonly class RenameOutputRenderer
      * Builds a merged, path-sorted list of all output entries from rename operations
      * and skipped files for display during the rename phase.
      *
-     * @param FileDuplicateCollection $fileDuplicateCollection Collection of file duplicates
-     * @param RenameOptions           $options                 Options controlling the rename operation
-     * @param RenameResult            $result                  Pipeline-computed results (scanned files, collisions, skips)
-     * @param string|null             $sourceBaseDirectory     Normalized base directory for path relativization
+     * This method processes the result of the rename operation and prepares a list
+     * of {@see OutputEntry} objects. It handles the identification of duplicate
+     * targets, no-op operations (where source equals target), and canonical entries.
+     * The final list is sorted by source pathname to provide a predictable and
+     * clean overview in the console.
      *
-     * @return array{list<OutputEntry>, int, int} Tuple of [entries, skippedCount, errorCount]
+     * @param FileDuplicateCollection $fileDuplicateCollection The collection of identified duplicates
+     *                                                         and their planned rename operations.
+     * @param RenameOptions           $options                 Configuration options controlling the rename
+     *                                                         behavior (e.g., whether to list all files).
+     * @param RenameResult            $result                  The global result object containing metadata
+     *                                                         quality flags, collisions, and error states.
+     * @param string|null             $sourceBaseDirectory     The normalized base directory used to relativize
+     *                                                         absolute paths for cleaner display.
+     *
+     * @return array{list<OutputEntry>, int, int} A tuple containing the list of entries, the count of
+     *                                            skipped files, and the count of files with errors.
      */
     public function buildOutputEntries(
         FileDuplicateCollection $fileDuplicateCollection,
@@ -148,10 +167,10 @@ final readonly class RenameOutputRenderer
 
         [$skippedCount, $errorCount] = $this->appendSkippedFileEntries($outputEntries, $result, $sourceBaseDirectory);
 
-        usort($outputEntries, static function (OutputEntry $a, OutputEntry $b): int {
-            $cmp = $a->sortKey <=> $b->sortKey;
+        usort($outputEntries, static function (OutputEntry $entryA, OutputEntry $entryB): int {
+            $cmp = $entryA->sortKey <=> $entryB->sortKey;
 
-            return $cmp !== 0 ? $cmp : ($a->type->sortOrder() <=> $b->type->sortOrder());
+            return $cmp !== 0 ? $cmp : ($entryA->type->sortOrder() <=> $entryB->type->sortOrder());
         });
 
         return [$outputEntries, $skippedCount, $errorCount];
@@ -161,14 +180,29 @@ final readonly class RenameOutputRenderer
      * Resolves the output entry tag for a file based on its metadata quality,
      * duplicate status, and canonical position.
      *
-     * Priority chain (top to bottom): [C] > [W] > [F] > [D] > [O] > [R].
-     * Exception: [O] wins for no-ops (!$isNoOp guard on [W], [F], [D]).
+     * The tag represents the status of the file in the rename process and determines
+     * the prefix (e.g., [O], [D], [W]) shown in the console output.
      *
-     * @param string       $sourcePathname    Absolute path of the source file
-     * @param bool         $isDuplicateTarget Whether the file is a duplicate (has -duplicate- suffix)
-     * @param bool         $isNoOp            Whether source and target paths are identical
-     * @param bool         $isCanonicalEntry  Whether the file is the canonical entry in its group
-     * @param RenameResult $result            Result carrying quality flags
+     * Priority chain (top to bottom):
+     * 1. [C] Candidate: Live Photo identifier conflict (requires manual resolution).
+     * 2. [W] Warning: Ambiguous timezone data.
+     * 3. [F] Fallback: Date extracted from secondary metadata fields.
+     * 4. [D] Duplicate: File identified as a duplicate (contains identifier suffix).
+     * 5. [O] Original: The canonical entry of a group or a file where no rename is needed.
+     * 6. [R] Rename: A standard rename operation.
+     *
+     * Note: [O] wins for no-ops (source === target) to signal that no physical
+     * file operation will be performed.
+     *
+     * @param string       $sourcePathname    The absolute path of the source file.
+     * @param bool         $isDuplicateTarget True if the target filename indicates a duplicate
+     *                                        (contains the duplicate identifier).
+     * @param bool         $isNoOp            True if the source and target paths are identical.
+     * @param bool         $isCanonicalEntry  True if this file is the primary/canonical item
+     *                                        within its asset group.
+     * @param RenameResult $result            The global result object carrying metadata flags.
+     *
+     * @return OutputEntryTag The resolved tag determining the entry's display status.
      */
     private function resolveEntryTag(
         string $sourcePathname,
@@ -203,8 +237,13 @@ final readonly class RenameOutputRenderer
     /**
      * Renders an aligned two-column table of label/value pairs.
      *
-     * @param list<array{string, string}> $rows Label/value pairs to display
-     * @param SymfonyStyle|null           $io   Console IO to render to (defaults to constructor-injected IO)
+     * This method calculates the maximum width of both columns to ensure perfect
+     * alignment in the console output. It is primarily used for the summary
+     * statistics at the end of a command.
+     *
+     * @param list<array{string, string}> $rows The list of label/value pairs to display.
+     * @param SymfonyStyle|null           $io   Optional console IO. If null, the instance's
+     *                                          default IO is used.
      */
     public function renderAlignedTable(array $rows, ?SymfonyStyle $io = null): void
     {
@@ -228,11 +267,14 @@ final readonly class RenameOutputRenderer
     }
 
     /**
-     * Renders a summary section with header, aligned table and trailing newline.
-     * Shared by all commands for consistent summary output.
+     * Renders a summary section with a header, an aligned table, and a trailing newline.
      *
-     * @param list<array{string, string}> $rows Label/value pairs to display
-     * @param SymfonyStyle|null           $io   Console IO to render to (defaults to constructor-injected IO)
+     * This provides a consistent visual style for summary reports across all
+     * available commands.
+     *
+     * @param list<array{string, string}> $rows The list of label/value pairs to display in the table.
+     * @param SymfonyStyle|null           $io   Optional console IO. If null, the instance's
+     *                                          default IO is used.
      */
     public function renderSummarySection(array $rows, ?SymfonyStyle $io = null): void
     {
@@ -377,6 +419,7 @@ final readonly class RenameOutputRenderer
                 // Use isExecutable from the ExecutionItem to determine skip status.
                 // Date drift (applied above) can also trigger a skip via the tag.
                 $shouldSkip = (!$item->isExecutable && !$item->isNoOp)
+                    || $tag->isScanningSkip()
                     || ($tag === OutputEntryTag::Warning)
                     || ($tag === OutputEntryTag::Candidate);
                 $shouldPerformOperation = !$shouldSkip && !$item->isNoOp;
@@ -409,10 +452,10 @@ final readonly class RenameOutputRenderer
 
         [$skippedCount, $errorCount] = $this->appendSkippedFileEntries($outputEntries, $result, $sourceBaseDirectory);
 
-        usort($outputEntries, static function (OutputEntry $a, OutputEntry $b): int {
-            $cmp = $a->sortKey <=> $b->sortKey;
+        usort($outputEntries, static function (OutputEntry $entryA, OutputEntry $entryB): int {
+            $cmp = $entryA->sortKey <=> $entryB->sortKey;
 
-            return $cmp !== 0 ? $cmp : ($a->type->sortOrder() <=> $b->type->sortOrder());
+            return $cmp !== 0 ? $cmp : ($entryA->type->sortOrder() <=> $entryB->type->sortOrder());
         });
 
         return [$outputEntries, $skippedCount, $errorCount];
@@ -614,13 +657,6 @@ final readonly class RenameOutputRenderer
      *
      * @return array{int, int} [skippedCount, errorCount]
      */
-    /**
-     * @param list<OutputEntry> $outputEntries       Entries to append to (by reference)
-     * @param RenameResult      $result              Pipeline results with skipped files and notices
-     * @param string|null       $sourceBaseDirectory Base directory for relative paths
-     *
-     * @return array{int, int} [skippedCount, errorCount]
-     */
     private function appendSkippedFileEntries(
         array &$outputEntries,
         RenameResult $result,
@@ -720,7 +756,7 @@ final readonly class RenameOutputRenderer
                 continue;
             }
 
-            // Rename entry
+            // Rename entry (Structural type: Rename)
             if ($this->isTagVisible($entry->tag, $showFilter)) {
                 if ($entry->shouldSkip) {
                     $skipReason = match ($entry->tag) {
@@ -857,11 +893,13 @@ final readonly class RenameOutputRenderer
     }
 
     /**
-     * Counts the total number of rename operations across all groups in the collection.
+     * Calculates the total number of rename operations planned in the collection.
      *
-     * @param FileDuplicateCollection $fileDuplicateCollection Collection to inspect
+     * Used for summary statistics to show how many individual file movements are expected.
      *
-     * @return int Total number of individual rename operations
+     * @param FileDuplicateCollection $fileDuplicateCollection Collection to count operations in
+     *
+     * @return int Total number of renames
      */
     public function countTotalOperations(FileDuplicateCollection $fileDuplicateCollection): int
     {
@@ -874,6 +912,19 @@ final readonly class RenameOutputRenderer
         return $totalOperations;
     }
 
+    /**
+     * Highlights the differences between source and target paths using color-coded output.
+     *
+     * It splits the path into directory and filename to avoid highlighting common parent
+     * directories. If the directory differs, the entire path is highlighted.
+     * Uses a sequential token matching algorithm for robust highlighting.
+     *
+     * @param string $source    The original path
+     * @param string $target    The new path to highlight
+     * @param string $baseColor The base color for unchanged parts (e.g., 'gray' or 'white')
+     *
+     * @return string ANSI-highlighted target path
+     */
     public function highlightDiff(string $source, string $target, string $baseColor): string
     {
         if ($source === $target) {
@@ -883,8 +934,8 @@ final readonly class RenameOutputRenderer
         [$sourcePrefix, $sourceFilename] = $this->splitPathPrefix($source);
         [$targetPrefix, $targetFilename] = $this->splitPathPrefix($target);
 
-        // Wenn sich schon der Verzeichnisteil unterscheidet, den kompletten Target-Pfad
-        // per sequenziellem Token-Matching rendern.
+        // If the directory part already differs, render the complete target path
+        // using sequential token matching.
         if ($sourcePrefix !== $targetPrefix) {
             return $this->highlightSequentialTokenDiff($source, $target, $baseColor);
         }
@@ -921,11 +972,25 @@ final readonly class RenameOutputRenderer
     }
 
     /**
-     * Highlights a target string by matching its tokens sequentially against
+     * Highlights the target string by matching its tokens sequentially against
      * the source string from left to right.
      *
-     * This works better for rename previews than a character-based diff because
-     * it respects the known target structure and avoids accidental LCS matches.
+     * This method implements a specialized diff visualization for filenames.
+     * Instead of a standard character-based LCS (Longest Common Subsequence)
+     * which can produce fragmented highlights for dates and counters, this
+     * approach tokenizes the target and tries to find each token in the source,
+     * maintaining a forward-only matching offset.
+     *
+     * Resulting states per token:
+     * - 'same': Exact character match found at or after current offset.
+     * - 'case-changed': Case-insensitive match found (e.g., '.JPG' vs '.jpg').
+     * - 'changed': No match found; token is considered new/changed.
+     *
+     * @param string $source    The original filename for comparison
+     * @param string $target    The new filename to highlight
+     * @param string $baseColor ANSI color for unchanged segments
+     *
+     * @return string ANSI-highlighted string
      */
     private function highlightSequentialTokenDiff(string $source, string $target, string $baseColor): string
     {
@@ -955,9 +1020,17 @@ final readonly class RenameOutputRenderer
     }
 
     /**
-     * @param list<string> $tokens
+     * Matches target tokens against the source string to determine their diff state.
      *
-     * @return list<string> one of: same, case-changed, changed
+     * Iterates through the provided tokens and attempts to locate them in the
+     * source string, starting from the last successful match position. This
+     * ensures a stable, forward-moving match that reflects the structural
+     * changes in a filename (e.g. prepending a date or adding a suffix).
+     *
+     * @param string       $source The original string to match against
+     * @param list<string> $tokens Tokenized target string
+     *
+     * @return list<string> List of states ('same', 'case-changed', 'changed') for each token
      */
     private function matchTargetTokensSequentially(string $source, array $tokens): array
     {
@@ -1023,13 +1096,20 @@ final readonly class RenameOutputRenderer
     }
 
     /**
-     * Separator tokens are matched strictly near the current offset.
+     * Attempts to match a separator token near the current source offset.
      *
-     * We allow a very small lookahead window so separators that are still locally
-     * aligned can match, but we do not scan arbitrarily far ahead because that
-     * causes misleading matches.
+     * Separators (non-alphanumeric characters) are handled with a very small
+     * lookahead window (1 character). This prevents a single added character
+     * from breaking the alignment of all subsequent separators while avoiding
+     * "false positive" matches from separators found much further ahead in
+     * the string.
      *
-     * @param list<string> $sourceChars
+     * @param list<string> $sourceChars Multibyte character array of the source string
+     * @param int          $sourceLen   Total number of characters in the source
+     * @param string       $token       The separator token to match
+     * @param int          $offset      Current character offset in the source
+     *
+     * @return bool True if a match was found within the lookahead window
      */
     private function matchSeparatorNearOffset(array $sourceChars, int $sourceLen, string $token, int $offset): bool
     {
@@ -1066,8 +1146,17 @@ final readonly class RenameOutputRenderer
     }
 
     /**
-     * @param list<string> $tokens
-     * @param list<string> $states
+     * Renders the tokenized target string with ANSI color codes based on match states.
+     *
+     * Adjacent tokens with the same state are buffered and rendered as a single
+     * ANSI segment to minimize the length of the resulting string and improve
+     * terminal performance.
+     *
+     * @param list<string> $tokens    The original tokens
+     * @param list<string> $states    Calculated states ('same', 'case-changed', 'changed')
+     * @param string       $baseColor The color to use for 'same' segments
+     *
+     * @return string ANSI-formatted string
      */
     private function renderHighlightedTokens(array $tokens, array $states, string $baseColor): string
     {
@@ -1094,6 +1183,19 @@ final readonly class RenameOutputRenderer
         return $result;
     }
 
+    /**
+     * Formats a single segment of the diff with appropriate ANSI colors and options.
+     *
+     * - 'same': Rendered in base color.
+     * - 'case-changed': Rendered in bright base color + bold.
+     * - 'changed' (default): Rendered in bright base color + bold.
+     *
+     * @param string $value     The text segment to format
+     * @param string $state     The match state ('same', 'case-changed', or default)
+     * @param string $baseColor The base color name (e.g. 'green', 'gray')
+     *
+     * @return string The ANSI-formatted segment
+     */
     private function formatDiffSegment(string $value, string $state, string $baseColor): string
     {
         return match ($state) {

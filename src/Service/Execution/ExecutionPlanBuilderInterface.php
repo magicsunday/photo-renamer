@@ -27,10 +27,15 @@ use MagicSunday\Renamer\Model\PipelineContext;
 interface ExecutionPlanBuilderInterface
 {
     /**
-     * Builds an execution plan from the analysis pipeline output.
+     * Projects an AssetGroupCollection into an ExecutionPlan.
      *
-     * @param AssetGroupCollection $groups  Analysed asset groups to project
-     * @param PipelineContext      $context Pipeline state with quality flags
+     * This is a pure projection with no new business logic, re-detection, or
+     * collision resolution. It prepares the data for the final execution phase.
+     *
+     * @param AssetGroupCollection $groups  The analysed asset groups to project.
+     * @param PipelineContext      $context The pipeline state containing quality flags.
+     *
+     * @return ExecutionPlan The resulting execution plan.
      */
     public function build(
         AssetGroupCollection $groups,

@@ -22,7 +22,10 @@ use MagicSunday\Renamer\Model\Execution\ExecutionItemType;
 use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
 use MagicSunday\Renamer\Model\Execution\ExecutionPreview;
 use MagicSunday\Renamer\Model\FileDuplicate;
+use MagicSunday\Renamer\Model\LinkConfig;
+use MagicSunday\Renamer\Model\OutputEntry;
 use MagicSunday\Renamer\Model\OutputEntryTag;
+use MagicSunday\Renamer\Model\OutputEntryType;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
@@ -53,6 +56,10 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
+#[UsesClass(LinkConfig::class)]
+#[UsesClass(OutputEntry::class)]
+#[UsesClass(OutputEntryTag::class)]
+#[UsesClass(OutputEntryType::class)]
 #[UsesClass(ExecutionGroup::class)]
 #[UsesClass(ExecutionItem::class)]
 #[UsesClass(ExecutionPlan::class)]
@@ -63,8 +70,12 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 final class RenameOutputRendererTest extends TestCase
 {
     /**
-     * Verifies that buildOutputEntries returns rename entries sorted by source path
-     * and computes the correct max filename length.
+     * Verifies that buildOutputEntries returns rename entries sorted alphabetically
+     * by their source pathname.
+     *
+     * Stable sorting ensures consistent console output even if the underlying
+     * filesystem or hash-map iteration order varies. This test checks that a file
+     * starting with 'a-' appears before one starting with 'b-'.
      */
     #[Test]
     public function buildOutputEntriesReturnsSortedEntries(): void
@@ -102,7 +113,12 @@ final class RenameOutputRendererTest extends TestCase
     }
 
     /**
-     * Verifies that buildOutputEntries tags duplicate targets with OutputEntryTag::Duplicate.
+     * Verifies that buildOutputEntries identifies and tags duplicate target paths.
+     *
+     * A duplicate target occurs when multiple source files (e.g., exact copies)
+     * would be renamed to the same destination filename. The renderer must mark
+     * subsequent files targeting the same path with OutputEntryTag::Duplicate
+     * to visually distinguish them from the primary file.
      */
     #[Test]
     public function buildOutputEntriesTagsDuplicateTargets(): void
@@ -137,8 +153,12 @@ final class RenameOutputRendererTest extends TestCase
     }
 
     /**
-     * Verifies that buildOutputEntries tags heuristic Live Photo content-ID
-     * conflicts as review candidates and marks them as skipped.
+     * Verifies that Live Photo content identifier conflicts are correctly identified
+     * and tagged as candidates for inspection.
+     *
+     * When a photo and video appear to be a pair but have mismatched content IDs,
+     * they are tagged as OutputEntryTag::Candidate. This test ensures the renderer
+     * detects this state from the RenameResult and assigns the appropriate tag.
      */
     #[Test]
     public function buildOutputEntriesTagsLivePhotoContentIdConflictsAsCandidates(): void
@@ -172,7 +192,12 @@ final class RenameOutputRendererTest extends TestCase
     }
 
     /**
-     * Verifies that buildOutputEntries includes skipped files with correct counts.
+     * Verifies that files skipped during the scanning or grouping phase are included
+     * in the output list with their specific skip reasons.
+     *
+     * Reporting skipped files is essential for transparency, allowing the user to
+     * understand why certain files in the directory were not processed (e.g. missing
+     * EXIF data or unmapped extension).
      */
     #[Test]
     public function buildOutputEntriesIncludesSkippedFiles(): void
@@ -206,7 +231,12 @@ final class RenameOutputRendererTest extends TestCase
     }
 
     /**
-     * Verifies that renderSummary outputs the expected labels for all provided counters.
+     * Verifies that the summary table includes all non-zero operational counters
+     * like total renames, duplicates, and collisions.
+     *
+     * The summary provides a high-level overview of the work performed. This test
+     * ensures that when these events occur, they are formatted into the summary
+     * section of the console output.
      */
     #[Test]
     public function renderSummaryDisplaysAllNonZeroCounters(): void

@@ -23,17 +23,26 @@ use SplFileInfo;
 interface MediaTypeClassifierInterface
 {
     /**
-     * Checks whether the given file is a still image (HEIC, HEIF, JPG, JPEG) as opposed
-     * to a video companion (MOV, MP4).
+     * Checks whether the given file is a still image.
      *
-     * @param SplFileInfo $fileInfo File to classify
+     * Still images are typically HEIC, HEIF, JPG, or JPEG files. In the context
+     * of Live Photos, this is the primary asset of a pair.
      *
-     * @return bool True when the file extension matches a known still image format
+     * @param SplFileInfo $fileInfo The file to classify.
+     *
+     * @return bool True if the file extension matches a known still image format.
      */
     public function isLivePhotoStill(SplFileInfo $fileInfo): bool;
 
     /**
-     * Checks whether the given file is a video (MOV, MP4, AVI, MKV, etc.).
+     * Checks whether the given file is a video.
+     *
+     * Videos include formats like MOV, MP4, AVI, or MKV. In the context
+     * of Live Photos, this is the companion asset of a pair.
+     *
+     * @param SplFileInfo $fileInfo The file to classify.
+     *
+     * @return bool True if the file extension matches a known video format.
      */
     public function isVideo(SplFileInfo $fileInfo): bool;
 }

@@ -147,8 +147,13 @@ final class CanonicalScorer implements CanonicalScorerInterface
 
     /**
      * Computes the total score and reasoning strings for a single item.
+     * Scoring favors preferred formats, already correctly named files,
+     * files in the root directory, and Live Photo assets.
      *
-     * @return array{int, list<string>}
+     * @param AssetItem  $item  Asset to score
+     * @param AssetGroup $group Parent group for context (e.g. groupKey for idempotency)
+     *
+     * @return array{int, list<string>} Tuple of [totalScore, reasons]
      */
     private function computeScore(AssetItem $item, AssetGroup $group): array
     {
@@ -196,7 +201,12 @@ final class CanonicalScorer implements CanonicalScorerInterface
 
     /**
      * Returns the format priority score for a given lowercase extension.
+     * Higher preference formats (e.g. HEIC over JPG) receive higher scores.
      * Unknown formats return 0.
+     *
+     * @param string $extension Lowercase file extension without leading dot
+     *
+     * @return int Priority score (0 if unknown)
      */
     private function computeFormatScore(string $extension): int
     {

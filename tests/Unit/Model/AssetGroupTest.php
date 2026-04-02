@@ -32,6 +32,10 @@ use SplFileInfo;
 #[UsesClass(AssetItem::class)]
 final class AssetGroupTest extends TestCase
 {
+    /**
+     * Verifies that the constructor correctly initializes the group with the given key
+     * and ensures that all collections (items, decision log, etc.) are initially empty.
+     */
     #[Test]
     public function constructorSetsGroupKey(): void
     {
@@ -47,6 +51,10 @@ final class AssetGroupTest extends TestCase
         self::assertSame(0, $group->itemCount());
     }
 
+    /**
+     * Verifies that items can be added to the group and subsequently retrieved.
+     * Checks if the internal item list and the item count are updated correctly.
+     */
     #[Test]
     public function addAndRetrieveItems(): void
     {
@@ -59,6 +67,10 @@ final class AssetGroupTest extends TestCase
         self::assertSame([$item], $group->getItems());
     }
 
+    /**
+     * Verifies that getCanonical() returns the first item explicitly marked with the Canonical role.
+     * This is crucial for identifying the primary file in a group of duplicates or related assets.
+     */
     #[Test]
     public function getCanonicalReturnsFirstCanonical(): void
     {
@@ -72,6 +84,9 @@ final class AssetGroupTest extends TestCase
         self::assertSame($canonical, $group->getCanonical());
     }
 
+    /**
+     * Verifies that getCanonical() returns null if no item in the group has been assigned the Canonical role.
+     */
     #[Test]
     public function getCanonicalReturnsNullWhenNone(): void
     {
@@ -82,6 +97,10 @@ final class AssetGroupTest extends TestCase
         self::assertNull($group->getCanonical());
     }
 
+    /**
+     * Verifies that the group correctly filters items by their assigned roles (Canonical, Duplicate, Companion, Ambiguous).
+     * This ensures that the pipeline can reliably access specific subsets of the group.
+     */
     #[Test]
     public function roleFilteringWorksCorrectly(): void
     {
@@ -104,6 +123,11 @@ final class AssetGroupTest extends TestCase
         self::assertSame([$ambiguous], $group->getAmbiguous());
     }
 
+    /**
+     * Verifies that replaceItem() correctly updates an existing item in the group's list.
+     * Since AssetItem is often used immutably (via withScore), the group must support
+     * replacing an old instance with a new, updated one (e.g., after scoring).
+     */
     #[Test]
     public function replaceItemUpdatesInPlace(): void
     {
@@ -121,6 +145,9 @@ final class AssetGroupTest extends TestCase
         self::assertSame(['preferred format'], $group->getItems()[0]->reasoning);
     }
 
+    /**
+     * Verifies that replaceItem() performs no operation if the item to be replaced is not found in the group.
+     */
     #[Test]
     public function replaceItemNoOpsWhenNotFound(): void
     {
@@ -138,6 +165,9 @@ final class AssetGroupTest extends TestCase
         self::assertSame($inGroup, $group->getItems()[0]);
     }
 
+    /**
+     * Verifies that getItemByPath() can locate a specific AssetItem based on its file path.
+     */
     #[Test]
     public function getItemByPathFindsItem(): void
     {
@@ -150,6 +180,10 @@ final class AssetGroupTest extends TestCase
         self::assertNull($group->getItemByPath('/tmp/nonexistent.heic'));
     }
 
+    /**
+     * Verifies that the decision log correctly accumulates string messages.
+     * The decision log is used for debugging and reporting why certain classification decisions were made.
+     */
     #[Test]
     public function decisionLogAccumulatesEntries(): void
     {
@@ -164,6 +198,11 @@ final class AssetGroupTest extends TestCase
         );
     }
 
+    /**
+     * Verifies the detection of multiple distinct file formats within a group.
+     * A group has distinct formats if it contains files with different extensions (case-insensitive).
+     * This is used to decide whether perceptual hashing or other advanced checks are needed.
+     */
     #[Test]
     public function hasMultipleDistinctFormatsDetectsCorrectly(): void
     {
@@ -178,6 +217,9 @@ final class AssetGroupTest extends TestCase
         self::assertTrue($group->hasMultipleDistinctFormats());
     }
 
+    /**
+     * Verifies that itemCount() returns the total number of items currently in the group.
+     */
     #[Test]
     public function itemCountReturnsCorrectValue(): void
     {
@@ -191,6 +233,10 @@ final class AssetGroupTest extends TestCase
         self::assertSame(2, $group->itemCount());
     }
 
+    /**
+     * Verifies the tracking of the classification state and failure reasons.
+     * Ensures that the group correctly reflects whether it was successfully classified or if an error occurred.
+     */
     #[Test]
     public function classificationStateTracking(): void
     {
@@ -214,6 +260,9 @@ final class AssetGroupTest extends TestCase
         self::assertSame('hash computation error', $group->getClassificationFailureReason());
     }
 
+    /**
+     * Verifies that marking a classification as succeeded clears any previously stored failure reason.
+     */
     #[Test]
     public function markClassificationSucceededClearsFailureReason(): void
     {

@@ -33,6 +33,10 @@ use SplFileInfo;
 #[UsesClass(TemporalMetadata::class)]
 final class AssetItemTest extends TestCase
 {
+    /**
+     * Verifies that the constructor sets correct default values for all properties
+     * of a new AssetItem.
+     */
     #[Test]
     public function constructorSetsDefaults(): void
     {
@@ -52,6 +56,10 @@ final class AssetItemTest extends TestCase
         self::assertNull($item->clusterId);
     }
 
+    /**
+     * Verifies that withRole() returns a new instance with the updated role
+     * and duplicate relation, while the original remains unchanged.
+     */
     #[Test]
     public function withRoleReturnsNewInstance(): void
     {
@@ -67,6 +75,10 @@ final class AssetItemTest extends TestCase
         self::assertNull($original->duplicateRelation);
     }
 
+    /**
+     * Verifies that proposing a name different from the current pathname
+     * correctly sets renameRequired to true.
+     */
     #[Test]
     public function withProposedNameComputesRenameRequired(): void
     {
@@ -79,6 +91,10 @@ final class AssetItemTest extends TestCase
         self::assertTrue($updated->renameRequired);
     }
 
+    /**
+     * Verifies that proposing a name that is identical to the current pathname
+     * correctly sets renameRequired to false.
+     */
     #[Test]
     public function withProposedNameDetectsAlreadyCorrect(): void
     {
@@ -92,6 +108,10 @@ final class AssetItemTest extends TestCase
         self::assertFalse($updated->renameRequired);
     }
 
+    /**
+     * Verifies that withScore() returns a new instance with updated priority score
+     * and reasoning, preserving the original's state.
+     */
     #[Test]
     public function withScoreReturnsNewInstance(): void
     {
@@ -108,6 +128,9 @@ final class AssetItemTest extends TestCase
         self::assertSame([], $original->reasoning);
     }
 
+    /**
+     * Verifies that withSequenceNumber() returns a new instance with the assigned sequence number.
+     */
     #[Test]
     public function withSequenceNumberReturnsNewInstance(): void
     {
@@ -121,6 +144,9 @@ final class AssetItemTest extends TestCase
         self::assertNull($original->sequenceNumber);
     }
 
+    /**
+     * Verifies that withClusterId() returns a new instance with the assigned cluster ID.
+     */
     #[Test]
     public function withClusterIdReturnsNewInstance(): void
     {
@@ -134,6 +160,10 @@ final class AssetItemTest extends TestCase
         self::assertNull($original->clusterId);
     }
 
+    /**
+     * Verifies that matchesProposedNameExactly() returns true if the current file
+     * already resides at the proposed path.
+     */
     #[Test]
     public function matchesProposedNameExactlyWhenCorrect(): void
     {
@@ -144,6 +174,9 @@ final class AssetItemTest extends TestCase
         self::assertTrue($item->matchesProposedNameExactly());
     }
 
+    /**
+     * Verifies that matchesProposedNameExactly() returns false if no name has been proposed yet.
+     */
     #[Test]
     public function matchesProposedNameExactlyReturnsFalseWithoutProposal(): void
     {
@@ -153,6 +186,10 @@ final class AssetItemTest extends TestCase
         self::assertFalse($item->matchesProposedNameExactly());
     }
 
+    /**
+     * Verifies that matchesProposedNameExactly() returns false if the current path
+     * and proposed path differ.
+     */
     #[Test]
     public function matchesProposedNameExactlyReturnsFalseWhenDifferent(): void
     {
@@ -162,6 +199,10 @@ final class AssetItemTest extends TestCase
         self::assertFalse($item->matchesProposedNameExactly());
     }
 
+    /**
+     * Verifies that matchesNamingPattern() correctly identifies files that already
+     * follow the target naming scheme (YYYY-MM-DD_HH-mm-ss).
+     */
     #[Test]
     public function matchesNamingPatternDetectsDatePattern(): void
     {
@@ -171,6 +212,10 @@ final class AssetItemTest extends TestCase
         self::assertTrue($item->matchesNamingPattern());
     }
 
+    /**
+     * Verifies that matchesNamingPattern() returns false for files with generic
+     * camera names like IMG_0001.
+     */
     #[Test]
     public function matchesNamingPatternReturnsFalseForOriginalName(): void
     {
@@ -180,6 +225,9 @@ final class AssetItemTest extends TestCase
         self::assertFalse($item->matchesNamingPattern());
     }
 
+    /**
+     * Verifies that extension() returns the file extension in lowercase.
+     */
     #[Test]
     public function extensionReturnsLowercaseExtension(): void
     {
@@ -189,6 +237,10 @@ final class AssetItemTest extends TestCase
         self::assertSame('heic', $item->extension());
     }
 
+    /**
+     * Verifies the calculation of directory depth, ensuring it reflects the number
+     * of parent directories in the path.
+     */
     #[Test]
     public function dirDepthComputesCorrectly(): void
     {
@@ -201,6 +253,10 @@ final class AssetItemTest extends TestCase
         self::assertSame(4, $deep->dirDepth());
     }
 
+    /**
+     * Verifies that withMetadata() creates a new instance with updated metadata
+     * and content identifier while preserving all other properties.
+     */
     #[Test]
     public function withMetadataPreservesOtherFields(): void
     {
@@ -225,6 +281,10 @@ final class AssetItemTest extends TestCase
         self::assertSame('cluster-abc', $changed->clusterId);
     }
 
+    /**
+     * Verifies that withRole() preserves all properties except the role and
+     * the duplicate relation (which is reset when the role changes).
+     */
     #[Test]
     public function withRolePreservesOtherFields(): void
     {
@@ -248,6 +308,10 @@ final class AssetItemTest extends TestCase
         self::assertSame('cluster-abc', $changed->clusterId);
     }
 
+    /**
+     * Verifies that withProposedName() creates a new instance with the updated
+     * proposal while keeping all other data intact.
+     */
     #[Test]
     public function withProposedNamePreservesOtherFields(): void
     {
@@ -271,6 +335,10 @@ final class AssetItemTest extends TestCase
         self::assertSame('cluster-abc', $changed->clusterId);
     }
 
+    /**
+     * Verifies that withScore() preserves all properties while updating only
+     * the priority score and its reasoning.
+     */
     #[Test]
     public function withScorePreservesOtherFields(): void
     {
@@ -294,6 +362,10 @@ final class AssetItemTest extends TestCase
         self::assertSame('cluster-abc', $changed->clusterId);
     }
 
+    /**
+     * Verifies that withSequenceNumber() preserves all properties except for
+     * the sequence number itself.
+     */
     #[Test]
     public function withSequenceNumberPreservesOtherFields(): void
     {
@@ -317,6 +389,10 @@ final class AssetItemTest extends TestCase
         self::assertSame('cluster-abc', $changed->clusterId);
     }
 
+    /**
+     * Verifies that withClusterId() preserves all properties except for
+     * the cluster ID itself.
+     */
     #[Test]
     public function withClusterIdPreservesOtherFields(): void
     {

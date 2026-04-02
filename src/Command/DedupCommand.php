@@ -16,6 +16,7 @@ use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use Override;
+use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -49,8 +50,11 @@ use const DIRECTORY_SEPARATOR;
 final class DedupCommand extends Command
 {
     /**
-     * @param FileSystemServiceInterface $fileSystemService Provides file iteration
-     * @param RenameOutputRenderer       $renderer          Shared output rendering utilities
+     * Constructor.
+     *
+     * @param FileSystemServiceInterface $fileSystemService Service to handle file system operations like iteration
+     * @param RenameOutputRenderer       $renderer          Service to render output in a consistent format
+     * @param Filesystem                 $filesystem        Symfony Filesystem component for file operations
      */
     public function __construct(
         private readonly FileSystemServiceInterface $fileSystemService,
@@ -96,7 +100,19 @@ final class DedupCommand extends Command
     }
 
     /**
-     * Executes the dedup command: scans for duplicate files and moves or deletes them.
+     * Executes the dedup command.
+     *
+     * Scans for files containing the duplicate suffix in their name and
+     * either moves them to a target directory or deletes them based on
+     * the provided options.
+     *
+     * @param InputInterface  $input  The input interface.
+     * @param OutputInterface $output The output interface.
+     *
+     * @return int The exit code (0 for success, non-zero for failure).
+     *
+     * @throws RuntimeException If the source directory does not exist or target
+     *                          directory cannot be created.
      */
     #[Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -181,7 +197,7 @@ final class DedupCommand extends Command
 
         // Post-scan summary
         $action          = $delete ? 'delete' : 'move';
-        $actionableCount = count(array_filter($duplicates, static fn (array $e): bool => $e['originalExists']));
+        $actionableCount = count(array_filter($duplicates, static fn (array $duplicateEntry): bool => $duplicateEntry['originalExists']));
         $orphanCount     = count($duplicates) - $actionableCount;
 
         if ($duplicates !== []) {
@@ -288,7 +304,16 @@ final class DedupCommand extends Command
     }
 
     /**
-     * Renders the summary table with dedup statistics.
+     * Renders a final summary of the de-duplication operation.
+     *
+     * Displays the total number of files scanned, duplicates found,
+     * orphaned files identified, and the amount of disk space that can be reclaimed.
+     *
+     * @param SymfonyStyle $io               The SymfonyStyle IO instance for output.
+     * @param int          $scannedFiles     Total number of files scanned.
+     * @param int          $duplicatesFound  Number of duplicate files identified.
+     * @param int          $orphanedCount    Number of files that could not be processed.
+     * @param int          $spaceReclaimable Total size of duplicate files in bytes.
      */
     private function renderSummary(
         SymfonyStyle $io,

@@ -18,6 +18,7 @@ use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
+use MagicSunday\Renamer\Model\Collection\FileList;
 use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
@@ -48,6 +49,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 #[UsesClass(AssetGroup::class)]
 #[UsesClass(AssetItem::class)]
 #[UsesClass(AssetGroupCollection::class)]
+#[UsesClass(FileList::class)]
 #[UsesClass(FileDuplicate::class)]
 #[UsesClass(FileHelper::class)]
 #[UsesClass(Rename::class)]
@@ -71,7 +73,8 @@ final class SubgroupClassifierTest extends TestCase
     }
 
     /**
-     * A group with only 1 item should not invoke apply() at all.
+     * Ensures that groups with only one item are skipped, as no sub-grouping
+     * is necessary.
      */
     #[Test]
     public function singleItemGroupIsSkipped(): void
@@ -94,7 +97,8 @@ final class SubgroupClassifierTest extends TestCase
     }
 
     /**
-     * When apply() returns null (no sub-grouping needed), items remain unchanged.
+     * Verifies that items remain unchanged if the sub-grouping service
+     * decides that no further splitting of the group is required.
      */
     #[Test]
     public function noSubgroupingNeededLeavesItemsUnchanged(): void
@@ -125,8 +129,8 @@ final class SubgroupClassifierTest extends TestCase
     }
 
     /**
-     * When apply() returns a cluster map, the corresponding AssetItems should
-     * receive clusterIds directly from the map (filename-free).
+     * Verifies that the cluster ID is correctly set on items when
+     * subgrouping (e.g., via perceptual hashing) occurs.
      */
     #[Test]
     public function subgroupingAppliedSetsClusterIdOnItems(): void
@@ -161,7 +165,8 @@ final class SubgroupClassifierTest extends TestCase
     }
 
     /**
-     * clearCache() must be called after processing each group to release Imagick memory.
+     * Ensures that the cache is cleared for each group to avoid side
+     * effects between different asset groups.
      */
     #[Test]
     public function clearCacheCalledPerGroup(): void
@@ -223,8 +228,8 @@ final class SubgroupClassifierTest extends TestCase
     }
 
     /**
-     * The content identifier and temporal metadata maps passed to apply()
-     * must be built from the AssetItems' properties.
+     * Verifies that the map of Content-IDs is correctly built from the items
+     * in the group to identify duplicates within the group.
      */
     #[Test]
     public function contentIdentifierMapBuiltFromItems(): void
@@ -314,8 +319,8 @@ final class SubgroupClassifierTest extends TestCase
     }
 
     /**
-     * When apply() returns null (single hash group), the group should be marked
-     * as classification succeeded — not degraded.
+     * Ensures that the group's status is correctly marked upon successful
+     * classification.
      */
     #[Test]
     public function classificationMarkedSucceededOnNormalGroup(): void
@@ -378,8 +383,8 @@ final class SubgroupClassifierTest extends TestCase
     }
 
     /**
-     * When apply() throws, the group should be marked as degraded and no items
-     * should have clusterIds set (atomic rollback).
+     * Verifies that the group's status is marked as "Degraded" if an exception
+     * occurs during classification (e.g., faulty image data).
      */
     #[Test]
     public function classificationMarkedDegradedOnException(): void

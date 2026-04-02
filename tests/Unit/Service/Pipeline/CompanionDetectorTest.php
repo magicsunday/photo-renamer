@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service\Pipeline;
 
+use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
@@ -34,13 +35,16 @@ use SplFileInfo;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(CompanionDetector::class)]
+#[UsesClass(FileHelper::class)]
 #[UsesClass(AssetGroup::class)]
 #[UsesClass(AssetItem::class)]
 #[UsesClass(MediaTypeClassifier::class)]
 final class CompanionDetectorTest extends TestCase
 {
     /**
-     * Content-ID match: HEIC(abc) + MOV(abc) should detect MOV as companion.
+     * Verifies that companions are correctly identified via their Content-ID.
+     * This particularly applies to Live Photos, where images and videos share
+     * the same ID.
      */
     #[Test]
     public function contentIdMatchDetectsCompanion(): void
@@ -68,7 +72,8 @@ final class CompanionDetectorTest extends TestCase
     }
 
     /**
-     * Content-ID match must skip same media type: HEIC(abc) + JPG(abc) should NOT pair.
+     * Ensures that files with the same Content-ID but the same media type
+     * (e.g., two images) are not recognized as companions for each other.
      */
     #[Test]
     public function contentIdMatchSkipsSameMediaType(): void
@@ -95,7 +100,8 @@ final class CompanionDetectorTest extends TestCase
     }
 
     /**
-     * Basename fallback: HEIC(abc) + MOV(no content-id, same basename) should pair.
+     * Verifies the detection of companions based on the filename (basename)
+     * when no Content-ID is present but the names match.
      */
     #[Test]
     public function basenameFollowsDetectsCompanion(): void
@@ -123,7 +129,8 @@ final class CompanionDetectorTest extends TestCase
     }
 
     /**
-     * Basename fallback with 2+ candidates is ambiguous: no companion detected.
+     * Verifies that name-based detection only works if exactly one
+     * candidate with a matching name exists in the group.
      */
     #[Test]
     public function basenameFollowsRequiresExactlyOneCandidate(): void
@@ -156,8 +163,8 @@ final class CompanionDetectorTest extends TestCase
     }
 
     /**
-     * Basename fallback with conflicting content ID: HEIC(abc) + MOV(xyz, same basename)
-     * should NOT pair and should log a decision.
+     * Ensures that detection via basename also works when Content-IDs are
+     * different (e.g., for manually edited pairs).
      */
     #[Test]
     public function basenameFollowsDetectsConflictingContentId(): void
@@ -186,7 +193,8 @@ final class CompanionDetectorTest extends TestCase
     }
 
     /**
-     * No companion detection when canonical has no content ID.
+     * Verifies that no companions are recognized if the main file (canonical)
+     * does not have a Content-ID.
      */
     #[Test]
     public function noCompanionWhenCanonicalHasNoContentId(): void
@@ -234,8 +242,8 @@ final class CompanionDetectorTest extends TestCase
     }
 
     /**
-     * Multiple content-ID companions of same media type: HEIC(abc) + MOV(abc) + MP4(abc)
-     * should detect only one video (best candidate), not both.
+     * Verifies that when there are multiple possible companions with the same
+     * Content-ID, the best candidate per media type is selected.
      */
     #[Test]
     public function multipleContentIdCompanionsSelectsBestPerMediaType(): void
@@ -270,7 +278,8 @@ final class CompanionDetectorTest extends TestCase
     }
 
     /**
-     * Reversed media types: MOV(abc) as canonical + HEIC(abc) should detect HEIC as companion.
+     * Checks the special case where a video acts as the main file and the
+     * associated still image is recognized as a companion.
      */
     #[Test]
     public function canonicalIsVideoStillIsCompanion(): void

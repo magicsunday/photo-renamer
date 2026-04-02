@@ -14,9 +14,12 @@ namespace MagicSunday\Renamer\Model;
 use SplFileInfo;
 
 /**
- * Represents a single planned rename operation, mapping one source file to its
- * computed target path. The target may be updated during the pipeline when the
- * safe-rename logic resolves naming collisions.
+ * Represents a single planned rename operation.
+ *
+ * This model maps a source file to its computed target path. While the source
+ * remains immutable throughout the renaming pipeline, the target path may
+ * be updated by components like the collision resolver to ensure a unique
+ * filename in the destination directory.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -25,15 +28,21 @@ use SplFileInfo;
 final class Rename
 {
     /**
-     * @param SplFileInfo $source Original file on disk (immutable throughout the pipeline)
-     * @param SplFileInfo $target Computed destination path (may be replaced by collision resolution)
+     * @param SplFileInfo $source The original file on disk. This path is
+     *                            considered immutable for the duration of
+     *                            the planning phase.
+     * @param SplFileInfo $target The currently computed destination path.
+     *                            This may be replaced or modified by the
+     *                            collision resolution logic.
      */
     public function __construct(private readonly SplFileInfo $source, private SplFileInfo $target)
     {
     }
 
     /**
-     * Returns the original source file that will be renamed or copied.
+     * Returns the original source file for this rename operation.
+     *
+     * @return SplFileInfo The source file information.
      */
     public function getSource(): SplFileInfo
     {
@@ -42,6 +51,8 @@ final class Rename
 
     /**
      * Returns the currently assigned target path for this rename operation.
+     *
+     * @return SplFileInfo The target file information.
      */
     public function getTarget(): SplFileInfo
     {
@@ -49,12 +60,15 @@ final class Rename
     }
 
     /**
-     * Replaces the target path, typically when the file system service detects
-     * a naming collision and assigns a new duplicate-suffixed filename.
+     * Replaces the target path for this rename operation.
      *
-     * @param SplFileInfo $target New target path to use
+     * This is typically called by the collision resolution logic when a
+     * naming conflict is detected in the target directory, requiring a
+     * modified filename (e.g., with a numeric suffix).
      *
-     * @return Rename Fluent interface
+     * @param SplFileInfo $target The new target path to be assigned.
+     *
+     * @return Rename Fluent interface for method chaining.
      */
     public function setTarget(SplFileInfo $target): self
     {

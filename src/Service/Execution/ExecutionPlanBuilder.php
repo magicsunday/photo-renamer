@@ -21,6 +21,7 @@ use MagicSunday\Renamer\Model\Execution\ExecutionItemType;
 use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
 use MagicSunday\Renamer\Model\ItemRole;
 use MagicSunday\Renamer\Model\PipelineContext;
+use Override;
 
 use function array_map;
 use function basename;
@@ -51,6 +52,13 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
         'ambiguous' => 3,
     ];
 
+    /**
+     * @param AssetGroupCollection $groups  Die zu projizierenden Asset-Gruppen.
+     * @param PipelineContext      $context Der Pipeline-Kontext mit Qualitäts-Flags.
+     *
+     * @return ExecutionPlan Der resultierende Ausführungsplan.
+     */
+    #[Override]
     public function build(
         AssetGroupCollection $groups,
         PipelineContext $context,
@@ -65,10 +73,15 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
     }
 
     /**
-     * Projects a single AssetGroup into an ExecutionGroup.
+     * Projiziert eine einzelne AssetGroup in eine ExecutionGroup.
      *
-     * @param AssetGroup      $group   Source asset group
-     * @param PipelineContext $context Pipeline state with quality flags
+     * Dabei werden die Items sortiert (Kanonisch → Companion → Duplikat),
+     * Qualitäts-Flags ausgewertet und Entscheidungslogs übernommen.
+     *
+     * @param AssetGroup      $group   Die Quell-Asset-Gruppe.
+     * @param PipelineContext $context Der aktuelle Pipeline-Status.
+     *
+     * @return ExecutionGroup Die resultierende Ausführungsgruppe.
      */
     private function projectGroup(
         AssetGroup $group,
@@ -103,11 +116,17 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
     }
 
     /**
-     * Projects a single AssetItem into an ExecutionItem.
+     * Projiziert ein einzelnes AssetItem in ein ExecutionItem.
      *
-     * @param AssetItem       $item     Source asset item
-     * @param string          $groupKey Group key for the execution item
-     * @param PipelineContext $context  Pipeline state with quality flags
+     * Hier wird die finale Entscheidung getroffen, ob ein Item ausführbar
+     * (executable) ist. Gründe für eine Blockierung können Konflikte bei
+     * Live Photos, mehrdeutige Zeitzonen oder Fallback-Daten sein.
+     *
+     * @param AssetItem       $item     Das Quell-Asset-Item.
+     * @param string          $groupKey Der Schlüssel der Gruppe.
+     * @param PipelineContext $context  Der aktuelle Pipeline-Status.
+     *
+     * @return ExecutionItem Das resultierende Ausführungs-Item.
      */
     private function projectItem(
         AssetItem $item,
@@ -173,7 +192,7 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
     {
         usort(
             $items,
-            static fn (AssetItem $a, AssetItem $b): int => self::ROLE_ORDER[$a->role->value] <=> self::ROLE_ORDER[$b->role->value],
+            static fn (AssetItem $itemA, AssetItem $itemB): int => self::ROLE_ORDER[$itemA->role->value] <=> self::ROLE_ORDER[$itemB->role->value],
         );
 
         return $items;

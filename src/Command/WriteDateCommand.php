@@ -25,6 +25,7 @@ use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use Override;
+use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -189,8 +190,15 @@ final class WriteDateCommand extends Command
     }
 
     /**
-     * Executes the write-date command: scans files, determines which need metadata
-     * correction, and writes dates via exiftool.
+     * Executes the date writing process: scans files, extracts capture dates
+     * from filenames, and writes them to EXIF/QuickTime tags using exiftool.
+     *
+     * @param InputInterface  $input  The input interface.
+     * @param OutputInterface $output The output interface.
+     *
+     * @return int The exit code (0 for success, non-zero for failure).
+     *
+     * @throws RuntimeException If the source does not exist or exiftool is missing.
      */
     #[Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -463,15 +471,16 @@ final class WriteDateCommand extends Command
     }
 
     /**
-     * Determines whether metadata needs to be written for the given file and returns
-     * a reason key + label pair. Returns [null, null] when the metadata is already correct.
+     * Determines whether a file requires a date update based on its filename
+     * and current capture date metadata.
      *
-     * @param SplFileInfo            $file             File to check
-     * @param DateTimeInterface|null $captureDateTime  Current metadata date, or null
-     * @param DateTimeImmutable      $filenameDateTime Date extracted from the filename
-     * @param int                    $maxDateDrift     Maximum allowed drift in days
+     * @param SplFileInfo            $file             The file to check.
+     * @param DateTimeInterface|null $captureDateTime  The currently extracted capture date (if any).
+     * @param DateTimeImmutable      $filenameDateTime The date parsed from the filename.
+     * @param int                    $maxDateDrift     Max allowed drift in days before tagging as a mismatch.
+     * @param bool                   $force            Whether to ignore the "already correct" state.
      *
-     * @return array{string|null, string|null} Reason key and label, or [null, null] when no write is needed
+     * @return array{0: string|null, 1: string|null} Tuple containing [reason key, reason label] or [null, null].
      */
     private function determineWriteReason(
         SplFileInfo $file,
@@ -522,9 +531,11 @@ final class WriteDateCommand extends Command
     }
 
     /**
-     * Resolves the --reason filter option into a list of reason keys.
+     * Resolves and parses the 'reason' filter option into a list of reason keys.
      *
-     * @return list<string>|null Reason keys to include, or null for all
+     * @param InputInterface $input The input interface carrying the 'reason' option.
+     *
+     * @return list<string>|null A list of lowercase reason keys to include, or null for all.
      */
     private function resolveReasonFilter(InputInterface $input): ?array
     {
