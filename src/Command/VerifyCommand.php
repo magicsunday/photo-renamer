@@ -11,19 +11,17 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Command;
 
-use DateTimeImmutable;
 use DateTimeInterface;
-use DateTimeZone;
 use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
 use MagicSunday\Renamer\Command\Concern\ResolvesSourcePath;
 use MagicSunday\Renamer\Constants;
-use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\Verify\LivePhotoCompletenessAnalyzer;
 use MagicSunday\Renamer\Service\Verify\MetadataIssueScanner;
 use MagicSunday\Renamer\Service\Verify\VerifyCategoryCatalog;
+use MagicSunday\Renamer\Service\Verify\VerifyDetailEntryFormatter;
 use Override;
 use SplFileInfo;
 use Symfony\Component\Console\Command\Command;
@@ -36,9 +34,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use function array_map;
 use function count;
 use function dirname;
-use function escapeshellarg;
 use function explode;
-use function filesize;
 use function in_array;
 use function is_file;
 use function is_string;
@@ -66,6 +62,7 @@ final class VerifyCommand extends Command
      * @param ExifMetadataProvider          $exifMetadataProvider          Metadata provider with caching
      * @param FileSystemServiceInterface    $fileSystemService             Provides file iteration
      * @param RenameOutputRenderer          $renderer                      Shared output rendering utilities
+     * @param VerifyDetailEntryFormatter    $verifyDetailEntryFormatter    Formats detail-mode verify entries
      * @param MetadataIssueScanner          $metadataIssueScanner          Scans per-file metadata issues before LP completeness checks
      * @param LivePhotoCompletenessAnalyzer $livePhotoCompletenessAnalyzer Analyzes missing Live Photo companions after the scan
      */
@@ -73,6 +70,7 @@ final class VerifyCommand extends Command
         private readonly ExifMetadataProvider $exifMetadataProvider,
         private readonly FileSystemServiceInterface $fileSystemService,
         private readonly RenameOutputRenderer $renderer,
+        private readonly VerifyDetailEntryFormatter $verifyDetailEntryFormatter,
         private readonly MetadataIssueScanner $metadataIssueScanner,
         private readonly LivePhotoCompletenessAnalyzer $livePhotoCompletenessAnalyzer,
     ) {
@@ -170,7 +168,7 @@ final class VerifyCommand extends Command
             $sourceDirectory,
             $maxDateDrift,
             fn (string $relativePath, string $absolutePath, string $category, ?DateTimeInterface $captureDateTime): string => $detail
-                ? $this->formatDetailEntry($relativePath, $absolutePath, $category, $captureDateTime, $configuredTimezone)
+                ? $this->verifyDetailEntryFormatter->format($relativePath, $absolutePath, $category, $captureDateTime, $configuredTimezone)
                 : $relativePath,
             static function () use ($progressBar): void {
                 $progressBar?->advance();
@@ -261,77 +259,6 @@ final class VerifyCommand extends Command
             static fn (string $token): string => self::TAG_ALIASES[strtoupper($token)] ?? strtolower($token),
             $tokens,
         );
-    }
-
-    /**
-     * Formats a detail entry with problem description and fix suggestion.
-     */
-    private function formatDetailEntry(
-        string $relativePath,
-        string $absolutePath,
-        string $category,
-        ?DateTimeInterface $captureDateTime,
-        ?DateTimeZone $configuredTimezone = null,
-    ): string {
-        $fileSize    = filesize($absolutePath);
-        $sizeLabel   = ($fileSize !== false) ? FileHelper::formatSize($fileSize) : '?';
-        $lines       = [sprintf('%s <fg=gray>(%s)</>', $relativePath, $sizeLabel)];
-        $escapedPath = escapeshellarg($absolutePath);
-
-        $tzFlag = ($configuredTimezone instanceof DateTimeZone)
-            ? '--timezone=' . $configuredTimezone->getName()
-            : '--timezone=<TZ>';
-
-        // Problem description per category
-        $problem = match ($category) {
-            VerifyCategoryCatalog::TIMEZONE => '     <fg=yellow>Problem:</>    Ambiguous timezone — QuickTime UTC without offset',
-            VerifyCategoryCatalog::FALLBACK => '     <fg=yellow>Problem:</>    Only ModifyDate (0x0132) — no DateTimeOriginal or CreateDate',
-            VerifyCategoryCatalog::NODATA   => '     <fg=yellow>Problem:</>    No capture date found (no DateTimeOriginal, CreateDate, or ModifyDate)',
-            default                         => null,
-        };
-
-        if ($problem !== null) {
-            $lines[] = $problem;
-        }
-
-        // Show what metadata IS present
-        if ($captureDateTime instanceof DateTimeInterface) {
-            $label   = ($category === VerifyCategoryCatalog::TIMEZONE) ? 'CreateDate (UTC)' : 'ModifyDate';
-            $lines[] = sprintf('     <fg=gray>Metadata:</>   %s = %s', $label, $captureDateTime->format('Y:m:d H:i:s'));
-        } else {
-            $lines[] = '     <fg=gray>Metadata:</>   (none)';
-        }
-
-        // Check if filename contains a date that write-date could use
-        $filenameDateTime = FileHelper::extractDateTimeFromPath($absolutePath);
-
-        if ($filenameDateTime instanceof DateTimeImmutable) {
-            $lines[] = sprintf('     <fg=gray>Recovery:</>   date from filename: %s', $filenameDateTime->format('Y-m-d H:i:s'));
-        } elseif ($category === VerifyCategoryCatalog::NODATA) {
-            $lines[] = '     <fg=gray>Recovery:</>   no date in filename — rename file first';
-        }
-
-        $suggestion = match ($category) {
-            VerifyCategoryCatalog::TIMEZONE => sprintf(
-                '     <fg=green>Fix:</>        rename:write-date --reason=timezone %s %s',
-                $tzFlag,
-                $escapedPath,
-            ),
-            VerifyCategoryCatalog::FALLBACK => sprintf(
-                '     <fg=green>Fix:</>        rename:write-date --reason=fallback %s',
-                $escapedPath,
-            ),
-            VerifyCategoryCatalog::NODATA => ($filenameDateTime instanceof DateTimeImmutable)
-                ? sprintf('     <fg=green>Fix:</>        rename:write-date --reason=nodata %s', $escapedPath)
-                : sprintf('     <fg=green>Fix:</>        Rename to date-based name, then: rename:write-date --reason=nodata %s', $escapedPath),
-            default => null,
-        };
-
-        if ($suggestion !== null) {
-            $lines[] = $suggestion;
-        }
-
-        return implode("\n", $lines);
     }
 
     /**
