@@ -33,7 +33,6 @@ use RecursiveIteratorIterator;
 use SplFileInfo;
 use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Style\SymfonyStyle;
-use Throwable;
 
 use function array_key_exists;
 use function assert;
@@ -172,10 +171,13 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      * @param LegacyLivePhotoQualityFlagPropagator     $livePhotoQualityFlagPropagator   Propagates still-side quality flags to paired companion videos.
      * @param LegacyLivePhotoDuplicateCoordinator|null $livePhotoDuplicateCoordinator    Coordinates companion detection and pair recording for legacy Live Photo groups.
      * @param LegacyTargetPathResolver                 $targetPathResolver               Resolves absolute target pathnames while preserving legacy directory structure.
+     * @param LegacyTargetFileResolver                 $targetFileResolver               Resolves target-file results from generated filenames and strategy failures.
      */
     private readonly LegacyLivePhotoTargetPromoter $livePhotoTargetPromoter;
 
     private readonly LegacyLivePhotoDuplicateCoordinator $livePhotoDuplicateCoordinator;
+
+    private readonly LegacyTargetFileResolver $targetFileResolver;
 
     public function __construct(
         private readonly SymfonyStyle $io,
@@ -189,6 +191,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
         private readonly LegacyLivePhotoQualityFlagPropagator $livePhotoQualityFlagPropagator = new LegacyLivePhotoQualityFlagPropagator(),
         ?LegacyLivePhotoDuplicateCoordinator $livePhotoDuplicateCoordinator = null,
         private readonly LegacyTargetPathResolver $targetPathResolver = new LegacyTargetPathResolver(),
+        ?LegacyTargetFileResolver $targetFileResolver = null,
     ) {
         $livePhotoCompanionDetector ??= new LegacyLivePhotoCompanionDetector($this->mediaTypeClassifier);
         $this->livePhotoTargetPromoter = $livePhotoTargetPromoter
@@ -198,6 +201,8 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
                 $livePhotoCompanionDetector,
                 $this->mediaTypeClassifier,
             );
+        $this->targetFileResolver = $targetFileResolver
+            ?? new LegacyTargetFileResolver($this->targetPathResolver);
     }
 
     /**
@@ -1052,32 +1057,11 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      */
     private function getTargetFileInfo(SplFileInfo $sourceFileInfo, RenameStrategyInterface $renameStrategy): TargetFileResult
     {
-        try {
-            $targetFilename = $renameStrategy->generateFilename($sourceFileInfo);
-
-            if ($targetFilename !== null) {
-                return TargetFileResult::success(
-                    new SplFileInfo(
-                        $this->getTargetPathname(
-                            $sourceFileInfo,
-                            $targetFilename
-                        )
-                    )
-                );
-            }
-
-            return TargetFileResult::skipped('no capture date');
-        } catch (TargetFilenameException $exception) {
-            // Extract the root cause message from the exception chain to avoid
-            // double-wrapped "Unable to read..." prefixes in the output.
-            $rootCause = $exception;
-
-            while ($rootCause->getPrevious() instanceof Throwable) {
-                $rootCause = $rootCause->getPrevious();
-            }
-
-            return TargetFileResult::error($rootCause->getMessage());
-        }
+        return $this->targetFileResolver->resolve(
+            $this->sourceDirectory,
+            $sourceFileInfo,
+            $renameStrategy,
+        );
     }
 
     /**
