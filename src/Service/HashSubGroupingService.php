@@ -674,17 +674,24 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
             $img?->clear();
         }
 
-        // Deterministic root selection: re-root each component to the
-        // lexicographically smallest hash string. This guarantees the same
-        // cluster identity regardless of comparison order.
-        for ($hashIndex = 0; $hashIndex < $count; ++$hashIndex) {
-            $root     = $this->findRoot($parent, $hashIndex);
-            $rootHash = $hashes[$root];
-            $myHash   = $hashes[$hashIndex];
+        // Deterministic root selection: choose the lexicographically smallest hash
+        // per connected component, then repoint each node directly to that root.
+        // This preserves stable cluster identities without introducing parent cycles.
+        $componentMinIndex = [];
+        $rootByHashIndex   = [];
 
-            if ($myHash < $rootHash) {
-                $parent[$root] = $hashIndex;
+        for ($hashIndex = 0; $hashIndex < $count; ++$hashIndex) {
+            $root                        = $this->findRoot($parent, $hashIndex);
+            $rootByHashIndex[$hashIndex] = $root;
+            $currentMinIndex             = $componentMinIndex[$root] ?? null;
+
+            if (($currentMinIndex === null) || ($hashes[$hashIndex] < $hashes[$currentMinIndex])) {
+                $componentMinIndex[$root] = $hashIndex;
             }
+        }
+
+        for ($hashIndex = 0; $hashIndex < $count; ++$hashIndex) {
+            $parent[$hashIndex] = $componentMinIndex[$rootByHashIndex[$hashIndex]];
         }
 
         // Build merged groups keyed by root's content hash.

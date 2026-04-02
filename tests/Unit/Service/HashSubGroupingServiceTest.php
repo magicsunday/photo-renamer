@@ -26,6 +26,7 @@ use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzer;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityResult;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
+use MagicSunday\Renamer\Service\SafeHashCalculatorInterface;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubPerceptualHashCalculator;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -598,6 +599,65 @@ final class HashSubGroupingServiceTest extends TestCase
     }
 
     /**
+     * Verifies that perceptual merges remain safe when the lexicographically
+     * smallest content hash is not the initial union-find root.
+     *
+     * This guards the deterministic re-rooting step against creating parent cycles
+     * after a successful merge. The merged pair must still collapse into a single
+     * sub-group instead of hanging during root lookup.
+     */
+    #[Test]
+    public function applyMergesPerceptualGroupsWhenSmallestHashStartsAsNonRoot(): void
+    {
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $fileA = $sourceDirectory . DIRECTORY_SEPARATOR . 'a.jpg';
+        $fileB = $sourceDirectory . DIRECTORY_SEPARATOR . 'b.jpg';
+
+        $this->createSyntheticJpeg($fileA);
+        $this->createSyntheticJpeg($fileB);
+
+        $target = $targetDirectory . DIRECTORY_SEPARATOR . 'target.jpg';
+
+        $perceptualStub = new StubPerceptualHashCalculator()
+            ->withHash($fileA, 'abcdef0123456789')
+            ->withHash($fileB, 'abcdef0123456789');
+
+        $hashCalculator = $this->createMock(SafeHashCalculatorInterface::class);
+        $hashCalculator->expects(self::exactly(2))
+            ->method('hashFile')
+            ->willReturnCallback(static fn (SplFileInfo $file): string => match ($file->getFilename()) {
+                'a.jpg' => 'ffff000000000000',
+                'b.jpg' => '0000ffff00000000',
+                default => '9999999999999999',
+            });
+
+        $service = $this->createHashSubGroupingServiceWithCalculator($hashCalculator, $perceptualStub);
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate
+            ->addFile(new SplFileInfo($fileA))
+            ->addFile(new SplFileInfo($fileB))
+            ->setTarget(new SplFileInfo($target));
+
+        $renameA = new Rename(new SplFileInfo($fileA), new SplFileInfo($target));
+        $renameB = new Rename(new SplFileInfo($fileB), new SplFileInfo($target));
+        $fileDuplicate->addRename($renameA);
+        $fileDuplicate->addRename($renameB);
+
+        $result = $service->apply(
+            $fileDuplicate,
+            $renameA,
+            null,
+            [],
+            $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
+        );
+
+        self::assertNull($result, 'Perceptually merged groups with a smaller non-root hash must remain cycle-free.');
+    }
+
+    /**
      * Verifies that apply() keeps hash groups separate when their dHash Hamming
      * distance exceeds the threshold (visually distinct content → sub-groups).
      */
@@ -698,13 +758,23 @@ final class HashSubGroupingServiceTest extends TestCase
 
     private function createHashSubGroupingServiceWithStub(PerceptualHashCalculatorInterface $perceptualHashCalculator): HashSubGroupingService
     {
+        return $this->createHashSubGroupingServiceWithCalculator(
+            new SafeHashCalculator(),
+            $perceptualHashCalculator,
+        );
+    }
+
+    private function createHashSubGroupingServiceWithCalculator(
+        SafeHashCalculatorInterface $hashCalculator,
+        PerceptualHashCalculatorInterface $perceptualHashCalculator,
+    ): HashSubGroupingService {
         $output = new BufferedOutput();
         $io     = new SymfonyStyle(new ArrayInput([]), $output);
 
         $imageLoader = new ImagickImageLoader(new MediaTypeClassifier());
 
         return new HashSubGroupingService(
-            new SafeHashCalculator(),
+            $hashCalculator,
             $io,
             new MediaTypeClassifier(),
             $perceptualHashCalculator,
