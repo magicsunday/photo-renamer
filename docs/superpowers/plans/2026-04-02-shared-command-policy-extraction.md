@@ -32,6 +32,7 @@
 - `rename:dedup`: extracted shared original matching, format preference, and media-family compatibility.
 - `rename:verify` + `rename:write-date`: extracted shared date drift analysis.
 - `rename:exif`/legacy pipeline overlap: extracted shared metadata-quality flag resolution for actionable fallback/timezone flags after the main reliability decision.
+- extension normalization audit: no further helper justified. Remaining `strtolower($file->getExtension())` sites are either cheap membership/counting checks or intentionally preserve exact extension semantics instead of alias normalization.
 - `rename:hash`: keep local. No concrete media-compatibility inconsistency found; command stays content-hash driven.
 - `rename:pattern`: keep local. No shared policy need beyond the already centralized legacy renderer/output path.
 - `rename:date`: keep local. Filename date parsing is already concentrated in its strategy and low-level `FileHelper` helpers.
@@ -47,7 +48,9 @@
 
 **Current status:** Completed. Extracted into `FormatPriorityResolver` and reused by later shared-policy work.
 
-**Next step:** No further extraction currently needed.
+**Audit result:** No further extraction currently needed. Remaining lowercase-only extension handling falls into one of two buckets:
+- pure membership checks such as supported-media or still/video family classification
+- exact-extension grouping/counting where alias normalization would change semantics
 
 ### 2. Media-family compatibility
 
