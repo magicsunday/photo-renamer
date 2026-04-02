@@ -21,7 +21,8 @@ namespace MagicSunday\Renamer\Service\PerceptualHash;
 final readonly class LocalDiffResult
 {
     /**
-     * @param float $rmse              Root Mean Square Error of grayscale pixel values, normalized to 0.0–1.0.
+     * @param float $rmse              Root Mean Square Error of luminance values (Y = 0.299R + 0.587G + 0.114B),
+     *                                 normalized to 0.0–1.0. Equivalent to Imagick grayscale RMSE.
      *                                 Codec-agnostic: HEIC↔JPG format backups produce 0.001–0.013,
      *                                 different photos produce 0.25+.
      * @param float $changedAreaRatio  Fraction of pixels that differ above noise threshold (0.0–1.0).
@@ -34,6 +35,9 @@ final readonly class LocalDiffResult
      *                                 Superseded by $rmse — will be removed in a future version.
      * @param bool  $success           False when the analysis failed (Imagick error) — distinguishes
      *                                 failure (rmse=0, success=false) from perfect match (rmse=0, success=true)
+     * @param float $chromaDifference  Absolute difference in mean chroma energy between the two images,
+     *                                 normalized to 0.0–1.0. Detects color→grayscale conversions:
+     *                                 near 0 for same-colorspace pairs, high for desaturation.
      */
     public function __construct(
         public float $rmse,
@@ -42,6 +46,7 @@ final readonly class LocalDiffResult
         public int $blobCount,
         public bool $hasCompactRetouch,
         public bool $success = true,
+        public float $chromaDifference = 0.0,
     ) {
     }
 }

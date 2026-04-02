@@ -31,7 +31,9 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function array_key_exists;
 use function array_keys;
+use function basename;
 use function count;
+use function microtime;
 use function spl_object_id;
 use function sprintf;
 use function strtolower;
@@ -53,6 +55,14 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
      * Pairs in this zone are always safe to merge without further analysis.
      */
     private const float SAFE_MERGE_RMSE = 0.025;
+
+    /**
+     * Maximum chroma energy difference for merging. Detects color→grayscale
+     * conversions: codec conversions preserve chroma (~0.013), desaturation
+     * produces a large gap (0.04+). Threshold sits between the two ranges.
+     * Acts as a merge veto independent of RMSE.
+     */
+    private const float MAX_CHROMA_DIFFERENCE = 0.03;
 
     /**
      * Maximum RMSE for merging isDuplicateLikely pairs.
@@ -736,20 +746,78 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
 
         // Both videos → merge (duration already validated by similarity scoring)
         if ($this->mediaTypeClassifier->isVideo($fileA) && $this->mediaTypeClassifier->isVideo($fileB)) {
+            $this->debugMergeDecision($fileA, $fileB, $similarity, null, true, 'video pair');
+
             return true;
         }
 
-        $diff = $this->analyzeLocalDifferenceCached($fileA, $fileB, $imageCache);
+        $start = microtime(true);
+        $diff  = $this->analyzeLocalDifferenceCached($fileA, $fileB, $imageCache);
+        $elapsed = microtime(true) - $start;
 
         if (!$diff->success) {
+            $this->debugMergeDecision($fileA, $fileB, $similarity, $diff, false, 'analysis failed', $elapsed);
+
+            return false;
+        }
+
+        // Chroma veto: color→grayscale conversions have near-zero luma RMSE
+        // but large chroma difference. Reject merge regardless of RMSE zone.
+        if ($diff->chromaDifference > self::MAX_CHROMA_DIFFERENCE) {
+            $reason = sprintf('chroma %.4f > %.4f (color change)', $diff->chromaDifference, self::MAX_CHROMA_DIFFERENCE);
+
+            $this->debugMergeDecision($fileA, $fileB, $similarity, $diff, false, $reason, $elapsed);
+
             return false;
         }
 
         // Merge only in the safe codec-noise zone. When the user sets --merge-threshold
         // below SAFE_MERGE_RMSE, respect their stricter setting.
         $effectiveMergeThreshold = min(self::SAFE_MERGE_RMSE, $this->maxMergeRmse);
+        $merge  = $diff->rmse <= $effectiveMergeThreshold;
+        $reason = $merge
+            ? sprintf('rmse %.4f <= %.4f (safe zone)', $diff->rmse, $effectiveMergeThreshold)
+            : sprintf('rmse %.4f > %.4f', $diff->rmse, $effectiveMergeThreshold);
 
-        return $diff->rmse <= $effectiveMergeThreshold;
+        $this->debugMergeDecision($fileA, $fileB, $similarity, $diff, $merge, $reason, $elapsed);
+
+        return $merge;
+    }
+
+    /**
+     * Writes a merge-decision debug line when running with -vvv.
+     */
+    private function debugMergeDecision(
+        SplFileInfo $fileA,
+        SplFileInfo $fileB,
+        SimilarityResult $similarity,
+        ?LocalDiffResult $diff,
+        bool $merge,
+        string $reason,
+        ?float $elapsed = null,
+    ): void {
+        if (!$this->io->isDebug()) {
+            return;
+        }
+
+        $nameA   = basename($fileA->getPathname());
+        $nameB   = basename($fileB->getPathname());
+        $verdict = $merge ? '<info>MERGE</info>' : '<comment>NO MERGE</comment>';
+        $time    = ($elapsed !== null) ? sprintf(' %.0fms', $elapsed * 1000) : '';
+        $rmse    = ($diff !== null) ? sprintf(' rmse=%.4f chroma=%.4f', $diff->rmse, $diff->chromaDifference) : '';
+
+        $this->io->writeln(sprintf(
+            '  [merge] %s <-> %s | score=%d dHash=%d color=%.3f |%s | %s (%s)%s',
+            $nameA,
+            $nameB,
+            $similarity->score,
+            $similarity->dhashDistance,
+            $similarity->colorDistance,
+            $rmse,
+            $verdict,
+            $reason,
+            $time,
+        ));
     }
 
     /**

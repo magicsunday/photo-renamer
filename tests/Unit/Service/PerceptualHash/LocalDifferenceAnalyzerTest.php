@@ -102,6 +102,24 @@ final class LocalDifferenceAnalyzerTest extends TestCase
     }
 
     #[Test]
+    public function colorToGrayscaleConversionProducesHighChromaDifference(): void
+    {
+        $colorImg = $this->createSolidImage(64, 64, 'red');
+
+        // Create grayscale equivalent of the red image
+        $grayImg = $this->createSolidImage(64, 64, 'red');
+        $grayImg->transformImageColorspace(Imagick::COLORSPACE_GRAY);
+        $grayImg->transformImageColorspace(Imagick::COLORSPACE_SRGB);
+
+        $result = $this->analyzer->analyzeRmse($colorImg, $grayImg);
+
+        // Chroma difference must be well above MAX_CHROMA_DIFFERENCE (0.05)
+        // because the color image has high chroma and the gray version has zero
+        self::assertGreaterThan(0.1, $result->chromaDifference);
+        self::assertTrue($result->success);
+    }
+
+    #[Test]
     public function analyzeReturnsConservativeResultOnFailure(): void
     {
         // A cleared Imagick object has no valid image data, causing internal methods to throw
