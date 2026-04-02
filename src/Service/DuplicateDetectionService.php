@@ -175,8 +175,11 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      * @param DuplicateCanonicalRenameSelector        $duplicateCanonicalRenameSelector Selector for canonical rename choice and promotion flags.
      * @param DuplicateSuffixAssigner                 $duplicateSuffixAssigner          Assigns unique `-duplicate-NNN` targets in the legacy flow.
      * @param LegacyLivePhotoCompanionDetector|null   $livePhotoCompanionDetector       Detects companion renames inside legacy Live Photo groups.
+     * @param LegacyLivePhotoTargetPromoter|null      $livePhotoTargetPromoter          Promotes live-photo canonicals from video targets to still targets.
      */
     private readonly LegacyLivePhotoCompanionDetector $livePhotoCompanionDetector;
+
+    private readonly LegacyLivePhotoTargetPromoter $livePhotoTargetPromoter;
 
     public function __construct(
         private readonly SymfonyStyle $io,
@@ -186,9 +189,12 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
         private readonly DuplicateCanonicalRenameSelector $duplicateCanonicalRenameSelector = new DuplicateCanonicalRenameSelector(),
         private readonly DuplicateSuffixAssigner $duplicateSuffixAssigner = new DuplicateSuffixAssigner(),
         ?LegacyLivePhotoCompanionDetector $livePhotoCompanionDetector = null,
+        ?LegacyLivePhotoTargetPromoter $livePhotoTargetPromoter = null,
     ) {
         $this->livePhotoCompanionDetector = $livePhotoCompanionDetector
             ?? new LegacyLivePhotoCompanionDetector($this->mediaTypeClassifier);
+        $this->livePhotoTargetPromoter = $livePhotoTargetPromoter
+            ?? new LegacyLivePhotoTargetPromoter($this->mediaTypeClassifier);
     }
 
     /**
@@ -1117,19 +1123,11 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
         FileDuplicate $fileDuplicate,
         SplFileInfo $candidateTarget,
     ): void {
-        if (!str_starts_with($duplicateIdentifier, Constants::LIVE_PHOTO_IDENTIFIER_PREFIX)) {
-            return;
-        }
-
-        if (!$this->mediaTypeClassifier->isLivePhotoStill($candidateTarget)) {
-            return;
-        }
-
-        if ($this->mediaTypeClassifier->isLivePhotoStill($fileDuplicate->getTarget())) {
-            return;
-        }
-
-        $fileDuplicate->setTarget($candidateTarget);
+        $this->livePhotoTargetPromoter->promote(
+            $duplicateIdentifier,
+            $fileDuplicate,
+            $candidateTarget,
+        );
     }
 
     /**
