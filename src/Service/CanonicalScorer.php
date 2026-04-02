@@ -21,7 +21,6 @@ use function max;
 use function rtrim;
 use function sprintf;
 use function strlen;
-use function strtolower;
 
 use const DIRECTORY_SEPARATOR;
 
@@ -63,7 +62,7 @@ final class CanonicalScorer implements CanonicalScorerInterface
     private const int SCORE_TIE_BREAK_MAX = 20;
 
     /**
-     * Mapping of lowercase extension to its index in the format priority list.
+     * Mapping of normalized extension to its index in the format priority list.
      *
      * @var array<string, int>
      */
@@ -81,9 +80,9 @@ final class CanonicalScorer implements CanonicalScorerInterface
 
     /**
      * Sets the ordered format priority list, building an internal index
-     * mapping each lowercase extension to its rank.
+     * mapping each normalized extension to its rank.
      *
-     * @param list<string> $formatPriority Lowercase extensions ordered by descending preference
+     * @param list<string> $formatPriority Extensions ordered by descending preference
      */
     #[Override]
     public function setFormatPriority(array $formatPriority): void
@@ -91,7 +90,7 @@ final class CanonicalScorer implements CanonicalScorerInterface
         $this->formatIndex = [];
 
         foreach ($formatPriority as $index => $extension) {
-            $this->formatIndex[strtolower($extension)] = $index;
+            $this->formatIndex[FileHelper::normalizeExtension($extension)] = $index;
         }
 
         $this->formatCount = count($formatPriority);
@@ -161,7 +160,7 @@ final class CanonicalScorer implements CanonicalScorerInterface
         $reasoning = [];
 
         // Format priority
-        $extension   = strtolower($item->file->getExtension());
+        $extension   = FileHelper::normalizeExtension($item->file->getExtension());
         $formatScore = $this->computeFormatScore($extension);
 
         if ($formatScore > 0) {
@@ -200,11 +199,11 @@ final class CanonicalScorer implements CanonicalScorerInterface
     }
 
     /**
-     * Returns the format priority score for a given lowercase extension.
+     * Returns the format priority score for a given normalized extension.
      * Higher preference formats (e.g. HEIC over JPG) receive higher scores.
      * Unknown formats return 0.
      *
-     * @param string $extension Lowercase file extension without leading dot
+     * @param string $extension Normalized file extension without leading dot
      *
      * @return int Priority score (0 if unknown)
      */

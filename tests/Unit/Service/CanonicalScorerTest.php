@@ -227,6 +227,28 @@ final class CanonicalScorerTest extends TestCase
     }
 
     /**
+     * JPEG aliases must map to the same canonical format tier as JPG so the scorer
+     * does not accidentally drop the format bonus for otherwise equivalent files.
+     */
+    #[Test]
+    public function jpegAliasUsesTheSameFormatPriorityAsJpg(): void
+    {
+        $scorer = new CanonicalScorer();
+        $scorer->setFormatPriority(['heic', 'jpg']);
+        $scorer->setSourceDirectory('/photos');
+
+        $group = new AssetGroup('2024-08-31_14-22-08-123');
+        $group->addItem(new AssetItem(new SplFileInfo('/photos/IMG_0001.jpeg')));
+        $group->addItem(new AssetItem(new SplFileInfo('/photos/IMG_0002.jpg')));
+
+        $scorer->scoreItems($group);
+
+        $items = $group->getItems();
+
+        self::assertSame($items[0]->priorityScore, $items[1]->priorityScore);
+    }
+
+    /**
      * A .png file (not in the priority list) gets zero format score.
      */
     #[Test]
