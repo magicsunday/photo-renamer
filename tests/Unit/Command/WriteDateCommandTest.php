@@ -27,6 +27,7 @@ use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\MetadataCache;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
+use MagicSunday\Renamer\Service\WriteDate\TimezoneRewritePlanner;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -632,6 +633,7 @@ final class WriteDateCommandTest extends TestCase
             $fileSystemService,
             $exiftoolWriter,
             $renderer,
+            new TimezoneRewritePlanner($metadataProvider),
             static fn (): bool => false,
         );
     }
@@ -655,6 +657,7 @@ final class WriteDateCommandTest extends TestCase
             $fileSystemService,
             $exiftoolWriter,
             $renderer,
+            new TimezoneRewritePlanner($metadataProvider),
             static fn (): bool => true,
         );
     }

@@ -85,6 +85,7 @@ use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\RenamePlanValidator;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Service\ValidationResult;
+use MagicSunday\Renamer\Service\WriteDate\TimezoneRewritePlanner;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use MagicSunday\Renamer\Test\Fixtures\ConsoleOutputParserTrait;
@@ -448,6 +449,7 @@ final class WriteDateFlowTest extends TestCase
             $fileSystemService,
             new ExiftoolWriter(),
             $renderer,
+            new TimezoneRewritePlanner($metadataProvider),
             static fn (): bool => true,
         );
     }

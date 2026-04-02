@@ -14,7 +14,6 @@ namespace MagicSunday\Renamer\Command;
 use Closure;
 use DateTimeImmutable;
 use DateTimeInterface;
-use DateTimeZone;
 use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
 use MagicSunday\Renamer\Command\Concern\ResolvesSourcePath;
 use MagicSunday\Renamer\Constants;
@@ -27,6 +26,7 @@ use MagicSunday\Renamer\Service\ExiftoolWriter;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
+use MagicSunday\Renamer\Service\WriteDate\TimezoneRewritePlanner;
 use Override;
 use RuntimeException;
 use SplFileInfo;
@@ -118,6 +118,7 @@ final class WriteDateCommand extends Command
      * @param FileSystemServiceInterface   $fileSystemService         Provides file iteration
      * @param ExiftoolWriter               $exiftoolWriter            Writes metadata via exiftool
      * @param RenameOutputRenderer         $renderer                  Shared output rendering utilities
+     * @param TimezoneRewritePlanner       $timezoneRewritePlanner    Plans timezone-specific metadata rewrite values
      * @param (Closure(): bool)|null       $exiftoolAvailabilityCheck Overrides the default exiftool check (for testing)
      */
     public function __construct(
@@ -127,6 +128,7 @@ final class WriteDateCommand extends Command
         private readonly FileSystemServiceInterface $fileSystemService,
         private readonly ExiftoolWriter $exiftoolWriter,
         private readonly RenameOutputRenderer $renderer,
+        private readonly TimezoneRewritePlanner $timezoneRewritePlanner,
         ?Closure $exiftoolAvailabilityCheck = null,
     ) {
         $this->exiftoolAvailabilityCheck = $exiftoolAvailabilityCheck ?? static function (): bool {
@@ -327,45 +329,25 @@ final class WriteDateCommand extends Command
             //   → Convert UTC to local time using the configured timezone.
             // For all other reasons: use the filename date as the write value.
             $localAsUtc = (bool) $input->getOption('local-as-utc');
+            $timezone   = $this->resolveTimezone($input);
 
-            if ($reasonKey === self::REASON_TIMEZONE) {
-                // With --force, read the raw QuickTime CreateDate (bypasses Keys:CreationDate)
-                // so a previously wrong write can be corrected.
-                $rawDateTime = $force
-                    ? ($this->exifMetadataProvider->getRawQuickTimeCreateDate($file) ?? $this->exifMetadataProvider->getRawCaptureDateTime($file))
-                    : $this->exifMetadataProvider->getRawCaptureDateTime($file);
-                $timezone = $this->resolveTimezone($input);
-
-                if (($rawDateTime instanceof DateTimeInterface) && ($timezone instanceof DateTimeZone)) {
-                    if ($localAsUtc) {
-                        // Timestamp is already local time stored as "UTC".
-                        // Attach the timezone, then ExiftoolWriter converts to real UTC.
-                        // 16:34:58 "UTC" → Keys:CreationDate=16:34:58+02:00, CreateDate=14:34:58 UTC.
-                        $writeDateTime = new DateTimeImmutable(
-                            $rawDateTime->format('Y-m-d H:i:s'),
-                            $timezone,
-                        );
-                    } else {
-                        // Timestamp is real UTC. Convert to local time.
-                        // 14:34:58 UTC → Keys:CreationDate=16:34:58+02:00, CreateDate untouched.
-                        $writeDateTime = DateTimeImmutable::createFromInterface($rawDateTime)
-                            ->setTimezone($timezone);
-                    }
-                } else {
-                    $writeDateTime = $filenameDateTime;
-                }
-            } else {
-                $writeDateTime = $filenameDateTime;
-            }
+            $rewritePlan = $this->timezoneRewritePlanner->plan(
+                $file,
+                $reasonKey,
+                $filenameDateTime,
+                $force,
+                $localAsUtc,
+                $timezone,
+            );
 
             $pendingWrites[] = [
                 'path'               => $file->getPathname(),
-                'date'               => $writeDateTime->format('Y:m:d H:i:s'),
+                'date'               => $rewritePlan->writeDateTime->format('Y:m:d H:i:s'),
                 'reasonKey'          => $reasonKey,
                 'reason'             => $reasonLabel,
                 'isVideo'            => $isVideo,
-                'dateTime'           => $writeDateTime,
-                'preserveCreateDate' => ($reasonKey === self::REASON_TIMEZONE) && !$localAsUtc,
+                'dateTime'           => $rewritePlan->writeDateTime,
+                'preserveCreateDate' => $rewritePlan->preserveCreateDate,
             ];
         }
 
