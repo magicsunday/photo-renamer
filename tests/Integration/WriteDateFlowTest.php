@@ -86,6 +86,7 @@ use MagicSunday\Renamer\Service\RenamePlanValidator;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Service\ValidationResult;
 use MagicSunday\Renamer\Service\WriteDate\TimezoneRewritePlanner;
+use MagicSunday\Renamer\Service\WriteDate\WriteDateCandidateAnalyzer;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateReasonAnalyzer;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
@@ -445,12 +446,15 @@ final class WriteDateFlowTest extends TestCase
 
         return new WriteDateCommand(
             $metadataProvider,
-            $mediaTypeClassifier,
             $fileSystemService,
             new ExiftoolWriter(),
             $renderer,
-            new WriteDateReasonAnalyzer($metadataProvider, new DateDriftAnalyzer(), $mediaTypeClassifier),
-            new TimezoneRewritePlanner($metadataProvider),
+            new WriteDateCandidateAnalyzer(
+                $metadataProvider,
+                $mediaTypeClassifier,
+                new WriteDateReasonAnalyzer($metadataProvider, new DateDriftAnalyzer(), $mediaTypeClassifier),
+                new TimezoneRewritePlanner($metadataProvider),
+            ),
             static fn (): bool => true,
         );
     }
