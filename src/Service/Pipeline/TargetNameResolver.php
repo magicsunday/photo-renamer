@@ -643,6 +643,8 @@ final readonly class TargetNameResolver implements TargetNameResolverInterface
      * copy in another directory is still a duplicate. Non-canonical cluster items must
      * always keep their subgroup suffix for idempotency (without the suffix, a re-run
      * would see a canonical-looking basename and might re-assign the file as canonical).
+     *
+     * @param array<string, int> $dirFileCounts
      */
     private function isCrossDirNoConflict(
         bool $isCanonicalCluster,
