@@ -21,8 +21,8 @@ namespace MagicSunday\Renamer\Service\PerceptualHash;
 final readonly class LocalDiffResult
 {
     /**
-     * @param float $rmse              Root Mean Square Error of luminance values (Y = 0.299R + 0.587G + 0.114B),
-     *                                 normalized to 0.0–1.0. Equivalent to Imagick grayscale RMSE.
+     * @param float $rmse              Root Mean Square Error of Imagick grayscale pixel values (Rec.709 + sRGB gamma),
+     *                                 normalized to 0.0–1.0. Calibrated against SAFE_MERGE_RMSE thresholds.
      *                                 Codec-agnostic: HEIC↔JPG format backups produce 0.001–0.013,
      *                                 different photos produce 0.25+.
      * @param float $changedAreaRatio  Fraction of pixels that differ above noise threshold (0.0–1.0).

@@ -51,10 +51,18 @@ use function strtolower;
 final class HashSubGroupingService implements HashSubGroupingServiceInterface
 {
     /**
-     * RMSE below this threshold is codec noise (HEIC↔JPG format conversions).
-     * Pairs in this zone are always safe to merge without further analysis.
+     * RMSE threshold for dHash==0 pairs (identical gradient structure).
+     * Only codec noise can produce dHash==0 with non-zero RMSE — format
+     * conversions (HEIC→JPG) reach up to 0.035, so 0.04 covers them.
      */
-    private const float SAFE_MERGE_RMSE = 0.025;
+    private const float SAFE_MERGE_RMSE_EXACT = 0.04;
+
+    /**
+     * RMSE threshold for dHash>0 pairs (gradient structure differs).
+     * Even 1 gradient bit flip indicates a real image change. Stricter
+     * threshold prevents minimal edits (RMSE ≈ 0.037) from merging.
+     */
+    private const float SAFE_MERGE_RMSE_APPROX = 0.025;
 
     /**
      * Maximum chroma energy difference for merging. Detects color→grayscale
@@ -771,13 +779,18 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
             return false;
         }
 
-        // Merge only in the safe codec-noise zone. When the user sets --merge-threshold
-        // below SAFE_MERGE_RMSE, respect their stricter setting.
-        $effectiveMergeThreshold = min(self::SAFE_MERGE_RMSE, $this->maxMergeRmse);
+        // dHash-adaptive RMSE threshold: dHash==0 means identical gradient structure,
+        // only possible with codec noise → more permissive. dHash>0 means real change → stricter.
+        $safeRmse = ($similarity->dhashDistance === 0)
+            ? self::SAFE_MERGE_RMSE_EXACT
+            : self::SAFE_MERGE_RMSE_APPROX;
+
+        // When the user sets --merge-threshold below the safe threshold, respect their stricter setting.
+        $effectiveMergeThreshold = min($safeRmse, $this->maxMergeRmse);
         $merge  = $diff->rmse <= $effectiveMergeThreshold;
         $reason = $merge
-            ? sprintf('rmse %.4f <= %.4f (safe zone)', $diff->rmse, $effectiveMergeThreshold)
-            : sprintf('rmse %.4f > %.4f', $diff->rmse, $effectiveMergeThreshold);
+            ? sprintf('rmse %.4f <= %.4f (safe zone, dHash=%d)', $diff->rmse, $effectiveMergeThreshold, $similarity->dhashDistance)
+            : sprintf('rmse %.4f > %.4f (dHash=%d)', $diff->rmse, $effectiveMergeThreshold, $similarity->dhashDistance);
 
         $this->debugMergeDecision($fileA, $fileB, $similarity, $diff, $merge, $reason, $elapsed);
 
