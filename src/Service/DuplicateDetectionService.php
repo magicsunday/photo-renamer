@@ -168,19 +168,20 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
     private array $livePhotoConflictFiles = [];
 
     /**
-     * @param SymfonyStyle                            $io                               Symfony Style IO for progress indicators and error output.
-     * @param HashSubGroupingServiceInterface         $hashSubGroupingService           Service for content-based sub-grouping (deduplication).
-     * @param MediaTypeClassifierInterface            $mediaTypeClassifier              Classifier for media types (Photo vs. Video).
-     * @param LivePhotoConflictDetectorInterface|null $livePhotoConflictDetector        Detector for ID conflicts in Live Photos.
-     * @param DuplicateCanonicalRenameSelector        $duplicateCanonicalRenameSelector Selector for canonical rename choice and promotion flags.
-     * @param DuplicateSuffixAssigner                 $duplicateSuffixAssigner          Assigns unique `-duplicate-NNN` targets in the legacy flow.
-     * @param LegacyLivePhotoCompanionDetector|null   $livePhotoCompanionDetector       Detects companion renames inside legacy Live Photo groups.
-     * @param LegacyLivePhotoTargetPromoter|null      $livePhotoTargetPromoter          Promotes live-photo canonicals from video targets to still targets.
-     * @param LegacyLivePhotoQualityFlagPropagator    $livePhotoQualityFlagPropagator   Propagates still-side quality flags to paired companion videos.
+     * @param SymfonyStyle                             $io                               Symfony Style IO for progress indicators and error output.
+     * @param HashSubGroupingServiceInterface          $hashSubGroupingService           Service for content-based sub-grouping (deduplication).
+     * @param MediaTypeClassifierInterface             $mediaTypeClassifier              Classifier for media types (Photo vs. Video).
+     * @param LivePhotoConflictDetectorInterface|null  $livePhotoConflictDetector        Detector for ID conflicts in Live Photos.
+     * @param DuplicateCanonicalRenameSelector         $duplicateCanonicalRenameSelector Selector for canonical rename choice and promotion flags.
+     * @param DuplicateSuffixAssigner                  $duplicateSuffixAssigner          Assigns unique `-duplicate-NNN` targets in the legacy flow.
+     * @param LegacyLivePhotoCompanionDetector|null    $livePhotoCompanionDetector       Detects companion renames inside legacy Live Photo groups.
+     * @param LegacyLivePhotoTargetPromoter|null       $livePhotoTargetPromoter          Promotes live-photo canonicals from video targets to still targets.
+     * @param LegacyLivePhotoQualityFlagPropagator     $livePhotoQualityFlagPropagator   Propagates still-side quality flags to paired companion videos.
+     * @param LegacyLivePhotoDuplicateCoordinator|null $livePhotoDuplicateCoordinator    Coordinates companion detection and pair recording for legacy Live Photo groups.
      */
-    private readonly LegacyLivePhotoCompanionDetector $livePhotoCompanionDetector;
-
     private readonly LegacyLivePhotoTargetPromoter $livePhotoTargetPromoter;
+
+    private readonly LegacyLivePhotoDuplicateCoordinator $livePhotoDuplicateCoordinator;
 
     public function __construct(
         private readonly SymfonyStyle $io,
@@ -192,11 +193,16 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
         ?LegacyLivePhotoCompanionDetector $livePhotoCompanionDetector = null,
         ?LegacyLivePhotoTargetPromoter $livePhotoTargetPromoter = null,
         private readonly LegacyLivePhotoQualityFlagPropagator $livePhotoQualityFlagPropagator = new LegacyLivePhotoQualityFlagPropagator(),
+        ?LegacyLivePhotoDuplicateCoordinator $livePhotoDuplicateCoordinator = null,
     ) {
-        $this->livePhotoCompanionDetector = $livePhotoCompanionDetector
-            ?? new LegacyLivePhotoCompanionDetector($this->mediaTypeClassifier);
+        $livePhotoCompanionDetector ??= new LegacyLivePhotoCompanionDetector($this->mediaTypeClassifier);
         $this->livePhotoTargetPromoter = $livePhotoTargetPromoter
             ?? new LegacyLivePhotoTargetPromoter($this->mediaTypeClassifier);
+        $this->livePhotoDuplicateCoordinator = $livePhotoDuplicateCoordinator
+            ?? new LegacyLivePhotoDuplicateCoordinator(
+                $livePhotoCompanionDetector,
+                $this->mediaTypeClassifier,
+            );
     }
 
     /**
@@ -603,7 +609,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
         }
 
         // Collect Live Photo pairs (still → companion video) for quality flag propagation.
-        /** @var list<array{still: string, companion: string}> $livePhotoPairs */
+        /** @var list<LegacyLivePhotoPair> $livePhotoPairs */
         $livePhotoPairs = [];
 
         $progressBar = $this->startProgressBar($fileDuplicateCollection->count());
@@ -654,22 +660,14 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
             // Detect Live Photo companion: in a live-photo group, exactly one file
             // of a different media type (e.g. MOV for a JPG canonical) should receive
             // the same base name without a duplicate suffix.
-            $companionRename = $this->detectLivePhotoCompanion(
+            $livePhotoCoordination = $this->coordinateLivePhotoDuplicateGroup(
                 $canonicalRename,
                 $fileDuplicate,
             );
+            $companionRename = $livePhotoCoordination->companionRename;
 
-            // Track LP pair for quality flag propagation (still → companion only).
-            if ($companionRename instanceof Rename && $canonicalRename instanceof Rename) {
-                $canonicalPath    = $canonicalRename->getSource()->getPathname();
-                $companionPath    = $companionRename->getSource()->getPathname();
-                $canonicalIsStill = $this->mediaTypeClassifier->isLivePhotoStill($canonicalRename->getSource());
-
-                if ($canonicalIsStill) {
-                    $livePhotoPairs[] = ['still' => $canonicalPath, 'companion' => $companionPath];
-                } else {
-                    $livePhotoPairs[] = ['still' => $companionPath, 'companion' => $canonicalPath];
-                }
+            if ($livePhotoCoordination->livePhotoPair instanceof LegacyLivePhotoPair) {
+                $livePhotoPairs[] = $livePhotoCoordination->livePhotoPair;
             }
 
             // Content-hash sub-grouping with multi-signal perceptual merge: when
@@ -811,7 +809,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      * Photo still image to its companion video. This ensures atomic tagging: both
      * files in the pair receive the same [W] or [F] flag.
      *
-     * @param list<array{still: string, companion: string}> $livePhotoPairs
+     * @param list<LegacyLivePhotoPair> $livePhotoPairs
      */
     private function propagateLivePhotoQualityFlags(array $livePhotoPairs): void
     {
@@ -1126,23 +1124,18 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
     }
 
     /**
-     * Identifies the Live Photo companion rename within a duplicate group.
+     * Coordinates companion detection and normalized pair tracking for one legacy Live Photo group.
      *
-     * Uses the content identifier map to find a file that shares the canonical's
-     * Live Photo content ID but has a different media type (e.g. MOV for a JPG canonical).
+     * @param Rename|null   $canonicalRename Canonical rename chosen for the duplicate group.
+     * @param FileDuplicate $fileDuplicate   Duplicate group currently being processed.
      *
-     * When no exact content-ID match is found (e.g. the MOV companion lacks a content
-     * identifier in its metadata), falls back to the first file of a different media
-     * type. This ensures video companions are excluded from hash sub-grouping even
-     * when only the still image carries the Live Photo content identifier.
-     *
-     * @return Rename|null the companion rename, or null if no companion was found
+     * @return LegacyLivePhotoDuplicateCoordination Companion rename and optional still/companion pair for later flag propagation.
      */
-    private function detectLivePhotoCompanion(
+    private function coordinateLivePhotoDuplicateGroup(
         ?Rename $canonicalRename,
         FileDuplicate $fileDuplicate,
-    ): ?Rename {
-        return $this->livePhotoCompanionDetector->detect(
+    ): LegacyLivePhotoDuplicateCoordination {
+        return $this->livePhotoDuplicateCoordinator->coordinate(
             $canonicalRename,
             $fileDuplicate,
             $this->contentIdentifierMap,

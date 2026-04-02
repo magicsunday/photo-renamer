@@ -29,9 +29,9 @@ final readonly class LegacyLivePhotoQualityFlagPropagator
     /**
      * Propagates ambiguous-timezone and fallback-date flags from still images to companions.
      *
-     * @param list<array{still: string, companion: string}> $livePhotoPairs         Still/companion path pairs collected during duplicate processing.
-     * @param array<string, true>                           $ambiguousTimezoneFiles Files currently marked as ambiguous timezone.
-     * @param array<string, true>                           $fallbackDateFiles      Files currently marked as fallback date.
+     * @param list<LegacyLivePhotoPair> $livePhotoPairs         Still/companion path pairs collected during duplicate processing.
+     * @param array<string, true>       $ambiguousTimezoneFiles Files currently marked as ambiguous timezone.
+     * @param array<string, true>       $fallbackDateFiles      Files currently marked as fallback date.
      */
     public function propagate(
         array $livePhotoPairs,
@@ -39,8 +39,8 @@ final readonly class LegacyLivePhotoQualityFlagPropagator
         array &$fallbackDateFiles,
     ): void {
         foreach ($livePhotoPairs as $pair) {
-            $stillPath     = $pair['still'];
-            $companionPath = $pair['companion'];
+            $stillPath     = $pair->stillPath;
+            $companionPath = $pair->companionPath;
 
             if (isset($ambiguousTimezoneFiles[$stillPath])) {
                 $ambiguousTimezoneFiles[$companionPath] = true;

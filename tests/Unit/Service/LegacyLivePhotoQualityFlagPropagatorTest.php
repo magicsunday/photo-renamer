@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
+use MagicSunday\Renamer\Service\LegacyLivePhotoPair;
 use MagicSunday\Renamer\Service\LegacyLivePhotoQualityFlagPropagator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -39,10 +40,7 @@ final class LegacyLivePhotoQualityFlagPropagatorTest extends TestCase
     {
         $propagator = new LegacyLivePhotoQualityFlagPropagator();
         $pairs      = [
-            [
-                'still'     => '/tmp/IMG_0001.jpg',
-                'companion' => '/tmp/IMG_0001.mov',
-            ],
+            new LegacyLivePhotoPair('/tmp/IMG_0001.jpg', '/tmp/IMG_0001.mov'),
         ];
         $ambiguousTimezoneFiles = ['/tmp/IMG_0001.jpg' => true];
         $fallbackDateFiles      = ['/tmp/IMG_0001.jpg' => true];
@@ -74,10 +72,7 @@ final class LegacyLivePhotoQualityFlagPropagatorTest extends TestCase
     {
         $propagator = new LegacyLivePhotoQualityFlagPropagator();
         $pairs      = [
-            [
-                'still'     => '/tmp/IMG_0002.jpg',
-                'companion' => '/tmp/IMG_0002.mov',
-            ],
+            new LegacyLivePhotoPair('/tmp/IMG_0002.jpg', '/tmp/IMG_0002.mov'),
         ];
         $ambiguousTimezoneFiles = ['/tmp/IMG_0002.mov' => true];
         $fallbackDateFiles      = [];
@@ -102,10 +97,7 @@ final class LegacyLivePhotoQualityFlagPropagatorTest extends TestCase
     {
         $propagator = new LegacyLivePhotoQualityFlagPropagator();
         $pairs      = [
-            [
-                'still'     => '/tmp/IMG_0003.jpg',
-                'companion' => '/tmp/IMG_0003.mov',
-            ],
+            new LegacyLivePhotoPair('/tmp/IMG_0003.jpg', '/tmp/IMG_0003.mov'),
         ];
         $ambiguousTimezoneFiles = [];
         $fallbackDateFiles      = [];
