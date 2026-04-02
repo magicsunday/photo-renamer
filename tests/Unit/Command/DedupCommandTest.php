@@ -16,7 +16,11 @@ use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Regex\RegexMatchResult;
 use MagicSunday\Renamer\Regex\SafeRegex;
+use MagicSunday\Renamer\Service\Dedup\DedupOriginalMatcher;
+use MagicSunday\Renamer\Service\Dedup\OriginalCandidateIndex;
 use MagicSunday\Renamer\Service\FileSystemService;
+use MagicSunday\Renamer\Service\FormatPriorityResolver;
+use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -35,6 +39,7 @@ use function mkdir;
 use function str_repeat;
 
 use const DIRECTORY_SEPARATOR;
+use const PHP_EOL;
 
 /**
  * Tests for the DedupCommand which finds and removes files with
@@ -50,6 +55,10 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(RegexMatchResult::class)]
 #[UsesClass(SafeRegex::class)]
 #[UsesClass(FileSystemService::class)]
+#[UsesClass(MediaTypeClassifier::class)]
+#[UsesClass(DedupOriginalMatcher::class)]
+#[UsesClass(OriginalCandidateIndex::class)]
+#[UsesClass(FormatPriorityResolver::class)]
 #[UsesClass(RenameOutputRenderer::class)]
 final class DedupCommandTest extends TestCase
 {
@@ -98,6 +107,11 @@ final class DedupCommandTest extends TestCase
             self::assertStringContainsString('Would move', $output);
             self::assertStringContainsString('2025-04-13_17-29-26-411-duplicate-001.jpg', $output);
             self::assertStringContainsString('Duplicates found', $output);
+            self::assertStringContainsString(
+                '[D] 2025/2025-04-13_17-29-26-411-duplicate-001.jpg' . PHP_EOL
+                . '     → Would move to _duplicates/2025/2025-04-13_17-29-26-411-duplicate-001.jpg',
+                $output,
+            );
 
             // Files should still exist (dry-run)
             self::assertFileExists($duplicatePath);
@@ -241,7 +255,11 @@ final class DedupCommandTest extends TestCase
             self::assertSame(Command::SUCCESS, $exitCode);
 
             $output = $tester->getDisplay();
-            self::assertStringContainsString('(deleted)', $output);
+            self::assertStringContainsString(
+                '[D] 2025-04-13_17-29-26-411-duplicate-001.jpg' . PHP_EOL
+                . '     → Deleted',
+                $output,
+            );
 
             // Duplicate should be deleted, original should remain
             self::assertFileDoesNotExist($duplicatePath);
@@ -363,6 +381,44 @@ final class DedupCommandTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that a still-image duplicate is actionable even when the only
+     * available original uses a different still format such as HEIC instead of JPG.
+     */
+    #[Test]
+    public function executeFindsCrossExtensionStillOriginal(): void
+    {
+        $workspace = $this->createWorkspace();
+        $subDir    = $workspace . DIRECTORY_SEPARATOR . 'backup';
+
+        if (!is_dir($subDir)) {
+            mkdir($subDir, 0777, true);
+        }
+
+        $originalPath  = $workspace . DIRECTORY_SEPARATOR . '2025-11-15_20-26-50-647.heic';
+        $duplicatePath = $subDir . DIRECTORY_SEPARATOR . '2025-11-15_20-26-50-647-duplicate-001.jpg';
+
+        file_put_contents($originalPath, 'original-content');
+        file_put_contents($duplicatePath, 'duplicate-content');
+
+        try {
+            $command  = $this->createCommand();
+            $tester   = new CommandTester($command);
+            $exitCode = $tester->execute([
+                'source'    => $workspace,
+                '--dry-run' => true,
+            ]);
+
+            self::assertSame(Command::SUCCESS, $exitCode);
+
+            $output = $tester->getDisplay();
+            self::assertStringNotContainsString('Original not found', $output);
+            self::assertStringContainsString('[D]', $output);
+        } finally {
+            $this->cleanupWorkspace($workspace);
+        }
+    }
+
     private function createWorkspace(): string
     {
         return $this->createTempWorkspace('dedup_');
@@ -380,9 +436,11 @@ final class DedupCommandTest extends TestCase
 
         $renderer          = new RenameOutputRenderer($style);
         $fileSystemService = new FileSystemService($style, $renderer);
+        $matcher           = new DedupOriginalMatcher(new MediaTypeClassifier());
 
         return new DedupCommand(
             $fileSystemService,
+            $matcher,
             $renderer,
         );
     }

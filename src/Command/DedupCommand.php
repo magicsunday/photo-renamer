@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Command;
 
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Service\Dedup\DedupOriginalMatcher;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use Override;
@@ -28,13 +29,12 @@ use Symfony\Component\Filesystem\Filesystem;
 
 use function array_filter;
 use function count;
+use function dirname;
 use function is_file;
 use function is_string;
 use function realpath;
 use function sprintf;
 use function str_contains;
-use function strtolower;
-use function substr_count;
 
 use const DIRECTORY_SEPARATOR;
 
@@ -52,12 +52,14 @@ final class DedupCommand extends Command
     /**
      * Constructor.
      *
-     * @param FileSystemServiceInterface $fileSystemService Service to handle file system operations like iteration
-     * @param RenameOutputRenderer       $renderer          Service to render output in a consistent format
-     * @param Filesystem                 $filesystem        Symfony Filesystem component for file operations
+     * @param FileSystemServiceInterface $fileSystemService    Service to handle file system operations like iteration
+     * @param DedupOriginalMatcher       $dedupOriginalMatcher Service that resolves actionable originals for duplicate files
+     * @param RenameOutputRenderer       $renderer             Service to render output in a consistent format
+     * @param Filesystem                 $filesystem           Symfony Filesystem component for file operations
      */
     public function __construct(
         private readonly FileSystemServiceInterface $fileSystemService,
+        private readonly DedupOriginalMatcher $dedupOriginalMatcher,
         private readonly RenameOutputRenderer $renderer,
         private readonly Filesystem $filesystem = new Filesystem(),
     ) {
@@ -151,25 +153,9 @@ final class DedupCommand extends Command
         $progressBar?->setFormat(Constants::PROGRESS_BAR_FORMAT);
         $progressBar?->start();
 
-        // Build index of non-duplicate files for cross-directory original lookup.
-        /** @var array<string, string> $originalIndex basename.ext => pathname */
-        $originalIndex = [];
+        $originalIndex = $this->dedupOriginalMatcher->createIndex($files);
 
-        foreach ($files as $file) {
-            $basename = FileHelper::basenameWithoutExtension($file);
-
-            if (!str_contains($basename, Constants::DUPLICATE_IDENTIFIER)) {
-                $key   = $basename . '.' . strtolower($file->getExtension());
-                $depth = substr_count($file->getPathname(), DIRECTORY_SEPARATOR);
-
-                // Prefer the shallowest path (closest to source root) as the original.
-                if (!isset($originalIndex[$key]) || $depth < substr_count($originalIndex[$key], DIRECTORY_SEPARATOR)) {
-                    $originalIndex[$key] = $file->getPathname();
-                }
-            }
-        }
-
-        /** @var list<array{file: SplFileInfo, originalExists: bool, relativePath: string}> $duplicates */
+        /** @var list<array{file: SplFileInfo, original: SplFileInfo|null, relativePath: string}> $duplicates */
         $duplicates = [];
 
         foreach ($files as $file) {
@@ -181,14 +167,12 @@ final class DedupCommand extends Command
                 continue;
             }
 
-            $originalBasename = FileHelper::stripDuplicateSuffix($basename);
-            $key              = $originalBasename . '.' . strtolower($file->getExtension());
-            $relativePath     = FileHelper::relativizePath($file->getPathname(), $sourceDirectory);
+            $relativePath = FileHelper::relativizePath($file->getPathname(), $sourceDirectory);
 
             $duplicates[] = [
-                'file'           => $file,
-                'originalExists' => isset($originalIndex[$key]),
-                'relativePath'   => $relativePath,
+                'file'         => $file,
+                'original'     => $this->dedupOriginalMatcher->match($file, $originalIndex),
+                'relativePath' => $relativePath,
             ];
         }
 
@@ -197,8 +181,11 @@ final class DedupCommand extends Command
 
         // Post-scan summary
         $action          = $delete ? 'delete' : 'move';
-        $actionableCount = count(array_filter($duplicates, static fn (array $duplicateEntry): bool => $duplicateEntry['originalExists']));
-        $orphanCount     = count($duplicates) - $actionableCount;
+        $actionableCount = count(array_filter(
+            $duplicates,
+            static fn (array $duplicateEntry): bool => $duplicateEntry['original'] instanceof SplFileInfo,
+        ));
+        $orphanCount = count($duplicates) - $actionableCount;
 
         if ($duplicates !== []) {
             $io->text(sprintf(
@@ -233,7 +220,7 @@ final class DedupCommand extends Command
             $file         = $entry['file'];
             $relativePath = $entry['relativePath'];
 
-            if (!$entry['originalExists']) {
+            if (!$entry['original'] instanceof SplFileInfo) {
                 ++$orphanedCount;
 
                 $io->text(sprintf(
@@ -249,26 +236,34 @@ final class DedupCommand extends Command
 
             if ($dryRun) {
                 if ($delete) {
-                    $io->text(sprintf(
-                        '<fg=cyan>[D]</> %s <fg=cyan>→</> Would delete',
+                    $this->renderIndentedAction(
+                        $io,
+                        'cyan',
                         $relativePath,
-                    ));
+                        'Would delete',
+                    );
                 } else {
                     $targetRelativePath = $target . DIRECTORY_SEPARATOR . $relativePath;
 
-                    $io->text(sprintf(
-                        '<fg=cyan>[D]</> %s <fg=cyan>→</> Would move to %s',
+                    $this->renderIndentedAction(
+                        $io,
+                        'cyan',
                         $relativePath,
-                        $targetRelativePath,
-                    ));
+                        sprintf(
+                            'Would move to %s',
+                            $targetRelativePath,
+                        ),
+                    );
                 }
             } elseif ($delete) {
                 $this->filesystem->remove($file->getPathname());
 
-                $io->text(sprintf(
-                    '<fg=green>[D]</> %s (deleted)',
+                $this->renderIndentedAction(
+                    $io,
+                    'green',
                     $relativePath,
-                ));
+                    'Deleted',
+                );
             } else {
                 $relativeDir = FileHelper::relativizePath($file->getPath(), $sourceDirectory);
 
@@ -288,11 +283,12 @@ final class DedupCommand extends Command
 
                 $targetRelativePath = $target . DIRECTORY_SEPARATOR . $relativePath;
 
-                $io->text(sprintf(
-                    '<fg=green>[D]</> %s <fg=cyan>→</> %s',
+                $this->renderIndentedAction(
+                    $io,
+                    'green',
                     $relativePath,
                     $targetRelativePath,
-                ));
+                );
             }
         }
 
@@ -301,6 +297,31 @@ final class DedupCommand extends Command
         $this->renderSummary($io, count($files), $duplicatesFound, $orphanedCount, $spaceReclaimable);
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Renders one duplicate action as a two-line block for better readability.
+     *
+     * Long relative paths stay on the first line, while the actual action is
+     * indented on the second line so lists of dedup operations remain easy to scan.
+     *
+     * @param SymfonyStyle $io           The SymfonyStyle IO instance for output.
+     * @param string       $tagColor     Console color name used for the `[D]` tag.
+     * @param string       $relativePath Duplicate file path relative to the source root.
+     * @param string       $actionText   Action description shown after the arrow.
+     */
+    private function renderIndentedAction(
+        SymfonyStyle $io,
+        string $tagColor,
+        string $relativePath,
+        string $actionText,
+    ): void {
+        $io->text(sprintf(
+            '<fg=%s>[D]</> %s' . "\n" . '     <fg=cyan>→</> %s',
+            $tagColor,
+            $relativePath,
+            $actionText,
+        ));
     }
 
     /**
