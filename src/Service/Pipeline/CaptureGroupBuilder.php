@@ -27,6 +27,7 @@ use MagicSunday\Renamer\Model\TargetFileResult;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetectorInterface;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingServiceInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
+use MagicSunday\Renamer\Service\MetadataQualityFlagResolver;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\LivePhotoAwareRenameStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\MetadataAwareRenameStrategyInterface;
@@ -442,15 +443,13 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
             return;
         }
 
-        if ($strategy->hasReliableDateTime($file)) {
-            return;
-        }
+        $qualityFlags = MetadataQualityFlagResolver::resolve($file, $strategy);
 
-        if ($strategy->isFallbackDateTime($file)) {
+        if ($qualityFlags['hasFallbackDate']) {
             $context->addFallbackDateFile($file->getPathname());
         }
 
-        if ($strategy->isAmbiguousTimezone($file)) {
+        if ($qualityFlags['hasAmbiguousTimezone']) {
             $context->addAmbiguousTimezoneFile($file->getPathname());
         }
     }

@@ -364,15 +364,14 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
             // Track files with unreliable dates (fallback or ambiguous timezone)
             // but only if the raw metadata does NOT already match the filename
             // (which means the file was already fixed by write-date).
-            if (
-                ($renameStrategy instanceof MetadataAwareRenameStrategyInterface)
-                && !$renameStrategy->hasReliableDateTime($sourceFileInfo)
-            ) {
-                if ($renameStrategy->isFallbackDateTime($sourceFileInfo)) {
+            if ($renameStrategy instanceof MetadataAwareRenameStrategyInterface) {
+                $qualityFlags = MetadataQualityFlagResolver::resolve($sourceFileInfo, $renameStrategy);
+
+                if ($qualityFlags['hasFallbackDate']) {
                     $this->fallbackDateFiles[$sourceFileInfo->getPathname()] = true;
                 }
 
-                if ($renameStrategy->isAmbiguousTimezone($sourceFileInfo)) {
+                if ($qualityFlags['hasAmbiguousTimezone']) {
                     $this->ambiguousTimezoneFiles[$sourceFileInfo->getPathname()] = true;
                 }
             }
