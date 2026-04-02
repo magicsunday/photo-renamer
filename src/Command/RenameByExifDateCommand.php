@@ -21,6 +21,7 @@ use MagicSunday\Renamer\Service\CanonicalScorerInterface;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilderInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
+use MagicSunday\Renamer\Service\HashSubGroupingService;
 use MagicSunday\Renamer\Service\HashSubGroupingServiceInterface;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
@@ -116,7 +117,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
                 'merge-threshold',
                 null,
                 InputOption::VALUE_REQUIRED,
-                'Maximum RMSE (0.0–1.0) for merging visually similar files. Below 0.015: automatic codec-noise merge. Between 0.015 and threshold: conservative analysis. Overrides MERGE_THRESHOLD env var. Default: 0.05.',
+                'Maximum RMSE (0.0–1.0) for merging visually similar files. Only makes the policy stricter (lower = fewer merges). Overrides MERGE_THRESHOLD env var. Default: 0.06.',
             );
     }
 
@@ -145,6 +146,12 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
 
         if ($this->perceptualHashCalculator instanceof PerceptualHashCalculator) {
             $this->perceptualHashCalculator->setSignalCache($signalCache);
+        }
+
+        if ($this->hashSubGroupingService instanceof HashSubGroupingService) {
+            $this->hashSubGroupingService->setMaxMergeRmse(
+                $this->resolveMergeThreshold($this->input),
+            );
         }
 
         // Configure score-based canonical selection
