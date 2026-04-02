@@ -28,8 +28,11 @@ final class Constants
 
     /**
      * Symfony progress bar format string shared across all pipeline phases.
+     *
+     * The fixed-width current/max placeholders keep every progress bar aligned
+     * even when different phases process very different file counts.
      */
-    public const string PROGRESS_BAR_FORMAT = ' %current%/%max% [%bar%] %percent:3s%% | Elapsed: %elapsed% | Remaining: %remaining%';
+    public const string PROGRESS_BAR_FORMAT = ' %current:6s%/%max:6s% [%bar%] %percent:3s%% | Elapsed: %elapsed% | Remaining: %remaining%';
 
     /**
      * Upper bound for the runtime duplicate suffix fallback loop.
