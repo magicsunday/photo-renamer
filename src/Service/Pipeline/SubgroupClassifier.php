@@ -29,7 +29,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use Throwable;
 
 use function array_keys;
-use function count;
+use function round;
 use function sprintf;
 
 use const DIRECTORY_SEPARATOR;
@@ -74,20 +74,22 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
         AssetGroupCollection $groups,
     ): void {
         $candidateCompanions = $this->collectValidCompanionCandidates($groups);
-        $orphanGroupKeys     = $this->collectOrphanVideoGroupKeys($groups);
+        $orphanVideos        = $this->collectOrphanVideos($groups);
 
-        if (($candidateCompanions !== []) && ($orphanGroupKeys !== [])) {
+        if (($candidateCompanions !== []) && ($orphanVideos !== [])) {
+            $comparisonCount = $this->countReconciliationComparisons($orphanVideos, $candidateCompanions);
+
             $this->io->newLine();
             $this->io->text('<fg=cyan>Reconciling orphan Live Photo videos</>');
 
-            $progressBar = $this->io->createProgressBar(count($orphanGroupKeys));
+            $progressBar = $this->io->createProgressBar(max($comparisonCount, 1));
             $progressBar->setFormat(Constants::PROGRESS_BAR_FORMAT);
             $progressBar->start();
 
             $this->mergeOrphanVideoDuplicatesIntoLivePhotoGroups(
                 $groups,
                 $candidateCompanions,
-                $orphanGroupKeys,
+                $orphanVideos,
                 $progressBar,
             );
 
@@ -145,39 +147,30 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
      *
      * @param AssetGroupCollection                            $groups              Groups discovered by CaptureGroupBuilder
      * @param list<array{group: AssetGroup, item: AssetItem}> $candidateCompanions Valid existing companion videos
-     * @param list<string>                                    $orphanGroupKeys     Group keys of orphan singleton video groups
+     * @param list<array{groupKey: string, item: AssetItem}>  $orphanVideos        Orphan singleton video groups with their video item
      * @param ProgressBar|null                                $progressBar         Optional progress bar for CLI feedback
      */
     private function mergeOrphanVideoDuplicatesIntoLivePhotoGroups(
         AssetGroupCollection $groups,
         array $candidateCompanions,
-        array $orphanGroupKeys,
+        array $orphanVideos,
         ?ProgressBar $progressBar = null,
     ): void {
-        foreach ($orphanGroupKeys as $groupKey) {
-            $group = $groups->get($groupKey);
+        foreach ($orphanVideos as $orphanEntry) {
+            $groupKey = $orphanEntry['groupKey'];
+            $group    = $groups->get($groupKey);
 
             if (!$group instanceof AssetGroup) {
-                $progressBar?->advance();
-
                 continue;
             }
 
-            $orphanVideo = $this->findOrphanVideo($group);
-
-            if (!$orphanVideo instanceof AssetItem) {
-                continue;
-            }
+            $orphanVideo = $orphanEntry['item'];
 
             $bestMatch = null;
             $bestScore = -1;
 
             foreach ($candidateCompanions as $candidate) {
-                if ($candidate['group']->groupKey === $group->groupKey) {
-                    continue;
-                }
-
-                if ($candidate['item']->file->getPath() !== $orphanVideo->file->getPath()) {
+                if (!$this->isReconcilableCandidate($groupKey, $orphanVideo, $candidate)) {
                     continue;
                 }
 
@@ -200,10 +193,11 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
                         'score' => $similarity->score,
                     ];
                 }
+
+                $progressBar?->advance();
             }
 
             $this->perceptualHashCalculator->clearCache();
-            $progressBar?->advance();
 
             if (!is_array($bestMatch)) {
                 continue;
@@ -271,15 +265,38 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
     }
 
     /**
-     * Collects the group keys of standalone orphan video groups.
+     * Counts how many candidate comparisons the reconciliation step will attempt.
+     *
+     * @param list<array{groupKey: string, item: AssetItem}>  $orphanVideos        Orphan singleton video groups with their video item
+     * @param list<array{group: AssetGroup, item: AssetItem}> $candidateCompanions Valid existing companion videos
+     *
+     * @return int Number of perceptual comparisons after cheap pre-filtering
+     */
+    private function countReconciliationComparisons(array $orphanVideos, array $candidateCompanions): int
+    {
+        $comparisons = 0;
+
+        foreach ($orphanVideos as $orphanEntry) {
+            foreach ($candidateCompanions as $candidate) {
+                if ($this->isReconcilableCandidate($orphanEntry['groupKey'], $orphanEntry['item'], $candidate)) {
+                    ++$comparisons;
+                }
+            }
+        }
+
+        return $comparisons;
+    }
+
+    /**
+     * Collects the orphan singleton video groups that qualify for reconciliation.
      *
      * @param AssetGroupCollection $groups Available capture groups
      *
-     * @return list<string> Group keys that contain exactly one video item with a content identifier
+     * @return list<array{groupKey: string, item: AssetItem}> Orphan singleton video groups with their video item
      */
-    private function collectOrphanVideoGroupKeys(AssetGroupCollection $groups): array
+    private function collectOrphanVideos(AssetGroupCollection $groups): array
     {
-        $groupKeys = [];
+        $orphans = [];
 
         foreach (array_keys($groups->asArray()) as $groupKey) {
             $group = $groups->get($groupKey);
@@ -288,12 +305,53 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
                 continue;
             }
 
-            if ($this->findOrphanVideo($group) instanceof AssetItem) {
-                $groupKeys[] = $groupKey;
+            $orphanVideo = $this->findOrphanVideo($group);
+
+            if ($orphanVideo instanceof AssetItem) {
+                $orphans[] = ['groupKey' => $groupKey, 'item' => $orphanVideo];
             }
         }
 
-        return $groupKeys;
+        return $orphans;
+    }
+
+    /**
+     * Returns whether a companion candidate is worth an expensive perceptual comparison.
+     *
+     * The cross-directory match is intentional, but cheap guards still avoid obviously
+     * unrelated videos by rejecting same-group candidates and videos with materially
+     * different durations.
+     *
+     * @param string                                    $orphanGroupKey Group key of the orphan singleton video
+     * @param AssetItem                                 $orphanVideo    Orphan singleton video
+     * @param array{group: AssetGroup, item: AssetItem} $candidate      Existing valid companion candidate
+     */
+    private function isReconcilableCandidate(string $orphanGroupKey, AssetItem $orphanVideo, array $candidate): bool
+    {
+        if ($candidate['group']->groupKey === $orphanGroupKey) {
+            return false;
+        }
+
+        return $this->haveComparableDurations($orphanVideo, $candidate['item']);
+    }
+
+    /**
+     * Applies a cheap duration-based pre-filter before perceptual video comparison.
+     *
+     * This reconciliation path is intentionally conservative: it only compares videos
+     * whose normalized durations are identical. Missing duration metadata therefore
+     * blocks reconciliation instead of widening the expensive cross-directory search.
+     */
+    private function haveComparableDurations(AssetItem $videoA, AssetItem $videoB): bool
+    {
+        $durationA = $videoA->metadata?->getVideoDurationSeconds();
+        $durationB = $videoB->metadata?->getVideoDurationSeconds();
+
+        if (($durationA === null) || ($durationB === null)) {
+            return false;
+        }
+
+        return round($durationA, 3) === round($durationB, 3);
     }
 
     /**

@@ -517,7 +517,7 @@ final class SubgroupClassifierTest extends TestCase
      * perceptually identical.
      *
      * This prevents the orphan MOV from staying as a standalone original when a
-     * proper still+video pair already exists in the same directory.
+     * proper still+video pair already exists elsewhere in the library.
      */
     #[Test]
     public function orphanVideoDuplicateMergesIntoExistingLivePhotoGroup(): void
@@ -541,7 +541,7 @@ final class SubgroupClassifierTest extends TestCase
             contentIdentifier: 'good-id',
         );
         $orphanDuplicate = new AssetItem(
-            new SplFileInfo('/photos/Test/2019-09-28_16-57-58-000.mov'),
+            new SplFileInfo('/photos/Imported/2019-09-28_16-57-58-000.mov'),
             metadata: new TemporalMetadata(new DateTimeImmutable('2019-10-19 08:43:12'), null, false, false, null, null, null, null, null, null, 2.17),
             contentIdentifier: 'wrong-id',
         );
@@ -585,7 +585,7 @@ final class SubgroupClassifierTest extends TestCase
 
         self::assertCount(1, $groups);
         self::assertCount(3, $livePhotoGroup->getItems());
-        self::assertInstanceOf(AssetItem::class, $livePhotoGroup->getItemByPath('/photos/Test/2019-09-28_16-57-58-000.mov'));
+        self::assertInstanceOf(AssetItem::class, $livePhotoGroup->getItemByPath('/photos/Imported/2019-09-28_16-57-58-000.mov'));
         self::assertStringContainsString('Merged orphan video duplicate', implode("\n", $livePhotoGroup->getDecisionLog()));
         self::assertStringContainsString('Reconciling orphan Live Photo videos', $output->fetch());
     }
