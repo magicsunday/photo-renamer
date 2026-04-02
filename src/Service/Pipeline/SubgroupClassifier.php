@@ -180,6 +180,7 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
                     $orphanVideo->metadata?->getVideoDurationSeconds(),
                     $candidate['item']->metadata?->getVideoDurationSeconds(),
                 );
+                $progressBar?->advance();
 
                 if (!$similarity->isDuplicateLikely()) {
                     continue;
@@ -193,8 +194,6 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
                         'score' => $similarity->score,
                     ];
                 }
-
-                $progressBar?->advance();
             }
 
             $this->perceptualHashCalculator->clearCache();
