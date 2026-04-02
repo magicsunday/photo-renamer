@@ -15,6 +15,7 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
 use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
+use MagicSunday\Renamer\Command\Concern\ResolvesSourcePath;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Helper\FileHelper;
@@ -41,7 +42,6 @@ use function filesize;
 use function in_array;
 use function is_file;
 use function is_string;
-use function realpath;
 use function sort;
 use function sprintf;
 use function strtolower;
@@ -60,6 +60,7 @@ use function strtoupper;
 final class VerifyCommand extends Command
 {
     use ConfiguresMetadataProvider;
+    use ResolvesSourcePath;
 
     /**
      * Category definitions mapping internal IDs to display labels.
@@ -149,7 +150,7 @@ final class VerifyCommand extends Command
         $io = new SymfonyStyle($input, $output);
         $io->title($this->getName() ?? '');
 
-        $source = $this->resolveSource($input);
+        $source = $this->resolveSourcePath($input);
 
         if ($source === null) {
             $io->error('Source path does not exist.');
@@ -352,30 +353,6 @@ final class VerifyCommand extends Command
         $this->renderSummary($io, $scannedFiles, $okCount, $categories);
 
         return self::SUCCESS;
-    }
-
-    /**
-     * Resolves the absolute path to the source directory or file from the input.
-     *
-     * @param InputInterface $input The input interface carrying the 'source' argument.
-     *
-     * @return string|null The resolved absolute path, or null if it does not exist.
-     */
-    private function resolveSource(InputInterface $input): ?string
-    {
-        $source = $input->getArgument('source');
-
-        if (!is_string($source)) {
-            return null;
-        }
-
-        $resolved = realpath($source);
-
-        if ($resolved === false) {
-            return null;
-        }
-
-        return $resolved;
     }
 
     /**

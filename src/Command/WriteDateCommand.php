@@ -11,10 +11,12 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Command;
 
+use Closure;
 use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
 use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
+use MagicSunday\Renamer\Command\Concern\ResolvesSourcePath;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Helper\FileHelper;
@@ -45,7 +47,6 @@ use function in_array;
 use function is_file;
 use function is_string;
 use function mb_strlen;
-use function realpath;
 use function sprintf;
 use function str_repeat;
 use function strtolower;
@@ -63,6 +64,7 @@ use function trim;
 final class WriteDateCommand extends Command
 {
     use ConfiguresMetadataProvider;
+    use ResolvesSourcePath;
 
     /**
      * Reason key for files with no metadata date at all.
@@ -105,9 +107,9 @@ final class WriteDateCommand extends Command
     /**
      * Callable that checks whether exiftool is available. Injectable for testing.
      *
-     * @var callable(): bool
+     * @var Closure(): bool
      */
-    private readonly mixed $exiftoolAvailabilityCheck;
+    private readonly Closure $exiftoolAvailabilityCheck;
 
     /**
      * @param ExifMetadataProvider         $exifMetadataProvider      Metadata provider with caching
@@ -116,7 +118,7 @@ final class WriteDateCommand extends Command
      * @param FileSystemServiceInterface   $fileSystemService         Provides file iteration
      * @param ExiftoolWriter               $exiftoolWriter            Writes metadata via exiftool
      * @param RenameOutputRenderer         $renderer                  Shared output rendering utilities
-     * @param (callable(): bool)|null      $exiftoolAvailabilityCheck Overrides the default exiftool check (for testing)
+     * @param (Closure(): bool)|null       $exiftoolAvailabilityCheck Overrides the default exiftool check (for testing)
      */
     public function __construct(
         private readonly ExifMetadataProvider $exifMetadataProvider,
@@ -125,7 +127,7 @@ final class WriteDateCommand extends Command
         private readonly FileSystemServiceInterface $fileSystemService,
         private readonly ExiftoolWriter $exiftoolWriter,
         private readonly RenameOutputRenderer $renderer,
-        ?callable $exiftoolAvailabilityCheck = null,
+        ?Closure $exiftoolAvailabilityCheck = null,
     ) {
         $this->exiftoolAvailabilityCheck = $exiftoolAvailabilityCheck ?? static function (): bool {
             if (!function_exists('exec')) {
@@ -209,7 +211,7 @@ final class WriteDateCommand extends Command
         $io = new SymfonyStyle($input, $output);
         $io->title($this->getName() ?? '');
 
-        $source = $this->resolveSource($input);
+        $source = $this->resolveSourcePath($input);
 
         if ($source === null) {
             $io->error('Source path does not exist.');
@@ -552,26 +554,6 @@ final class WriteDateCommand extends Command
             static fn (string $token): string => strtolower(trim($token)),
             explode(',', $option),
         );
-    }
-
-    /**
-     * Resolves the source path from input. Accepts both files and directories.
-     */
-    private function resolveSource(InputInterface $input): ?string
-    {
-        $source = $input->getArgument('source');
-
-        if (!is_string($source)) {
-            return null;
-        }
-
-        $resolved = realpath($source);
-
-        if ($resolved === false) {
-            return null;
-        }
-
-        return $resolved;
     }
 
     /**
