@@ -28,6 +28,15 @@
 | `rename:verify` | Read-only analysis path | yes | `hasReliableDateTime()`, timezone rules, media classification |
 | `rename:write-date` | Metadata correction path | yes | `hasReliableDateTime()`, timezone rules, date drift policy |
 
+**Audit result after implementation:**
+- `rename:dedup`: extracted shared original matching, format preference, and media-family compatibility.
+- `rename:verify` + `rename:write-date`: extracted shared date drift analysis.
+- `rename:exif`/legacy pipeline overlap: extracted shared metadata-quality flag resolution for actionable fallback/timezone flags after the main reliability decision.
+- `rename:hash`: keep local. No concrete media-compatibility inconsistency found; command stays content-hash driven.
+- `rename:pattern`: keep local. No shared policy need beyond the already centralized legacy renderer/output path.
+- `rename:date`: keep local. Filename date parsing is already concentrated in its strategy and low-level `FileHelper` helpers.
+- `rename:lower`: keep local. No duplicated domain policy beyond legacy-path collision handling already shared through existing services.
+
 ---
 
 ## Shared policy targets
@@ -36,17 +45,17 @@
 
 **Why:** The same `CANONICAL_FORMAT_PRIORITY` must mean the same thing wherever format preference is needed.
 
-**Current status:** Extracted into `FormatPriorityResolver`.
+**Current status:** Completed. Extracted into `FormatPriorityResolver` and reused by later shared-policy work.
 
-**Next step:** Replace ad-hoc env parsing anywhere else with this resolver or a typed interface around it.
+**Next step:** No further extraction currently needed.
 
 ### 2. Media-family compatibility
 
 **Why:** Commands that compare or group files need a consistent answer to "may these two files represent the same logical asset family?"
 
-**Current status:** `MediaTypeClassifier` exists, but policy still gets reassembled at call sites.
+**Current status:** Completed. `MediaCompatibilityPolicy` now centralizes the repeated still/video-family compatibility rules that were previously reassembled at call sites.
 
-**Next step:** Audit actual call sites first. Only introduce a dedicated policy service, e.g. `MediaCompatibilityPolicy`, if the audit finds real duplicated compatibility rules rather than one-off extension handling. That service, if justified, should answer:
+**Resulting API:**
 - still vs still allowed?
 - video vs video only?
 - cross-family forbidden?
@@ -56,28 +65,30 @@
 
 **Why:** `rename:exif`, `rename:verify`, and `rename:write-date` all expose the same user-facing question: is this timestamp trustworthy?
 
-**Current status:** `ExifMetadataProvider::hasReliableDateTime()` is already the documented source of truth for reliability decisions. Supporting behavior around timezone handling and filename reconciliation must be evaluated relative to that existing authority, not redefined beside it. Date drift is a separate command-level policy and must not be silently folded into metadata reliability.
+**Current status:** Audited and partially completed. `ExifMetadataProvider::hasReliableDateTime()` remains the authority. The concrete duplicated secondary rule that remained was the post-reliability fallback/timezone flag extraction, now centralized in `MetadataQualityFlagResolver`.
 
-**Next step:** Audit concrete gaps around the existing source of truth. Only extract an additional policy/helper if a specific supporting rule is duplicated or inconsistent. Likely audit targets:
+**Audit result:** No further helper is justified at this time for:
 - filename-vs-metadata reconciliation
 - QuickTime ambiguous timezone handling
 - fallback-date semantics
+
+Those concerns are already correctly anchored on `ExifMetadataProvider` and should not be split into a second authority.
 
 ### 4. Date drift policy
 
 **Why:** `rename:verify` and `rename:write-date` both reason about how far filename dates may differ from metadata dates, but that threshold is not the same business concept as metadata reliability.
 
-**Current status:** Drift is handled at command level and already uses shared low-level filename parsing helpers. The remaining question is whether any threshold resolution or drift categorization is duplicated enough to justify a small shared helper.
+**Current status:** Completed. The duplicated filename-versus-metadata day-drift calculation is centralized in `DateDriftAnalyzer`.
 
-**Next step:** Audit drift handling separately from `hasReliableDateTime()` and only extract shared policy if the audit finds concrete duplication in threshold resolution or drift classification.
+**Audit result:** Threshold resolution remains correctly shared via `ConfiguresMetadataProvider::resolveMaxDateDrift()`. No additional helper is needed beyond the extracted analyzer.
 
 ### 5. Console output blocks
 
 **Why:** Commands that render many file actions benefit from a consistent, scan-friendly output style.
 
-**Current status:** `rename:dedup` now uses a two-line action block. Other commands still vary.
+**Current status:** Audited. `rename:dedup` keeps its command-local two-line action block. The legacy rename commands already share `RenameOutputRenderer`, and no second real consumer for the `dedup`-style block was found.
 
-**Next step:** Treat this as a low-priority audit, not a default extraction. Shared output helpers should only move into common infrastructure if at least two separate commands already need the same structure. `rename:dedup` may keep command-local formatting if no second consumer exists.
+**Audit result:** No extraction performed and none currently justified.
 
 ---
 
@@ -85,9 +96,9 @@
 
 ## Phase 1: Inventory shared-rule candidates
 
-- [ ] Inventory direct extension comparisons, env parsing, compatibility checks, and date-reliability decisions across commands/services
-- [ ] Classify each finding as one of: normalization only, true shared compatibility rule, existing central rule already present, or command-local behavior that should stay local
-- [ ] Document the concrete duplication before introducing any new policy service
+- [x] Inventory direct extension comparisons, env parsing, compatibility checks, and date-reliability decisions across commands/services
+- [x] Classify each finding as one of: normalization only, true shared compatibility rule, existing central rule already present, or command-local behavior that should stay local
+- [x] Document the concrete duplication before introducing any new policy service
 
 **Target files:**
 - `src/Service/MediaTypeClassifier.php`
@@ -101,9 +112,9 @@
 
 ## Phase 2: Extract proven low-risk policies
 
-- [ ] Extract `MediaCompatibilityPolicy` only if Phase 1 found repeated compatibility logic that is broader than plain extension normalization
-- [ ] Keep the API deliberately small: boolean compatibility and normalized-family helpers only
-- [ ] Replace only proven duplicate logic, not all extension handling blindly
+- [x] Extract `MediaCompatibilityPolicy` only if Phase 1 found repeated compatibility logic that is broader than plain extension normalization
+- [x] Keep the API deliberately small: boolean compatibility and normalized-family helpers only
+- [x] Replace only proven duplicate logic, not all extension handling blindly
 
 **Primary candidates:**
 - `rename:dedup`
@@ -111,10 +122,10 @@
 
 ## Phase 3: Audit date-reliability gaps around `ExifMetadataProvider`
 
-- [ ] Audit all call sites that reason about fallback dates, ambiguous timezone metadata, or filename reconciliation
-- [ ] Confirm which parts are already correctly centralized in `ExifMetadataProvider::hasReliableDateTime()`
-- [ ] Extract a supporting helper only if a concrete secondary rule is duplicated or inconsistent
-- [ ] Keep `hasReliableDateTime()` as the public business concept; do not create competing definitions
+- [x] Audit all call sites that reason about fallback dates, ambiguous timezone metadata, or filename reconciliation
+- [x] Confirm which parts are already correctly centralized in `ExifMetadataProvider::hasReliableDateTime()`
+- [x] Extract a supporting helper only if a concrete secondary rule is duplicated or inconsistent
+- [x] Keep `hasReliableDateTime()` as the public business concept; do not create competing definitions
 
 **Primary commands:**
 - `rename:exif`
@@ -123,9 +134,9 @@
 
 ## Phase 4: Audit date drift policy separately
 
-- [ ] Audit drift handling in `rename:verify` and `rename:write-date` without treating it as part of metadata reliability
-- [ ] Decide whether threshold resolution or drift categorization is duplicated enough for a small shared helper
-- [ ] Keep drift policy separate from `hasReliableDateTime()` unless an explicit architectural decision changes that
+- [x] Audit drift handling in `rename:verify` and `rename:write-date` without treating it as part of metadata reliability
+- [x] Decide whether threshold resolution or drift categorization is duplicated enough for a small shared helper
+- [x] Keep drift policy separate from `hasReliableDateTime()` unless an explicit architectural decision changes that
 
 **Primary commands:**
 - `rename:verify`
@@ -133,10 +144,10 @@
 
 ## Phase 5: Normalize lightweight output helpers
 
-- [ ] Review output-heavy commands for repeated inline formatting blocks
-- [ ] Extract helpers only where multiple commands genuinely benefit
-- [ ] Avoid over-centralizing command-specific wording
-- [ ] Keep `rename:dedup` formatting local unless a second real consumer appears
+- [x] Review output-heavy commands for repeated inline formatting blocks
+- [x] Extract helpers only where multiple commands genuinely benefit
+- [x] Avoid over-centralizing command-specific wording
+- [x] Keep `rename:dedup` formatting local unless a second real consumer appears
 
 **Primary candidates:**
 - `rename:dedup`
@@ -144,10 +155,10 @@
 
 ## Phase 6: Re-audit remaining command-local logic
 
-- [ ] Revisit `rename:hash`, `rename:pattern`, `rename:date`, and `rename:lower`
-- [ ] Decide per command: keep local, extract shared policy, or migrate to a shared helper
-- [ ] Treat `rename:hash` conservatively: no media-compatibility work unless a concrete inconsistency is proven
-- [ ] Document each keep/extract decision explicitly
+- [x] Revisit `rename:hash`, `rename:pattern`, `rename:date`, and `rename:lower`
+- [x] Decide per command: keep local, extract shared policy, or migrate to a shared helper
+- [x] Treat `rename:hash` conservatively: no media-compatibility work unless a concrete inconsistency is proven
+- [x] Document each keep/extract decision explicitly
 
 ---
 
