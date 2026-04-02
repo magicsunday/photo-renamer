@@ -172,6 +172,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      * @param LegacyLivePhotoDuplicateCoordinator|null $livePhotoDuplicateCoordinator    Coordinates companion detection and pair recording for legacy Live Photo groups.
      * @param LegacyTargetPathResolver                 $targetPathResolver               Resolves absolute target pathnames while preserving legacy directory structure.
      * @param LegacyTargetFileResolver                 $targetFileResolver               Resolves target-file results from generated filenames and strategy failures.
+     * @param LegacyTargetOccupancyChecker             $targetOccupancyChecker           Checks whether a target pathname is blocked by an external file.
      */
     private readonly LegacyLivePhotoTargetPromoter $livePhotoTargetPromoter;
 
@@ -192,6 +193,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
         ?LegacyLivePhotoDuplicateCoordinator $livePhotoDuplicateCoordinator = null,
         private readonly LegacyTargetPathResolver $targetPathResolver = new LegacyTargetPathResolver(),
         ?LegacyTargetFileResolver $targetFileResolver = null,
+        private readonly LegacyTargetOccupancyChecker $targetOccupancyChecker = new LegacyTargetOccupancyChecker(),
     ) {
         $livePhotoCompanionDetector ??= new LegacyLivePhotoCompanionDetector($this->mediaTypeClassifier);
         $this->livePhotoTargetPromoter = $livePhotoTargetPromoter
@@ -1117,22 +1119,12 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      */
     private function isTargetOccupied(SplFileInfo $target, SplFileInfo $source, array $groupSourcePaths): bool
     {
-        $targetPath = $target->getPathname();
-
-        // Target is the source itself — not occupied.
-        if ($targetPath === $source->getPathname()) {
-            return false;
-        }
-
-        // Fast path: target is known from the scan index → exists.
-        // Fallback: stat() for paths outside the scanned directories.
-        if (!isset($this->diskIndex[$targetPath]) && (!$target->isFile())) {
-            return false;
-        }
-
-        // Target exists but belongs to another file in the same group — will be freed.
-        // Target exists and belongs to an external file — occupied.
-        return !isset($groupSourcePaths[$targetPath]);
+        return $this->targetOccupancyChecker->isOccupied(
+            $target,
+            $source,
+            $groupSourcePaths,
+            $this->diskIndex,
+        );
     }
 
     /**
