@@ -2089,15 +2089,16 @@ final class DuplicateDetectionServiceTest extends TestCase
     }
 
     /**
-     * Verifies that getNewUniqueDuplicateTargetFileInfo() throws a RuntimeException
-     * when all 999 possible -duplicate-NNN suffixes are already occupied in the
-     * disk index.
+     * Verifies that createDuplicateTargetFileInfo() still propagates the duplicate
+     * suffix guard when every `-duplicate-NNN` target is already occupied.
      *
-     * This is a safety net against infinite loops. In practice 999 true duplicates
-     * of the same file are extremely unlikely, but the guard must exist.
+     * The suffix allocation logic now lives in DuplicateSuffixAssigner, but the
+     * legacy service path must still surface the same RuntimeException instead of
+     * silently looping forever. In practice 999 true duplicates of the same file
+     * are extremely unlikely, but the guard must remain enforced.
      */
     #[Test]
-    public function getNewUniqueDuplicateTargetFileInfoThrowsWhenMaxSuffixExceeded(): void
+    public function createDuplicateTargetFileInfoThrowsWhenMaxSuffixExceeded(): void
     {
         [$service] = $this->createService();
 
@@ -2105,9 +2106,8 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         $this->setServiceDirectories($service, $sourceDirectory);
 
-        $source   = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg');
-        $target   = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg');
-        $basename = 'photo';
+        $source = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'photo-copy.jpg');
+        $target = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg');
 
         // Populate the diskIndex with entries that block every suffix 001..999
         $diskIndexProp = new ReflectionProperty($service, 'diskIndex');
@@ -2129,12 +2129,12 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         $duplicateCount = 1;
 
-        $method = new ReflectionMethod($service, 'getNewUniqueDuplicateTargetFileInfo');
+        $method = new ReflectionMethod($service, 'createDuplicateTargetFileInfo');
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Exceeded 999 duplicate suffix attempts');
 
-        $method->invoke($service, $source, $target, $basename, $duplicateCount, true, []);
+        $method->invoke($service, $source, $target, $duplicateCount, false, true, false, []);
     }
 
     /**

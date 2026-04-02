@@ -173,6 +173,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      * @param MediaTypeClassifierInterface            $mediaTypeClassifier              Classifier for media types (Photo vs. Video).
      * @param LivePhotoConflictDetectorInterface|null $livePhotoConflictDetector        Detector for ID conflicts in Live Photos.
      * @param DuplicateCanonicalRenameSelector        $duplicateCanonicalRenameSelector Selector for canonical rename choice and promotion flags.
+     * @param DuplicateSuffixAssigner                 $duplicateSuffixAssigner          Assigns unique `-duplicate-NNN` targets in the legacy flow.
      */
     public function __construct(
         private readonly SymfonyStyle $io,
@@ -180,6 +181,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
         private readonly MediaTypeClassifierInterface $mediaTypeClassifier,
         private readonly ?LivePhotoConflictDetectorInterface $livePhotoConflictDetector = null,
         private readonly DuplicateCanonicalRenameSelector $duplicateCanonicalRenameSelector = new DuplicateCanonicalRenameSelector(),
+        private readonly DuplicateSuffixAssigner $duplicateSuffixAssigner = new DuplicateSuffixAssigner(),
     ) {
     }
 
@@ -950,23 +952,13 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
         int &$duplicateCount,
         array $groupSourcePaths,
     ): SplFileInfo {
-        // File already at its target path — no rename needed (idempotency).
-        if ($target->getPathname() === $source->getPathname()) {
-            return $target;
-        }
-
-        // Canonical files get the unsuffixed base name when available.
-        if (!$this->isTargetOccupied($target, $source, $groupSourcePaths)) {
-            return $target;
-        }
-
-        return $this->getNewUniqueDuplicateTargetFileInfo(
+        return $this->duplicateSuffixAssigner->resolveCanonicalTarget(
             $source,
             $target,
-            FileHelper::basenameWithoutExtension($target),
             $duplicateCount,
-            false,
             $groupSourcePaths,
+            $this->isTargetOccupied(...),
+            $this->getNewDuplicateTargetFileInfo(...),
         );
     }
 
@@ -992,99 +984,17 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
         bool $requiresCanonicalDisambiguation = false,
         array $groupSourcePaths = [],
     ): SplFileInfo {
-        // File already at its target path — no rename needed (idempotency).
-        // Exception: cross-directory duplicates must still get a suffix even if
-        // their local source == target, because the canonical lives in another directory.
-        if (($target->getPathname() === $source->getPathname()) && (!$requiresCanonicalDisambiguation)) {
-            return $target;
-        }
-
-        $targetOccupied = $this->isTargetOccupied($target, $source, $groupSourcePaths);
-        $needsSuffix    = $targetOccupied || !$isFirst || $hasAdditionalRenames || $requiresCanonicalDisambiguation;
-
-        if (!$needsSuffix) {
-            return $target;
-        }
-
-        $duplicateBasename = FileHelper::basenameWithoutExtension($target);
-
-        $forceSuffix = $targetOccupied
-            ? $requiresCanonicalDisambiguation
-            : ($hasAdditionalRenames || $requiresCanonicalDisambiguation);
-
-        return $this->getNewUniqueDuplicateTargetFileInfo(
+        return $this->duplicateSuffixAssigner->createDuplicateTargetFileInfo(
             $source,
             $target,
-            $duplicateBasename,
             $duplicateCount,
-            $forceSuffix,
+            $isFirst,
+            $hasAdditionalRenames,
+            $requiresCanonicalDisambiguation,
             $groupSourcePaths,
+            $this->isTargetOccupied(...),
+            $this->getNewDuplicateTargetFileInfo(...),
         );
-    }
-
-    /**
-     * Generates a target file info whose path does not collide with any existing file on disk.
-     * Increments the duplicate counter in a loop until a free slot is found, or reuses the
-     * source path for idempotent re-runs.
-     *
-     * @param SplFileInfo         $source               source file currently being processed
-     * @param SplFileInfo         $target               initial target file information
-     * @param string              $targetBasename       base filename (without extension) used for duplicate naming
-     * @param int                 $duplicateCount       counter used to create unique duplicate suffixes (passed by reference)
-     * @param bool                $forceDuplicateSuffix when true, always apply a suffix even if the target is free
-     * @param array<string, true> $groupSourcePaths     source paths of all files in the current group
-     *
-     * @return SplFileInfo file info pointing to a non-occupied target path
-     */
-    private function getNewUniqueDuplicateTargetFileInfo(
-        SplFileInfo $source,
-        SplFileInfo $target,
-        string $targetBasename,
-        int &$duplicateCount,
-        bool $forceDuplicateSuffix = false,
-        array $groupSourcePaths = [],
-    ): SplFileInfo {
-        $duplicateFileInfo = $target;
-
-        if ($forceDuplicateSuffix) {
-            $duplicateFileInfo = $this->getNewDuplicateTargetFileInfo(
-                $source,
-                $target,
-                $targetBasename,
-                $duplicateCount
-            );
-
-            ++$duplicateCount;
-
-            if ($duplicateFileInfo->getPathname() === $source->getPathname()) {
-                return $duplicateFileInfo;
-            }
-        }
-
-        while ($this->isTargetOccupied($duplicateFileInfo, $source, $groupSourcePaths)) {
-            if ($duplicateCount > Constants::MAX_DUPLICATE_SUFFIX) {
-                throw new RuntimeException(
-                    sprintf('Exceeded %d duplicate suffix attempts', Constants::MAX_DUPLICATE_SUFFIX)
-                );
-            }
-
-            $duplicateFileInfo = $this->getNewDuplicateTargetFileInfo(
-                $source,
-                $target,
-                $targetBasename,
-                $duplicateCount
-            );
-
-            ++$duplicateCount;
-
-            // Idempotency: if a generated duplicate target (with suffix) matches the source,
-            // the file already has the correct name from a previous run.
-            if ($duplicateFileInfo->getPathname() === $source->getPathname()) {
-                break;
-            }
-        }
-
-        return $duplicateFileInfo;
     }
 
     /**
