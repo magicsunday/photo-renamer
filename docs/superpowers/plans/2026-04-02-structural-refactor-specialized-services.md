@@ -15,6 +15,8 @@ The refactor focus is therefore **structural decomposition**, not execution-path
 
 **Secondary design rule:** Commands orchestrate. Policies decide. Resolvers choose. Analyzers inspect. Renderers render. Coordinators compose.
 
+**Pattern rule:** Prefer `Strategy`, `Chain of Responsibility`, `Builder`, and targeted `Decorator`/`Proxy` as decomposition patterns only where they remove a concrete branching, coupling, or boundary problem already visible in the code. `Facade` and `Adapter` remain valid boundary patterns under the guardrails below.
+
 **Out of scope:**
 - migrating legacy commands onto the `rename:exif` runtime pipeline
 - broad “service extraction” without a clear responsibility boundary
@@ -28,10 +30,10 @@ The refactor focus is therefore **structural decomposition**, not execution-path
 The desired structure is:
 
 - commands remain thin application-layer entry points
-- large services become orchestrators/facades
+- large implementations become orchestrators/facades
 - specialized decision logic moves into small collaborators with intention-revealing names
 - naming follows role-based semantics (`Analyzer`, `Policy`, `Resolver`, `Planner`, `Renderer`, `Coordinator`)
-- each refactor phase is behavior-preserving and independently testable
+- each refactor phase remains behavior-preserving, and each feature track is explicitly behavior-changing and independently testable
 
 This is not a generic “more classes” plan. The intent is to reduce hidden coupling and responsibility overlap.
 
@@ -63,7 +65,7 @@ This is not a generic “more classes” plan. The intent is to reduce hidden co
 - `src/Service/Pipeline/CaptureGroupBuilder.php`
   - mixes collection, grouping, pending companion handling, and quality tracking
 - `src/Service/HashSubGroupingService.php`
-  - coherent domain, but too many stages in one implementation
+  - domain-coherent, but implementation-heavy with too many stages in one class
 - `src/Command/VerifyCommand.php`
   - still contains domain-specific analysis/report assembly
 - `src/Command/WriteDateCommand.php`
@@ -87,6 +89,8 @@ These suffixes should be used consistently:
   - choose one result/candidate/target from several possibilities
 - `Planner`
   - build a list/plan of intended actions
+- `Builder`
+  - stepwise constructs a result, projection, or aggregate output
 - `Renderer`
   - output formatting only
 - `Coordinator`
@@ -94,11 +98,55 @@ These suffixes should be used consistently:
 - `Facade`
   - compatibility or aggregate boundary over existing internals
 
+Builder and Coordinator must stay distinct:
+
+- `Builder`
+  - stepwise constructs a result, projection, or aggregate output
+- `Coordinator`
+  - steers specialized collaborators without itself being the stepwise
+    construction mechanism for the target object
+
 Avoid for new business logic:
 
 - vague `Helper`
 - broad `Util`
 - catch-all `...Service` where a narrower role name exists
+- `Coordinator` classes that still contain most business decisions inline
+- `Facade` classes that merely rename an existing God-object without shrinking responsibility
+
+Role names are not a free pass for broad ownership. A well-named class that still
+accumulates the underlying decision complexity has not improved the design.
+
+### Pattern guardrails
+
+Prefer when they solve a real structural problem:
+
+- `Strategy`
+  - for alternative selection, naming, or matching policies
+- `Chain of Responsibility`
+  - for reason classification, issue detection, and rule pipelines
+- `Builder`
+  - for projection and plan-assembly boundaries
+- `Decorator` / `Proxy`
+  - for caches or wrappers around expensive collaborators, without changing
+    domain ownership or policy semantics
+- `Adapter`
+  - only at legacy/new-model boundaries
+- `Facade`
+  - only as a thin boundary over already-separated collaborators, not as a
+    renamed implementation bucket
+
+Avoid unless a concrete need emerges:
+
+- `Singleton`
+- `Abstract Factory`
+- `Observer`
+- `Mediator`
+- `Visitor`
+- `State`
+
+Patterns should clarify an existing responsibility boundary, not add abstraction
+for its own sake.
 
 ---
 
@@ -118,6 +166,23 @@ Avoid for new business logic:
   - `SubgroupClassifier` orphan-video reconciliation
 - Prefer behavior-oriented dry-run and decision-log assertions over internal-state-only assertions.
 - For every later phase, start from a green `make test` baseline.
+
+Characterization must happen on two levels:
+
+- result-level characterization
+  - target names
+  - grouping outcomes
+  - output tags
+  - summary counts
+  - write/skip decisions
+- reason-level characterization
+  - decision logs
+  - review reasons
+  - preservation decisions
+  - skip/block reasons
+
+Both levels are required. End-state-only assertions are not sufficient when
+different wrong intermediate paths can accidentally converge on the same result.
 
 ### Acceptance criteria
 
@@ -222,7 +287,9 @@ For write-date:
 
 ### Pattern
 
-- application service + analyzer + presenter/renderer
+- command orchestration + analyzer/planner + renderer
+- prefer `Chain of Responsibility` inside analyzers/planners when issue or write
+  reasons would otherwise turn into long conditional ladders
 
 ### Acceptance criteria
 
@@ -233,6 +300,22 @@ For write-date:
 ### Risk
 
 - medium
+
+### Guardrail
+
+Keep the separation strict:
+
+- `Analyzer`
+  - reports domain facts and detected problems
+- `Planner`
+  - turns domain facts into actionable decisions under explicit policy
+- `Renderer`
+  - formats output only
+- `Command`
+  - handles CLI interaction and exit code only
+
+Do not introduce new mini-orchestrators that simply recreate command logic
+outside Symfony Console under a different class name.
 
 ---
 
@@ -282,6 +365,8 @@ These are related, but not the same responsibility.
 ### Pattern
 
 - strategy composition + policy extraction
+- prefer focused internal strategies/resolvers over a single mode-heavy resolver
+  with widening conditional branches
 
 ### Acceptance criteria
 
@@ -292,6 +377,26 @@ These are related, but not the same responsibility.
 ### Risk
 
 - high
+
+### Guardrail
+
+This phase is identity-sensitive. Even small structural mistakes can produce
+different visible names and therefore immediate user-facing behavior changes.
+
+Required safety net:
+
+- golden-master-style decision snapshots for representative naming cases
+- explicit coverage for:
+  - flat groups
+  - subgroup numbering
+  - companion naming
+  - degraded/preservation paths
+
+### Stop condition
+
+If 2-3 extractions already make `TargetNameResolver` materially shorter and more
+declarative, stop there. Do not force finer splits once the remaining code reads
+cleanly and each extracted collaborator already owns a distinct naming sentence.
 
 ---
 
@@ -340,6 +445,9 @@ That is too much for one class even if the overall concept is coherent.
 ### Pattern
 
 - staged pipeline decomposition
+- keep `CaptureGroupBuilder` as the outer builder/orchestrator, but prefer
+  ordered rule-pipeline collaborators for quality, deferral, and
+  pending-companion rules when those checks would otherwise stay inline
 
 ### Acceptance criteria
 
@@ -353,9 +461,33 @@ That is too much for one class even if the overall concept is coherent.
 
 - high
 
+### Guardrail
+
+This phase is temporal/order-sensitive. Changes in buffering, deferred handling,
+or second-pass timing can silently alter grouping behavior even when the final
+class layout looks cleaner.
+
+Required safety net:
+
+- fixture-based end-to-end pipeline tests
+- intentionally ugly mixed-media sets
+- explicit coverage for:
+  - deferred Live Photo videos
+  - second-pass pairing
+  - skipped/no-date files
+  - mixed still/video ordering
+  - cross-directory edge cases
+
+### Stop condition
+
+If extracting pending Live Photo resolution and quality tracking already leaves
+`CaptureGroupBuilder` understandable as an orchestrator, stop there. Do not push
+to a full stage explosion unless the remaining responsibilities are still hard to
+describe cleanly.
+
 ---
 
-## Phase 4a: Add Cross-Group Video Reconciliation
+## Feature Track A: Cross-Group Video Reconciliation
 
 **Goal:** Cover exact-content video duplicates that diverge in metadata time,
 container structure, or Live Photo identifiers before basename-based grouping
@@ -373,6 +505,25 @@ This is therefore a behavior track, not just a structural cleanup:
 - it addresses a real missed-duplicate case
 - it must run as a dedicated post-build, pre-classification phase
 - it needs explicit tests for group-crossing reconciliation
+
+Treat this as a dedicated product/domain track, not as a routine sub-step of the
+`CaptureGroupBuilder` refactor. It introduces:
+
+- new matching policy
+- new pipeline state
+- new output semantics
+- new summary semantics
+
+### Pattern
+
+- explicit behavior track over the existing pipeline
+- `CrossGroupVideoDuplicateReconciler` as a focused coordinator
+- `VideoStreamFingerprintMatcher` as a specialized video-domain matcher
+- start with an explicit policy result model for `exact duplicate`,
+  `candidate`, and `no match` outcomes; only introduce interchangeable
+  `Strategy` implementations if multiple classification policies actually emerge
+- use `Decorator` / `Proxy` if fingerprint or perceptual sub-steps need caching;
+  keep cache concerns out of the core matcher implementation
 
 ### New classes
 
@@ -582,6 +733,12 @@ specific and does not get diluted into a generic catch-all review bucket.
 
 - high
 
+### Branching guidance
+
+If this track is implemented before the larger core refactors stabilize, it
+should land as a clearly visible feature branch/track rather than being mixed
+quietly into structural cleanup commits.
+
 ---
 
 ## Phase 5: Split Legacy Duplicate Detection Internals
@@ -610,6 +767,8 @@ The legacy execution path is intentionally retained, but that does not require o
 ### Pattern
 
 - façade + specialized workers
+- if worker extraction introduces alternative canonical or suffix policies,
+  prefer `Strategy` over boolean mode switches
 
 ### Acceptance criteria
 
@@ -631,7 +790,7 @@ The legacy execution path is intentionally retained, but that does not require o
 
 `HashSubGroupingService` is domain-coherent, so it should be split only when the payoff is real.
 
-The video-specific duplicate behavior track belongs in Phase 4a. Phase 6 should
+The video-specific duplicate behavior track belongs in Feature Track A. Phase 6 should
 only consume the already-defined `VideoStreamFingerprintMatcher` as a narrower
 collaborator if the subgrouping internals are later decomposed.
 
@@ -671,13 +830,35 @@ Recommended commit sequence:
 2. `refactor: extract orphan live photo video reconciler`
 3. `refactor: extract verify issue scanner`
 4. `refactor: extract write-date candidate analyzer`
-5. `feat: add cross-group video duplicate reconciliation`
+5. `refactor: split legacy duplicate detection internals`
 6. `refactor: extract subgroup naming resolver`
-7. `refactor: extract capture group quality tracker`
-8. `refactor: split legacy duplicate detection internals`
-9. `refactor: extract perceptual hash group merger`
+7. `refactor: extract capture candidate collector`
+8. `refactor: extract capture group assembler`
+9. `refactor: extract pending live photo video resolver`
+10. `refactor: extract capture group quality tracker`
+11. `feat: add cross-group video duplicate reconciliation`
+12. `refactor: extract perceptual hash group merger`
 
 Not every step must happen immediately, but each step should remain independently reviewable.
+
+Recommended phase order:
+
+1. Phase 0
+2. Phase 1
+3. Phase 2
+4. Phase 5
+5. Phase 3
+6. Phase 4
+7. Feature Track A
+8. optional Phase 6
+
+Rationale:
+
+- Phases 1 and 2 provide faster structural wins at moderate risk
+- Phase 5 relieves pressure in the bounded legacy path
+- Phases 3 and 4 are the most dangerous core refactors
+- Feature Track A should either land after the affected structures stabilize,
+  or be executed separately with full visibility as a feature effort
 
 ---
 
@@ -691,6 +872,31 @@ Not every step must happen immediately, but each step should remain independentl
   - End State B remains in force for legacy execution paths
 - `make test` must be green after every structural step.
 - Refactors that change behavior must be explicitly documented as behavior changes, not hidden inside restructuring.
+
+### Delivery workflow
+
+Every phase or feature track should be executed as a sequence of small reviewed subtasks:
+
+- start each subtask by adding or tightening the test that captures the intended
+  behavior or structural guardrail
+- make the smallest code change that satisfies that test
+- run `make test`
+- review the just-completed subtask before starting the next one
+
+This plan should be executed in a TDD-style rhythm wherever practical. The goal
+is to keep refactors behavior-safe and feature-track changes explicitly
+controlled and continuously reviewable, especially in the identity-sensitive and
+order-sensitive phases.
+
+---
+
+## Definition of Done for Each Phase or Feature Track
+
+Each phase or feature track is only complete when all of the following are true:
+
+- `make test` is green
+- the affected orchestrator or boundary is shorter, clearer, or more declarative than before
+- each extracted collaborator can be described in one clear business sentence
 
 ---
 
