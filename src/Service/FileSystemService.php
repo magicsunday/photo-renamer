@@ -12,8 +12,6 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service;
 
 use FilesystemIterator;
-use MagicSunday\Renamer\Constants;
-use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
@@ -21,6 +19,7 @@ use MagicSunday\Renamer\Model\Execution\ExecutionResult;
 use MagicSunday\Renamer\Model\OutputEntry;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
+use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
 use MagicSunday\Renamer\Service\Output\OutputCounters;
 use Override;
 use RecursiveDirectoryIterator;
@@ -33,20 +32,15 @@ use Symfony\Component\Filesystem\Filesystem;
 
 use function basename;
 use function dirname;
-use function pathinfo;
 use function rtrim;
 use function sprintf;
-use function strlen;
-use function substr;
 
 use const DIRECTORY_SEPARATOR;
-use const PATHINFO_BASENAME;
-use const PATHINFO_EXTENSION;
 
 /**
  * Handles all direct file system interactions: creating file iterators, counting files,
  * executing the actual rename operations, and resolving runtime target collisions
- * via the {@see findAvailableDuplicatePath()} fallback. Delegates output entry building
+ * via {@see RuntimeCollisionPathAllocator}. Delegates output entry building
  * and summary rendering to {@see RenameOutputRenderer}. Tracks occupied paths in-memory
  * to prevent data loss during batch moves.
  *
@@ -57,14 +51,16 @@ use const PATHINFO_EXTENSION;
 final readonly class FileSystemService implements FileSystemServiceInterface
 {
     /**
-     * @param SymfonyStyle         $io         Console IO for progress bars, status output and error messages
-     * @param RenameOutputRenderer $renderer   Handles output entry building and summary rendering
-     * @param Filesystem           $filesystem Symfony Filesystem for file operations
+     * @param SymfonyStyle                  $io                            Console IO for progress bars, status output and error messages
+     * @param RenameOutputRenderer          $renderer                      Handles output entry building and summary rendering
+     * @param Filesystem                    $filesystem                    Symfony Filesystem for file operations
+     * @param RuntimeCollisionPathAllocator $runtimeCollisionPathAllocator Allocates duplicate-suffix fallback paths during runtime collisions
      */
     public function __construct(
         private SymfonyStyle $io,
         private RenameOutputRenderer $renderer,
         private Filesystem $filesystem = new Filesystem(),
+        private RuntimeCollisionPathAllocator $runtimeCollisionPathAllocator = new RuntimeCollisionPathAllocator(),
     ) {
     }
 
@@ -371,7 +367,8 @@ final readonly class FileSystemService implements FileSystemServiceInterface
      * Moves a file from source path to target path, creating directories as needed.
      * When the target path is already occupied (by a file moved earlier in the same batch,
      * or a skipped file that stays at its source path), falls back to
-     * {@see findAvailableDuplicatePath()} to prevent data loss. Updates the occupied-paths
+     * {@see RuntimeCollisionPathAllocator::findAvailableDuplicatePath()} to prevent
+     * data loss. Updates the occupied-paths
      * index to reflect the new file system state.
      *
      * Returns the actual target path used, which may differ from the requested target
@@ -401,7 +398,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
             ($targetPath !== $sourcePath)
             && isset($occupiedPaths[$targetPath])
         ) {
-            $targetPath = $this->findAvailableDuplicatePath($targetPath, $occupiedPaths);
+            $targetPath = $this->runtimeCollisionPathAllocator->findAvailableDuplicatePath($targetPath, $occupiedPaths);
         }
 
         if ($targetPath !== $plannedTarget) {
@@ -432,58 +429,5 @@ final readonly class FileSystemService implements FileSystemServiceInterface
         $occupiedPaths[$targetPath] = true;
 
         return $targetPath;
-    }
-
-    /**
-     * Finds the next available duplicate target path that is not occupied.
-     *
-     * Strips any existing duplicate suffix from the target basename to avoid nested
-     * suffixes (e.g. "-duplicate-003-duplicate-001"), then increments a counter until
-     * an unoccupied candidate path is found.
-     *
-     * @param string              $targetPath    Absolute target file path
-     * @param array<string, true> $occupiedPaths Current set of occupied paths
-     *
-     * @return string An available absolute path with a duplicate suffix appended
-     *
-     * @throws RuntimeException When the maximum duplicate suffix count is exceeded
-     */
-    private function findAvailableDuplicatePath(string $targetPath, array $occupiedPaths): string
-    {
-        $ext      = pathinfo($targetPath, PATHINFO_EXTENSION);
-        $dir      = dirname($targetPath);
-        $basename = pathinfo($targetPath, PATHINFO_BASENAME);
-
-        // Strip the extension from basename to get the stem.
-        if ($ext !== '') {
-            $basename = substr($basename, 0, -(strlen($ext) + 1));
-        }
-
-        // Strip any existing duplicate suffix to avoid nested suffixes (e.g. -duplicate-003-duplicate-001).
-        $basename = FileHelper::stripDuplicateSuffix($basename);
-
-        $counter = 1;
-
-        do {
-            if ($counter > Constants::MAX_DUPLICATE_SUFFIX) {
-                throw new RuntimeException(
-                    sprintf('Exceeded %d attempts finding available target for "%s"', Constants::MAX_DUPLICATE_SUFFIX, $basename)
-                );
-            }
-
-            $candidatePath = sprintf(
-                '%s%s%s%s%03d.%s',
-                $dir,
-                DIRECTORY_SEPARATOR,
-                $basename,
-                Constants::DUPLICATE_IDENTIFIER,
-                $counter,
-                $ext,
-            );
-
-            ++$counter;
-        } while (isset($occupiedPaths[$candidatePath]));
-
-        return $candidatePath;
     }
 }

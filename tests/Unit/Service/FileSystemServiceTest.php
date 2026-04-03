@@ -24,6 +24,7 @@ use MagicSunday\Renamer\Model\OutputEntryType;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
+use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\Output\DiffHighlighter;
 use MagicSunday\Renamer\Service\Output\DiffTokenState;
@@ -43,7 +44,6 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
-use ReflectionMethod;
 use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Console\Helper\ProgressBar;
@@ -55,7 +55,6 @@ use Symfony\Component\Filesystem\Exception\IOException;
 use function file_get_contents;
 use function file_put_contents;
 use function mkdir;
-use function sprintf;
 use function str_replace;
 use function sys_get_temp_dir;
 use function uniqid;
@@ -84,6 +83,7 @@ use const DIRECTORY_SEPARATOR;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[UsesClass(FileHelper::class)]
+#[UsesClass(RuntimeCollisionPathAllocator::class)]
 #[UsesClass(FileList::class)]
 #[UsesClass(RenameList::class)]
 #[UsesClass(LinkConfig::class)]
@@ -596,36 +596,6 @@ final class FileSystemServiceTest extends TestCase
     }
 
     /**
-     * Verifies that findAvailableDuplicatePath() throws a RuntimeException when
-     * all 999 possible -duplicate-NNN suffixes are occupied in the occupiedPaths set.
-     *
-     * This is the safety limit preventing infinite suffix searches. The exception
-     * message includes the base name to aid debugging.
-     */
-    #[Test]
-    public function findAvailableDuplicatePathThrowsWhenMaxSuffixExceeded(): void
-    {
-        [$service] = $this->createService();
-
-        $targetPath = '/tmp/dir/photo.jpg';
-
-        // Build occupiedPaths that block every suffix from 001..999
-        /** @var array<string, true> $occupiedPaths */
-        $occupiedPaths = [];
-
-        for ($i = 1; $i <= 999; ++$i) {
-            $occupiedPaths[sprintf('/tmp/dir/photo%s%03d.jpg', Constants::DUPLICATE_IDENTIFIER, $i)] = true;
-        }
-
-        $method = new ReflectionMethod($service, 'findAvailableDuplicatePath');
-
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Exceeded 999 attempts finding available target for "photo"');
-
-        $method->invoke($service, $targetPath, $occupiedPaths);
-    }
-
-    /**
      * Verifies that when two renames in the same batch target the same path, the
      * second file is automatically redirected to a -duplicate-NNN fallback path
      * instead of overwriting the first.
@@ -690,80 +660,6 @@ final class FileSystemServiceTest extends TestCase
 
         self::assertFileExists($fallbackTarget);
         self::assertSame('content-B', file_get_contents($fallbackTarget));
-    }
-
-    /**
-     * Verifies that findAvailableDuplicatePath() strips an existing -duplicate-NNN
-     * suffix from the basename before generating a new one, preventing nested suffixes
-     * like "photo-duplicate-003-duplicate-001.jpg".
-     *
-     * When the runtime collision fallback is triggered for a target that already carries
-     * a -duplicate-NNN suffix (e.g. because the planning phase assigned it), the method
-     * must produce "photo-duplicate-001.jpg" instead of stacking another suffix.
-     */
-    #[Test]
-    public function findAvailableDuplicatePathStripsDuplicateSuffixBeforeGeneratingNew(): void
-    {
-        [$service] = $this->createService();
-
-        $targetPath = '/tmp/dir/photo' . Constants::DUPLICATE_IDENTIFIER . '003.jpg';
-
-        // The unsuffixed "photo-duplicate-001.jpg" is free, so it should be selected.
-        /** @var array<string, true> $occupiedPaths */
-        $occupiedPaths = [
-            $targetPath => true,
-        ];
-
-        $method = new ReflectionMethod($service, 'findAvailableDuplicatePath');
-
-        /** @var string $result */
-        $result = $method->invoke($service, $targetPath, $occupiedPaths);
-
-        // The result should be "photo-duplicate-001.jpg", NOT "photo-duplicate-003-duplicate-001.jpg"
-        self::assertSame(
-            '/tmp/dir/photo' . Constants::DUPLICATE_IDENTIFIER . '001.jpg',
-            $result,
-        );
-
-        // Verify no nested -duplicate- pattern exists
-        self::assertDoesNotMatchRegularExpression(
-            '/-duplicate-\d+-duplicate-/',
-            $result,
-            'Must not produce nested duplicate suffixes',
-        );
-    }
-
-    /**
-     * Verifies that findAvailableDuplicatePath() skips occupied suffix numbers and
-     * returns the first available one after stripping the existing suffix.
-     *
-     * When "photo-duplicate-001.jpg" is occupied, the method should try 002, 003, etc.
-     * until finding a free slot, all based on the stripped basename "photo".
-     */
-    #[Test]
-    public function findAvailableDuplicatePathSkipsOccupiedSuffixesAfterStripping(): void
-    {
-        [$service] = $this->createService();
-
-        $targetPath = '/tmp/dir/photo' . Constants::DUPLICATE_IDENTIFIER . '005.jpg';
-
-        // Block suffix 001 and 002 to force the method to find 003.
-        /** @var array<string, true> $occupiedPaths */
-        $occupiedPaths = [
-            $targetPath                                                    => true,
-            '/tmp/dir/photo' . Constants::DUPLICATE_IDENTIFIER . '001.jpg' => true,
-            '/tmp/dir/photo' . Constants::DUPLICATE_IDENTIFIER . '002.jpg' => true,
-        ];
-
-        $method = new ReflectionMethod($service, 'findAvailableDuplicatePath');
-
-        /** @var string $result */
-        $result = $method->invoke($service, $targetPath, $occupiedPaths);
-
-        self::assertSame(
-            '/tmp/dir/photo' . Constants::DUPLICATE_IDENTIFIER . '003.jpg',
-            $result,
-        );
     }
 
     /**
