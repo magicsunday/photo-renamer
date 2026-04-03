@@ -11,16 +11,12 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Pipeline;
 
-use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\ItemRole;
 use Override;
-
-use function array_unique;
-use function count;
 
 /**
  * Pure semantic naming: computes proposed target names from role + group key.
@@ -39,11 +35,13 @@ final readonly class TargetNameResolver implements TargetNameResolverInterface
      * @param FlatGroupNameResolver         $flatGroupNameResolver         Resolves the simple naming path when a group does not split into subgroups.
      * @param SubgroupNameResolver          $subgroupNameResolver          Resolves naming once a group contains multiple content subgroups.
      * @param ExistingSubgroupNamePreserver $existingSubgroupNamePreserver Preserves coherent subgroup names when degraded classification proves a prior successful run should remain authoritative.
+     * @param SubgroupPresenceDetector      $subgroupPresenceDetector      Detects whether items represent multiple effective subgroups or just one flat cluster.
      */
     public function __construct(
         private FlatGroupNameResolver $flatGroupNameResolver = new FlatGroupNameResolver(),
         private SubgroupNameResolver $subgroupNameResolver = new SubgroupNameResolver(),
         private ExistingSubgroupNamePreserver $existingSubgroupNamePreserver = new ExistingSubgroupNamePreserver(),
+        private SubgroupPresenceDetector $subgroupPresenceDetector = new SubgroupPresenceDetector(),
     ) {
     }
 
@@ -113,7 +111,7 @@ final readonly class TargetNameResolver implements TargetNameResolverInterface
             return;
         }
 
-        if ($this->hasMultipleSubgroups($items)) {
+        if ($this->subgroupPresenceDetector->hasMultipleSubgroups($items)) {
             $this->subgroupNameResolver->resolve(
                 $group,
                 $canonical,
@@ -131,68 +129,6 @@ final readonly class TargetNameResolver implements TargetNameResolverInterface
             $canonicalExtension,
             $useFileExtensionFromSource,
             $this->resolveExtension(...),
-        );
-    }
-
-    /**
-     * Returns true when non-Companion items have more than one distinct cluster base,
-     * or when some items have a clusterId while others do not (partial classification).
-     *
-     * Normalizes clusterIds by stripping -duplicate-NNN suffixes before comparing,
-     * because SubgroupClassifier assigns unique clusterIds per file (including the
-     * duplicate suffix), while subgroup identity is determined by the prefix only.
-     *
-     * If ANY item has a non-null clusterId AND any other item has a null clusterId,
-     * the null-clusterId items form an implicit separate cluster. This ensures partial
-     * SubgroupClassifier failures don't silently downgrade to flat naming.
-     *
-     * @param list<AssetItem> $items All items in the group
-     */
-    private function hasMultipleSubgroups(array $items): bool
-    {
-        /** @var list<string> $clusterBases */
-        $clusterBases      = [];
-        $hasNullCluster    = false;
-        $hasNonNullCluster = false;
-
-        foreach ($items as $item) {
-            if ($item->role === ItemRole::Companion) {
-                continue;
-            }
-
-            if ($item->clusterId !== null) {
-                $clusterBases[]    = $this->normalizeClusterId($item->clusterId);
-                $hasNonNullCluster = true;
-            } else {
-                $hasNullCluster = true;
-            }
-        }
-
-        // Multiple explicit clusters
-        if (count(array_unique($clusterBases)) > 1) {
-            return true;
-        }
-
-        // Mix of classified and unclassified items = implicit second cluster
-        return $hasNonNullCluster && $hasNullCluster;
-    }
-
-    /**
-     * Strips -duplicate-NNN suffixes from a clusterId to get the stable cluster base.
-     *
-     * hasMultipleSubgroups() must compare normalized cluster identity, not the
-     * per-file duplicate suffixes attached by SubgroupClassifier.
-     *
-     * @param string $clusterId Raw clusterId from SubgroupClassifier
-     *
-     * @return string Normalized cluster base without -duplicate-NNN suffixes
-     */
-    private function normalizeClusterId(string $clusterId): string
-    {
-        return (string) preg_replace(
-            '/' . preg_quote(Constants::DUPLICATE_IDENTIFIER, '/') . '\d+$/',
-            '',
-            $clusterId,
         );
     }
 
