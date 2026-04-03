@@ -12,12 +12,9 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service\Output;
 
 use MagicSunday\Renamer\Model\OutputEntry;
-use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\CandidateOutputSkipReasonRule;
-use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\DefaultOutputSkipReasonRule;
-use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\FallbackOutputSkipReasonRule;
-use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\ReviewOutputSkipReasonRule;
-use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\WarningOutputSkipReasonRule;
 
+use function is_array;
+use function iterator_to_array;
 use function usort;
 
 /**
@@ -39,17 +36,13 @@ final readonly class OutputSkipReasonDecider
     private array $rules;
 
     /**
-     * @param list<OutputSkipReasonRuleInterface>|null $rules Optional ordered rule overrides for tests or later DI
+     * @param iterable<OutputSkipReasonRuleInterface> $rules Ordered skip-reason rules supplied by DI or tests
      */
-    public function __construct(?array $rules = null)
+    public function __construct(iterable $rules)
     {
-        $rules ??= [
-            new CandidateOutputSkipReasonRule(),
-            new ReviewOutputSkipReasonRule(),
-            new WarningOutputSkipReasonRule(),
-            new FallbackOutputSkipReasonRule(),
-            new DefaultOutputSkipReasonRule(),
-        ];
+        $rules = is_array($rules)
+            ? $rules
+            : iterator_to_array($rules, false);
 
         usort($rules, static fn (OutputSkipReasonRuleInterface $left, OutputSkipReasonRuleInterface $right): int => $right->priority() <=> $left->priority());
 

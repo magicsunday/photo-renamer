@@ -24,6 +24,7 @@ use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\FallbackOutputSkipR
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\ReviewOutputSkipReasonRule;
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\WarningOutputSkipReasonRule;
 use MagicSunday\Renamer\Service\Output\SkipReasonFormatter;
+use MagicSunday\Renamer\Test\Fixtures\OutputSkipReasonRuleFactory;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
@@ -62,7 +63,7 @@ final class OutputSkipReasonDeciderTest extends TestCase
     #[Test]
     public function candidateEntriesUseCandidateConflictReason(): void
     {
-        $decider   = new OutputSkipReasonDecider();
+        $decider   = new OutputSkipReasonDecider(OutputSkipReasonRuleFactory::createDefaultRules());
         $formatter = new SkipReasonFormatter();
 
         $decision = $decider->decide(
@@ -80,7 +81,7 @@ final class OutputSkipReasonDeciderTest extends TestCase
     #[Test]
     public function reviewEntriesPreserveCustomReasonText(): void
     {
-        $decider   = new OutputSkipReasonDecider();
+        $decider   = new OutputSkipReasonDecider(OutputSkipReasonRuleFactory::createDefaultRules());
         $formatter = new SkipReasonFormatter();
 
         $decision = $decider->decide(
@@ -109,7 +110,7 @@ final class OutputSkipReasonDeciderTest extends TestCase
     #[Test]
     public function warningEntriesUseStoredWarningReason(): void
     {
-        $decider   = new OutputSkipReasonDecider();
+        $decider   = new OutputSkipReasonDecider(OutputSkipReasonRuleFactory::createDefaultRules());
         $formatter = new SkipReasonFormatter();
 
         $decision = $decider->decide(
@@ -134,7 +135,7 @@ final class OutputSkipReasonDeciderTest extends TestCase
     #[Test]
     public function genericSkippedEntriesFallBackToGenericDecision(): void
     {
-        $decider   = new OutputSkipReasonDecider();
+        $decider   = new OutputSkipReasonDecider(OutputSkipReasonRuleFactory::createDefaultRules());
         $formatter = new SkipReasonFormatter();
 
         $decision = $decider->decide(

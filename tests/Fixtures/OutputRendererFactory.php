@@ -49,7 +49,7 @@ final readonly class OutputRendererFactory
             $io,
             new OutputDecisionLogRenderer(),
             new OutputEntryPresenter(
-                new OutputSkipReasonDecider(),
+                new OutputSkipReasonDecider(OutputSkipReasonRuleFactory::createDefaultRules()),
                 new SkipReasonFormatter(),
                 $diffHighlighter,
             ),

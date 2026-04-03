@@ -18,6 +18,7 @@ use MagicSunday\Renamer\Service\Output\OutputCounters;
 use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
 use MagicSunday\Renamer\Service\Output\SkipReasonFormatter;
+use MagicSunday\Renamer\Test\Fixtures\OutputSkipReasonRuleFactory;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -154,7 +155,7 @@ final class OutputEntryPresenterTest extends TestCase
         $io     = new SymfonyStyle(new ArrayInput([]), $output);
 
         $presenter = new OutputEntryPresenter(
-            new OutputSkipReasonDecider(),
+            new OutputSkipReasonDecider(OutputSkipReasonRuleFactory::createDefaultRules()),
             new SkipReasonFormatter(),
             new DiffHighlighter(),
         );
