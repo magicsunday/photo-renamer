@@ -320,12 +320,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
 
         $fileDuplicateCollection = new FileDuplicateCollection();
         /**
-         * @var array<string, array{
-         *     duplicateIdentifier: string|null,
-         *     pendingFiles: list<SplFileInfo>,
-         *     target: SplFileInfo|null,
-         *     captureDate: string|null
-         * }> Map for coordinating Live Photo still/video pairing during the first pass.
+         * @var array<string, LegacyContentIdentifierCacheEntry> Map for coordinating Live Photo still/video pairing during the first pass.
          */
         $contentIdentifierCache = [];
 
@@ -366,12 +361,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
 
             if ($normalizedContentIdentifier !== null) {
                 if (!array_key_exists($normalizedContentIdentifier, $contentIdentifierCache)) {
-                    $contentIdentifierCache[$normalizedContentIdentifier] = [
-                        'duplicateIdentifier' => null,
-                        'pendingFiles'        => [],
-                        'target'              => null,
-                        'captureDate'         => null,
-                    ];
+                    $contentIdentifierCache[$normalizedContentIdentifier] = new LegacyContentIdentifierCacheEntry();
                 }
 
                 $contentIdentifierCacheEntry = &$contentIdentifierCache[$normalizedContentIdentifier];
@@ -411,10 +401,10 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
             // instead of being grouped by their own EXIF date. This ensures they
             // receive the paired still image's timestamp, not their own.
             if (
-                ($contentIdentifierCacheEntry !== null)
+                ($contentIdentifierCacheEntry instanceof LegacyContentIdentifierCacheEntry)
                 && !$this->mediaTypeClassifier->isLivePhotoStill($sourceFileInfo)
             ) {
-                $cachedDuplicateIdentifier = $contentIdentifierCacheEntry['duplicateIdentifier'];
+                $cachedDuplicateIdentifier = $contentIdentifierCacheEntry->getDuplicateIdentifier();
 
                 if (
                     is_string($cachedDuplicateIdentifier)
@@ -430,8 +420,11 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
                     // Still image not yet seen — queue for later resolution.
                     // Store the target so we can fall back to the video's own date
                     // if no companion still is found by end of loop.
-                    $contentIdentifierCacheEntry['pendingFiles'][] = $sourceFileInfo;
-                    $contentIdentifierCacheEntry['target'] ??= $result->getTargetFile();
+                    $contentIdentifierCacheEntry->addPendingFile($sourceFileInfo);
+
+                    if ($result->getTargetFile() instanceof SplFileInfo) {
+                        $contentIdentifierCacheEntry->rememberFallbackTarget($result->getTargetFile());
+                    }
                 }
 
                 unset($contentIdentifierCacheEntry);
@@ -459,9 +452,9 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
             }
 
             if ($duplicateIdentifier === false) {
-                if ($contentIdentifierCacheEntry !== null) {
-                    $contentIdentifierCacheEntry['pendingFiles'][] = $sourceFileInfo;
-                    $contentIdentifierCacheEntry['target']         = $targetFileInfo;
+                if ($contentIdentifierCacheEntry instanceof LegacyContentIdentifierCacheEntry) {
+                    $contentIdentifierCacheEntry->addPendingFile($sourceFileInfo);
+                    $contentIdentifierCacheEntry->rememberFallbackTarget($targetFileInfo);
                 }
 
                 unset($contentIdentifierCacheEntry);
@@ -492,18 +485,17 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
                 $fileDuplicateCollection->set($duplicateIdentifier, $fileDuplicate);
             }
 
-            if ($contentIdentifierCacheEntry !== null) {
-                $contentIdentifierCacheEntry['duplicateIdentifier'] = $duplicateIdentifier;
-                $contentIdentifierCacheEntry['target']              = $fileDuplicate->getTarget();
-                $contentIdentifierCacheEntry['captureDate']         = FileHelper::basenameWithoutExtension(
-                    $fileDuplicate->getTarget()
+            if ($contentIdentifierCacheEntry instanceof LegacyContentIdentifierCacheEntry) {
+                $contentIdentifierCacheEntry->rememberResolvedGroup(
+                    $duplicateIdentifier,
+                    $fileDuplicate->getTarget(),
                 );
 
-                foreach ($contentIdentifierCacheEntry['pendingFiles'] as $pendingFile) {
+                foreach ($contentIdentifierCacheEntry->getPendingFiles() as $pendingFile) {
                     $fileDuplicate->addFile($pendingFile);
                 }
 
-                $contentIdentifierCacheEntry['pendingFiles'] = [];
+                $contentIdentifierCacheEntry->clearPendingFiles();
             }
 
             unset($contentIdentifierCacheEntry);
@@ -517,20 +509,19 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
         // Resolve remaining pending video companions that have no paired still image.
         // These deferred videos fall back to their own EXIF date group.
         foreach ($contentIdentifierCache as $cacheEntry) {
-            if ($cacheEntry['pendingFiles'] === []) {
+            if (!$cacheEntry->hasPendingFiles()) {
                 continue;
             }
 
-            if (!$cacheEntry['target'] instanceof SplFileInfo) {
+            $targetFileInfo = $cacheEntry->getTarget();
+
+            if (!$targetFileInfo instanceof SplFileInfo) {
                 continue;
             }
-
-            // No still image resolved this content ID — use the stored target.
-            $targetFileInfo = $cacheEntry['target'];
 
             try {
                 $duplicateIdentifier = $duplicateIdentifierStrategy->generateIdentifier(
-                    $cacheEntry['pendingFiles'][0],
+                    $cacheEntry->getPendingFiles()[0],
                     $targetFileInfo,
                 );
             } catch (HashComputationException) {
@@ -551,7 +542,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
                 $fileDuplicate = new FileDuplicate()->setTarget($targetFileInfo);
             }
 
-            foreach ($cacheEntry['pendingFiles'] as $pendingFile) {
+            foreach ($cacheEntry->getPendingFiles() as $pendingFile) {
                 $fileDuplicate->addFile($pendingFile);
             }
 
@@ -904,24 +895,19 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      * already-resolved duplicate group or queued as pending. Otherwise, it is recorded
      * as a skipped file with its reason.
      *
-     * @param SplFileInfo             $sourceFileInfo          the source file being processed
-     * @param TargetFileResult        $result                  the skipped/error result from the rename strategy
-     * @param FileDuplicateCollection $fileDuplicateCollection collection of discovered duplicate groups
-     * @param array{
-     *     duplicateIdentifier: string|null,
-     *     pendingFiles: list<SplFileInfo>,
-     *     target: SplFileInfo|null,
-     *     captureDate: string|null
-     * }|null                              $contentIdentifierCacheEntry cache entry for the file's content identifier (passed by reference)
+     * @param SplFileInfo                            $sourceFileInfo              the source file being processed
+     * @param TargetFileResult                       $result                      the skipped/error result from the rename strategy
+     * @param FileDuplicateCollection                $fileDuplicateCollection     collection of discovered duplicate groups
+     * @param LegacyContentIdentifierCacheEntry|null $contentIdentifierCacheEntry Cache entry for the file's content identifier, if one exists.
      */
     private function handleSkippedFile(
         SplFileInfo $sourceFileInfo,
         TargetFileResult $result,
         FileDuplicateCollection $fileDuplicateCollection,
-        ?array &$contentIdentifierCacheEntry,
+        ?LegacyContentIdentifierCacheEntry $contentIdentifierCacheEntry,
     ): void {
-        if ($contentIdentifierCacheEntry !== null) {
-            $cachedDuplicateIdentifier = $contentIdentifierCacheEntry['duplicateIdentifier'];
+        if ($contentIdentifierCacheEntry instanceof LegacyContentIdentifierCacheEntry) {
+            $cachedDuplicateIdentifier = $contentIdentifierCacheEntry->getDuplicateIdentifier();
 
             if (
                 is_string($cachedDuplicateIdentifier)
@@ -933,7 +919,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
                     $existingDuplicate->addFile($sourceFileInfo);
                 }
             } else {
-                $contentIdentifierCacheEntry['pendingFiles'][] = $sourceFileInfo;
+                $contentIdentifierCacheEntry->addPendingFile($sourceFileInfo);
             }
         } else {
             $this->skippedFiles[] = new SkippedFile(
