@@ -189,6 +189,7 @@ final class RenameByExifDateCommandTest extends TestCase
         $command = new RenameByExifDateCommand(
             self::createStub(FileSystemServiceInterface::class),
             self::createStub(DuplicateDetectionServiceInterface::class),
+            new SafeRegex(),
             $this->createExifMetadataProvider(),
             new StubPerceptualHashCalculator(),
             self::createStub(HashSubGroupingServiceInterface::class),
@@ -299,6 +300,7 @@ final class RenameByExifDateCommandTest extends TestCase
             $command = new RenameByExifDateCommand(
                 $fileSystemService,
                 $duplicateDetectionService,
+                new SafeRegex(),
                 $metadataProvider,
                 new StubPerceptualHashCalculator(),
                 $hashSubGroupingService,

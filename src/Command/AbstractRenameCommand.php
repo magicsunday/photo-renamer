@@ -18,6 +18,7 @@ use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
+use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
@@ -117,10 +118,12 @@ abstract class AbstractRenameCommand extends Command
      *
      * @param FileSystemServiceInterface         $fileSystemService         Service to handle file system operations like iteration and renames
      * @param DuplicateDetectionServiceInterface $duplicateDetectionService Service to handle grouping of files and suffix assignment for duplicates
+     * @param SafeRegex                          $safeRegex                 Safe regex wrapper shared by legacy iterator filters and pattern strategies
      */
     public function __construct(
         protected FileSystemServiceInterface $fileSystemService,
         protected DuplicateDetectionServiceInterface $duplicateDetectionService,
+        protected readonly SafeRegex $safeRegex,
     ) {
         parent::__construct();
     }
@@ -601,6 +604,7 @@ abstract class AbstractRenameCommand extends Command
                         FilesystemIterator::SKIP_DOTS,
                     ),
                     '/^' . preg_quote($basename, '/') . '$/i',
+                    $this->safeRegex,
                 ),
             );
         }

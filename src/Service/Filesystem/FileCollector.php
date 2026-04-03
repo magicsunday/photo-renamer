@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Service\Filesystem;
 
 use FilesystemIterator;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
+use MagicSunday\Renamer\Regex\SafeRegex;
 use RecursiveDirectoryIterator;
 use RecursiveIterator;
 use RecursiveIteratorIterator;
@@ -32,6 +33,14 @@ use SplFileInfo;
 final readonly class FileCollector
 {
     /**
+     * @param SafeRegex $safeRegex Safe regex wrapper propagated into recursive file filter iterators
+     */
+    public function __construct(
+        private SafeRegex $safeRegex,
+    ) {
+    }
+
+    /**
      * Creates an iterator for traversing files in the given directory.
      *
      * @param string                                      $directory         The directory that should be scanned
@@ -49,7 +58,8 @@ final readonly class FileCollector
                     $directory,
                     FilesystemIterator::SKIP_DOTS
                 ),
-                '/^.+$/'
+                '/^.+$/',
+                $this->safeRegex,
             );
         }
 

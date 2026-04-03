@@ -38,7 +38,7 @@ final class RecursiveRegexFileFilterIterator extends RecursiveFilterIterator
     public function __construct(
         RecursiveIterator $iterator,
         private readonly string $regex,
-        private readonly SafeRegex $safeRegex = new SafeRegex(),
+        private readonly SafeRegex $safeRegex,
     ) {
         parent::__construct($iterator);
     }

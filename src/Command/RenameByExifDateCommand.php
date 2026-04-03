@@ -17,6 +17,7 @@ use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Model\RenameOptions;
+use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\CanonicalScorerInterface;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilderInterface;
@@ -70,6 +71,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
      *
      * @param FileSystemServiceInterface         $fileSystemService         Service to handle file system operations
      * @param DuplicateDetectionServiceInterface $duplicateDetectionService Service to handle grouping and duplicate resolution
+     * @param SafeRegex                          $safeRegex                 Safe regex wrapper used by the supported-media iterator filter
      * @param ExifMetadataProvider               $exifMetadataProvider      Provider for EXIF metadata from files
      * @param PerceptualHashCalculatorInterface  $perceptualHashCalculator  Calculator for perceptual image hashes (visual similarity)
      * @param HashSubGroupingServiceInterface    $hashSubGroupingService    Service to further group files by perceptual hash
@@ -82,6 +84,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
     public function __construct(
         FileSystemServiceInterface $fileSystemService,
         DuplicateDetectionServiceInterface $duplicateDetectionService,
+        SafeRegex $safeRegex,
         private readonly ExifMetadataProvider $exifMetadataProvider,
         private readonly PerceptualHashCalculatorInterface $perceptualHashCalculator,
         private readonly HashSubGroupingServiceInterface $hashSubGroupingService,
@@ -91,7 +94,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
         private readonly PipelineReviewMapper $pipelineReviewMapper,
         private readonly RenameOutputRenderer $renameOutputRenderer,
     ) {
-        parent::__construct($fileSystemService, $duplicateDetectionService);
+        parent::__construct($fileSystemService, $duplicateDetectionService, $safeRegex);
     }
 
     /**
@@ -221,7 +224,8 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
                     $this->sourceDirectory,
                     FilesystemIterator::SKIP_DOTS
                 ),
-                $fileExtensionRegex
+                $fileExtensionRegex,
+                $this->safeRegex,
             );
         }
 

@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Command;
 
+use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\SafeHashCalculatorInterface;
@@ -41,14 +42,16 @@ final class RenameByHashCommand extends AbstractRenameCommand
      *
      * @param FileSystemServiceInterface         $fileSystemService         Service to handle file system operations
      * @param DuplicateDetectionServiceInterface $duplicateDetectionService Service to handle grouping and duplicate resolution
+     * @param SafeRegex                          $safeRegex                 Safe regex wrapper used by the shared legacy file iterator path
      * @param SafeHashCalculatorInterface        $hashCalculator            Service to calculate secure file hashes
      */
     public function __construct(
         FileSystemServiceInterface $fileSystemService,
         DuplicateDetectionServiceInterface $duplicateDetectionService,
+        SafeRegex $safeRegex,
         private readonly SafeHashCalculatorInterface $hashCalculator,
     ) {
-        parent::__construct($fileSystemService, $duplicateDetectionService);
+        parent::__construct($fileSystemService, $duplicateDetectionService, $safeRegex);
     }
 
     /**

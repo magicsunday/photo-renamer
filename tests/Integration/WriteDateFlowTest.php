@@ -418,6 +418,7 @@ final class WriteDateFlowTest extends TestCase
                 $mediaTypeClassifier,
                 $livePhotoConflictDetector,
             ),
+            new SafeRegex(),
             new ExifMetadataProvider(new MetadataExtractor(MetadataReader::createDefault())),
             $perceptualHashCalculator,
             $hashSubGroupingService,

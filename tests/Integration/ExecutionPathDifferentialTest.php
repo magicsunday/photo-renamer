@@ -20,6 +20,7 @@ use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\MetadataExtractor;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
+use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\AssetGroupAdapter;
 use MagicSunday\Renamer\Service\CanonicalScorer;
 use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilder;
@@ -365,6 +366,7 @@ final class ExecutionPathDifferentialTest extends TestCase
                 FilesystemIterator::SKIP_DOTS,
             ),
             $fileExtensionRegex,
+            new SafeRegex(),
         );
 
         return new RecursiveIteratorIterator(

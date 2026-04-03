@@ -823,6 +823,7 @@ final class RenameByExifDateCommandTest extends TestCase
                 $mediaTypeClassifier,
                 $livePhotoConflictDetector,
             ),
+            new SafeRegex(),
             new ExifMetadataProvider($metadataExtractor),
             new StubPerceptualHashCalculator(),
             $hashSubGroupingService,

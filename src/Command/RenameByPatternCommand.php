@@ -13,9 +13,6 @@ namespace MagicSunday\Renamer\Command;
 
 use FilesystemIterator;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
-use MagicSunday\Renamer\Regex\SafeRegex;
-use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
-use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetPathnameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\PatternFilenameStrategy;
@@ -44,21 +41,6 @@ final class RenameByPatternCommand extends AbstractRenameCommand
     private ?RenameStrategyInterface $renameStrategy = null;
 
     private ?DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy = null;
-
-    /**
-     * Constructor.
-     *
-     * @param FileSystemServiceInterface         $fileSystemService         Service to handle file system operations
-     * @param DuplicateDetectionServiceInterface $duplicateDetectionService Service to handle grouping and duplicate resolution
-     * @param SafeRegex                          $safeRegex                 Service to execute regular expressions safely
-     */
-    public function __construct(
-        FileSystemServiceInterface $fileSystemService,
-        DuplicateDetectionServiceInterface $duplicateDetectionService,
-        private readonly SafeRegex $safeRegex,
-    ) {
-        parent::__construct($fileSystemService, $duplicateDetectionService);
-    }
 
     private string $pattern = '';
 
@@ -140,7 +122,8 @@ final class RenameByPatternCommand extends AbstractRenameCommand
                         $this->sourceDirectory,
                         FilesystemIterator::SKIP_DOTS
                     ),
-                    $this->pattern
+                    $this->pattern,
+                    $this->safeRegex,
                 )
             );
     }

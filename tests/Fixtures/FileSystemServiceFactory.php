@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Fixtures;
 
+use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
 use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Service\Filesystem\LegacyRenameExecutor;
@@ -56,7 +57,7 @@ final readonly class FileSystemServiceFactory
         );
 
         return new FileSystemService(
-            new FileCollector(),
+            new FileCollector(new SafeRegex()),
             new ExecutionPlanExecutor($progressReporter, $runtimeFileMoveExecutor),
             new LegacyRenameExecutor($progressReporter, $renderer, $runtimeFileMoveExecutor),
         );

@@ -1151,6 +1151,7 @@ final class TestImageScenariosTest extends TestCase
                 $mediaTypeClassifier,
                 $livePhotoConflictDetector,
             ),
+            new SafeRegex(),
             $metadataProvider,
             $perceptualHashCalculator,
             $hashSubGroupingService,

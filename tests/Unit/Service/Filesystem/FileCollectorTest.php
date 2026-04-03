@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service\Filesystem;
 
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
+use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -69,7 +70,7 @@ final class FileCollectorTest extends TestCase
     #[Test]
     public function collectFilesReturnsRegularFilesFromNestedDirectories(): void
     {
-        $collector = new FileCollector();
+        $collector = new FileCollector(new SafeRegex());
 
         $nestedDirectory = $this->workspace . DIRECTORY_SEPARATOR . 'nested';
         mkdir($nestedDirectory);
@@ -100,7 +101,7 @@ final class FileCollectorTest extends TestCase
     #[Test]
     public function createFileIteratorUsesProvidedRecursiveIterator(): void
     {
-        $collector = new FileCollector();
+        $collector = new FileCollector(new SafeRegex());
 
         /** @var RecursiveIterator<string, SplFileInfo> $recursiveIterator */
         $recursiveIterator = new RecursiveArrayIterator([

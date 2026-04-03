@@ -20,6 +20,7 @@ use MagicSunday\Renamer\Model\Execution\ExecutionItemType;
 use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
 use MagicSunday\Renamer\Model\Pipeline\VideoDuplicateCandidate;
 use MagicSunday\Renamer\Model\PipelineContext;
+use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\CanonicalScorer;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilderInterface;
@@ -254,6 +255,7 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
         $command = new RenameByExifDateCommand(
             $fileSystemService,
             self::createStub(DuplicateDetectionServiceInterface::class),
+            new SafeRegex(),
             new ExifMetadataProvider(new StubMetadataExtractor()),
             self::createStub(PerceptualHashCalculatorInterface::class),
             self::createStub(HashSubGroupingServiceInterface::class),

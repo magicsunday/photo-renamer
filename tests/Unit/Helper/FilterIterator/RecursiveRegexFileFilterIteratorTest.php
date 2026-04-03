@@ -92,7 +92,7 @@ final class RecursiveRegexFileFilterIteratorTest extends TestCase
         $iterator->rewind(); // Position the inner iterator at the first element
 
         // @phpstan-ignore argument.type
-        return new RecursiveRegexFileFilterIterator($iterator, $regex);
+        return new RecursiveRegexFileFilterIterator($iterator, $regex, new SafeRegex());
     }
 
     /**
@@ -251,7 +251,8 @@ final class RecursiveRegexFileFilterIteratorTest extends TestCase
 
         $filterIterator = new RecursiveRegexFileFilterIterator(
             $innerIterator,
-            self::REGEX_TXT_FILES
+            self::REGEX_TXT_FILES,
+            new SafeRegex(),
         );
 
         // Act & Assert: Verify getChildren() returns correct type (no exception thrown)
@@ -272,7 +273,8 @@ final class RecursiveRegexFileFilterIteratorTest extends TestCase
 
         $filterIterator = new RecursiveRegexFileFilterIterator(
             $innerIterator,
-            self::REGEX_TXT_FILES
+            self::REGEX_TXT_FILES,
+            new SafeRegex(),
         );
 
         // Act & Assert: Verify getChildren() works with empty iterator (no exception thrown)
@@ -301,7 +303,7 @@ final class RecursiveRegexFileFilterIteratorTest extends TestCase
 
         $iterator = new RecursiveArrayIterator($files);
         // @phpstan-ignore argument.type
-        $filterIterator = new RecursiveRegexFileFilterIterator($iterator, self::REGEX_TXT_FILES);
+        $filterIterator = new RecursiveRegexFileFilterIterator($iterator, self::REGEX_TXT_FILES, new SafeRegex());
 
         // Act: Iterate through the filter and collect accepted items
         $acceptedItems = [];

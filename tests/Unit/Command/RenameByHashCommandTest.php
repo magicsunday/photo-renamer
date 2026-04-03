@@ -18,6 +18,7 @@ use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
+use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
@@ -66,6 +67,7 @@ final class RenameByHashCommandTest extends TestCase
         $command = new RenameByHashCommand(
             self::createStub(FileSystemServiceInterface::class),
             self::createStub(DuplicateDetectionServiceInterface::class),
+            new SafeRegex(),
             new SafeHashCalculator(),
         );
 
@@ -138,7 +140,7 @@ final class RenameByHashCommandTest extends TestCase
                     }),
                 );
 
-            $command = new RenameByHashCommand($fileSystemService, $duplicateDetectionService, new SafeHashCalculator());
+            $command = new RenameByHashCommand($fileSystemService, $duplicateDetectionService, new SafeRegex(), new SafeHashCalculator());
 
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([

@@ -21,6 +21,7 @@ use MagicSunday\Renamer\Metadata\MetadataExtractor;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\PipelineContext;
+use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\AssetGroupAdapter;
 use MagicSunday\Renamer\Service\CanonicalScorer;
 use MagicSunday\Renamer\Service\DuplicateDetectionService;
@@ -410,6 +411,7 @@ final class PipelineDifferentialTest extends TestCase
                 FilesystemIterator::SKIP_DOTS,
             ),
             $fileExtensionRegex,
+            new SafeRegex(),
         );
 
         return new RecursiveIteratorIterator(
