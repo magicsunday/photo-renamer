@@ -1399,6 +1399,75 @@ final class RenameOutputRendererTest extends TestCase
     }
 
     /**
+     * Verifies that buildOutputEntriesFromPlan appends mapped review entries from
+     * RenameResult instead of requiring a separate renderer path for Feature Track A.
+     *
+     * The cross-group video review track deliberately reuses the central renderer.
+     * This test ensures the output boundary keeps those review entries visible with
+     * the dedicated Review tag.
+     */
+    #[Test]
+    public function buildOutputEntriesFromPlanAppendsReviewEntries(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $baseDir = '/tmp/source';
+
+        [$entries] = $renderer->buildOutputEntriesFromPlan(
+            new ExecutionPlan([]),
+            new RenameOptions(),
+            new RenameResult(
+                reviewEntries: [
+                    OutputEntry::info(
+                        sortKey: $baseDir . '/clip.mov',
+                        sourcePath: 'clip.mov',
+                        reason: 'Cross-group video review: archive/clip.mov — video stream identical, audio differs',
+                        tag: OutputEntryTag::Review,
+                    ),
+                ],
+                crossGroupVideoReviewCount: 1,
+            ),
+            $baseDir,
+        );
+
+        self::assertCount(1, $entries);
+        self::assertTrue($entries[0]->isInfo());
+        self::assertSame(OutputEntryTag::Review, $entries[0]->tag);
+    }
+
+    /**
+     * Verifies that renderPlanSummary shows the dedicated cross-group video review
+     * counter instead of hiding these findings inside a generic summary bucket.
+     *
+     * The summary line keeps review-only video matches operationally visible even
+     * when the inline review entries scroll out of view in large runs.
+     */
+    #[Test]
+    public function renderPlanSummaryIncludesCrossGroupVideoReviewCount(): void
+    {
+        [$renderer, $output] = $this->createRenderer();
+
+        $renderer->renderPlanSummary(
+            new ExecutionPlan([]),
+            new RenameResult(
+                scannedFiles: 12,
+                crossGroupVideoReviewCount: 2,
+            ),
+            new ExecutionPreview(
+                plannedMoves: 0,
+                plannedSkips: 0,
+                duplicateCount: 0,
+            ),
+            true,
+        );
+
+        $buffer = $output->fetch();
+
+        self::assertStringContainsString('Cross-group video review', $buffer);
+        self::assertStringContainsString('2', $buffer);
+    }
+
+    /**
      * Verifies that renderDecisionLogFromPlan outputs decision log entries.
      */
     #[Test]

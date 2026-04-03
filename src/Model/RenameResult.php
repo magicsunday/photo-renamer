@@ -26,13 +26,15 @@ namespace MagicSunday\Renamer\Model;
 final readonly class RenameResult
 {
     /**
-     * @param int                         $scannedFiles             The total number of files discovered during the initial scan phase.
-     * @param int                         $namingCollisions         The number of target filename collisions that had to be resolved.
-     * @param list<SkippedFile>           $skippedFiles             The list of files that were skipped during the process (e.g., due to errors or missing metadata).
-     * @param array<string, true>         $fallbackDateFiles        A map (pathname => true) of files where the capture date was retrieved from a fallback metadata field.
-     * @param array<string, true>         $ambiguousTimezoneFiles   A map (pathname => true) of files with ambiguous timezone data (e.g., UTC vs. local time).
-     * @param array<string, true>         $livePhotoConflictFiles   A map (pathname => true) of files identified as potential Live Photo pairs that have conflicting content identifiers.
-     * @param list<array{string, string}> $crossDirectoryCompanions A list of Live Photo pairs where canonical and companion are located in different directories.
+     * @param int                         $scannedFiles               The total number of files discovered during the initial scan phase.
+     * @param int                         $namingCollisions           The number of target filename collisions that had to be resolved.
+     * @param list<SkippedFile>           $skippedFiles               The list of files that were skipped during the process (e.g., due to errors or missing metadata).
+     * @param array<string, true>         $fallbackDateFiles          A map (pathname => true) of files where the capture date was retrieved from a fallback metadata field.
+     * @param array<string, true>         $ambiguousTimezoneFiles     A map (pathname => true) of files with ambiguous timezone data (e.g., UTC vs. local time).
+     * @param array<string, true>         $livePhotoConflictFiles     A map (pathname => true) of files identified as potential Live Photo pairs that have conflicting content identifiers.
+     * @param list<array{string, string}> $crossDirectoryCompanions   A list of Live Photo pairs where canonical and companion are located in different directories.
+     * @param list<OutputEntry>           $reviewEntries              Output-ready review findings produced from structured pipeline facts.
+     * @param int                         $crossGroupVideoReviewCount Number of cross-group video review findings carried into the output boundary.
      */
     public function __construct(
         public int $scannedFiles = 0,
@@ -42,6 +44,8 @@ final readonly class RenameResult
         public array $ambiguousTimezoneFiles = [],
         public array $livePhotoConflictFiles = [],
         public array $crossDirectoryCompanions = [],
+        public array $reviewEntries = [],
+        public int $crossGroupVideoReviewCount = 0,
     ) {
     }
 }

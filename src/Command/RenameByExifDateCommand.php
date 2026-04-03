@@ -26,6 +26,7 @@ use MagicSunday\Renamer\Service\HashSubGroupingServiceInterface;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
 use MagicSunday\Renamer\Service\Pipeline\AssetGroupPipeline;
+use MagicSunday\Renamer\Service\Pipeline\PipelineReviewMapper;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\ValidationResult;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
@@ -75,6 +76,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
      * @param AssetGroupPipeline                 $pipeline                  The main asset processing pipeline
      * @param CanonicalScorerInterface           $canonicalScorer           Scorer to determine the "best" file in a group
      * @param ExecutionPlanBuilderInterface      $executionPlanBuilder      Builder for the final execution plan
+     * @param PipelineReviewMapper               $pipelineReviewMapper      Maps structured pipeline review facts to output-ready entries
      * @param RenameOutputRenderer               $renameOutputRenderer      Renderer for the rename operation output
      */
     public function __construct(
@@ -86,6 +88,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
         private readonly AssetGroupPipeline $pipeline,
         private readonly CanonicalScorerInterface $canonicalScorer,
         private readonly ExecutionPlanBuilderInterface $executionPlanBuilder,
+        private readonly PipelineReviewMapper $pipelineReviewMapper,
         private readonly RenameOutputRenderer $renameOutputRenderer,
     ) {
         parent::__construct($fileSystemService, $duplicateDetectionService);
@@ -307,7 +310,14 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
         );
 
         // Build RenameResult from pipeline context
-        $result = $pipelineResult->context->toRenameResult();
+        $reviewEntries = $this->pipelineReviewMapper->mapVideoDuplicateCandidates(
+            $pipelineResult->context->getVideoDuplicateCandidates(),
+            $pipelineResult->context->sourceDirectory,
+        );
+        $result = $pipelineResult->context->toRenameResult(
+            $reviewEntries,
+            count($reviewEntries),
+        );
 
         $this->renderPostScanSummary($result);
 

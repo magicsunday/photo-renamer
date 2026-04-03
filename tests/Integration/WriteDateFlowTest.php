@@ -78,6 +78,7 @@ use MagicSunday\Renamer\Service\Pipeline\CollisionResolver;
 use MagicSunday\Renamer\Service\Pipeline\CompanionDetector;
 use MagicSunday\Renamer\Service\Pipeline\ExifRenamePipelineResult;
 use MagicSunday\Renamer\Service\Pipeline\OrphanLivePhotoVideoReconciler;
+use MagicSunday\Renamer\Service\Pipeline\PipelineReviewMapper;
 use MagicSunday\Renamer\Service\Pipeline\RoleAssigner;
 use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifier;
 use MagicSunday\Renamer\Service\Pipeline\TargetNameResolver;
@@ -419,6 +420,7 @@ final class WriteDateFlowTest extends TestCase
             $pipeline,
             $canonicalScorer,
             $executionPlanBuilder,
+            new PipelineReviewMapper(),
             $renderer,
         );
 

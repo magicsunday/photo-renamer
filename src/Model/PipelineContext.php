@@ -11,6 +11,8 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Model;
 
+use MagicSunday\Renamer\Model\Pipeline\VideoDuplicateCandidate;
+
 /**
  * Mutable state bag passed between pipeline phases.
  * Fields are logically grouped by concern: filesystem state and analysis quality.
@@ -76,6 +78,17 @@ final class PipelineContext
      * @var list<SkippedFile>
      */
     private array $skippedFiles = [];
+
+    /**
+     * Conservative cross-group video duplicate findings that require operator review.
+     *
+     * These facts are intentionally stored as structured DTOs so the pipeline can
+     * record why a pair was suspicious without turning that into console output too
+     * early.
+     *
+     * @var list<VideoDuplicateCandidate>
+     */
+    private array $videoDuplicateCandidates = [];
 
     /**
      * Total number of files discovered during the scan phase.
@@ -181,6 +194,16 @@ final class PipelineContext
     }
 
     /**
+     * Records a conservative cross-group video duplicate finding for later review.
+     *
+     * @param VideoDuplicateCandidate $videoDuplicateCandidate Structured candidate fact to preserve across pipeline phases.
+     */
+    public function addVideoDuplicateCandidate(VideoDuplicateCandidate $videoDuplicateCandidate): void
+    {
+        $this->videoDuplicateCandidates[] = $videoDuplicateCandidate;
+    }
+
+    /**
      * Returns pathnames recorded as having capture date sourced from a fallback.
      *
      * @return array<string, true> Map of pathnames (path as key for O(1) access).
@@ -228,6 +251,16 @@ final class PipelineContext
     public function getSkippedFiles(): array
     {
         return $this->skippedFiles;
+    }
+
+    /**
+     * Returns structured cross-group video duplicate review findings.
+     *
+     * @return list<VideoDuplicateCandidate> Review findings awaiting projection to output entries.
+     */
+    public function getVideoDuplicateCandidates(): array
+    {
+        return $this->videoDuplicateCandidates;
     }
 
     // -------------------------------------------------------------------------
@@ -280,9 +313,12 @@ final class PipelineContext
      * Converts the accumulated mutable state into an immutable RenameResult
      * for the final execution phase.
      *
+     * @param list<OutputEntry> $reviewEntries              Output-ready review entries mapped from structured pipeline facts
+     * @param int               $crossGroupVideoReviewCount Explicit summary count for cross-group video review findings
+     *
      * @return RenameResult The analysis result.
      */
-    public function toRenameResult(): RenameResult
+    public function toRenameResult(array $reviewEntries = [], int $crossGroupVideoReviewCount = 0): RenameResult
     {
         return new RenameResult(
             scannedFiles: $this->scannedFileCount,
@@ -292,6 +328,8 @@ final class PipelineContext
             ambiguousTimezoneFiles: $this->ambiguousTimezoneFiles,
             livePhotoConflictFiles: $this->livePhotoConflictFiles,
             crossDirectoryCompanions: $this->crossDirectoryCompanions,
+            reviewEntries: $reviewEntries,
+            crossGroupVideoReviewCount: $crossGroupVideoReviewCount,
         );
     }
 }

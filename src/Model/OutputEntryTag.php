@@ -30,6 +30,11 @@ enum OutputEntryTag: string
     case Candidate = 'C';
 
     /**
+     * Cross-group video review finding that must stay visible without implying a merge.
+     */
+    case Review = 'V';
+
+    /**
      * Regular file rename operation.
      */
     case Rename = 'R';
@@ -104,6 +109,7 @@ enum OutputEntryTag: string
     {
         return match ($this) {
             self::Candidate => 'cyan',
+            self::Review    => 'cyan',
             self::Rename    => 'green',
             self::Fallback  => 'yellow',
             self::Duplicate => 'red',

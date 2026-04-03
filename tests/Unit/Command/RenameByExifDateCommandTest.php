@@ -71,6 +71,7 @@ use MagicSunday\Renamer\Service\Pipeline\CollisionResolverInterface;
 use MagicSunday\Renamer\Service\Pipeline\CompanionDetector;
 use MagicSunday\Renamer\Service\Pipeline\ExifRenamePipelineResult;
 use MagicSunday\Renamer\Service\Pipeline\OrphanLivePhotoVideoReconciler;
+use MagicSunday\Renamer\Service\Pipeline\PipelineReviewMapper;
 use MagicSunday\Renamer\Service\Pipeline\RoleAssigner;
 use MagicSunday\Renamer\Service\Pipeline\RoleAssignerInterface;
 use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifier;
@@ -198,6 +199,7 @@ final class RenameByExifDateCommandTest extends TestCase
             ),
             self::createStub(CanonicalScorerInterface::class),
             new ExecutionPlanBuilder(),
+            new PipelineReviewMapper(),
             new RenameOutputRenderer($io),
         );
 
@@ -299,6 +301,7 @@ final class RenameByExifDateCommandTest extends TestCase
                 $pipeline,
                 $canonicalScorer,
                 $executionPlanBuilder,
+                new PipelineReviewMapper(),
                 new RenameOutputRenderer($style),
             );
 

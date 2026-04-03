@@ -27,6 +27,7 @@ use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
+use function array_key_exists;
 use function count;
 use function in_array;
 use function is_string;
@@ -329,6 +330,10 @@ final readonly class RenameOutputRenderer
             $rows[] = ['Naming collisions', (string) $counters['namingCollisions']];
         }
 
+        if (array_key_exists('crossGroupVideoReviewCount', $counters) && ($counters['crossGroupVideoReviewCount'] > 0)) {
+            $rows[] = ['Cross-group video review', (string) $counters['crossGroupVideoReviewCount']];
+        }
+
         $rows[] = [$dryRun ? 'Files to process' : 'Files processed', (string) $counters['fileCount']];
 
         $this->renderSummarySection($rows);
@@ -525,15 +530,16 @@ final readonly class RenameOutputRenderer
         }
 
         $this->renderSummary([
-            'scannedFiles'     => $result->scannedFiles,
-            'skippedCount'     => $skippedCount,
-            'errorCount'       => $errorCount,
-            'livePhotoGroups'  => $plan->livePhotoGroupCount(),
-            'namingCollisions' => $result->namingCollisions,
-            'fileCount'        => $preview->plannedMoves,
-            'duplicateCount'   => $preview->duplicateCount,
-            'plannedMoves'     => $preview->plannedMoves,
-            'plannedSkips'     => $preview->plannedSkips,
+            'scannedFiles'               => $result->scannedFiles,
+            'skippedCount'               => $skippedCount,
+            'errorCount'                 => $errorCount,
+            'livePhotoGroups'            => $plan->livePhotoGroupCount(),
+            'namingCollisions'           => $result->namingCollisions,
+            'crossGroupVideoReviewCount' => $result->crossGroupVideoReviewCount,
+            'fileCount'                  => $preview->plannedMoves,
+            'duplicateCount'             => $preview->duplicateCount,
+            'plannedMoves'               => $preview->plannedMoves,
+            'plannedSkips'               => $preview->plannedSkips,
         ], $dryRun);
     }
 
@@ -693,6 +699,10 @@ final readonly class RenameOutputRenderer
             );
         }
 
+        foreach ($result->reviewEntries as $reviewEntry) {
+            $outputEntries[] = $reviewEntry;
+        }
+
         return [$skippedCount, $errorCount];
     }
 
@@ -772,6 +782,7 @@ final readonly class RenameOutputRenderer
                 if ($entry->shouldSkip) {
                     $skipReason = match ($entry->tag) {
                         OutputEntryTag::Candidate => 'Conflicting Live Photo content ID across groups',
+                        OutputEntryTag::Review    => $entry->reason ?? 'Cross-group video review required',
                         OutputEntryTag::Warning   => $entry->warningReason ?? 'Ambiguous timezone: QuickTime UTC without offset — use --timezone or rename:write-date --reason=timezone',
                         OutputEntryTag::Fallback  => 'Fallback date: DateTime (0x0132) used instead of DateTimeOriginal',
                         default                   => 'Skipped',
