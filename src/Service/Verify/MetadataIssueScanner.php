@@ -14,7 +14,7 @@ namespace MagicSunday\Renamer\Service\Verify;
 use DateTimeInterface;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
-use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Service\DateDriftAnalyzer;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
@@ -101,7 +101,7 @@ final readonly class MetadataIssueScanner
                 $progressAdvance();
             }
 
-            $relativePath = FileHelper::relativizePath($file->getPathname(), $sourceDirectory);
+            $relativePath = PathHelper::relativizePath($file->getPathname(), $sourceDirectory);
             $extension    = strtolower($file->getExtension());
 
             if (!in_array($extension, Constants::SUPPORTED_MEDIA_EXTENSIONS, true)) {

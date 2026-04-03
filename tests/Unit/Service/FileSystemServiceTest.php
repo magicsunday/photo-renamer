@@ -12,7 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
 use MagicSunday\Renamer\Constants;
-use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\Collection\FileList;
 use MagicSunday\Renamer\Model\Collection\RenameList;
@@ -86,7 +86,7 @@ use const DIRECTORY_SEPARATOR;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-#[UsesClass(FileHelper::class)]
+#[UsesClass(PathHelper::class)]
 #[UsesClass(ExecutionPlanExecutor::class)]
 #[UsesClass(FileCollector::class)]
 #[UsesClass(LegacyRenameExecutor::class)]
@@ -252,8 +252,8 @@ final class FileSystemServiceTest extends TestCase
         $logPosition = strpos($normalized, '[R]');
         self::assertNotFalse($logPosition);
 
-        $relativeSource = FileHelper::relativizePath($sourceFile, $sourceDirectory);
-        $relativeTarget = FileHelper::relativizePath($targetFile, $sourceDirectory);
+        $relativeSource = PathHelper::relativizePath($sourceFile, $sourceDirectory);
+        $relativeTarget = PathHelper::relativizePath($targetFile, $sourceDirectory);
 
         self::assertStringContainsString($relativeSource, $normalized);
         self::assertStringContainsString($relativeTarget, $normalized);
@@ -294,8 +294,8 @@ final class FileSystemServiceTest extends TestCase
 
         $buffer = $output->fetch();
 
-        $relativeSource = FileHelper::relativizePath($sourceFile, $directory);
-        $relativeTarget = FileHelper::relativizePath($targetFile, $directory);
+        $relativeSource = PathHelper::relativizePath($sourceFile, $directory);
+        $relativeTarget = PathHelper::relativizePath($targetFile, $directory);
 
         self::assertStringContainsString($relativeSource, $buffer);
         self::assertStringContainsString($relativeTarget, $buffer);
@@ -343,12 +343,12 @@ final class FileSystemServiceTest extends TestCase
 
         $buffer = $output->fetch();
 
-        $relativeCanonicalSource = FileHelper::relativizePath($canonicalPath, $directory);
-        $relativeCanonicalTarget = FileHelper::relativizePath($canonicalPath, $directory);
-        $relativeRenameSource    = FileHelper::relativizePath($renameSource, $directory);
-        $relativeDuplicateSource = FileHelper::relativizePath($duplicateSource, $directory);
-        $relativeRenameTarget    = FileHelper::relativizePath($renameTarget, $directory);
-        $relativeDuplicateTarget = FileHelper::relativizePath($duplicateTarget, $directory);
+        $relativeCanonicalSource = PathHelper::relativizePath($canonicalPath, $directory);
+        $relativeCanonicalTarget = PathHelper::relativizePath($canonicalPath, $directory);
+        $relativeRenameSource    = PathHelper::relativizePath($renameSource, $directory);
+        $relativeDuplicateSource = PathHelper::relativizePath($duplicateSource, $directory);
+        $relativeRenameTarget    = PathHelper::relativizePath($renameTarget, $directory);
+        $relativeDuplicateTarget = PathHelper::relativizePath($duplicateTarget, $directory);
 
         self::assertStringContainsString('[O] ' . $relativeCanonicalSource, $buffer);
         self::assertStringContainsString('[R] ' . $relativeRenameSource, $buffer);

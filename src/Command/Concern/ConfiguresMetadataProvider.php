@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Command\Concern;
 
 use DateTimeZone;
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\MetadataCache;
 use MagicSunday\Renamer\Service\FormatPriorityResolver;
@@ -164,7 +165,7 @@ trait ConfiguresMetadataProvider
         /** @var string|null $directory */
         $directory = $input->getArgument('source-directory');
 
-        return FileHelper::resolveDirectory($directory);
+        return PathHelper::resolveDirectory($directory);
     }
 
     /**

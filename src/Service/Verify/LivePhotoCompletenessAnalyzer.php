@@ -11,7 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Verify;
 
-use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\PathHelper;
 
 /**
  * Derives missing Live Photo companion findings from grouped content identifiers.
@@ -58,7 +58,7 @@ final class LivePhotoCompletenessAnalyzer
                 }
 
                 foreach ($contentIdFiles as $entry) {
-                    $relativePath = FileHelper::relativizePath($entry['pathname'], $sourceDirectory);
+                    $relativePath = PathHelper::relativizePath($entry['pathname'], $sourceDirectory);
 
                     $findings[] = $entry['isStill'] ? $relativePath . ' → no paired MOV' : $relativePath . ' → no paired JPG/HEIC';
                 }

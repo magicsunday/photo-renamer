@@ -15,7 +15,7 @@ use Closure;
 use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
 use MagicSunday\Renamer\Command\Concern\ResolvesSourcePath;
 use MagicSunday\Renamer\Constants;
-use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Model\LinkConfig;
 use MagicSunday\Renamer\Service\ExiftoolWriter;
@@ -247,7 +247,7 @@ final class WriteDateCommand extends Command
         $maxPathLength = 0;
 
         foreach ($pendingWrites as $entry) {
-            $relativePath  = FileHelper::relativizePath($entry->path, $sourceDirectory);
+            $relativePath  = PathHelper::relativizePath($entry->path, $sourceDirectory);
             $maxPathLength = max($maxPathLength, mb_strlen($relativePath));
         }
 
@@ -262,9 +262,9 @@ final class WriteDateCommand extends Command
 
         // Process pending writes
         foreach ($pendingWrites as $entry) {
-            $relativePath = FileHelper::relativizePath($entry->path, $sourceDirectory);
+            $relativePath = PathHelper::relativizePath($entry->path, $sourceDirectory);
             $padding      = str_repeat(' ', $maxPathLength - mb_strlen($relativePath));
-            $linkedPath   = FileHelper::linkifyPath($relativePath, $relativePath, $sourceDirectory, $linkConfig, 'yellow');
+            $linkedPath   = PathHelper::linkifyPath($relativePath, $relativePath, $sourceDirectory, $linkConfig, 'yellow');
             $targetField  = $entry->isVideo ? 'QuickTime:CreateDate' : 'DateTimeOriginal';
 
             if ($dryRun) {

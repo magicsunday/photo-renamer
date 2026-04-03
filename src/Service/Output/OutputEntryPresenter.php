@@ -11,7 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Output;
 
-use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Model\LinkConfig;
 use MagicSunday\Renamer\Model\OutputEntry;
 use MagicSunday\Renamer\Model\OutputEntryTag;
@@ -77,7 +77,7 @@ final readonly class OutputEntryPresenter
 
         foreach ($outputEntries as $entry) {
             $padding    = str_repeat(' ', max(0, $maxFilenameLength - mb_strlen($entry->sourcePath)));
-            $linkedPath = FileHelper::linkifyPath($entry->sourcePath, $entry->sourcePath, $sourceBaseDirectory, $linkConfig, 'yellow');
+            $linkedPath = PathHelper::linkifyPath($entry->sourcePath, $entry->sourcePath, $sourceBaseDirectory, $linkConfig, 'yellow');
 
             if ($entry->isInfo()) {
                 if (!$this->isTagVisible($entry->tag, $showFilter)) {

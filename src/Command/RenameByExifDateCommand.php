@@ -13,8 +13,8 @@ namespace MagicSunday\Renamer\Command;
 
 use FilesystemIterator;
 use MagicSunday\Renamer\Constants;
-use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
+use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Service\CanonicalScorerInterface;
@@ -387,7 +387,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
             ));
 
             foreach ($validationResult->duplicateTargets as $target) {
-                $this->io->text(sprintf('  <fg=yellow>→</> %s', FileHelper::relativizePath($target, $this->sourceDirectory)));
+                $this->io->text(sprintf('  <fg=yellow>→</> %s', PathHelper::relativizePath($target, $this->sourceDirectory)));
             }
 
             $this->io->newLine();
@@ -401,7 +401,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
 
             foreach ($validationResult->caseConflicts as $group) {
                 $relativePaths = array_map(
-                    fn (string $path): string => FileHelper::relativizePath($path, $this->sourceDirectory),
+                    fn (string $path): string => PathHelper::relativizePath($path, $this->sourceDirectory),
                     $group,
                 );
                 $this->io->text(sprintf('  <fg=yellow>→</> %s', implode(' ↔ ', $relativePaths)));
@@ -418,7 +418,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
 
             foreach ($validationResult->circularSwaps as $cycle) {
                 $relativePaths = array_map(
-                    fn (string $path): string => FileHelper::relativizePath($path, $this->sourceDirectory),
+                    fn (string $path): string => PathHelper::relativizePath($path, $this->sourceDirectory),
                     $cycle,
                 );
                 $this->io->text(sprintf('  <fg=yellow>→</> %s', implode(' → ', $relativePaths)));

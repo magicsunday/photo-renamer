@@ -14,6 +14,7 @@ namespace MagicSunday\Renamer\Service;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\Execution\ExecutionItem;
@@ -145,8 +146,8 @@ final readonly class RenameOutputRenderer
                 $isCanonicalEntry = ($renameBasename === $canonicalBasename)
                     && ($isNoOp || ($options->listAll && ($rename->getSource()->getPathname() === $canonicalTargetPath)));
 
-                $sourcePath = FileHelper::relativizePath($rename->getSource()->getPathname(), $sourceBaseDirectory);
-                $targetPath = FileHelper::relativizePath($rename->getTarget()->getPathname(), $sourceBaseDirectory);
+                $sourcePath = PathHelper::relativizePath($rename->getSource()->getPathname(), $sourceBaseDirectory);
+                $targetPath = PathHelper::relativizePath($rename->getTarget()->getPathname(), $sourceBaseDirectory);
 
                 $sourcePathname = $rename->getSource()->getPathname();
 
@@ -390,8 +391,8 @@ final readonly class RenameOutputRenderer
             }
 
             foreach ($group->items as $item) {
-                $sourcePath = FileHelper::relativizePath($item->sourcePath, $sourceBaseDirectory);
-                $targetPath = FileHelper::relativizePath($item->targetPath, $sourceBaseDirectory);
+                $sourcePath = PathHelper::relativizePath($item->sourcePath, $sourceBaseDirectory);
+                $targetPath = PathHelper::relativizePath($item->targetPath, $sourceBaseDirectory);
 
                 $tag = $this->resolveItemTag($item);
 
@@ -639,18 +640,18 @@ final readonly class RenameOutputRenderer
 
             $outputEntries[] = OutputEntry::skip(
                 sortKey: $skippedFile->getFile()->getPathname(),
-                sourcePath: FileHelper::relativizePath($skippedFile->getFile()->getPathname(), $sourceBaseDirectory),
+                sourcePath: PathHelper::relativizePath($skippedFile->getFile()->getPathname(), $sourceBaseDirectory),
                 reason: ucfirst($skippedFile->getReason()),
                 tag: $skippedFile->isError() ? OutputEntryTag::Error : OutputEntryTag::Skipped,
             );
         }
 
         foreach ($result->crossDirectoryCompanions as [$canonicalPath, $companionPath]) {
-            $relativeCanonicalPath = FileHelper::relativizePath($canonicalPath, $sourceBaseDirectory);
+            $relativeCanonicalPath = PathHelper::relativizePath($canonicalPath, $sourceBaseDirectory);
 
             $outputEntries[] = OutputEntry::info(
                 sortKey: $companionPath,
-                sourcePath: FileHelper::relativizePath($companionPath, $sourceBaseDirectory),
+                sourcePath: PathHelper::relativizePath($companionPath, $sourceBaseDirectory),
                 reason: sprintf(
                     'Live Photo pair across directories: <fg=cyan>%s</>',
                     $relativeCanonicalPath,
@@ -786,7 +787,7 @@ final readonly class RenameOutputRenderer
         );
         $duplicateReferenceTargetPath = $referenceTargetsByExt[$normalizedExtension] ?? $canonicalTargetPath;
 
-        return FileHelper::relativizePath($duplicateReferenceTargetPath, $sourceBaseDirectory);
+        return PathHelper::relativizePath($duplicateReferenceTargetPath, $sourceBaseDirectory);
     }
 
     /**

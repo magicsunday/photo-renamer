@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Command;
 
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Service\Dedup\DedupOriginalMatcher;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
@@ -167,7 +168,7 @@ final class DedupCommand extends Command
                 continue;
             }
 
-            $relativePath = FileHelper::relativizePath($file->getPathname(), $sourceDirectory);
+            $relativePath = PathHelper::relativizePath($file->getPathname(), $sourceDirectory);
 
             $duplicates[] = [
                 'file'         => $file,
@@ -266,7 +267,7 @@ final class DedupCommand extends Command
                     'Deleted',
                 );
             } else {
-                $relativeDir = FileHelper::relativizePath($file->getPath(), $sourceDirectory);
+                $relativeDir = PathHelper::relativizePath($file->getPath(), $sourceDirectory);
 
                 // When the file is at the root of the source directory, relativizePath
                 // returns the absolute path unchanged. In that case use the target

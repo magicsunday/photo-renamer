@@ -11,7 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Pipeline;
 
-use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Model\OutputEntry;
 use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\Pipeline\VideoDuplicateCandidate;
@@ -52,10 +52,10 @@ final readonly class PipelineReviewMapper
         foreach ($videoDuplicateCandidates as $candidate) {
             $entries[] = OutputEntry::info(
                 sortKey: $candidate->sourcePath,
-                sourcePath: FileHelper::relativizePath($candidate->sourcePath, $sourceBaseDirectory),
+                sourcePath: PathHelper::relativizePath($candidate->sourcePath, $sourceBaseDirectory),
                 reason: sprintf(
                     'Cross-group video review: %s — %s',
-                    FileHelper::relativizePath($candidate->counterpartPath, $sourceBaseDirectory),
+                    PathHelper::relativizePath($candidate->counterpartPath, $sourceBaseDirectory),
                     $candidate->reason,
                 ),
                 tag: OutputEntryTag::Review,
