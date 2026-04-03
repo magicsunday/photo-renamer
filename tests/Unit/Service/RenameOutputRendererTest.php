@@ -46,6 +46,7 @@ use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\WarningOutputSkipRe
 use MagicSunday\Renamer\Service\Output\OutputSummaryRowBuilder;
 use MagicSunday\Renamer\Service\Output\SkipReasonFormatter;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
+use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
@@ -1762,6 +1763,6 @@ final class RenameOutputRendererTest extends TestCase
         $output = new BufferedOutput();
         $io     = new SymfonyStyle(new ArrayInput([]), $output);
 
-        return [new RenameOutputRenderer($io), $output];
+        return [OutputRendererFactory::create($io), $output];
     }
 }

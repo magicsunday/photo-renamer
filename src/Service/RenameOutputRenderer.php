@@ -31,9 +31,7 @@ use MagicSunday\Renamer\Service\Output\DiffHighlighter;
 use MagicSunday\Renamer\Service\Output\OutputCounters;
 use MagicSunday\Renamer\Service\Output\OutputDecisionLogRenderer;
 use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
-use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
 use MagicSunday\Renamer\Service\Output\OutputSummaryRowBuilder;
-use MagicSunday\Renamer\Service\Output\SkipReasonFormatter;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function count;
@@ -68,33 +66,20 @@ use const PATHINFO_EXTENSION;
  */
 final readonly class RenameOutputRenderer
 {
-    private OutputSkipReasonDecider $skipReasonDecider;
-
-    private SkipReasonFormatter $skipReasonFormatter;
-
-    private DiffHighlighter $diffHighlighter;
-
-    private OutputDecisionLogRenderer $decisionLogRenderer;
-
-    private OutputEntryPresenter $entryPresenter;
-
-    private OutputSummaryRowBuilder $summaryRowBuilder;
-
     /**
-     * @param SymfonyStyle $io Symfony Style IO for consistent console output formatting
+     * @param SymfonyStyle              $io                  Symfony Style IO for consistent console output formatting
+     * @param OutputDecisionLogRenderer $decisionLogRenderer Decision-log renderer for canonical and companion reasoning
+     * @param OutputEntryPresenter      $entryPresenter      Presenter that turns semantic entries into console lines
+     * @param OutputSummaryRowBuilder   $summaryRowBuilder   Summary-row builder for command footer tables
+     * @param DiffHighlighter           $diffHighlighter     Filename diff highlighter shared with entry rendering
      */
-    public function __construct(private SymfonyStyle $io)
-    {
-        $this->skipReasonDecider   = new OutputSkipReasonDecider();
-        $this->skipReasonFormatter = new SkipReasonFormatter();
-        $this->diffHighlighter     = new DiffHighlighter();
-        $this->decisionLogRenderer = new OutputDecisionLogRenderer();
-        $this->entryPresenter      = new OutputEntryPresenter(
-            $this->skipReasonDecider,
-            $this->skipReasonFormatter,
-            $this->diffHighlighter,
-        );
-        $this->summaryRowBuilder = new OutputSummaryRowBuilder();
+    public function __construct(
+        private SymfonyStyle $io,
+        private OutputDecisionLogRenderer $decisionLogRenderer,
+        private OutputEntryPresenter $entryPresenter,
+        private OutputSummaryRowBuilder $summaryRowBuilder,
+        private DiffHighlighter $diffHighlighter,
+    ) {
     }
 
     /**

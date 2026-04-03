@@ -38,6 +38,7 @@ use MagicSunday\Renamer\Service\RenamePlanValidator;
 use MagicSunday\Renamer\Service\Reporting\NullProgressReporter;
 use MagicSunday\Renamer\Service\Video\VideoStreamFingerprintMatcherInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
+use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\VirtualFlow\FlatSplFileInfoRecursiveIterator;
 use MagicSunday\Renamer\Test\Fixtures\VirtualFlow\StubMetadataAwareLivePhotoRenameStrategy;
 use PHPUnit\Framework\Attributes\CoversNothing;
@@ -431,7 +432,7 @@ final class VirtualRenameExifPipelineFlowTest extends TestCase
      */
     private function createRenderer(): RenameOutputRenderer
     {
-        return new RenameOutputRenderer(
+        return OutputRendererFactory::create(
             new SymfonyStyle(new ArrayInput([]), new BufferedOutput()),
         );
     }

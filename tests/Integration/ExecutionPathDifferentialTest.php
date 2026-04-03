@@ -46,6 +46,7 @@ use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
+use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -340,7 +341,7 @@ final class ExecutionPathDifferentialTest extends TestCase
      */
     private function createRenderer(): RenameOutputRenderer
     {
-        return new RenameOutputRenderer($this->createSilentIo());
+        return OutputRendererFactory::create($this->createSilentIo());
     }
 
     /**

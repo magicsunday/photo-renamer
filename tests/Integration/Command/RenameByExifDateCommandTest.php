@@ -78,6 +78,7 @@ use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Service\ValidationResult;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
+use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubPerceptualHashCalculator;
@@ -811,7 +812,7 @@ final class RenameByExifDateCommandTest extends TestCase
             $renamePlanValidator,
         );
 
-        $renderer = new RenameOutputRenderer($style);
+        $renderer = OutputRendererFactory::create($style);
 
         $command = new RenameByExifDateCommand(
             new FileSystemService($style, $renderer),

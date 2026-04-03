@@ -31,6 +31,7 @@ use MagicSunday\Renamer\Service\WriteDate\TimezoneRewritePlanner;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateCandidateAnalyzer;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateReasonAnalyzer;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateReportFormatter;
+use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -625,7 +626,7 @@ final class WriteDateCommandTest extends TestCase
         $metadataExtractor   = new StubMetadataExtractor();
         $metadataProvider    = new ExifMetadataProvider($metadataExtractor);
         $mediaTypeClassifier = new MediaTypeClassifier();
-        $renderer            = new RenameOutputRenderer($style);
+        $renderer            = OutputRendererFactory::create($style);
         $fileSystemService   = new FileSystemService($style, $renderer);
         $exiftoolWriter      = new ExiftoolWriter();
 
@@ -653,7 +654,7 @@ final class WriteDateCommandTest extends TestCase
         $metadataExtractor ??= new StubMetadataExtractor();
         $metadataProvider    = new ExifMetadataProvider($metadataExtractor);
         $mediaTypeClassifier = new MediaTypeClassifier();
-        $renderer            = new RenameOutputRenderer($style);
+        $renderer            = OutputRendererFactory::create($style);
         $fileSystemService   = new FileSystemService($style, $renderer);
         $exiftoolWriter      = new ExiftoolWriter();
 

@@ -30,6 +30,7 @@ use MagicSunday\Renamer\Service\Verify\LivePhotoCompletenessAnalyzer;
 use MagicSunday\Renamer\Service\Verify\MetadataIssueScanner;
 use MagicSunday\Renamer\Service\Verify\VerifyDetailEntryFormatter;
 use MagicSunday\Renamer\Service\Verify\VerifyReportFormatter;
+use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -626,7 +627,7 @@ final class VerifyCommandTest extends TestCase
         $metadataExtractor ??= new StubMetadataExtractor();
         $metadataProvider    = new ExifMetadataProvider($metadataExtractor);
         $mediaTypeClassifier = new MediaTypeClassifier();
-        $renderer            = new RenameOutputRenderer($style);
+        $renderer            = OutputRendererFactory::create($style);
         $fileSystemService   = new FileSystemService($style, $renderer);
 
         return new VerifyCommand(

@@ -85,6 +85,7 @@ use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Service\ValidationResult;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
+use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubPerceptualHashCalculator;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -201,7 +202,7 @@ final class RenameByExifDateCommandTest extends TestCase
             self::createStub(CanonicalScorerInterface::class),
             new ExecutionPlanBuilder(),
             new PipelineReviewMapper(),
-            new RenameOutputRenderer($io),
+            OutputRendererFactory::create($io),
         );
 
         self::assertSame('rename:exif', $command->getName());
@@ -235,7 +236,7 @@ final class RenameByExifDateCommandTest extends TestCase
             $output = new BufferedOutput();
             $style  = new SymfonyStyle(new ArrayInput([]), $output);
 
-            $fileSystemService = new FileSystemService($style, new RenameOutputRenderer($style));
+            $fileSystemService = new FileSystemService($style, OutputRendererFactory::create($style));
 
             $metadataExtractor = new StubMetadataExtractor();
             $metadataExtractor->withResponse(
@@ -304,7 +305,7 @@ final class RenameByExifDateCommandTest extends TestCase
                 $canonicalScorer,
                 $executionPlanBuilder,
                 new PipelineReviewMapper(),
-                new RenameOutputRenderer($style),
+                OutputRendererFactory::create($style),
             );
 
             $tester   = new CommandTester($command);

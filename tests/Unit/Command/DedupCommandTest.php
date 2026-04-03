@@ -23,6 +23,7 @@ use MagicSunday\Renamer\Service\FormatPriorityResolver;
 use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
+use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -468,7 +469,7 @@ final class DedupCommandTest extends TestCase
         $output = new BufferedOutput();
         $style  = new SymfonyStyle(new ArrayInput([]), $output);
 
-        $renderer          = new RenameOutputRenderer($style);
+        $renderer          = OutputRendererFactory::create($style);
         $fileSystemService = new FileSystemService($style, $renderer);
         $matcher           = new DedupOriginalMatcher(
             new MediaCompatibilityPolicy(new MediaTypeClassifier()),

@@ -44,9 +44,9 @@ final readonly class OutputEntryPresenter
      * @param DiffHighlighter         $diffHighlighter     Diff highlighter used for one-line rename output
      */
     public function __construct(
-        private OutputSkipReasonDecider $skipReasonDecider = new OutputSkipReasonDecider(),
-        private SkipReasonFormatter $skipReasonFormatter = new SkipReasonFormatter(),
-        private DiffHighlighter $diffHighlighter = new DiffHighlighter(),
+        private OutputSkipReasonDecider $skipReasonDecider,
+        private SkipReasonFormatter $skipReasonFormatter,
+        private DiffHighlighter $diffHighlighter,
     ) {
     }
 

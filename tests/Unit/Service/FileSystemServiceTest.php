@@ -43,6 +43,7 @@ use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\ReviewOutputSkipRea
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\WarningOutputSkipReasonRule;
 use MagicSunday\Renamer\Service\Output\SkipReasonFormatter;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
+use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -745,7 +746,7 @@ final class FileSystemServiceTest extends TestCase
             }
         };
 
-        $renderer = new RenameOutputRenderer($io);
+        $renderer = OutputRendererFactory::create($io);
 
         return [new FileSystemService($io, $renderer), $output, $io];
     }
