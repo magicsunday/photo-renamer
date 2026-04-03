@@ -17,8 +17,10 @@ use MagicSunday\Renamer\Model\Execution\ExecutionResult;
 use MagicSunday\Renamer\Model\OutputEntry;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
+use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
 use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
+use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
 use MagicSunday\Renamer\Service\Output\OutputCounters;
 use Override;
 use RecursiveIterator;
@@ -28,10 +30,7 @@ use SplFileInfo;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Filesystem\Filesystem;
 
-use function basename;
-use function dirname;
 use function rtrim;
-use function sprintf;
 
 use const DIRECTORY_SEPARATOR;
 
@@ -42,6 +41,8 @@ use const DIRECTORY_SEPARATOR;
  * The facade keeps the legacy command wiring stable, while:
  * - {@see FileCollector} owns directory traversal
  * - {@see RuntimeCollisionPathAllocator} owns runtime duplicate-suffix fallback
+ * - {@see RuntimeFileMoveExecutor} owns concrete runtime move/fallback mechanics
+ * - {@see ExecutionPlanExecutor} owns the ExecutionPlan runtime execution path
  * - {@see RenameOutputRenderer} owns output projection and presentation
  *
  * The remaining responsibility of this class is orchestrating physical file
@@ -53,12 +54,18 @@ use const DIRECTORY_SEPARATOR;
  */
 final readonly class FileSystemService implements FileSystemServiceInterface
 {
+    private RuntimeFileMoveExecutor $runtimeFileMoveExecutor;
+
+    private ExecutionPlanExecutor $executionPlanExecutor;
+
     /**
      * @param SymfonyStyle                  $io                            Console IO for progress bars, status output and error messages
      * @param RenameOutputRenderer          $renderer                      Handles output entry building and summary rendering
      * @param Filesystem                    $filesystem                    Symfony Filesystem for file operations
      * @param FileCollector                 $fileCollector                 Collects files and creates iterators for directory scans
      * @param RuntimeCollisionPathAllocator $runtimeCollisionPathAllocator Allocates duplicate-suffix fallback paths during runtime collisions
+     * @param RuntimeFileMoveExecutor|null  $runtimeFileMoveExecutor       Performs concrete runtime moves with duplicate-suffix fallback handling
+     * @param ExecutionPlanExecutor|null    $executionPlanExecutor         Executes the runtime ExecutionPlan path behind the stable facade
      */
     public function __construct(
         private SymfonyStyle $io,
@@ -66,7 +73,13 @@ final readonly class FileSystemService implements FileSystemServiceInterface
         private Filesystem $filesystem = new Filesystem(),
         private FileCollector $fileCollector = new FileCollector(),
         private RuntimeCollisionPathAllocator $runtimeCollisionPathAllocator = new RuntimeCollisionPathAllocator(),
+        ?RuntimeFileMoveExecutor $runtimeFileMoveExecutor = null,
+        ?ExecutionPlanExecutor $executionPlanExecutor = null,
     ) {
+        $this->runtimeFileMoveExecutor = $runtimeFileMoveExecutor
+            ?? new RuntimeFileMoveExecutor($this->io, $this->filesystem, $this->runtimeCollisionPathAllocator);
+        $this->executionPlanExecutor = $executionPlanExecutor
+            ?? new ExecutionPlanExecutor($this->io, $this->runtimeFileMoveExecutor);
     }
 
     /**
@@ -158,73 +171,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
     #[Override]
     public function executePlan(ExecutionPlan $plan, bool $dryRun = false): ExecutionResult
     {
-        $occupiedPaths = $this->buildOccupiedPathsFromPlan($plan);
-
-        $executedMoves    = 0;
-        $runtimeFallbacks = 0;
-        $runtimeErrors    = 0;
-
-        foreach ($plan->groups as $group) {
-            foreach ($group->items as $item) {
-                if (!$item->isExecutable) {
-                    // Non-executable item: keep source path occupied so other files
-                    // don't try to move into it.
-                    $occupiedPaths[$item->sourcePath] = true;
-
-                    continue;
-                }
-
-                // Execute the move using shared helper
-                try {
-                    $actualTarget = $this->moveFileByPath(
-                        $item->sourcePath,
-                        $item->targetPath,
-                        $occupiedPaths,
-                        $dryRun,
-                    );
-
-                    if (!$dryRun) {
-                        ++$executedMoves;
-
-                        if ($actualTarget !== $item->targetPath) {
-                            ++$runtimeFallbacks;
-                        }
-                    }
-                } catch (RuntimeException $exception) {
-                    // Keep source occupied to prevent collisions with remaining items
-                    $occupiedPaths[$item->sourcePath] = true;
-                    $this->io->error(sprintf('Failed to rename %s: %s', $item->sourcePath, $exception->getMessage()));
-
-                    if (!$dryRun) {
-                        ++$runtimeErrors;
-                    }
-                }
-            }
-        }
-
-        return new ExecutionResult(
-            executedMoves: $executedMoves,
-            runtimeFallbacks: $runtimeFallbacks,
-            runtimeErrors: $runtimeErrors,
-        );
-    }
-
-    /**
-     * Builds an occupied-path index from all source paths in an ExecutionPlan.
-     *
-     * @return array<string, true>
-     */
-    private function buildOccupiedPathsFromPlan(ExecutionPlan $plan): array
-    {
-        $occupiedPaths = [];
-
-        foreach ($plan->groups as $group) {
-            foreach ($group->items as $item) {
-                $occupiedPaths[$item->sourcePath] = true;
-            }
-        }
-
-        return $occupiedPaths;
+        return $this->executionPlanExecutor->executePlan($plan, $dryRun);
     }
 
     /**
@@ -335,79 +282,11 @@ final readonly class FileSystemService implements FileSystemServiceInterface
         array &$occupiedPaths = [],
         bool $dryRun = false,
     ): void {
-        $this->moveFileByPath(
+        $this->runtimeFileMoveExecutor->moveFileByPath(
             $sourceFileInfo->getPathname(),
             $targetFileInfo->getPathname(),
             $occupiedPaths,
             $dryRun,
         );
-    }
-
-    /**
-     * Moves a file from source path to target path, creating directories as needed.
-     * When the target path is already occupied (by a file moved earlier in the same batch,
-     * or a skipped file that stays at its source path), falls back to
-     * {@see RuntimeCollisionPathAllocator::findAvailableDuplicatePath()} to prevent
-     * data loss. Updates the occupied-paths
-     * index to reflect the new file system state.
-     *
-     * Returns the actual target path used, which may differ from the requested target
-     * if a duplicate-suffix fallback was applied.
-     *
-     * @param string              $sourcePath    Absolute source file path
-     * @param string              $targetPath    Intended absolute target file path
-     * @param array<string, true> $occupiedPaths Mutable index of paths currently occupied on disk
-     * @param bool                $dryRun        When true, track path changes without touching the filesystem
-     *
-     * @return string The actual target path the file was moved to (may include duplicate suffix)
-     *
-     * @throws RuntimeException When the source file does not exist or the file operation fails
-     */
-    private function moveFileByPath(
-        string $sourcePath,
-        string $targetPath,
-        array &$occupiedPaths,
-        bool $dryRun,
-    ): string {
-        $plannedTarget = $targetPath;
-
-        // Target already occupied by a different file (moved there earlier in
-        // the same batch, or a skipped file that stays at its source path).
-        // Fall back to the next available duplicate suffix to prevent data loss.
-        if (
-            ($targetPath !== $sourcePath)
-            && isset($occupiedPaths[$targetPath])
-        ) {
-            $targetPath = $this->runtimeCollisionPathAllocator->findAvailableDuplicatePath($targetPath, $occupiedPaths);
-        }
-
-        if ($targetPath !== $plannedTarget) {
-            $this->io->warning(sprintf(
-                'Runtime collision fallback: %s → %s (planned: %s)',
-                basename($sourcePath),
-                basename($targetPath),
-                basename($plannedTarget),
-            ));
-        }
-
-        if (!$dryRun) {
-            $sourceFileInfo = new SplFileInfo($sourcePath);
-
-            if (!$sourceFileInfo->isFile()) {
-                throw new RuntimeException(
-                    sprintf('Source file "%s" does not exist', $sourcePath),
-                );
-            }
-
-            $this->filesystem->mkdir(dirname($targetPath));
-            $this->filesystem->rename($sourcePath, $targetPath);
-        }
-
-        // Track path changes even in dry-run to keep occupiedPaths consistent.
-        unset($occupiedPaths[$sourcePath]);
-
-        $occupiedPaths[$targetPath] = true;
-
-        return $targetPath;
     }
 }
