@@ -48,6 +48,14 @@ use const PHP_INT_MAX;
 final readonly class TargetNameResolver implements TargetNameResolverInterface
 {
     /**
+     * @param ExistingSubgroupNamePreserver $existingSubgroupNamePreserver Preserves coherent subgroup names when degraded classification proves a prior successful run should remain authoritative.
+     */
+    public function __construct(
+        private ExistingSubgroupNamePreserver $existingSubgroupNamePreserver = new ExistingSubgroupNamePreserver(),
+    ) {
+    }
+
+    /**
      * Computes desired target names for all items in all groups based on their role
      * and group key.
      *
@@ -102,7 +110,13 @@ final readonly class TargetNameResolver implements TargetNameResolverInterface
         // limit this to cases where names demonstrably come from a prior successful run.
         if (
             $group->isClassificationDegraded()
-            && $this->tryPreserveExistingSubgroupNames($group, $items, $canonicalExtension, $useFileExtensionFromSource)
+            && $this->existingSubgroupNamePreserver->preserveIfPossible(
+                $group,
+                $items,
+                $canonicalExtension,
+                $useFileExtensionFromSource,
+                $this->resolveExtension(...),
+            )
         ) {
             return;
         }
@@ -142,203 +156,6 @@ final readonly class TargetNameResolver implements TargetNameResolverInterface
 
             $group->replaceItem($item, $updated);
         }
-    }
-
-    /**
-     * Attempts to preserve existing subgroup names from a prior successful run when
-     * classification is degraded (Hash-Fehler). Returns true when recovery was applied,
-     * false when any of the 5 strict conditions failed and normal naming should proceed.
-     *
-     * This is a DELIBERATE, narrowly bounded degraded-mode exception to the rule that
-     * current filenames must not drive pipeline decisions. The strict conditions ensure
-     * this only activates when names demonstrably come from a prior successful subgroup run.
-     *
-     * Conditions (ALL must be true):
-     * 1. Group isClassificationDegraded() — checked by caller
-     * 2. At least one non-Canonical item basename matches groupKey-NNN pattern
-     * 3. No two items claim the same clean subgroup basename (no conflicts)
-     * 4. Existing duplicate numbering within subgroups is consistent (no gaps, no duplicates)
-     * 5. No item has a clusterId set (truly degraded, not partial)
-     *
-     * @param AssetGroup      $group                      The degraded group to recover
-     * @param list<AssetItem> $items                      All items in the group
-     * @param string          $canonicalExtension         Normalized extension of the canonical
-     * @param bool            $useFileExtensionFromSource Whether to preserve source extension
-     *
-     * @return bool True when recovery was applied, false when conditions failed
-     */
-    private function tryPreserveExistingSubgroupNames(
-        AssetGroup $group,
-        array $items,
-        string $canonicalExtension,
-        bool $useFileExtensionFromSource,
-    ): bool {
-        $groupKey = $group->groupKey;
-
-        // Condition 5: No item has a clusterId set (truly degraded)
-        foreach ($items as $item) {
-            if ($item->clusterId !== null) {
-                return false;
-            }
-        }
-
-        // Condition 2: At least one non-Canonical basename matches groupKey-NNN
-        if (!$this->hasExistingSubgroupPattern($items, $groupKey)) {
-            return false;
-        }
-
-        // Parse existing subgroup basenames from all non-Companion items.
-        // For each item, determine its "clean subgroup basename" — either the groupKey
-        // (for canonical-pattern items) or groupKey-NNN (for subgroup-pattern items).
-        // Items not matching either pattern are "unrecognized" and get flat naming.
-        $subgroupPattern  = '/^' . preg_quote($groupKey, '/') . '-(\d{3})$/';
-        $duplicatePattern = '/^' . preg_quote($groupKey, '/') . '-(\d{3})'
-            . preg_quote(Constants::DUPLICATE_IDENTIFIER, '/') . '(\d+)$/';
-
-        /** @var array<string, list<AssetItem>> $subgroupBuckets basename => items claiming that basename */
-        $subgroupBuckets = [];
-
-        /** @var array<string, list<int>> $subgroupDupNumbers basename => list of duplicate numbers */
-        $subgroupDupNumbers = [];
-
-        $hasUnrecognized = false;
-
-        foreach ($items as $item) {
-            if ($item->role === ItemRole::Companion) {
-                continue;
-            }
-
-            $basename = FileHelper::basenameWithoutExtension($item->file);
-
-            // Canonical item (clean groupKey basename)
-            if ($basename === $groupKey) {
-                $subgroupBuckets[$groupKey][] = $item;
-
-                continue;
-            }
-
-            // Subgroup-duplicate pattern: groupKey-NNN-duplicate-MMM
-            if (preg_match($duplicatePattern, $basename, $matches) === 1) {
-                $cleanBasename                        = $groupKey . '-' . $matches[1];
-                $subgroupBuckets[$cleanBasename][]    = $item;
-                $subgroupDupNumbers[$cleanBasename][] = (int) $matches[2];
-
-                continue;
-            }
-
-            // Clean subgroup pattern: groupKey-NNN
-            if (preg_match($subgroupPattern, $basename) === 1) {
-                $subgroupBuckets[$basename][] = $item;
-
-                continue;
-            }
-
-            // Unrecognized basename — cannot recover this item
-            $hasUnrecognized = true;
-        }
-
-        // If there are unrecognized items mixed with subgroup items, we cannot
-        // reliably recover — fall through to flat naming
-        if ($hasUnrecognized) {
-            return false;
-        }
-
-        // Condition 3: No two items claim the same clean subgroup basename
-        // (accounting for duplicates within a subgroup: groupKey-002 and
-        // groupKey-002-duplicate-001 are in the same bucket, which is fine)
-        foreach ($subgroupBuckets as $cleanBasename => $bucketItems) {
-            if ($cleanBasename === $groupKey) {
-                // Canonical bucket: the canonical itself + any groupKey-duplicate-NNN items
-                continue;
-            }
-
-            // Count items that have the EXACT clean basename (not duplicate-suffixed)
-            $cleanCount = 0;
-
-            foreach ($bucketItems as $bucketItem) {
-                if (FileHelper::basenameWithoutExtension($bucketItem->file) === $cleanBasename) {
-                    ++$cleanCount;
-                }
-            }
-
-            if ($cleanCount > 1) {
-                return false;
-            }
-        }
-
-        // Condition 4: Duplicate numbering within subgroups is consistent
-        // (sequential starting from 1, no gaps, no duplicates)
-        foreach ($subgroupDupNumbers as $numbers) {
-            $sorted = $numbers;
-            sort($sorted);
-
-            if (count($sorted) !== count(array_unique($sorted))) {
-                return false; // Duplicate numbers
-            }
-
-            // Check sequential from 1
-            foreach ($sorted as $index => $number) {
-                if ($number !== $index + 1) {
-                    return false; // Gap in numbering
-                }
-            }
-        }
-
-        // All conditions passed — apply recovery: each item keeps its current pathname
-        // as proposedName. Non-canonical subgroup items keep their own extension (same
-        // as resolveWithSubgroups()), canonical cluster items use canonical extension.
-        $subgroupCleanPattern = '/^' . preg_quote($groupKey, '/') . '-\d{3}/';
-
-        foreach ($items as $item) {
-            $basename = FileHelper::basenameWithoutExtension($item->file);
-
-            // Non-canonical subgroup items (basename starts with groupKey-NNN) keep their
-            // own extension because they represent content-distinct files (edits, conversions).
-            $isSubgroupItem = preg_match($subgroupCleanPattern, $basename) === 1;
-
-            $extension = $isSubgroupItem
-                ? FileHelper::normalizeExtension($item->file->getExtension())
-                : $this->resolveExtension($item, $canonicalExtension, $useFileExtensionFromSource);
-
-            // Every item keeps its current pathname as the proposed name
-            $directory    = $item->file->getPath();
-            $proposedName = $directory . DIRECTORY_SEPARATOR . $basename . '.' . $extension;
-
-            $updated = $item->withProposedName($proposedName);
-
-            $group->replaceItem($item, $updated);
-        }
-
-        return true;
-    }
-
-    /**
-     * Returns true when at least one non-Canonical, non-Companion item has a basename
-     * matching the subgroup pattern: groupKey-NNN (3 digits).
-     *
-     * @param list<AssetItem> $items    All items in the group
-     * @param string          $groupKey The group's stable key
-     */
-    private function hasExistingSubgroupPattern(array $items, string $groupKey): bool
-    {
-        $pattern = '/^' . preg_quote($groupKey, '/') . '-\d{3}('
-            . preg_quote(Constants::DUPLICATE_IDENTIFIER, '/') . '\d+)?$/';
-
-        foreach ($items as $item) {
-            if ($item->role === ItemRole::Canonical) {
-                continue;
-            }
-
-            if ($item->role === ItemRole::Companion) {
-                continue;
-            }
-
-            if (preg_match($pattern, FileHelper::basenameWithoutExtension($item->file)) === 1) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /**
