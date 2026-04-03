@@ -11,7 +11,6 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Helper;
 
-use DateTimeImmutable;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\LinkConfig;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -32,15 +31,14 @@ use function sprintf;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 /**
- * Comprehensive tests for FileHelper covering path manipulation, extension
- * normalization, date extraction from filenames and drift computation.
+ * Comprehensive tests for FileHelper covering the remaining mechanical helper
+ * responsibilities after date parsing and drift semantics were split into their
+ * own collaborators.
  *
  * Verifies that:
  * - Basenames and extensions are extracted correctly across OS boundaries.
  * - Duplicate suffixes are stripped reliably before re-processing.
- * - Capture dates are correctly parsed from common filename patterns.
  * - Directory URLs and relative paths are computed correctly for CLI output.
- * - Semantic date drift (distance in days) is calculated for validation.
  */
 #[CoversClass(FileHelper::class)]
 #[UsesClass(LinkConfig::class)]
@@ -147,98 +145,6 @@ final class FileHelperTest extends TestCase
                 'basename'    => 'IMG_1234-duplicate-001-duplicate-002',
                 'expected'    => 'IMG_1234-duplicate-001',
                 'description' => 'Should strip only the trailing duplicate suffix thanks to end-of-string anchor',
-            ],
-        ];
-    }
-
-    /**
-     * Verifies the extraction of a capture timestamp from the filename
-     * using the {@see FileHelper::ISO8601_FILENAME_PATTERN}.
-     *
-     * This logic is used to validate metadata against the filename, or as
-     * a source for cross-directory duplicate detection when no metadata
-     * is present but the file follows the renamer's own naming convention.
-     *
-     * @param string      $path        The filename or path to analyze
-     * @param string|null $expected    The expected timestamp string (Y-m-d H:i:s) or null
-     * @param string      $description Context description for failure messages
-     */
-    #[Test]
-    #[DataProvider('extractDateTimeFromPathProvider')]
-    public function extractDateTimeFromPath(
-        string $path,
-        ?string $expected,
-        string $description,
-    ): void {
-        $result = FileHelper::extractDateTimeFromPath($path);
-
-        if ($expected === null) {
-            self::assertNull(
-                $result,
-                sprintf('Failed for case: %s (expected null)', $description),
-            );
-        } else {
-            self::assertInstanceOf(
-                DateTimeImmutable::class,
-                $result,
-                sprintf('Failed for case: %s (expected DateTimeImmutable)', $description),
-            );
-
-            self::assertSame(
-                $expected,
-                $result->format('Y-m-d H:i:s'),
-                sprintf('Failed for case: %s', $description),
-            );
-        }
-    }
-
-    /**
-     * Provides test cases for extractDateTimeFromPath().
-     *
-     * @return array<string, array{path: string, expected: string|null, description: string}>
-     */
-    public static function extractDateTimeFromPathProvider(): array
-    {
-        return [
-            'date with time and milliseconds' => [
-                'path'        => '/photos/2013-10-17_10-36-18-000.mp4',
-                'expected'    => '2013-10-17 10:36:18',
-                'description' => 'Should extract date and time, ignoring milliseconds',
-            ],
-            'date with time' => [
-                'path'        => '/photos/2013-10-17_10-36-18.mp4',
-                'expected'    => '2013-10-17 10:36:18',
-                'description' => 'Should extract date and time from separator-style filename',
-            ],
-            'date only' => [
-                'path'        => '/photos/2013-10-17.jpg',
-                'expected'    => '2013-10-17 00:00:00',
-                'description' => 'Should extract date only, with time set to midnight',
-            ],
-            'compact date and time' => [
-                'path'        => '/photos/20131017_103618.jpg',
-                'expected'    => '2013-10-17 10:36:18',
-                'description' => 'Should extract date and time from compact format',
-            ],
-            'prefixed compact date and time' => [
-                'path'        => '/photos/IMG_20131017_103618.jpg',
-                'expected'    => '2013-10-17 10:36:18',
-                'description' => 'Should extract date and time from IMG_ prefixed compact format',
-            ],
-            'no date in filename' => [
-                'path'        => '/photos/IMG_1234.jpg',
-                'expected'    => null,
-                'description' => 'Should return null when no date pattern is found',
-            ],
-            'compact date only' => [
-                'path'        => '/photos/20131017.jpg',
-                'expected'    => '2013-10-17 00:00:00',
-                'description' => 'Should extract compact date only, with time set to midnight',
-            ],
-            'date with numbered suffix' => [
-                'path'        => '/photos/2019-06-12-01.jpg',
-                'expected'    => '2019-06-12 00:00:00',
-                'description' => 'Should extract date from filename with numeric suffix (not time)',
             ],
         ];
     }
@@ -503,101 +409,5 @@ final class FileHelperTest extends TestCase
         self::assertSame('heic', FileHelper::normalizeExtension('HEIC'));
         self::assertSame('mov', FileHelper::normalizeExtension('mov'));
         self::assertSame('', FileHelper::normalizeExtension(''));
-    }
-
-    // =========================================================================
-    // computeDateDrift
-    // =========================================================================
-
-    /**
-     * Verifies the calculation of the temporal deviation (drift) in days between
-     * two dates extracted from filenames.
-     */
-    #[Test]
-    public function computeDateDriftReturnsDaysBetweenFilenameDates(): void
-    {
-        self::assertSame(0, FileHelper::computeDateDrift('2024-01-15_photo.jpg', '2024-01-15_10-00-00.jpg'));
-        self::assertSame(65, FileHelper::computeDateDrift('2024-01-15_photo.jpg', '2024-03-20_10-00-00.jpg'));
-    }
-
-    /**
-     * Ensures that null is returned if one of the filenames
-     * does not contain a recognizable date.
-     */
-    #[Test]
-    public function computeDateDriftReturnsNullWithoutDateInFilename(): void
-    {
-        self::assertNull(FileHelper::computeDateDrift('IMG_1234.jpg', '2024-03-20_10-00-00.jpg'));
-        self::assertNull(FileHelper::computeDateDrift('2024-01-15_photo.jpg', 'IMG_1234.jpg'));
-    }
-
-    /**
-     * Verifies the calculation of the deviation between a date extracted from
-     * the filename and a provided metadata date.
-     */
-    #[Test]
-    public function computeDateDriftFromDateTimeReturnsDays(): void
-    {
-        $metadataDate = new DateTimeImmutable('2024-03-20 10:00:00');
-
-        self::assertSame(65, FileHelper::computeDateDriftFromDateTime('2024-01-15_photo.jpg', $metadataDate));
-        self::assertSame(0, FileHelper::computeDateDriftFromDateTime('2024-03-20_photo.jpg', $metadataDate));
-        self::assertNull(FileHelper::computeDateDriftFromDateTime('IMG_1234.jpg', $metadataDate));
-    }
-
-    // =========================================================================
-    // extractDateTimeFromPath — boundary cases for tryCreateDateTime
-    // =========================================================================
-
-    /**
-     * Ensures that invalid months (e.g., 13 or 00) are correctly detected
-     * during date extraction.
-     */
-    #[Test]
-    public function extractDateTimeRejectsInvalidMonth(): void
-    {
-        self::assertNull(FileHelper::extractDateTimeFromPath('2024-13-01.jpg'));
-        self::assertNull(FileHelper::extractDateTimeFromPath('2024-00-01.jpg'));
-    }
-
-    /**
-     * Ensures that invalid days (e.g., 32 or February 30) are correctly detected
-     * during date extraction.
-     */
-    #[Test]
-    public function extractDateTimeRejectsInvalidDay(): void
-    {
-        self::assertNull(FileHelper::extractDateTimeFromPath('2024-02-30.jpg'));
-        self::assertNull(FileHelper::extractDateTimeFromPath('2024-01-32.jpg'));
-    }
-
-    /**
-     * Ensures that invalid time specifications (e.g., 25 hours or 60 minutes)
-     * are correctly detected during extraction.
-     */
-    #[Test]
-    public function extractDateTimeRejectsInvalidTime(): void
-    {
-        self::assertNull(FileHelper::extractDateTimeFromPath('2024-01-15_25-00-00.jpg'));
-        self::assertNull(FileHelper::extractDateTimeFromPath('2024-01-15_12-60-00.jpg'));
-        self::assertNull(FileHelper::extractDateTimeFromPath('2024-01-15_12-00-60.jpg'));
-    }
-
-    /**
-     * Verifies the acceptance of boundary values for date and time
-     * (e.g., 23:59:59 or December 31).
-     */
-    #[Test]
-    public function extractDateTimeAcceptsBoundaryValues(): void
-    {
-        // Minimum valid
-        $min = FileHelper::extractDateTimeFromPath('2024-01-01_00-00-00.jpg');
-        self::assertNotNull($min);
-        self::assertSame('2024-01-01 00:00:00', $min->format('Y-m-d H:i:s'));
-
-        // Maximum valid
-        $max = FileHelper::extractDateTimeFromPath('2024-12-31_23-59-59.jpg');
-        self::assertNotNull($max);
-        self::assertSame('2024-12-31 23:59:59', $max->format('Y-m-d H:i:s'));
     }
 }

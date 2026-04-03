@@ -16,7 +16,7 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
-use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\FilenameDateParser;
 use SplFileInfo;
 
 use function array_key_exists;
@@ -220,7 +220,7 @@ final class ExifMetadataProvider
 
         // Issue present, but raw metadata matches filename → already fixed → reliable
         $rawDateTime      = $metadata->getCaptureDateTime();
-        $filenameDateTime = FileHelper::extractDateTimeFromPath($splFileInfo->getPathname());
+        $filenameDateTime = FilenameDateParser::extractDateTimeFromPath($splFileInfo->getPathname());
 
         return ($rawDateTime instanceof DateTimeInterface)
         && ($filenameDateTime instanceof DateTimeImmutable)

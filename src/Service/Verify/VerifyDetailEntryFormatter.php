@@ -15,6 +15,7 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\FilenameDateParser;
 
 use function escapeshellarg;
 use function filesize;
@@ -87,7 +88,7 @@ final class VerifyDetailEntryFormatter
         }
 
         // Check if filename contains a date that write-date could use
-        $filenameDateTime = FileHelper::extractDateTimeFromPath($absolutePath);
+        $filenameDateTime = FilenameDateParser::extractDateTimeFromPath($absolutePath);
 
         if ($filenameDateTime instanceof DateTimeImmutable) {
             $lines[] = sprintf('     <fg=gray>Recovery:</>   date from filename: %s', $filenameDateTime->format('Y-m-d H:i:s'));

@@ -15,7 +15,7 @@ use DateTimeImmutable;
 use DateTimeZone;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
-use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\FilenameDateParser;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
 use SplFileInfo;
@@ -116,7 +116,7 @@ final readonly class WriteDateCandidateAnalyzer
             }
 
             // Extract date+time from filename
-            $filenameDateTime = FileHelper::extractDateTimeFromPath($file->getPathname());
+            $filenameDateTime = FilenameDateParser::extractDateTimeFromPath($file->getPathname());
 
             if (!$filenameDateTime instanceof DateTimeImmutable) {
                 ++$noDateInName;

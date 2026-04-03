@@ -13,7 +13,8 @@ namespace MagicSunday\Renamer\Service;
 
 use DateTimeImmutable;
 use DateTimeInterface;
-use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\DateDriftCalculator;
+use MagicSunday\Renamer\Helper\FilenameDateParser;
 use SplFileInfo;
 
 /**
@@ -48,9 +49,7 @@ final readonly class DateDriftAnalyzer
         DateTimeInterface $expectedDateTime,
         DateTimeInterface $actualDateTime,
     ): ?int {
-        $drift = $expectedDateTime->diff($actualDateTime)->days;
-
-        return $drift !== false ? $drift : null;
+        return DateDriftCalculator::calculateDateDriftInDays($expectedDateTime, $actualDateTime);
     }
 
     /**
@@ -70,7 +69,7 @@ final readonly class DateDriftAnalyzer
         SplFileInfo $file,
         DateTimeInterface $actualDateTime,
     ): ?int {
-        $filenameDateTime = FileHelper::extractDateTimeFromPath($file->getPathname());
+        $filenameDateTime = FilenameDateParser::extractDateTimeFromPath($file->getPathname());
 
         if (!$filenameDateTime instanceof DateTimeInterface) {
             return null;
@@ -97,7 +96,7 @@ final readonly class DateDriftAnalyzer
         SplFileInfo $file,
         DateTimeInterface $actualDateTime,
     ): ?int {
-        $filenameDate = FileHelper::extractDateFromPath($file->getPathname());
+        $filenameDate = FilenameDateParser::extractDateFromPath($file->getPathname());
 
         if (!$filenameDate instanceof DateTimeInterface) {
             return null;

@@ -14,7 +14,7 @@ namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy;
 use DateTimeImmutable;
 use DateTimeInterface;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
-use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\FilenameDateParser;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\MetadataCache;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
@@ -51,7 +51,7 @@ use const DIRECTORY_SEPARATOR;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(ExifMetadataProvider::class)]
-#[UsesClass(FileHelper::class)]
+#[UsesClass(FilenameDateParser::class)]
 #[UsesClass(TemporalMetadata::class)]
 #[UsesClass(MetadataCache::class)]
 final class ExifMetadataProviderTest extends TestCase

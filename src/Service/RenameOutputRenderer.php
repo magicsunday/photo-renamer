@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service;
 
 use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
@@ -574,7 +575,7 @@ final readonly class RenameOutputRenderer
             && ($options->maxDateDrift !== null)
             && ($options->maxDateDrift > 0)
         ) {
-            $driftDays = FileHelper::computeDateDrift($sourcePath, $targetPath);
+            $driftDays = DateDriftCalculator::computeDateDrift($sourcePath, $targetPath);
 
             if (($driftDays !== null) && ($driftDays > $options->maxDateDrift)) {
                 $tag           = OutputEntryTag::Warning;
