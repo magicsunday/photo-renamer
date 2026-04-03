@@ -74,16 +74,18 @@ use const DIRECTORY_SEPARATOR;
 final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
 {
     /**
-     * @param SymfonyStyle                            $io                        Console IO for progress bars and error output
-     * @param MediaTypeClassifierInterface            $mediaTypeClassifier       Classifies files by media type (still vs. video)
-     * @param LivePhotoConflictDetectorInterface|null $livePhotoConflictDetector LP conflict detection (optional)
-     * @param LivePhotoPairingServiceInterface|null   $livePhotoPairingService   LP second-pass pairing (optional)
+     * @param SymfonyStyle                            $io                            Console IO for progress bars and error output
+     * @param MediaTypeClassifierInterface            $mediaTypeClassifier           Classifies files by media type (still vs. video)
+     * @param LivePhotoConflictDetectorInterface|null $livePhotoConflictDetector     LP conflict detection (optional)
+     * @param LivePhotoPairingServiceInterface|null   $livePhotoPairingService       LP second-pass pairing (optional)
+     * @param PendingLivePhotoVideoResolver           $pendingLivePhotoVideoResolver Resolves deferred videos that never found a still-image anchor.
      */
     public function __construct(
         private SymfonyStyle $io,
         private MediaTypeClassifierInterface $mediaTypeClassifier,
         private ?LivePhotoConflictDetectorInterface $livePhotoConflictDetector = null,
         private ?LivePhotoPairingServiceInterface $livePhotoPairingService = null,
+        private PendingLivePhotoVideoResolver $pendingLivePhotoVideoResolver = new PendingLivePhotoVideoResolver(),
     ) {
     }
 
@@ -174,7 +176,7 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
         $this->io->newLine();
 
         // Resolve remaining pending video companions without paired still images
-        $this->resolvePendingVideos(
+        $this->pendingLivePhotoVideoResolver->resolve(
             $state,
             $duplicateIdentifierStrategy,
             $collection,
@@ -794,68 +796,5 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
 
         $progressBar->finish();
         $this->io->newLine();
-    }
-
-    /**
-     * Resolves remaining pending video companions that have no paired still image.
-     * These deferred videos fall back to their own EXIF date group.
-     *
-     * @param CaptureGroupBuildState               $state                       Build-time state with content identifier cache
-     * @param DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy Strategy to generate grouping keys
-     * @param AssetGroupCollection                 $collection                  Collection to add resolved groups to
-     */
-    private function resolvePendingVideos(
-        CaptureGroupBuildState $state,
-        DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy,
-        AssetGroupCollection $collection,
-    ): void {
-        foreach ($state->contentIdentifierCache as $cacheEntry) {
-            if (!$cacheEntry->hasPendingFiles()) {
-                continue;
-            }
-
-            if (!$cacheEntry->getTarget() instanceof SplFileInfo) {
-                continue;
-            }
-
-            $targetFileInfo = $cacheEntry->getTarget();
-            $pendingFiles   = $cacheEntry->getPendingFiles();
-
-            try {
-                $duplicateIdentifier = $duplicateIdentifierStrategy->generateIdentifier(
-                    $pendingFiles[0],
-                    $targetFileInfo,
-                );
-            } catch (HashComputationException) {
-                continue;
-            }
-
-            if ($duplicateIdentifier === false) {
-                continue;
-            }
-
-            if ($collection->has($duplicateIdentifier)) {
-                $group = $collection->get($duplicateIdentifier);
-
-                if (!$group instanceof AssetGroup) {
-                    continue;
-                }
-            } else {
-                $group = new AssetGroup($duplicateIdentifier);
-            }
-
-            foreach ($pendingFiles as $pendingFile) {
-                $pendingItem = new AssetItem($pendingFile);
-                $pendingItem = $pendingItem->withMetadata(
-                    $state->temporalMetadataMap[$pendingFile->getPathname()] ?? null,
-                    $state->contentIdentifierMap[$pendingFile->getPathname()] ?? null,
-                );
-                $group->addItem($pendingItem);
-            }
-
-            if (!$collection->has($duplicateIdentifier)) {
-                $collection->set($duplicateIdentifier, $group);
-            }
-        }
     }
 }

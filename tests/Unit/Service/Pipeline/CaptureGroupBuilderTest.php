@@ -24,6 +24,7 @@ use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
 use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuilder;
 use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuilderInterface;
 use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuildState;
+use MagicSunday\Renamer\Service\Pipeline\PendingLivePhotoVideoResolver;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\LivePhotoAwareRenameStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\MetadataAwareRenameStrategyInterface;
@@ -53,6 +54,7 @@ use function strtolower;
  */
 #[CoversClass(CaptureGroupBuilder::class)]
 #[UsesClass(CaptureGroupBuildState::class)]
+#[UsesClass(PendingLivePhotoVideoResolver::class)]
 #[UsesClass(AssetGroup::class)]
 #[UsesClass(AssetItem::class)]
 #[UsesClass(AssetGroupCollection::class)]
