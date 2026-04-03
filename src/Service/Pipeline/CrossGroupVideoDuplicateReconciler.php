@@ -99,6 +99,12 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
                 continue;
             }
 
+            if (!$this->shouldCompare($leftItem, $rightItem)) {
+                $progressBar->advance();
+
+                continue;
+            }
+
             $match = $this->videoStreamFingerprintMatcher->match($leftItem->file, $rightItem->file);
             $progressBar->advance();
 
@@ -119,6 +125,34 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
 
         $progressBar->finish();
         $this->io->newLine();
+    }
+
+    /**
+     * Returns true when cross-group stream comparison is allowed for the pair.
+     *
+     * Live Photo content identifiers remain the stronger identity signal. When both
+     * videos already expose non-null content identifiers and those identifiers differ,
+     * the reconciler must not let stream equality override that disagreement.
+     *
+     * The stream-based fallback therefore only applies when at least one side lacks
+     * a usable content identifier or when both sides agree on the same identifier.
+     *
+     * @param AssetItem $leftItem  First video candidate from the comparison plan
+     * @param AssetItem $rightItem Second video candidate from the comparison plan
+     *
+     * @return bool True when the matcher may evaluate stream-level identity
+     */
+    private function shouldCompare(AssetItem $leftItem, AssetItem $rightItem): bool
+    {
+        if (
+            ($leftItem->contentIdentifier !== null)
+            && ($rightItem->contentIdentifier !== null)
+            && ($leftItem->contentIdentifier !== $rightItem->contentIdentifier)
+        ) {
+            return false;
+        }
+
+        return true;
     }
 
     /**

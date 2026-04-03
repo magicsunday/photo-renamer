@@ -174,6 +174,52 @@ final class CrossGroupVideoDuplicateReconcilerTest extends TestCase
     }
 
     /**
+     * Verifies that conflicting non-null content identifiers block the stream-level
+     * fallback entirely, even when duration bucketing would otherwise compare the pair.
+     *
+     * Feature Track A is only allowed to bridge metadata splits when the stronger
+     * Live Photo identity signal is missing or agrees on both sides. Two different
+     * content identifiers represent two different Live Photo pairs, so the matcher
+     * must not overrule that distinction with identical stream hashes.
+     */
+    #[Test]
+    public function conflictingContentIdentifiersSuppressCrossGroupStreamComparison(): void
+    {
+        $context = new PipelineContext('/photos');
+
+        $videoA = new AssetItem(
+            new SplFileInfo('/photos/2025/clip.mov'),
+            metadata: new TemporalMetadata(new DateTimeImmutable('2025-01-01 10:00:00'), null, false, false, null, null, null, null, null, null, 2.17),
+            contentIdentifier: 'aaa',
+        );
+        $videoB = new AssetItem(
+            new SplFileInfo('/photos/archive/clip.mov'),
+            metadata: new TemporalMetadata(new DateTimeImmutable('2025-01-02 10:00:00'), null, false, false, null, null, null, null, null, null, 2.17),
+            contentIdentifier: 'bbb',
+        );
+
+        $groupA = new AssetGroup('2025-01-01_10-00-00-000');
+        $groupA->addItem($videoA);
+
+        $groupB = new AssetGroup('2025-01-02_10-00-00-000');
+        $groupB->addItem($videoB);
+
+        $groups = new AssetGroupCollection();
+        $groups->set($groupA->groupKey, $groupA);
+        $groups->set($groupB->groupKey, $groupB);
+
+        $this->matcher
+            ->expects(self::never())
+            ->method('match');
+
+        $this->reconciler->reconcile($groups, $context);
+
+        self::assertCount(2, $groups);
+        self::assertSame([], $context->getVideoDuplicateCandidates());
+        self::assertStringContainsString('Reconciling cross-group videos', $this->output->fetch());
+    }
+
+    /**
      * Verifies that videos without a normalized duration bucket are ignored before
      * the matcher is ever invoked.
      *
