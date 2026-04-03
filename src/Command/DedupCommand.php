@@ -16,6 +16,7 @@ use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Service\Dedup\DedupOriginalMatcher;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
+use MagicSunday\Renamer\Service\Output\SummaryRow;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use Override;
 use RuntimeException;
@@ -345,17 +346,16 @@ final class DedupCommand extends Command
         int $orphanedCount,
         int $spaceReclaimable,
     ): void {
-        /** @var list<array{string, string}> $rows */
         $rows = [
-            ['Scanned files', (string) $scannedFiles],
-            ['Duplicates found', (string) $duplicatesFound],
+            new SummaryRow('Scanned files', (string) $scannedFiles),
+            new SummaryRow('Duplicates found', (string) $duplicatesFound),
         ];
 
         if ($orphanedCount > 0) {
-            $rows[] = ['Orphaned (skipped)', (string) $orphanedCount];
+            $rows[] = new SummaryRow('Orphaned (skipped)', (string) $orphanedCount);
         }
 
-        $rows[] = ['Space reclaimable', FileHelper::formatSize($spaceReclaimable)];
+        $rows[] = new SummaryRow('Space reclaimable', FileHelper::formatSize($spaceReclaimable));
 
         $this->renderer->renderSummarySection($rows, $io);
     }

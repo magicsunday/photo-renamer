@@ -46,6 +46,7 @@ use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\ReviewOutputSkipRea
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\WarningOutputSkipReasonRule;
 use MagicSunday\Renamer\Service\Output\OutputSummaryRowBuilder;
 use MagicSunday\Renamer\Service\Output\SkipReasonFormatter;
+use MagicSunday\Renamer\Service\Output\SummaryRow;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -100,6 +101,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 #[UsesClass(WarningOutputSkipReasonRule::class)]
 #[UsesClass(OutputSummaryRowBuilder::class)]
 #[UsesClass(SkipReasonFormatter::class)]
+#[UsesClass(SummaryRow::class)]
 final class RenameOutputRendererTest extends TestCase
 {
     /**
@@ -943,8 +945,8 @@ final class RenameOutputRendererTest extends TestCase
         [$renderer, $output] = $this->createRenderer();
 
         $rows = [
-            ['Short', '10'],
-            ['Much longer label', '200'],
+            new SummaryRow('Short', '10'),
+            new SummaryRow('Much longer label', '200'),
         ];
 
         $renderer->renderSummarySection($rows, new SymfonyStyle(new ArrayInput([]), $output));

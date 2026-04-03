@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service\Verify;
 
+use MagicSunday\Renamer\Service\Output\SummaryRow;
 use MagicSunday\Renamer\Service\Verify\VerifyCategoryCatalog;
 use MagicSunday\Renamer\Service\Verify\VerifyReportFormatter;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -30,6 +31,7 @@ use PHPUnit\Framework\TestCase;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(VerifyReportFormatter::class)]
+#[UsesClass(SummaryRow::class)]
 #[UsesClass(VerifyCategoryCatalog::class)]
 final class VerifyReportFormatterTest extends TestCase
 {
@@ -99,10 +101,14 @@ final class VerifyReportFormatterTest extends TestCase
             VerifyCategoryCatalog::FILETYPE  => [],
         ]);
 
-        self::assertSame(['Scanned files', '5'], $rows[0]);
-        self::assertSame(['OK', '3'], $rows[1]);
-        self::assertSame(['Ambiguous timezone', '1'], $rows[2]);
-        self::assertSame(['Missing Live Photo companion', '1'], $rows[3]);
+        self::assertSame('Scanned files', $rows[0]->label);
+        self::assertSame('5', $rows[0]->value);
+        self::assertSame('OK', $rows[1]->label);
+        self::assertSame('3', $rows[1]->value);
+        self::assertSame('Ambiguous timezone', $rows[2]->label);
+        self::assertSame('1', $rows[2]->value);
+        self::assertSame('Missing Live Photo companion', $rows[3]->label);
+        self::assertSame('1', $rows[3]->value);
         self::assertCount(4, $rows);
     }
 }

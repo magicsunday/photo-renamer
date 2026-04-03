@@ -20,6 +20,7 @@ use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Model\LinkConfig;
 use MagicSunday\Renamer\Service\ExiftoolWriter;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
+use MagicSunday\Renamer\Service\Output\SummaryRow;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateCandidateAnalyzer;
 use MagicSunday\Renamer\Service\WriteDate\WriteDatePendingWrite;
@@ -358,34 +359,33 @@ final class WriteDateCommand extends Command
         int $unsupportedWrite,
         bool $dryRun,
     ): void {
-        /** @var list<array{string, string}> $rows */
         $rows = [
-            ['Scanned files', (string) $scannedFiles],
-            ['Already correct', (string) $alreadyCorrect],
+            new SummaryRow('Scanned files', (string) $scannedFiles),
+            new SummaryRow('Already correct', (string) $alreadyCorrect),
         ];
 
         if ($dryRun) {
-            $rows[] = ['Would write', (string) $wouldWrite];
+            $rows[] = new SummaryRow('Would write', (string) $wouldWrite);
         } else {
             if ($written > 0) {
-                $rows[] = ['Written', (string) $written];
+                $rows[] = new SummaryRow('Written', (string) $written);
             }
 
             if ($writeFailed > 0) {
-                $rows[] = ['Write failed', (string) $writeFailed];
+                $rows[] = new SummaryRow('Write failed', (string) $writeFailed);
             }
         }
 
         if ($noDateInName > 0) {
-            $rows[] = ['No date in name', (string) $noDateInName];
+            $rows[] = new SummaryRow('No date in name', (string) $noDateInName);
         }
 
         if ($unsupportedWrite > 0) {
-            $rows[] = ['Unsupported write', (string) $unsupportedWrite];
+            $rows[] = new SummaryRow('Unsupported write', (string) $unsupportedWrite);
         }
 
         if ($readErrors > 0) {
-            $rows[] = ['Read errors', (string) $readErrors];
+            $rows[] = new SummaryRow('Read errors', (string) $readErrors);
         }
 
         $this->renderer->renderSummarySection($rows, $io);

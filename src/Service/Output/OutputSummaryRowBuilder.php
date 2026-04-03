@@ -38,47 +38,47 @@ final class OutputSummaryRowBuilder
      * @param array<string, int> $counters Runtime or preview counters keyed by their stable summary names.
      * @param bool               $dryRun   Whether the command is currently simulating changes.
      *
-     * @return list<array{string, string}> Ordered label/value rows ready for aligned rendering.
+     * @return list<SummaryRow> Ordered summary rows ready for aligned rendering.
      */
     public function build(array $counters, bool $dryRun): array
     {
         $rows = [
-            ['Scanned files', (string) $counters['scannedFiles']],
+            new SummaryRow('Scanned files', (string) $counters['scannedFiles']),
         ];
 
         if ($counters['skippedCount'] > 0) {
-            $rows[] = ['Skipped (no metadata)', (string) $counters['skippedCount']];
+            $rows[] = new SummaryRow('Skipped (no metadata)', (string) $counters['skippedCount']);
         }
 
         if ($counters['errorCount'] > 0) {
-            $rows[] = ['Skipped (read errors)', (string) $counters['errorCount']];
+            $rows[] = new SummaryRow('Skipped (read errors)', (string) $counters['errorCount']);
         }
 
         if ($counters['plannedMoves'] > 0) {
-            $rows[] = ['Planned moves', (string) $counters['plannedMoves']];
+            $rows[] = new SummaryRow('Planned moves', (string) $counters['plannedMoves']);
         }
 
         if ($counters['plannedSkips'] > 0) {
-            $rows[] = ['Planned skips', (string) $counters['plannedSkips']];
+            $rows[] = new SummaryRow('Planned skips', (string) $counters['plannedSkips']);
         }
 
         if ($counters['livePhotoGroups'] > 0) {
-            $rows[] = ['Live Photo groups', (string) $counters['livePhotoGroups']];
+            $rows[] = new SummaryRow('Live Photo groups', (string) $counters['livePhotoGroups']);
         }
 
         if ($counters['duplicateCount'] > 0) {
-            $rows[] = ['Duplicates found', (string) $counters['duplicateCount']];
+            $rows[] = new SummaryRow('Duplicates found', (string) $counters['duplicateCount']);
         }
 
         if ($counters['namingCollisions'] > 0) {
-            $rows[] = ['Naming collisions', (string) $counters['namingCollisions']];
+            $rows[] = new SummaryRow('Naming collisions', (string) $counters['namingCollisions']);
         }
 
         if (array_key_exists('crossGroupVideoReviewCount', $counters) && ($counters['crossGroupVideoReviewCount'] > 0)) {
-            $rows[] = ['Cross-group video review', (string) $counters['crossGroupVideoReviewCount']];
+            $rows[] = new SummaryRow('Cross-group video review', (string) $counters['crossGroupVideoReviewCount']);
         }
 
-        $rows[] = [$dryRun ? 'Files to process' : 'Files processed', (string) $counters['fileCount']];
+        $rows[] = new SummaryRow($dryRun ? 'Files to process' : 'Files processed', (string) $counters['fileCount']);
 
         return $rows;
     }

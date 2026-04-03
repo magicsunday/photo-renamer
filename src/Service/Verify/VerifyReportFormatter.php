@@ -11,6 +11,8 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Verify;
 
+use MagicSunday\Renamer\Service\Output\SummaryRow;
+
 use function count;
 use function in_array;
 use function sort;
@@ -74,21 +76,20 @@ final class VerifyReportFormatter
      * @param int                         $ok         Files with no findings after all checks
      * @param array<string, list<string>> $categories Categorized verify findings
      *
-     * @return list<array{string, string}> Rows for RenameOutputRenderer summary rendering
+     * @return list<SummaryRow> Rows for RenameOutputRenderer summary rendering
      */
     public function formatSummaryRows(int $scanned, int $ok, array $categories): array
     {
-        /** @var list<array{string, string}> $rows */
         $rows = [
-            ['Scanned files', (string) $scanned],
-            ['OK', (string) $ok],
+            new SummaryRow('Scanned files', (string) $scanned),
+            new SummaryRow('OK', (string) $ok),
         ];
 
         foreach (VerifyCategoryCatalog::LABELS as $categoryId => $label) {
             $count = count($categories[$categoryId]);
 
             if ($count > 0) {
-                $rows[] = [$label, (string) $count];
+                $rows[] = new SummaryRow($label, (string) $count);
             }
         }
 

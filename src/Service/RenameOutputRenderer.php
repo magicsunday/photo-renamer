@@ -33,6 +33,7 @@ use MagicSunday\Renamer\Service\Output\OutputDecisionLogRenderer;
 use MagicSunday\Renamer\Service\Output\OutputEntryBuildResult;
 use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
 use MagicSunday\Renamer\Service\Output\OutputSummaryRowBuilder;
+use MagicSunday\Renamer\Service\Output\SummaryRow;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function count;
@@ -254,9 +255,9 @@ final readonly class RenameOutputRenderer
      * alignment in the console output. It is primarily used for the summary
      * statistics at the end of a command.
      *
-     * @param list<array{string, string}> $rows The list of label/value pairs to display.
-     * @param SymfonyStyle|null           $io   Optional console IO. If null, the instance's
-     *                                          default IO is used.
+     * @param list<SummaryRow>  $rows The list of summary rows to display.
+     * @param SymfonyStyle|null $io   Optional console IO. If null, the instance's
+     *                                default IO is used.
      */
     public function renderAlignedTable(array $rows, ?SymfonyStyle $io = null): void
     {
@@ -266,15 +267,15 @@ final readonly class RenameOutputRenderer
         $maxValueLength = 0;
 
         foreach ($rows as $row) {
-            $maxLabelLength = max($maxLabelLength, strlen($row[0]));
-            $maxValueLength = max($maxValueLength, strlen($row[1]));
+            $maxLabelLength = max($maxLabelLength, strlen($row->label));
+            $maxValueLength = max($maxValueLength, strlen($row->value));
         }
 
         foreach ($rows as $row) {
             $io->text(sprintf(
                 ' %-' . $maxLabelLength . 's  %' . $maxValueLength . 's',
-                $row[0],
-                $row[1],
+                $row->label,
+                $row->value,
             ));
         }
     }
@@ -285,9 +286,9 @@ final readonly class RenameOutputRenderer
      * This provides a consistent visual style for summary reports across all
      * available commands.
      *
-     * @param list<array{string, string}> $rows The list of label/value pairs to display in the table.
-     * @param SymfonyStyle|null           $io   Optional console IO. If null, the instance's
-     *                                          default IO is used.
+     * @param list<SummaryRow>  $rows The list of summary rows to display in the table.
+     * @param SymfonyStyle|null $io   Optional console IO. If null, the instance's
+     *                                default IO is used.
      */
     public function renderSummarySection(array $rows, ?SymfonyStyle $io = null): void
     {

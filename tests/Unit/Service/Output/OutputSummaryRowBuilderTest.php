@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service\Output;
 
 use MagicSunday\Renamer\Service\Output\OutputSummaryRowBuilder;
+use MagicSunday\Renamer\Service\Output\SummaryRow;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -28,6 +29,7 @@ use PHPUnit\Framework\TestCase;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(OutputSummaryRowBuilder::class)]
+#[CoversClass(SummaryRow::class)]
 final class OutputSummaryRowBuilderTest extends TestCase
 {
     /**
@@ -39,13 +41,13 @@ final class OutputSummaryRowBuilderTest extends TestCase
     {
         $builder = new OutputSummaryRowBuilder();
 
-        self::assertSame(
+        self::assertEquals(
             [
-                ['Scanned files', '10'],
-                ['Skipped (no metadata)', '2'],
-                ['Planned moves', '7'],
-                ['Duplicates found', '6'],
-                ['Files processed', '5'],
+                new SummaryRow('Scanned files', '10'),
+                new SummaryRow('Skipped (no metadata)', '2'),
+                new SummaryRow('Planned moves', '7'),
+                new SummaryRow('Duplicates found', '6'),
+                new SummaryRow('Files processed', '5'),
             ],
             $builder->build([
                 'scannedFiles'     => 10,
@@ -70,11 +72,11 @@ final class OutputSummaryRowBuilderTest extends TestCase
     {
         $builder = new OutputSummaryRowBuilder();
 
-        self::assertSame(
+        self::assertEquals(
             [
-                ['Scanned files', '12'],
-                ['Cross-group video review', '3'],
-                ['Files to process', '4'],
+                new SummaryRow('Scanned files', '12'),
+                new SummaryRow('Cross-group video review', '3'),
+                new SummaryRow('Files to process', '4'),
             ],
             $builder->build([
                 'scannedFiles'               => 12,
