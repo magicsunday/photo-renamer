@@ -30,6 +30,18 @@ use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
 use MagicSunday\Renamer\Model\SkippedFile;
+use MagicSunday\Renamer\Service\Output\DiffHighlighter;
+use MagicSunday\Renamer\Service\Output\DiffTokenState;
+use MagicSunday\Renamer\Service\Output\OutputCounters;
+use MagicSunday\Renamer\Service\Output\OutputSkipReason;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecision;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\CandidateOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\DefaultOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\FallbackOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\ReviewOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\WarningOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\SkipReasonFormatter;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -67,6 +79,18 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 #[UsesClass(FileHelper::class)]
 #[UsesClass(FileList::class)]
 #[UsesClass(RenameList::class)]
+#[UsesClass(DiffHighlighter::class)]
+#[UsesClass(DiffTokenState::class)]
+#[UsesClass(OutputCounters::class)]
+#[UsesClass(OutputSkipReason::class)]
+#[UsesClass(OutputSkipReasonDecider::class)]
+#[UsesClass(OutputSkipReasonDecision::class)]
+#[UsesClass(CandidateOutputSkipReasonRule::class)]
+#[UsesClass(DefaultOutputSkipReasonRule::class)]
+#[UsesClass(FallbackOutputSkipReasonRule::class)]
+#[UsesClass(ReviewOutputSkipReasonRule::class)]
+#[UsesClass(WarningOutputSkipReasonRule::class)]
+#[UsesClass(SkipReasonFormatter::class)]
 final class RenameOutputRendererTest extends TestCase
 {
     /**
@@ -150,6 +174,69 @@ final class RenameOutputRendererTest extends TestCase
         self::assertTrue($entries[0]->isDuplicateTarget);
         self::assertTrue($entries[1]->isInfo());
         self::assertStringContainsString('Duplicate of', $entries[1]->reason ?? '');
+    }
+
+    /**
+     * Verifies that legacy duplicate companion videos reference the matching
+     * non-duplicate video target instead of the canonical still target.
+     *
+     * The legacy rename path still renders duplicate info lines through
+     * buildOutputEntries(). When a Live Photo group contains a canonical still,
+     * a non-duplicate MOV companion, and a duplicate MOV target, the info line
+     * must point at the unsuffixed MOV target so the operator sees the correct
+     * media-equivalent reference.
+     */
+    #[Test]
+    public function legacyDuplicateCompanionUsesMatchingExtensionReferenceTarget(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $sourceDir = '/tmp/source';
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate->setTarget(new SplFileInfo($sourceDir . '/2025-01-01_10-00-00-000.jpg'));
+        $fileDuplicate->addRename(new Rename(
+            new SplFileInfo($sourceDir . '/still.jpg'),
+            new SplFileInfo($sourceDir . '/2025-01-01_10-00-00-000.jpg'),
+        ));
+        $fileDuplicate->addRename(new Rename(
+            new SplFileInfo($sourceDir . '/primary.mov'),
+            new SplFileInfo($sourceDir . '/2025-01-01_10-00-00-000.mov'),
+        ));
+        $fileDuplicate->addRename(new Rename(
+            new SplFileInfo($sourceDir . '/duplicate.mov'),
+            new SplFileInfo($sourceDir . '/2025-01-01_10-00-00-000' . Constants::DUPLICATE_IDENTIFIER . '001.mov'),
+        ));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('live-photo:cid-1', $fileDuplicate);
+
+        [$entries] = $renderer->buildOutputEntries(
+            $collection,
+            new RenameOptions(),
+            new RenameResult(),
+            $sourceDir,
+        );
+
+        self::assertCount(4, $entries);
+
+        $duplicateEntry = null;
+        $infoEntry      = null;
+
+        foreach ($entries as $entry) {
+            if (($entry->sourcePath === 'duplicate.mov') && ($entry->type === OutputEntryType::Rename)) {
+                $duplicateEntry = $entry;
+            }
+
+            if (($entry->sourcePath === 'duplicate.mov') && ($entry->type === OutputEntryType::Info)) {
+                $infoEntry = $entry;
+            }
+        }
+
+        self::assertNotNull($duplicateEntry);
+        self::assertNotNull($infoEntry);
+        self::assertSame(OutputEntryTag::Duplicate, $duplicateEntry->tag);
+        self::assertSame('Duplicate of 2025-01-01_10-00-00-000.mov', $infoEntry->reason);
     }
 
     /**

@@ -18,11 +18,10 @@ use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
 use MagicSunday\Renamer\Model\Execution\ExecutionResult;
-use MagicSunday\Renamer\Model\LinkConfig;
 use MagicSunday\Renamer\Model\OutputEntry;
-use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
+use MagicSunday\Renamer\Service\Output\OutputCounters;
 use Override;
 use RecursiveDirectoryIterator;
 use RecursiveIterator;
@@ -34,12 +33,9 @@ use Symfony\Component\Filesystem\Filesystem;
 
 use function basename;
 use function dirname;
-use function in_array;
-use function mb_strlen;
 use function pathinfo;
 use function rtrim;
 use function sprintf;
-use function str_repeat;
 use function strlen;
 use function substr;
 
@@ -167,7 +163,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
             'errorCount'       => $errorCount,
             'livePhotoGroups'  => $livePhotoGroups,
             'namingCollisions' => $result->namingCollisions,
-            ...$counters,
+            ...$counters->toArray(),
         ], $options->dryRun);
     }
 
@@ -282,7 +278,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
      * @param array<string, true> $occupiedPaths
      * @param list<string>|null   $showFilter
      *
-     * @return array{fileCount: int, duplicateCount: int, plannedMoves: int, plannedSkips: int}
+     * @return OutputCounters Immutable counters already computed by the shared renderer
      */
     private function renderOutputEntries(
         array $outputEntries,
@@ -290,101 +286,27 @@ final readonly class FileSystemService implements FileSystemServiceInterface
         array &$occupiedPaths,
         ?string $sourceBaseDirectory = null,
         ?array $showFilter = null,
-    ): array {
-        // Compute max path length only over visible entries so padding is tight
-        $maxFilenameLength = 0;
+    ): OutputCounters {
+        $counters = $this->renderer->renderEntryLines($outputEntries, $sourceBaseDirectory, $showFilter);
 
         foreach ($outputEntries as $entry) {
-            if (!$this->isTagVisible($entry->tag, $showFilter)) {
+            if (!$entry->isRename()) {
                 continue;
-            }
-
-            $maxFilenameLength = max($maxFilenameLength, mb_strlen($entry->sourcePath));
-        }
-
-        $linkConfig = LinkConfig::fromEnv();
-
-        $fileCount      = 0;
-        $duplicateCount = 0;
-        $plannedMoves   = 0;
-        $plannedSkips   = 0;
-
-        foreach ($outputEntries as $entry) {
-            $sourcePath = $entry->sourcePath;
-            $entryTag   = $entry->tag;
-
-            $padding    = str_repeat(' ', max(0, $maxFilenameLength - mb_strlen($sourcePath)));
-            $linkedPath = FileHelper::linkifyPath($sourcePath, $sourcePath, $sourceBaseDirectory, $linkConfig, 'yellow');
-
-            if ($entry->isSkip()) {
-                if ($this->isTagVisible($entryTag, $showFilter)) {
-                    $this->io->text(sprintf(
-                        ' %s %s' . $padding . ' <fg=cyan>→</> <fg=%s>%s</>',
-                        $entryTag->formattedTag(),
-                        $linkedPath,
-                        $entryTag->color(),
-                        $entry->reason,
-                    ));
-                }
-
-                continue;
-            }
-
-            $targetPath             = $entry->targetPath;
-            $isDuplicateTarget      = $entry->isDuplicateTarget;
-            $shouldSkip             = $entry->shouldSkip;
-            $shouldPerformOperation = $entry->shouldPerformOperation;
-
-            if ($this->isTagVisible($entryTag, $showFilter)) {
-                if ($shouldSkip) {
-                    $skipReason = match ($entryTag) {
-                        OutputEntryTag::Candidate => 'Conflicting Live Photo content ID across groups',
-                        OutputEntryTag::Warning   => $entry->warningReason ?? 'Ambiguous timezone: QuickTime UTC without offset — use --timezone or rename:write-date --reason=timezone',
-                        OutputEntryTag::Fallback  => 'Fallback date: DateTime (0x0132) used instead of DateTimeOriginal',
-                        default                   => 'Skipped',
-                    };
-
-                    $this->io->text(sprintf(
-                        ' %s %s' . $padding . ' <fg=cyan>→</> <fg=%s>%s</>',
-                        $entryTag->formattedTag(),
-                        $linkedPath,
-                        $entryTag->color(),
-                        $skipReason,
-                    ));
-                } else {
-                    $this->io->text(sprintf(
-                        ' %s %s' . $padding . ' <fg=cyan>→</> %s',
-                        $entryTag->formattedTag(),
-                        $linkedPath,
-                        $this->renderer->highlightDiff($sourcePath, $targetPath ?? '', 'green'),
-                    ));
-                }
-            }
-
-            if ($isDuplicateTarget) {
-                ++$duplicateCount;
-            }
-
-            if ($shouldSkip) {
-                ++$plannedSkips;
             }
 
             // sortKey carries the absolute source path; reconstruct absolute
             // target by prepending the base directory when paths were relativized.
             $absoluteSource = $entry->sortKey;
-            $absoluteTarget = ($sourceBaseDirectory !== null && $targetPath !== null)
-                ? $sourceBaseDirectory . DIRECTORY_SEPARATOR . $targetPath
-                : ($targetPath ?? $absoluteSource);
+            $absoluteTarget = ($sourceBaseDirectory !== null && ($entry->targetPath !== null))
+                ? $sourceBaseDirectory . DIRECTORY_SEPARATOR . $entry->targetPath
+                : ($entry->targetPath ?? $absoluteSource);
 
-            if ($shouldSkip) {
+            if ($entry->shouldSkip) {
                 // Skipped file stays at its source path — keep it occupied so
                 // other files do not try to rename into it. Also mark the
                 // source path as occupied in case it was freed by a prior move.
                 $occupiedPaths[$absoluteSource] = true;
-            } elseif ($shouldPerformOperation) {
-                ++$plannedMoves;
-                ++$fileCount;
-
+            } elseif ($entry->shouldPerformOperation) {
                 $this->moveFile(
                     new SplFileInfo($absoluteSource),
                     new SplFileInfo($absoluteTarget),
@@ -394,12 +316,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
             }
         }
 
-        return [
-            'fileCount'      => $fileCount,
-            'duplicateCount' => $duplicateCount,
-            'plannedMoves'   => $plannedMoves,
-            'plannedSkips'   => $plannedSkips,
-        ];
+        return $counters;
     }
 
     /**
@@ -568,16 +485,5 @@ final readonly class FileSystemService implements FileSystemServiceInterface
         } while (isset($occupiedPaths[$candidatePath]));
 
         return $candidatePath;
-    }
-
-    /**
-     * Checks whether the given tag passes the optional display filter.
-     *
-     * @param OutputEntryTag    $tag        Tag to check
-     * @param list<string>|null $showFilter Allowed tag letters, or null to show all
-     */
-    private function isTagVisible(OutputEntryTag $tag, ?array $showFilter): bool
-    {
-        return ($showFilter === null) || in_array($tag->letter(), $showFilter, true);
     }
 }

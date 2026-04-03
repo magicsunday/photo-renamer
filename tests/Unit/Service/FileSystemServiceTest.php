@@ -25,6 +25,18 @@ use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
 use MagicSunday\Renamer\Service\FileSystemService;
+use MagicSunday\Renamer\Service\Output\DiffHighlighter;
+use MagicSunday\Renamer\Service\Output\DiffTokenState;
+use MagicSunday\Renamer\Service\Output\OutputCounters;
+use MagicSunday\Renamer\Service\Output\OutputSkipReason;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecision;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\CandidateOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\DefaultOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\FallbackOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\ReviewOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\WarningOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\SkipReasonFormatter;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -78,6 +90,18 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(OutputEntry::class)]
 #[UsesClass(OutputEntryTag::class)]
 #[UsesClass(OutputEntryType::class)]
+#[UsesClass(DiffHighlighter::class)]
+#[UsesClass(DiffTokenState::class)]
+#[UsesClass(OutputCounters::class)]
+#[UsesClass(OutputSkipReason::class)]
+#[UsesClass(OutputSkipReasonDecider::class)]
+#[UsesClass(OutputSkipReasonDecision::class)]
+#[UsesClass(CandidateOutputSkipReasonRule::class)]
+#[UsesClass(DefaultOutputSkipReasonRule::class)]
+#[UsesClass(FallbackOutputSkipReasonRule::class)]
+#[UsesClass(ReviewOutputSkipReasonRule::class)]
+#[UsesClass(WarningOutputSkipReasonRule::class)]
+#[UsesClass(SkipReasonFormatter::class)]
 final class FileSystemServiceTest extends TestCase
 {
     use WorkspaceTrait;

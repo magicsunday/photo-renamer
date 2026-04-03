@@ -23,8 +23,13 @@ use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\LinkConfig;
 use MagicSunday\Renamer\Model\OutputEntry;
 use MagicSunday\Renamer\Model\OutputEntryTag;
+use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
+use MagicSunday\Renamer\Service\Output\DiffHighlighter;
+use MagicSunday\Renamer\Service\Output\OutputCounters;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
+use MagicSunday\Renamer\Service\Output\SkipReasonFormatter;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function array_key_exists;
@@ -32,21 +37,13 @@ use function count;
 use function in_array;
 use function is_string;
 use function max;
-use function mb_str_split;
-use function mb_stripos;
 use function mb_strlen;
-use function mb_strtolower;
-use function mb_substr;
 use function pathinfo;
-use function preg_match;
-use function preg_match_all;
 use function sprintf;
 use function str_contains;
 use function str_repeat;
 use function str_starts_with;
 use function strlen;
-use function strrpos;
-use function substr;
 use function ucfirst;
 use function usort;
 
@@ -72,11 +69,20 @@ use const PATHINFO_EXTENSION;
  */
 final readonly class RenameOutputRenderer
 {
+    private OutputSkipReasonDecider $skipReasonDecider;
+
+    private SkipReasonFormatter $skipReasonFormatter;
+
+    private DiffHighlighter $diffHighlighter;
+
     /**
      * @param SymfonyStyle $io Symfony Style IO for consistent console output formatting
      */
     public function __construct(private SymfonyStyle $io)
     {
+        $this->skipReasonDecider   = new OutputSkipReasonDecider();
+        $this->skipReasonFormatter = new SkipReasonFormatter();
+        $this->diffHighlighter     = new DiffHighlighter();
     }
 
     /**
@@ -112,8 +118,9 @@ final readonly class RenameOutputRenderer
 
         /** @var FileDuplicate $fileDuplicate */
         foreach ($fileDuplicateCollection as $fileDuplicate) {
-            $canonicalTargetPath = $fileDuplicate->getTarget()->getPathname();
-            $canonicalBasename   = FileHelper::basenameWithoutExtension($fileDuplicate->getTarget());
+            $canonicalTargetPath   = $fileDuplicate->getTarget()->getPathname();
+            $canonicalBasename     = FileHelper::basenameWithoutExtension($fileDuplicate->getTarget());
+            $referenceTargetsByExt = $this->buildReferenceTargetsByExtension($fileDuplicate->getRenames());
 
             foreach ($fileDuplicate->getRenames() as $rename) {
                 $renameBasename = FileHelper::basenameWithoutExtension($rename->getTarget());
@@ -161,7 +168,12 @@ final readonly class RenameOutputRenderer
                         sourcePath: $sourcePath,
                         reason: sprintf(
                             'Duplicate of %s',
-                            FileHelper::relativizePath($canonicalTargetPath, $sourceBaseDirectory),
+                            $this->resolveDuplicateReferenceTargetPath(
+                                $targetPath,
+                                $canonicalTargetPath,
+                                $referenceTargetsByExt,
+                                $sourceBaseDirectory,
+                            ),
                         ),
                         tag: OutputEntryTag::Duplicate,
                     );
@@ -457,17 +469,17 @@ final readonly class RenameOutputRenderer
 
                 // Append info line showing which file this is a duplicate of
                 if (($tag === OutputEntryTag::Duplicate) && !$item->isNoOp && ($canonicalTargetPath !== null)) {
-                    $normalizedExtension = FileHelper::normalizeExtension(
-                        pathinfo($item->targetPath, PATHINFO_EXTENSION),
-                    );
-                    $duplicateReferenceTargetPath = $referenceTargetsByExt[$normalizedExtension] ?? $canonicalTargetPath;
-
                     $outputEntries[] = OutputEntry::info(
                         sortKey: $item->sourcePath,
                         sourcePath: $sourcePath,
                         reason: sprintf(
                             'Duplicate of %s',
-                            FileHelper::relativizePath($duplicateReferenceTargetPath, $sourceBaseDirectory),
+                            $this->resolveDuplicateReferenceTargetPath(
+                                $item->targetPath,
+                                $canonicalTargetPath,
+                                $referenceTargetsByExt,
+                                $sourceBaseDirectory,
+                            ),
                         ),
                         tag: OutputEntryTag::Duplicate,
                     );
@@ -516,9 +528,9 @@ final readonly class RenameOutputRenderer
         $counters = $this->renderEntryLines($outputEntries, $sourceBaseDirectory, $showFilter);
 
         return new ExecutionPreview(
-            plannedMoves: $counters['plannedMoves'],
-            plannedSkips: $counters['plannedSkips'],
-            duplicateCount: $counters['duplicateCount'],
+            plannedMoves: $counters->plannedMoves,
+            plannedSkips: $counters->plannedSkips,
+            duplicateCount: $counters->duplicateCount,
         );
     }
 
@@ -734,13 +746,13 @@ final readonly class RenameOutputRenderer
      * @param string|null       $sourceBaseDirectory Base directory for linkified paths
      * @param list<string>|null $showFilter          Tag filter (null = show all)
      *
-     * @return array{fileCount: int, duplicateCount: int, plannedMoves: int, plannedSkips: int}
+     * @return OutputCounters Immutable render counters shared with legacy execution
      */
     public function renderEntryLines(
         array $outputEntries,
         ?string $sourceBaseDirectory = null,
         ?array $showFilter = null,
-    ): array {
+    ): OutputCounters {
         // Compute max path length only over visible entries so padding is tight
         $maxFilenameLength = 0;
 
@@ -800,13 +812,9 @@ final readonly class RenameOutputRenderer
             // Rename entry (Structural type: Rename)
             if ($this->isTagVisible($entry->tag, $showFilter)) {
                 if ($entry->shouldSkip) {
-                    $skipReason = match ($entry->tag) {
-                        OutputEntryTag::Candidate => 'Conflicting Live Photo content ID across groups',
-                        OutputEntryTag::Review    => $entry->reason ?? 'Cross-group video review required',
-                        OutputEntryTag::Warning   => $entry->warningReason ?? 'Ambiguous timezone: QuickTime UTC without offset — use --timezone or rename:write-date --reason=timezone',
-                        OutputEntryTag::Fallback  => 'Fallback date: DateTime (0x0132) used instead of DateTimeOriginal',
-                        default                   => 'Skipped',
-                    };
+                    $skipReason = $this->skipReasonFormatter->format(
+                        $this->skipReasonDecider->decide($entry),
+                    );
 
                     $this->renderTwoLineReasonBlock($entry->tag, $linkedPath, $skipReason);
                 } else {
@@ -833,12 +841,12 @@ final readonly class RenameOutputRenderer
             }
         }
 
-        return [
-            'fileCount'      => $fileCount,
-            'duplicateCount' => $duplicateCount,
-            'plannedMoves'   => $plannedMoves,
-            'plannedSkips'   => $plannedSkips,
-        ];
+        return new OutputCounters(
+            fileCount: $fileCount,
+            duplicateCount: $duplicateCount,
+            plannedMoves: $plannedMoves,
+            plannedSkips: $plannedSkips,
+        );
     }
 
     /**
@@ -919,6 +927,68 @@ final readonly class RenameOutputRenderer
     }
 
     /**
+     * Builds the first non-duplicate target path per extension for a duplicate group.
+     *
+     * This lets duplicate MOV explanations point at the matching non-duplicate MOV
+     * target instead of always falling back to the canonical still target.
+     *
+     * @param iterable<Rename> $renames Planned renames inside one duplicate group
+     *
+     * @return array<string, string> First non-duplicate target path per normalized extension
+     */
+    private function buildReferenceTargetsByExtension(iterable $renames): array
+    {
+        $referenceTargetsByExt = [];
+
+        foreach ($renames as $rename) {
+            $renameBasename = FileHelper::basenameWithoutExtension($rename->getTarget());
+
+            if (str_contains($renameBasename, Constants::DUPLICATE_IDENTIFIER)) {
+                continue;
+            }
+
+            $normalizedExtension = FileHelper::normalizeExtension(
+                pathinfo($rename->getTarget()->getPathname(), PATHINFO_EXTENSION),
+            );
+
+            if ($normalizedExtension === '') {
+                continue;
+            }
+
+            $referenceTargetsByExt[$normalizedExtension] ??= $rename->getTarget()->getPathname();
+        }
+
+        return $referenceTargetsByExt;
+    }
+
+    /**
+     * Resolves the explanatory target used in "Duplicate of ..." info lines.
+     *
+     * The method prefers a non-duplicate target with the same extension and only
+     * falls back to the canonical target when no extension-specific reference exists.
+     *
+     * @param string                $duplicateTargetPath   Duplicate target path being explained
+     * @param string                $canonicalTargetPath   Canonical group target path
+     * @param array<string, string> $referenceTargetsByExt First non-duplicate target path per extension
+     * @param string|null           $sourceBaseDirectory   Base directory for relative display
+     *
+     * @return string Relative explanatory target path for CLI output
+     */
+    private function resolveDuplicateReferenceTargetPath(
+        string $duplicateTargetPath,
+        string $canonicalTargetPath,
+        array $referenceTargetsByExt,
+        ?string $sourceBaseDirectory,
+    ): string {
+        $normalizedExtension = FileHelper::normalizeExtension(
+            pathinfo($duplicateTargetPath, PATHINFO_EXTENSION),
+        );
+        $duplicateReferenceTargetPath = $referenceTargetsByExt[$normalizedExtension] ?? $canonicalTargetPath;
+
+        return FileHelper::relativizePath($duplicateReferenceTargetPath, $sourceBaseDirectory);
+    }
+
+    /**
      * Checks whether a duplicate identifier string uses the "live-photo:" prefix,
      * indicating the group was formed from Apple Live Photo content identifiers.
      *
@@ -990,281 +1060,6 @@ final readonly class RenameOutputRenderer
      */
     public function highlightDiff(string $source, string $target, string $baseColor): string
     {
-        if ($source === $target) {
-            return sprintf('<fg=%s>%s</>', $baseColor, $target);
-        }
-
-        [$sourcePrefix, $sourceFilename] = $this->splitPathPrefix($source);
-        [$targetPrefix, $targetFilename] = $this->splitPathPrefix($target);
-
-        // If the directory part already differs, render the complete target path
-        // using sequential token matching.
-        if ($sourcePrefix !== $targetPrefix) {
-            return $this->highlightSequentialTokenDiff($source, $target, $baseColor);
-        }
-
-        return sprintf('<fg=%s>%s</>', $baseColor, $targetPrefix)
-            . $this->highlightSequentialTokenDiff($sourceFilename, $targetFilename, $baseColor);
-    }
-
-    /**
-     * Splits a path into directory prefix and filename.
-     *
-     * The prefix includes the trailing slash or backslash when present.
-     *
-     * @return array{string, string}
-     */
-    private function splitPathPrefix(string $path): array
-    {
-        $slashPos     = strrpos($path, '/');
-        $backslashPos = strrpos($path, '\\');
-
-        $lastSlashPos = max(
-            $slashPos === false ? -1 : $slashPos,
-            $backslashPos === false ? -1 : $backslashPos,
-        );
-
-        if ($lastSlashPos < 0) {
-            return ['', $path];
-        }
-
-        return [
-            substr($path, 0, $lastSlashPos + 1),
-            substr($path, $lastSlashPos + 1),
-        ];
-    }
-
-    /**
-     * Highlights the target string by matching its tokens sequentially against
-     * the source string from left to right.
-     *
-     * This method implements a specialized diff visualization for filenames.
-     * Instead of a standard character-based LCS (Longest Common Subsequence)
-     * which can produce fragmented highlights for dates and counters, this
-     * approach tokenizes the target and tries to find each token in the source,
-     * maintaining a forward-only matching offset.
-     *
-     * Resulting states per token:
-     * - 'same': Exact character match found at or after current offset.
-     * - 'case-changed': Case-insensitive match found (e.g., '.JPG' vs '.jpg').
-     * - 'changed': No match found; token is considered new/changed.
-     *
-     * @param string $source    The original filename for comparison
-     * @param string $target    The new filename to highlight
-     * @param string $baseColor ANSI color for unchanged segments
-     *
-     * @return string ANSI-highlighted string
-     */
-    private function highlightSequentialTokenDiff(string $source, string $target, string $baseColor): string
-    {
-        $tokens = $this->tokenizeForSequentialDiff($target);
-        $flags  = $this->matchTargetTokensSequentially($source, $tokens);
-
-        return $this->renderHighlightedTokens($tokens, $flags, $baseColor);
-    }
-
-    /**
-     * Tokenizes a string into alphanumeric runs and separator runs.
-     *
-     * Examples:
-     * - "2015-07-31_06-42-43-000.avi"
-     *   => ["2015", "-", "07", "-", "31", "_", "06", "-", "42", "-", "43", "-", "000", ".", "avi"]
-     *
-     * @return list<string>
-     */
-    private function tokenizeForSequentialDiff(string $value): array
-    {
-        preg_match_all('/[[:alnum:]]+|[^[:alnum:]]/u', $value, $matches);
-
-        /** @var list<string> $tokens */
-        $tokens = $matches[0];
-
-        return $tokens;
-    }
-
-    /**
-     * Matches target tokens against the source string to determine their diff state.
-     *
-     * Iterates through the provided tokens and attempts to locate them in the
-     * source string, starting from the last successful match position. This
-     * ensures a stable, forward-moving match that reflects the structural
-     * changes in a filename (e.g. prepending a date or adding a suffix).
-     *
-     * @param string       $source The original string to match against
-     * @param list<string> $tokens Tokenized target string
-     *
-     * @return list<string> List of states ('same', 'case-changed', 'changed') for each token
-     */
-    private function matchTargetTokensSequentially(string $source, array $tokens): array
-    {
-        $states      = [];
-        $sourceChars = mb_str_split($source);
-        $sourceLen   = count($sourceChars);
-        $offset      = 0;
-
-        foreach ($tokens as $token) {
-            if ($this->isSeparatorToken($token)) {
-                $matched = $this->matchSeparatorNearOffset($sourceChars, $sourceLen, $token, $offset);
-
-                $states[] = $matched ? 'same' : 'changed';
-
-                if ($matched) {
-                    $offset += mb_strlen($token);
-                }
-
-                continue;
-            }
-
-            $position = $this->findTokenPosition($source, $token, $offset);
-
-            if ($position === null) {
-                $states[] = 'changed';
-
-                continue;
-            }
-
-            $sourceToken = mb_substr($source, $position, mb_strlen($token));
-
-            if ($sourceToken === $token) {
-                $states[] = 'same';
-            } elseif (mb_strtolower($sourceToken) === mb_strtolower($token)) {
-                $states[] = 'case-changed';
-            } else {
-                $states[] = 'changed';
-            }
-
-            $offset = $position + mb_strlen($token);
-        }
-
-        return $states;
-    }
-
-    /**
-     * Finds an alphanumeric token in the source string starting at the given offset.
-     *
-     * Matching is case-insensitive for pure alphabetic or alphanumeric words such
-     * as file extensions ("avi" vs "AVI", "mp4" vs "MP4").
-     *
-     * @return int|null Character offset or null when not found
-     */
-    private function findTokenPosition(string $source, string $token, int $offset): ?int
-    {
-        $position = mb_stripos($source, $token, $offset);
-
-        if ($position === false) {
-            return null;
-        }
-
-        return $position;
-    }
-
-    /**
-     * Attempts to match a separator token near the current source offset.
-     *
-     * Separators (non-alphanumeric characters) are handled with a very small
-     * lookahead window (1 character). This prevents a single added character
-     * from breaking the alignment of all subsequent separators while avoiding
-     * "false positive" matches from separators found much further ahead in
-     * the string.
-     *
-     * @param list<string> $sourceChars Multibyte character array of the source string
-     * @param int          $sourceLen   Total number of characters in the source
-     * @param string       $token       The separator token to match
-     * @param int          $offset      Current character offset in the source
-     *
-     * @return bool True if a match was found within the lookahead window
-     */
-    private function matchSeparatorNearOffset(array $sourceChars, int $sourceLen, string $token, int $offset): bool
-    {
-        $tokenChars = mb_str_split($token);
-        $tokenLen   = count($tokenChars);
-
-        for ($lookahead = 0; $lookahead <= 1; ++$lookahead) {
-            $matched = true;
-
-            for ($i = 0; $i < $tokenLen; ++$i) {
-                $sourceIndex = $offset + $lookahead + $i;
-
-                if (($sourceIndex >= $sourceLen) || ($sourceChars[$sourceIndex] !== $tokenChars[$i])) {
-                    $matched = false;
-
-                    break;
-                }
-            }
-
-            if ($matched) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Returns true when the token contains only non-alphanumeric characters.
-     */
-    private function isSeparatorToken(string $token): bool
-    {
-        return preg_match('/^[^[:alnum:]]+$/u', $token) === 1;
-    }
-
-    /**
-     * Renders the tokenized target string with ANSI color codes based on match states.
-     *
-     * Adjacent tokens with the same state are buffered and rendered as a single
-     * ANSI segment to minimize the length of the resulting string and improve
-     * terminal performance.
-     *
-     * @param list<string> $tokens    The original tokens
-     * @param list<string> $states    Calculated states ('same', 'case-changed', 'changed')
-     * @param string       $baseColor The color to use for 'same' segments
-     *
-     * @return string ANSI-formatted string
-     */
-    private function renderHighlightedTokens(array $tokens, array $states, string $baseColor): string
-    {
-        $result       = '';
-        $buffer       = '';
-        $currentState = null;
-
-        foreach ($tokens as $index => $token) {
-            $state = $states[$index];
-
-            if (($currentState !== null) && ($state !== $currentState) && ($buffer !== '')) {
-                $result .= $this->formatDiffSegment($buffer, $currentState, $baseColor);
-                $buffer = '';
-            }
-
-            $buffer .= $token;
-            $currentState = $state;
-        }
-
-        if (($buffer !== '') && ($currentState !== null)) {
-            $result .= $this->formatDiffSegment($buffer, $currentState, $baseColor);
-        }
-
-        return $result;
-    }
-
-    /**
-     * Formats a single segment of the diff with appropriate ANSI colors and options.
-     *
-     * - 'same': Rendered in base color.
-     * - 'case-changed': Rendered in bright base color + bold.
-     * - 'changed' (default): Rendered in bright base color + bold.
-     *
-     * @param string $value     The text segment to format
-     * @param string $state     The match state ('same', 'case-changed', or default)
-     * @param string $baseColor The base color name (e.g. 'green', 'gray')
-     *
-     * @return string The ANSI-formatted segment
-     */
-    private function formatDiffSegment(string $value, string $state, string $baseColor): string
-    {
-        return match ($state) {
-            'same'         => sprintf('<fg=%s>%s</>', $baseColor, $value),
-            'case-changed' => sprintf('<fg=bright-%s;options=bold>%s</>', $baseColor, $value),
-            default        => sprintf('<fg=bright-%s;options=bold>%s</>', $baseColor, $value),
-        };
+        return $this->diffHighlighter->highlightDiff($source, $target, $baseColor);
     }
 }
