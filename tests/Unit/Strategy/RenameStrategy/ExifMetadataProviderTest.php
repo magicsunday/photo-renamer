@@ -25,6 +25,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
+use Symfony\Component\Filesystem\Filesystem;
 
 use function file_put_contents;
 use function is_dir;
@@ -217,7 +218,7 @@ final class ExifMetadataProviderTest extends TestCase
             $file = new SplFileInfo($filePath);
 
             // Pre-populate the persistent cache
-            $cache = new MetadataCache($cacheFile);
+            $cache = new MetadataCache($cacheFile, new Filesystem());
             $cache->set($file, new TemporalMetadata(
                 new DateTimeImmutable('2024-05-05T12:34:56+02:00'),
                 'uuid-1234',
@@ -225,7 +226,7 @@ final class ExifMetadataProviderTest extends TestCase
             $cache->flush();
 
             // Create a fresh cache instance that loads from disk
-            $freshCache = new MetadataCache($cacheFile);
+            $freshCache = new MetadataCache($cacheFile, new Filesystem());
 
             // The extractor should NOT be called — we verify by not registering a response
             $metadataExtractor = new StubMetadataExtractor();
@@ -286,7 +287,7 @@ final class ExifMetadataProviderTest extends TestCase
                 ),
             );
 
-            $cache    = new MetadataCache($cacheFile);
+            $cache    = new MetadataCache($cacheFile, new Filesystem());
             $provider = new ExifMetadataProvider($metadataExtractor);
             $provider->setCache($cache);
 
@@ -298,7 +299,7 @@ final class ExifMetadataProviderTest extends TestCase
             $cache->flush();
 
             // Load from disk — the entry should be present
-            $freshCache = new MetadataCache($cacheFile);
+            $freshCache = new MetadataCache($cacheFile, new Filesystem());
             $entry      = $freshCache->get($file);
 
             self::assertNotNull($entry);
@@ -346,7 +347,7 @@ final class ExifMetadataProviderTest extends TestCase
                 ),
             );
 
-            $cache    = new MetadataCache($cacheFile);
+            $cache    = new MetadataCache($cacheFile, new Filesystem());
             $provider = new ExifMetadataProvider($metadataExtractor);
             $provider->setCache($cache);
 

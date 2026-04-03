@@ -20,6 +20,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
+use Symfony\Component\Filesystem\Filesystem;
 
 use function file_put_contents;
 use function is_dir;
@@ -100,7 +101,7 @@ final class MetadataCacheTest extends TestCase
     #[Test]
     public function getReturnsNullForUnknownFile(): void
     {
-        $cache = new MetadataCache($this->cacheFile);
+        $cache = $this->createCache();
         $file  = new SplFileInfo('/nonexistent/photo.jpg');
 
         self::assertNull($cache->get($file));
@@ -117,7 +118,7 @@ final class MetadataCacheTest extends TestCase
         file_put_contents($filePath, 'fake image data');
 
         $file  = new SplFileInfo($filePath);
-        $cache = new MetadataCache($this->cacheFile);
+        $cache = $this->createCache();
 
         $cache->set($file, new TemporalMetadata(
             new DateTimeImmutable('2024-05-05T12:34:56+02:00'),
@@ -143,7 +144,7 @@ final class MetadataCacheTest extends TestCase
         file_put_contents($filePath, 'original content');
 
         $file  = new SplFileInfo($filePath);
-        $cache = new MetadataCache($this->cacheFile);
+        $cache = $this->createCache();
 
         $cache->set($file, new TemporalMetadata(
             new DateTimeImmutable('2024-05-05T12:34:56+02:00'),
@@ -169,7 +170,7 @@ final class MetadataCacheTest extends TestCase
         file_put_contents($filePath, 'image data here!');
 
         $file  = new SplFileInfo($filePath);
-        $cache = new MetadataCache($this->cacheFile);
+        $cache = $this->createCache();
 
         $cache->set($file, new TemporalMetadata(
             new DateTimeImmutable('2024-05-05T12:34:56+02:00'),
@@ -196,7 +197,7 @@ final class MetadataCacheTest extends TestCase
         file_put_contents($filePath, 'persistent data');
 
         $file   = new SplFileInfo($filePath);
-        $cache1 = new MetadataCache($this->cacheFile);
+        $cache1 = $this->createCache();
 
         $cache1->set($file, new TemporalMetadata(
             new DateTimeImmutable('2024-01-01T00:00:00+00:00'),
@@ -209,7 +210,7 @@ final class MetadataCacheTest extends TestCase
         self::assertFileExists($this->cacheFile);
 
         // New instance should load the flushed entries
-        $cache2 = new MetadataCache($this->cacheFile);
+        $cache2 = $this->createCache();
         $entry  = $cache2->get($file);
 
         self::assertNotNull($entry);
@@ -226,7 +227,7 @@ final class MetadataCacheTest extends TestCase
     #[Test]
     public function flushDoesNotWriteWhenNotDirty(): void
     {
-        $cache = new MetadataCache($this->cacheFile);
+        $cache = $this->createCache();
         $cache->flush();
 
         self::assertFileDoesNotExist($this->cacheFile);
@@ -238,7 +239,7 @@ final class MetadataCacheTest extends TestCase
     #[Test]
     public function constructionWithMissingCacheFileIsGraceful(): void
     {
-        $cache = new MetadataCache($this->cacheFile);
+        $cache = $this->createCache();
 
         // Should not throw, simply start with empty entries
         self::assertNull($cache->get(new SplFileInfo('/any/file.jpg')));
@@ -255,7 +256,7 @@ final class MetadataCacheTest extends TestCase
         file_put_contents($filePath, 'no metadata');
 
         $file  = new SplFileInfo($filePath);
-        $cache = new MetadataCache($this->cacheFile);
+        $cache = $this->createCache();
 
         $cache->set($file, null);
 
@@ -278,7 +279,7 @@ final class MetadataCacheTest extends TestCase
         file_put_contents($filePath, 'data');
 
         $file  = new SplFileInfo($filePath);
-        $cache = new MetadataCache($this->cacheFile);
+        $cache = $this->createCache();
 
         $cache->set($file, new TemporalMetadata(
             new DateTimeImmutable('2024-06-15T08:00:00+00:00'),
@@ -290,5 +291,19 @@ final class MetadataCacheTest extends TestCase
 
         self::assertDirectoryExists($cacheDir);
         self::assertFileExists($this->cacheFile);
+    }
+
+    /**
+     * Creates the cache under test with a concrete Symfony Filesystem instance.
+     *
+     * Production code now injects the filesystem dependency explicitly instead
+     * of relying on constructor-default instantiation. Tests use this helper to
+     * keep the setup compact while preserving the same DI shape.
+     *
+     * @return MetadataCache Cache instance backed by the temporary workspace
+     */
+    private function createCache(): MetadataCache
+    {
+        return new MetadataCache($this->cacheFile, new Filesystem());
     }
 }

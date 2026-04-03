@@ -20,6 +20,7 @@ use MagicSunday\Renamer\Service\FormatPriorityResolver;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualSignalCache;
 use Phar;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Filesystem\Filesystem;
 
 use function getenv;
 use function in_array;
@@ -103,7 +104,7 @@ trait ConfiguresMetadataProvider
      */
     protected function configureProviderCache(ExifMetadataProvider $provider): MetadataCache
     {
-        $cache = new MetadataCache($this->resolveCacheDir() . '/metadata-cache.json');
+        $cache = new MetadataCache($this->resolveCacheDir() . '/metadata-cache.json', new Filesystem());
 
         $provider->setCache($cache);
 

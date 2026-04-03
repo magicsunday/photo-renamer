@@ -53,7 +53,7 @@ final class MetadataCache
      */
     public function __construct(
         private readonly string $cacheFile,
-        private readonly Filesystem $filesystem = new Filesystem(),
+        private readonly Filesystem $filesystem,
     ) {
         $this->load();
     }
