@@ -34,10 +34,8 @@ use SplFileInfo;
 use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
-use function array_key_exists;
 use function assert;
 use function count;
-use function is_string;
 use function strtolower;
 use function substr_count;
 use function usort;
@@ -159,26 +157,29 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
     private array $livePhotoConflictFiles = [];
 
     /**
-     * @param SymfonyStyle                             $io                               Symfony Style IO for progress indicators and error output.
-     * @param HashSubGroupingServiceInterface          $hashSubGroupingService           Service for content-based sub-grouping (deduplication).
-     * @param MediaTypeClassifierInterface             $mediaTypeClassifier              Classifier for media types (Photo vs. Video).
-     * @param LivePhotoConflictDetectorInterface|null  $livePhotoConflictDetector        Detector for ID conflicts in Live Photos.
-     * @param DuplicateCanonicalRenameSelector         $duplicateCanonicalRenameSelector Selector for canonical rename choice and promotion flags.
-     * @param DuplicateSuffixAssigner                  $duplicateSuffixAssigner          Assigns unique `-duplicate-NNN` targets in the legacy flow.
-     * @param LegacyLivePhotoCompanionDetector|null    $livePhotoCompanionDetector       Detects companion renames inside legacy Live Photo groups.
-     * @param LegacyLivePhotoTargetPromoter|null       $livePhotoTargetPromoter          Promotes live-photo canonicals from video targets to still targets.
-     * @param LegacyLivePhotoQualityFlagPropagator     $livePhotoQualityFlagPropagator   Propagates still-side quality flags to paired companion videos.
-     * @param LegacyLivePhotoDuplicateCoordinator|null $livePhotoDuplicateCoordinator    Coordinates companion detection and pair recording for legacy Live Photo groups.
-     * @param LegacyTargetPathResolver                 $targetPathResolver               Resolves absolute target pathnames while preserving legacy directory structure.
-     * @param LegacyTargetFileResolver                 $targetFileResolver               Resolves target-file results from generated filenames and strategy failures.
-     * @param LegacyTargetOccupancyChecker             $targetOccupancyChecker           Checks whether a target pathname is blocked by an external file.
-     * @param LegacyDuplicateTargetCandidateFactory    $duplicateTargetCandidateFactory  Builds concrete `-duplicate-NNN` target candidates in the legacy directory layout.
+     * @param SymfonyStyle                             $io                                 Symfony Style IO for progress indicators and error output.
+     * @param HashSubGroupingServiceInterface          $hashSubGroupingService             Service for content-based sub-grouping (deduplication).
+     * @param MediaTypeClassifierInterface             $mediaTypeClassifier                Classifier for media types (Photo vs. Video).
+     * @param LivePhotoConflictDetectorInterface|null  $livePhotoConflictDetector          Detector for ID conflicts in Live Photos.
+     * @param DuplicateCanonicalRenameSelector         $duplicateCanonicalRenameSelector   Selector for canonical rename choice and promotion flags.
+     * @param DuplicateSuffixAssigner                  $duplicateSuffixAssigner            Assigns unique `-duplicate-NNN` targets in the legacy flow.
+     * @param LegacyLivePhotoCompanionDetector|null    $livePhotoCompanionDetector         Detects companion renames inside legacy Live Photo groups.
+     * @param LegacyLivePhotoTargetPromoter|null       $livePhotoTargetPromoter            Promotes live-photo canonicals from video targets to still targets.
+     * @param LegacyLivePhotoQualityFlagPropagator     $livePhotoQualityFlagPropagator     Propagates still-side quality flags to paired companion videos.
+     * @param LegacyLivePhotoDuplicateCoordinator|null $livePhotoDuplicateCoordinator      Coordinates companion detection and pair recording for legacy Live Photo groups.
+     * @param LegacyTargetPathResolver                 $targetPathResolver                 Resolves absolute target pathnames while preserving legacy directory structure.
+     * @param LegacyTargetFileResolver                 $targetFileResolver                 Resolves target-file results from generated filenames and strategy failures.
+     * @param LegacyTargetOccupancyChecker             $targetOccupancyChecker             Checks whether a target pathname is blocked by an external file.
+     * @param LegacyDuplicateTargetCandidateFactory    $duplicateTargetCandidateFactory    Builds concrete `-duplicate-NNN` target candidates in the legacy directory layout.
+     * @param LegacyContentIdentifierCoordinator|null  $legacyContentIdentifierCoordinator Coordinates pending/skipped Live Photo content-ID handling in the legacy grouping pass.
      */
     private readonly LegacyLivePhotoTargetPromoter $livePhotoTargetPromoter;
 
     private readonly LegacyLivePhotoDuplicateCoordinator $livePhotoDuplicateCoordinator;
 
     private readonly LegacyDuplicateTargetCandidateFactory $duplicateTargetCandidateFactory;
+
+    private readonly LegacyContentIdentifierCoordinator $legacyContentIdentifierCoordinator;
 
     public function __construct(
         private readonly SymfonyStyle $io,
@@ -195,6 +196,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
         private readonly ?LegacyTargetFileResolver $targetFileResolver = new LegacyTargetFileResolver(),
         private readonly LegacyTargetOccupancyChecker $targetOccupancyChecker = new LegacyTargetOccupancyChecker(),
         ?LegacyDuplicateTargetCandidateFactory $duplicateTargetCandidateFactory = null,
+        ?LegacyContentIdentifierCoordinator $legacyContentIdentifierCoordinator = null,
     ) {
         $livePhotoCompanionDetector ??= new LegacyLivePhotoCompanionDetector($this->mediaTypeClassifier);
         $this->livePhotoTargetPromoter = $livePhotoTargetPromoter
@@ -206,6 +208,8 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
             );
         $this->duplicateTargetCandidateFactory = $duplicateTargetCandidateFactory
             ?? new LegacyDuplicateTargetCandidateFactory($this->targetPathResolver);
+        $this->legacyContentIdentifierCoordinator = $legacyContentIdentifierCoordinator
+            ?? new LegacyContentIdentifierCoordinator($this->mediaTypeClassifier);
     }
 
     /**
@@ -353,25 +357,19 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
                 $this->contentIdentifierMap[$sourceFileInfo->getPathname()] = $normalizedContentIdentifier;
             }
 
-            $contentIdentifierCacheEntry = null;
-
-            if ($normalizedContentIdentifier !== null) {
-                if (!array_key_exists($normalizedContentIdentifier, $contentIdentifierCache)) {
-                    $contentIdentifierCache[$normalizedContentIdentifier] = new ContentIdentifierCacheEntry();
-                }
-
-                $contentIdentifierCacheEntry = &$contentIdentifierCache[$normalizedContentIdentifier];
-            }
+            $contentIdentifierCacheEntry = $this->legacyContentIdentifierCoordinator->resolveCacheEntry(
+                $normalizedContentIdentifier,
+                $contentIdentifierCache,
+            );
 
             if ($result->isSkipped()) {
-                $this->handleSkippedFile(
+                $this->legacyContentIdentifierCoordinator->handleSkippedFile(
                     $sourceFileInfo,
                     $result,
                     $fileDuplicateCollection,
                     $contentIdentifierCacheEntry,
+                    $this->skippedFiles,
                 );
-
-                unset($contentIdentifierCacheEntry);
 
                 $progressBar->advance();
 
@@ -398,33 +396,13 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
             // receive the paired still image's timestamp, not their own.
             if (
                 ($contentIdentifierCacheEntry instanceof ContentIdentifierCacheEntry)
-                && !$this->mediaTypeClassifier->isLivePhotoStill($sourceFileInfo)
+                && $this->legacyContentIdentifierCoordinator->handleDeferredVideoCompanion(
+                    $sourceFileInfo,
+                    $result,
+                    $fileDuplicateCollection,
+                    $contentIdentifierCacheEntry,
+                )
             ) {
-                $cachedDuplicateIdentifier = $contentIdentifierCacheEntry->getDuplicateIdentifier();
-
-                if (
-                    is_string($cachedDuplicateIdentifier)
-                    && $fileDuplicateCollection->has($cachedDuplicateIdentifier)
-                ) {
-                    // Still image already processed — add video directly to its group.
-                    $existingDuplicate = $fileDuplicateCollection->get($cachedDuplicateIdentifier);
-
-                    if ($existingDuplicate instanceof FileDuplicate) {
-                        $existingDuplicate->addFile($sourceFileInfo);
-                    }
-                } else {
-                    // Still image not yet seen — queue for later resolution.
-                    // Store the target so we can fall back to the video's own date
-                    // if no companion still is found by end of loop.
-                    $contentIdentifierCacheEntry->addPendingFile($sourceFileInfo);
-
-                    if ($result->getTargetFile() instanceof SplFileInfo) {
-                        $contentIdentifierCacheEntry->rememberFallbackTarget($result->getTargetFile());
-                    }
-                }
-
-                unset($contentIdentifierCacheEntry);
-
                 $progressBar->advance();
 
                 continue;
@@ -448,12 +426,11 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
             }
 
             if ($duplicateIdentifier === false) {
-                if ($contentIdentifierCacheEntry instanceof ContentIdentifierCacheEntry) {
-                    $contentIdentifierCacheEntry->addPendingFile($sourceFileInfo);
-                    $contentIdentifierCacheEntry->rememberFallbackTarget($targetFileInfo);
-                }
-
-                unset($contentIdentifierCacheEntry);
+                $this->legacyContentIdentifierCoordinator->queuePendingFileForUnresolvedIdentifier(
+                    $sourceFileInfo,
+                    $targetFileInfo,
+                    $contentIdentifierCacheEntry,
+                );
 
                 $progressBar->advance();
 
@@ -481,20 +458,12 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
                 $fileDuplicateCollection->set($duplicateIdentifier, $fileDuplicate);
             }
 
-            if ($contentIdentifierCacheEntry instanceof ContentIdentifierCacheEntry) {
-                $contentIdentifierCacheEntry->rememberResolvedGroup(
-                    $duplicateIdentifier,
-                    $fileDuplicate->getTarget(),
-                );
-
-                foreach ($contentIdentifierCacheEntry->getPendingFiles() as $pendingFile) {
-                    $fileDuplicate->addFile($pendingFile);
-                }
-
-                $contentIdentifierCacheEntry->clearPendingFiles();
-            }
-
-            unset($contentIdentifierCacheEntry);
+            $this->legacyContentIdentifierCoordinator->attachToResolvedGroup(
+                $duplicateIdentifier,
+                $fileDuplicate,
+                $targetFileInfo,
+                $contentIdentifierCacheEntry,
+            );
 
             $progressBar->advance();
         }
@@ -504,48 +473,22 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
 
         // Resolve remaining pending video companions that have no paired still image.
         // These deferred videos fall back to their own EXIF date group.
-        foreach ($contentIdentifierCache as $cacheEntry) {
-            if (!$cacheEntry->hasPendingFiles()) {
-                continue;
-            }
-
-            $targetFileInfo = $cacheEntry->getTarget();
-
-            if (!$targetFileInfo instanceof SplFileInfo) {
-                continue;
-            }
-
-            try {
-                $duplicateIdentifier = $duplicateIdentifierStrategy->generateIdentifier(
-                    $cacheEntry->getPendingFiles()[0],
-                    $targetFileInfo,
-                );
-            } catch (HashComputationException) {
-                continue;
-            }
-
-            if ($duplicateIdentifier === false) {
-                continue;
-            }
-
-            if ($fileDuplicateCollection->has($duplicateIdentifier)) {
-                $fileDuplicate = $fileDuplicateCollection->get($duplicateIdentifier);
-
-                if (!$fileDuplicate instanceof FileDuplicate) {
-                    continue;
+        $this->legacyContentIdentifierCoordinator->resolvePendingFallbackGroups(
+            $contentIdentifierCache,
+            $fileDuplicateCollection,
+            function (SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo) use ($duplicateIdentifierStrategy): ?string {
+                try {
+                    $duplicateIdentifier = $duplicateIdentifierStrategy->generateIdentifier(
+                        $sourceFileInfo,
+                        $targetFileInfo,
+                    );
+                } catch (HashComputationException) {
+                    return null;
                 }
-            } else {
-                $fileDuplicate = new FileDuplicate()->setTarget($targetFileInfo);
-            }
 
-            foreach ($cacheEntry->getPendingFiles() as $pendingFile) {
-                $fileDuplicate->addFile($pendingFile);
-            }
-
-            if (!$fileDuplicateCollection->has($duplicateIdentifier)) {
-                $fileDuplicateCollection->set($duplicateIdentifier, $fileDuplicate);
-            }
-        }
+                return ($duplicateIdentifier === false) ? null : $duplicateIdentifier;
+            },
+        );
 
         if ($this->livePhotoConflictDetector instanceof LivePhotoConflictDetectorInterface) {
             $this->livePhotoConflictFiles = [
@@ -881,48 +824,6 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
         foreach ($files as $file) {
             $this->diskIndex[$file->getPathname()]   = true;
             $this->filesByPath[$file->getPathname()] = $file;
-        }
-    }
-
-    /**
-     * Handles a file whose rename strategy returned a skipped or error result.
-     *
-     * When a content identifier cache entry exists, the file is either added to an
-     * already-resolved duplicate group or queued as pending. Otherwise, it is recorded
-     * as a skipped file with its reason.
-     *
-     * @param SplFileInfo                      $sourceFileInfo              the source file being processed
-     * @param TargetFileResult                 $result                      the skipped/error result from the rename strategy
-     * @param FileDuplicateCollection          $fileDuplicateCollection     collection of discovered duplicate groups
-     * @param ContentIdentifierCacheEntry|null $contentIdentifierCacheEntry Cache entry for the file's content identifier, if one exists.
-     */
-    private function handleSkippedFile(
-        SplFileInfo $sourceFileInfo,
-        TargetFileResult $result,
-        FileDuplicateCollection $fileDuplicateCollection,
-        ?ContentIdentifierCacheEntry $contentIdentifierCacheEntry,
-    ): void {
-        if ($contentIdentifierCacheEntry instanceof ContentIdentifierCacheEntry) {
-            $cachedDuplicateIdentifier = $contentIdentifierCacheEntry->getDuplicateIdentifier();
-
-            if (
-                is_string($cachedDuplicateIdentifier)
-                && $fileDuplicateCollection->has($cachedDuplicateIdentifier)
-            ) {
-                $existingDuplicate = $fileDuplicateCollection->get($cachedDuplicateIdentifier);
-
-                if ($existingDuplicate instanceof FileDuplicate) {
-                    $existingDuplicate->addFile($sourceFileInfo);
-                }
-            } else {
-                $contentIdentifierCacheEntry->addPendingFile($sourceFileInfo);
-            }
-        } else {
-            $this->skippedFiles[] = new SkippedFile(
-                $sourceFileInfo,
-                $result->getSkipReason() ?? 'no capture date',
-                $result->isError(),
-            );
         }
     }
 
