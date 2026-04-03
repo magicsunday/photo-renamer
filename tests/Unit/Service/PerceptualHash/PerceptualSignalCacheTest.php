@@ -16,6 +16,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
+use Symfony\Component\Filesystem\Filesystem;
 
 use function clearstatcache;
 use function file_put_contents;
@@ -102,7 +103,7 @@ final class PerceptualSignalCacheTest extends TestCase
         file_put_contents($filePath, 'fake image data');
 
         $file  = new SplFileInfo($filePath);
-        $cache = new PerceptualSignalCache($this->cacheFile);
+        $cache = $this->createCache();
 
         $signals = [
             'dhash' => 'abcdef0123456789',
@@ -128,7 +129,7 @@ final class PerceptualSignalCacheTest extends TestCase
     #[Test]
     public function getReturnsNullForUnknownFile(): void
     {
-        $cache = new PerceptualSignalCache($this->cacheFile);
+        $cache = $this->createCache();
         $file  = new SplFileInfo('/nonexistent/photo.jpg');
 
         self::assertNull($cache->get($file));
@@ -145,7 +146,7 @@ final class PerceptualSignalCacheTest extends TestCase
         file_put_contents($filePath, 'image data here!');
 
         $file  = new SplFileInfo($filePath);
-        $cache = new PerceptualSignalCache($this->cacheFile);
+        $cache = $this->createCache();
 
         $cache->set($file, [
             'dhash' => 'aaaa',
@@ -174,7 +175,7 @@ final class PerceptualSignalCacheTest extends TestCase
         file_put_contents($filePath, 'original content');
 
         $file  = new SplFileInfo($filePath);
-        $cache = new PerceptualSignalCache($this->cacheFile);
+        $cache = $this->createCache();
 
         $cache->set($file, [
             'dhash' => 'cccc',
@@ -203,7 +204,7 @@ final class PerceptualSignalCacheTest extends TestCase
         file_put_contents($filePath, 'persistent data');
 
         $file   = new SplFileInfo($filePath);
-        $cache1 = new PerceptualSignalCache($this->cacheFile);
+        $cache1 = $this->createCache();
 
         $signals = [
             'dhash' => 'eeee',
@@ -218,7 +219,7 @@ final class PerceptualSignalCacheTest extends TestCase
         self::assertFileExists($this->cacheFile);
 
         // New instance should load the flushed entries
-        $cache2 = new PerceptualSignalCache($this->cacheFile);
+        $cache2 = $this->createCache();
         $result = $cache2->get($file);
 
         self::assertNotNull($result);
@@ -235,7 +236,7 @@ final class PerceptualSignalCacheTest extends TestCase
     #[Test]
     public function flushIsNoOpWhenClean(): void
     {
-        $cache = new PerceptualSignalCache($this->cacheFile);
+        $cache = $this->createCache();
         $cache->flush();
 
         self::assertFileDoesNotExist($this->cacheFile);
@@ -256,7 +257,7 @@ final class PerceptualSignalCacheTest extends TestCase
 
         file_put_contents($this->cacheFile, '{{{not valid json!!!');
 
-        $cache = new PerceptualSignalCache($this->cacheFile);
+        $cache = $this->createCache();
 
         self::assertNull($cache->get(new SplFileInfo('/any/file.jpg')));
     }
@@ -268,9 +269,22 @@ final class PerceptualSignalCacheTest extends TestCase
     #[Test]
     public function loadStartsEmptyWhenCacheFileMissing(): void
     {
-        $cache = new PerceptualSignalCache($this->cacheFile);
+        $cache = $this->createCache();
 
         // Should not throw, simply start with empty entries
         self::assertNull($cache->get(new SplFileInfo('/any/file.jpg')));
+    }
+
+    /**
+     * Creates the cache under test with an explicit Symfony Filesystem dependency.
+     *
+     * The production cache no longer instantiates its own filesystem collaborator.
+     * Tests use this helper so every construction path mirrors the new DI shape.
+     *
+     * @return PerceptualSignalCache Cache instance backed by the temporary workspace
+     */
+    private function createCache(): PerceptualSignalCache
+    {
+        return new PerceptualSignalCache($this->cacheFile, new Filesystem());
     }
 }

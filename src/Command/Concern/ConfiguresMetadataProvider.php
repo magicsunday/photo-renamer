@@ -121,7 +121,7 @@ trait ConfiguresMetadataProvider
      */
     protected function createPerceptualSignalCache(): PerceptualSignalCache
     {
-        return new PerceptualSignalCache($this->resolveCacheDir() . '/perceptual-signal-cache.json');
+        return new PerceptualSignalCache($this->resolveCacheDir() . '/perceptual-signal-cache.json', new Filesystem());
     }
 
     /**
