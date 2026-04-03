@@ -38,22 +38,4 @@ final readonly class OutputCounters
         public int $plannedSkips,
     ) {
     }
-
-    /**
-     * Converts the DTO into the associative shape expected by existing summary code.
-     *
-     * This keeps the current summary assembly stable while the wider output
-     * boundary is still being decomposed in smaller Wave 2 slices.
-     *
-     * @return array{fileCount: int, duplicateCount: int, plannedMoves: int, plannedSkips: int}
-     */
-    public function toArray(): array
-    {
-        return [
-            'fileCount'      => $this->fileCount,
-            'duplicateCount' => $this->duplicateCount,
-            'plannedMoves'   => $this->plannedMoves,
-            'plannedSkips'   => $this->plannedSkips,
-        ];
-    }
 }

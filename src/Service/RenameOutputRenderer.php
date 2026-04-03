@@ -35,6 +35,7 @@ use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
 use MagicSunday\Renamer\Service\Output\OutputEntryTagResolution;
 use MagicSunday\Renamer\Service\Output\OutputSkipFlags;
 use MagicSunday\Renamer\Service\Output\OutputSummaryRowBuilder;
+use MagicSunday\Renamer\Service\Output\RenameSummaryCounters;
 use MagicSunday\Renamer\Service\Output\SkippedFileAppendResult;
 use MagicSunday\Renamer\Service\Output\SummaryRow;
 use Symfony\Component\Console\Style\SymfonyStyle;
@@ -312,9 +313,9 @@ final readonly class RenameOutputRenderer
     /**
      * Renders the summary table with file counts and statistics.
      *
-     * @param array<string, int> $counters
+     * @param RenameSummaryCounters $counters Summary counters for the footer table
      */
-    public function renderSummary(array $counters, bool $dryRun): void
+    public function renderSummary(RenameSummaryCounters $counters, bool $dryRun): void
     {
         $this->io->newLine();
 
@@ -507,18 +508,18 @@ final readonly class RenameOutputRenderer
             }
         }
 
-        $this->renderSummary([
-            'scannedFiles'               => $result->scannedFiles,
-            'skippedCount'               => $skippedCount,
-            'errorCount'                 => $errorCount,
-            'livePhotoGroups'            => $plan->livePhotoGroupCount(),
-            'namingCollisions'           => $result->namingCollisions,
-            'crossGroupVideoReviewCount' => $result->crossGroupVideoReviewCount,
-            'fileCount'                  => $preview->plannedMoves,
-            'duplicateCount'             => $preview->duplicateCount,
-            'plannedMoves'               => $preview->plannedMoves,
-            'plannedSkips'               => $preview->plannedSkips,
-        ], $dryRun);
+        $this->renderSummary(new RenameSummaryCounters(
+            scannedFiles: $result->scannedFiles,
+            skippedCount: $skippedCount,
+            errorCount: $errorCount,
+            livePhotoGroups: $plan->livePhotoGroupCount(),
+            namingCollisions: $result->namingCollisions,
+            fileCount: $preview->plannedMoves,
+            duplicateCount: $preview->duplicateCount,
+            plannedMoves: $preview->plannedMoves,
+            plannedSkips: $preview->plannedSkips,
+            crossGroupVideoReviewCount: $result->crossGroupVideoReviewCount,
+        ), $dryRun);
     }
 
     /**

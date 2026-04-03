@@ -45,6 +45,7 @@ use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\FallbackOutputSkipR
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\ReviewOutputSkipReasonRule;
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\WarningOutputSkipReasonRule;
 use MagicSunday\Renamer\Service\Output\OutputSummaryRowBuilder;
+use MagicSunday\Renamer\Service\Output\RenameSummaryCounters;
 use MagicSunday\Renamer\Service\Output\SkipReasonFormatter;
 use MagicSunday\Renamer\Service\Output\SummaryRow;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
@@ -100,6 +101,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 #[UsesClass(ReviewOutputSkipReasonRule::class)]
 #[UsesClass(WarningOutputSkipReasonRule::class)]
 #[UsesClass(OutputSummaryRowBuilder::class)]
+#[UsesClass(RenameSummaryCounters::class)]
 #[UsesClass(SkipReasonFormatter::class)]
 #[UsesClass(SummaryRow::class)]
 final class RenameOutputRendererTest extends TestCase
@@ -432,17 +434,17 @@ final class RenameOutputRendererTest extends TestCase
     {
         [$renderer, $output] = $this->createRenderer();
 
-        $renderer->renderSummary([
-            'scannedFiles'     => 10,
-            'skippedCount'     => 2,
-            'errorCount'       => 1,
-            'livePhotoGroups'  => 3,
-            'namingCollisions' => 4,
-            'fileCount'        => 5,
-            'duplicateCount'   => 6,
-            'plannedMoves'     => 7,
-            'plannedSkips'     => 8,
-        ], false);
+        $renderer->renderSummary(new RenameSummaryCounters(
+            scannedFiles: 10,
+            skippedCount: 2,
+            errorCount: 1,
+            livePhotoGroups: 3,
+            namingCollisions: 4,
+            fileCount: 5,
+            duplicateCount: 6,
+            plannedMoves: 7,
+            plannedSkips: 8,
+        ), false);
 
         $buffer = $output->fetch();
 
@@ -467,17 +469,17 @@ final class RenameOutputRendererTest extends TestCase
     {
         [$renderer, $output] = $this->createRenderer();
 
-        $renderer->renderSummary([
-            'scannedFiles'     => 5,
-            'skippedCount'     => 0,
-            'errorCount'       => 0,
-            'livePhotoGroups'  => 0,
-            'namingCollisions' => 0,
-            'fileCount'        => 3,
-            'duplicateCount'   => 0,
-            'plannedMoves'     => 3,
-            'plannedSkips'     => 0,
-        ], true);
+        $renderer->renderSummary(new RenameSummaryCounters(
+            scannedFiles: 5,
+            skippedCount: 0,
+            errorCount: 0,
+            livePhotoGroups: 0,
+            namingCollisions: 0,
+            fileCount: 3,
+            duplicateCount: 0,
+            plannedMoves: 3,
+            plannedSkips: 0,
+        ), true);
 
         $buffer = $output->fetch();
 
@@ -493,17 +495,17 @@ final class RenameOutputRendererTest extends TestCase
     {
         [$renderer, $output] = $this->createRenderer();
 
-        $renderer->renderSummary([
-            'scannedFiles'     => 5,
-            'skippedCount'     => 0,
-            'errorCount'       => 0,
-            'livePhotoGroups'  => 0,
-            'namingCollisions' => 0,
-            'fileCount'        => 3,
-            'duplicateCount'   => 0,
-            'plannedMoves'     => 3,
-            'plannedSkips'     => 0,
-        ], false);
+        $renderer->renderSummary(new RenameSummaryCounters(
+            scannedFiles: 5,
+            skippedCount: 0,
+            errorCount: 0,
+            livePhotoGroups: 0,
+            namingCollisions: 0,
+            fileCount: 3,
+            duplicateCount: 0,
+            plannedMoves: 3,
+            plannedSkips: 0,
+        ), false);
 
         $buffer = $output->fetch();
 

@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service\Output;
 
 use MagicSunday\Renamer\Service\Output\OutputSummaryRowBuilder;
+use MagicSunday\Renamer\Service\Output\RenameSummaryCounters;
 use MagicSunday\Renamer\Service\Output\SummaryRow;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -29,6 +30,7 @@ use PHPUnit\Framework\TestCase;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(OutputSummaryRowBuilder::class)]
+#[CoversClass(RenameSummaryCounters::class)]
 #[CoversClass(SummaryRow::class)]
 final class OutputSummaryRowBuilderTest extends TestCase
 {
@@ -49,17 +51,17 @@ final class OutputSummaryRowBuilderTest extends TestCase
                 new SummaryRow('Duplicates found', '6'),
                 new SummaryRow('Files processed', '5'),
             ],
-            $builder->build([
-                'scannedFiles'     => 10,
-                'skippedCount'     => 2,
-                'errorCount'       => 0,
-                'livePhotoGroups'  => 0,
-                'namingCollisions' => 0,
-                'fileCount'        => 5,
-                'duplicateCount'   => 6,
-                'plannedMoves'     => 7,
-                'plannedSkips'     => 0,
-            ], false),
+            $builder->build(new RenameSummaryCounters(
+                scannedFiles: 10,
+                skippedCount: 2,
+                errorCount: 0,
+                livePhotoGroups: 0,
+                namingCollisions: 0,
+                fileCount: 5,
+                duplicateCount: 6,
+                plannedMoves: 7,
+                plannedSkips: 0,
+            ), false),
         );
     }
 
@@ -78,18 +80,18 @@ final class OutputSummaryRowBuilderTest extends TestCase
                 new SummaryRow('Cross-group video review', '3'),
                 new SummaryRow('Files to process', '4'),
             ],
-            $builder->build([
-                'scannedFiles'               => 12,
-                'skippedCount'               => 0,
-                'errorCount'                 => 0,
-                'livePhotoGroups'            => 0,
-                'namingCollisions'           => 0,
-                'fileCount'                  => 4,
-                'duplicateCount'             => 0,
-                'plannedMoves'               => 0,
-                'plannedSkips'               => 0,
-                'crossGroupVideoReviewCount' => 3,
-            ], true),
+            $builder->build(new RenameSummaryCounters(
+                scannedFiles: 12,
+                skippedCount: 0,
+                errorCount: 0,
+                livePhotoGroups: 0,
+                namingCollisions: 0,
+                fileCount: 4,
+                duplicateCount: 0,
+                plannedMoves: 0,
+                plannedSkips: 0,
+                crossGroupVideoReviewCount: 3,
+            ), true),
         );
     }
 }

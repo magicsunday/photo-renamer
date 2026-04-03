@@ -11,8 +11,6 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Output;
 
-use function array_key_exists;
-
 /**
  * Projects output counters into the operator-facing summary rows rendered at
  * the end of rename and preview flows.
@@ -35,50 +33,50 @@ final class OutputSummaryRowBuilder
      * summary stays compact. The final row switches between "Files processed"
      * and "Files to process" based on dry-run mode.
      *
-     * @param array<string, int> $counters Runtime or preview counters keyed by their stable summary names.
-     * @param bool               $dryRun   Whether the command is currently simulating changes.
+     * @param RenameSummaryCounters $counters Runtime or preview counters for the summary footer.
+     * @param bool                  $dryRun   Whether the command is currently simulating changes.
      *
      * @return list<SummaryRow> Ordered summary rows ready for aligned rendering.
      */
-    public function build(array $counters, bool $dryRun): array
+    public function build(RenameSummaryCounters $counters, bool $dryRun): array
     {
         $rows = [
-            new SummaryRow('Scanned files', (string) $counters['scannedFiles']),
+            new SummaryRow('Scanned files', (string) $counters->scannedFiles),
         ];
 
-        if ($counters['skippedCount'] > 0) {
-            $rows[] = new SummaryRow('Skipped (no metadata)', (string) $counters['skippedCount']);
+        if ($counters->skippedCount > 0) {
+            $rows[] = new SummaryRow('Skipped (no metadata)', (string) $counters->skippedCount);
         }
 
-        if ($counters['errorCount'] > 0) {
-            $rows[] = new SummaryRow('Skipped (read errors)', (string) $counters['errorCount']);
+        if ($counters->errorCount > 0) {
+            $rows[] = new SummaryRow('Skipped (read errors)', (string) $counters->errorCount);
         }
 
-        if ($counters['plannedMoves'] > 0) {
-            $rows[] = new SummaryRow('Planned moves', (string) $counters['plannedMoves']);
+        if ($counters->plannedMoves > 0) {
+            $rows[] = new SummaryRow('Planned moves', (string) $counters->plannedMoves);
         }
 
-        if ($counters['plannedSkips'] > 0) {
-            $rows[] = new SummaryRow('Planned skips', (string) $counters['plannedSkips']);
+        if ($counters->plannedSkips > 0) {
+            $rows[] = new SummaryRow('Planned skips', (string) $counters->plannedSkips);
         }
 
-        if ($counters['livePhotoGroups'] > 0) {
-            $rows[] = new SummaryRow('Live Photo groups', (string) $counters['livePhotoGroups']);
+        if ($counters->livePhotoGroups > 0) {
+            $rows[] = new SummaryRow('Live Photo groups', (string) $counters->livePhotoGroups);
         }
 
-        if ($counters['duplicateCount'] > 0) {
-            $rows[] = new SummaryRow('Duplicates found', (string) $counters['duplicateCount']);
+        if ($counters->duplicateCount > 0) {
+            $rows[] = new SummaryRow('Duplicates found', (string) $counters->duplicateCount);
         }
 
-        if ($counters['namingCollisions'] > 0) {
-            $rows[] = new SummaryRow('Naming collisions', (string) $counters['namingCollisions']);
+        if ($counters->namingCollisions > 0) {
+            $rows[] = new SummaryRow('Naming collisions', (string) $counters->namingCollisions);
         }
 
-        if (array_key_exists('crossGroupVideoReviewCount', $counters) && ($counters['crossGroupVideoReviewCount'] > 0)) {
-            $rows[] = new SummaryRow('Cross-group video review', (string) $counters['crossGroupVideoReviewCount']);
+        if ($counters->crossGroupVideoReviewCount > 0) {
+            $rows[] = new SummaryRow('Cross-group video review', (string) $counters->crossGroupVideoReviewCount);
         }
 
-        $rows[] = new SummaryRow($dryRun ? 'Files to process' : 'Files processed', (string) $counters['fileCount']);
+        $rows[] = new SummaryRow($dryRun ? 'Files to process' : 'Files processed', (string) $counters->fileCount);
 
         return $rows;
     }

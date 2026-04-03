@@ -16,6 +16,7 @@ use MagicSunday\Renamer\Model\OutputEntry;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
 use MagicSunday\Renamer\Service\Output\OutputCounters;
+use MagicSunday\Renamer\Service\Output\RenameSummaryCounters;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use SplFileInfo;
@@ -86,14 +87,17 @@ final readonly class LegacyRenameExecutor
 
         $counters = $this->renderOutputEntries($buildResult->entries, $options, $occupiedPaths, $sourceBaseDirectory, $showFilter);
 
-        $this->renderer->renderSummary([
-            'scannedFiles'     => $result->scannedFiles > 0 ? $result->scannedFiles : $totalOperations,
-            'skippedCount'     => $buildResult->skippedCount,
-            'errorCount'       => $buildResult->errorCount,
-            'livePhotoGroups'  => $livePhotoGroups,
-            'namingCollisions' => $result->namingCollisions,
-            ...$counters->toArray(),
-        ], $options->dryRun);
+        $this->renderer->renderSummary(new RenameSummaryCounters(
+            scannedFiles: $result->scannedFiles > 0 ? $result->scannedFiles : $totalOperations,
+            skippedCount: $buildResult->skippedCount,
+            errorCount: $buildResult->errorCount,
+            livePhotoGroups: $livePhotoGroups,
+            namingCollisions: $result->namingCollisions,
+            fileCount: $counters->fileCount,
+            duplicateCount: $counters->duplicateCount,
+            plannedMoves: $counters->plannedMoves,
+            plannedSkips: $counters->plannedSkips,
+        ), $options->dryRun);
     }
 
     /**
