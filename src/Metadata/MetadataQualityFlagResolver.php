@@ -40,22 +40,19 @@ final class MetadataQualityFlagResolver
      * @param SplFileInfo                          $file     File to inspect
      * @param MetadataAwareRenameStrategyInterface $strategy Rename strategy exposing quality indicators
      *
-     * @return array{hasFallbackDate: bool, hasAmbiguousTimezone: bool} Actionable quality flags
+     * @return MetadataQualityFlags Actionable quality flags for downstream annotation.
      */
     public static function resolve(
         SplFileInfo $file,
         MetadataAwareRenameStrategyInterface $strategy,
-    ): array {
+    ): MetadataQualityFlags {
         if ($strategy->hasReliableDateTime($file)) {
-            return [
-                'hasFallbackDate'      => false,
-                'hasAmbiguousTimezone' => false,
-            ];
+            return new MetadataQualityFlags(false, false);
         }
 
-        return [
-            'hasFallbackDate'      => $strategy->isFallbackDateTime($file),
-            'hasAmbiguousTimezone' => $strategy->isAmbiguousTimezone($file),
-        ];
+        return new MetadataQualityFlags(
+            $strategy->isFallbackDateTime($file),
+            $strategy->isAmbiguousTimezone($file),
+        );
     }
 }

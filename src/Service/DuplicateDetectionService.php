@@ -381,11 +381,11 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
             if ($renameStrategy instanceof MetadataAwareRenameStrategyInterface) {
                 $qualityFlags = MetadataQualityFlagResolver::resolve($sourceFileInfo, $renameStrategy);
 
-                if ($qualityFlags['hasFallbackDate']) {
+                if ($qualityFlags->hasFallbackDate()) {
                     $this->fallbackDateFiles[$sourceFileInfo->getPathname()] = true;
                 }
 
-                if ($qualityFlags['hasAmbiguousTimezone']) {
+                if ($qualityFlags->hasAmbiguousTimezone()) {
                     $this->ambiguousTimezoneFiles[$sourceFileInfo->getPathname()] = true;
                 }
             }

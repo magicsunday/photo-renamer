@@ -48,11 +48,11 @@ final readonly class CaptureGroupQualityTracker
 
         $qualityFlags = MetadataQualityFlagResolver::resolve($file, $strategy);
 
-        if ($qualityFlags['hasFallbackDate']) {
+        if ($qualityFlags->hasFallbackDate()) {
             $context->addFallbackDateFile($file->getPathname());
         }
 
-        if ($qualityFlags['hasAmbiguousTimezone']) {
+        if ($qualityFlags->hasAmbiguousTimezone()) {
             $context->addAmbiguousTimezoneFile($file->getPathname());
         }
     }

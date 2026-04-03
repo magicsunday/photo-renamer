@@ -12,9 +12,11 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Metadata;
 
 use MagicSunday\Renamer\Metadata\MetadataQualityFlagResolver;
+use MagicSunday\Renamer\Metadata\MetadataQualityFlags;
 use MagicSunday\Renamer\Strategy\RenameStrategy\MetadataAwareRenameStrategyInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
 
@@ -27,6 +29,7 @@ use SplFileInfo;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(MetadataQualityFlagResolver::class)]
+#[UsesClass(MetadataQualityFlags::class)]
 final class MetadataQualityFlagResolverTest extends TestCase
 {
     /**
@@ -44,13 +47,10 @@ final class MetadataQualityFlagResolverTest extends TestCase
             ->with($file)
             ->willReturn(true);
 
-        self::assertSame(
-            [
-                'hasFallbackDate'      => false,
-                'hasAmbiguousTimezone' => false,
-            ],
-            MetadataQualityFlagResolver::resolve($file, $strategy),
-        );
+        $flags = MetadataQualityFlagResolver::resolve($file, $strategy);
+
+        self::assertFalse($flags->hasFallbackDate());
+        self::assertFalse($flags->hasAmbiguousTimezone());
     }
 
     /**
@@ -76,12 +76,9 @@ final class MetadataQualityFlagResolverTest extends TestCase
             ->with($file)
             ->willReturn(true);
 
-        self::assertSame(
-            [
-                'hasFallbackDate'      => false,
-                'hasAmbiguousTimezone' => true,
-            ],
-            MetadataQualityFlagResolver::resolve($file, $strategy),
-        );
+        $flags = MetadataQualityFlagResolver::resolve($file, $strategy);
+
+        self::assertFalse($flags->hasFallbackDate());
+        self::assertTrue($flags->hasAmbiguousTimezone());
     }
 }
