@@ -39,6 +39,25 @@ This is not a generic “more classes” plan. The intent is to reduce hidden co
 
 ---
 
+## Completion status
+
+Status as of `2026-04-03`:
+
+- Phase 0 completed
+- Phase 1 completed
+- Phase 2 completed
+- Phase 3 completed
+- Phase 4 completed
+- Feature Track A completed
+- Phase 5 completed
+- Phase 6 intentionally skipped per decision rule
+
+Phase 6 remains skipped deliberately: `HashSubGroupingService` is still large,
+but after Phases 1-5 and Feature Track A it remains domain-coherent and no
+longer represents the highest-maintenance hotspot in the project.
+
+---
+
 ## Current assessment
 
 ### Already structurally strong
