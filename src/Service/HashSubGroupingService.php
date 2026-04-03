@@ -25,9 +25,9 @@ use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzer;
 use MagicSunday\Renamer\Service\PerceptualHash\LocalDiffResult;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityResult;
+use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use Override;
 use SplFileInfo;
-use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function array_key_exists;
 use function array_keys;
@@ -88,7 +88,7 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
 
     /**
      * @param SafeHashCalculatorInterface       $hashCalculator           Computes file content hashes for sub-group keying
-     * @param SymfonyStyle                      $io                       Console IO for error output on hash computation failures
+     * @param ProgressReporterInterface         $progressReporter         Narrow reporting boundary for recoverable diagnostics
      * @param MediaTypeClassifierInterface      $mediaTypeClassifier      Classifies files as still or video
      * @param PerceptualHashCalculatorInterface $perceptualHashCalculator Multi-signal similarity scoring
      * @param LocalDifferenceAnalyzer           $localDiffAnalyzer        Stage B: local blob analysis for score ≥ 95 pairs
@@ -96,7 +96,7 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
      */
     public function __construct(
         private readonly SafeHashCalculatorInterface $hashCalculator,
-        private readonly SymfonyStyle $io,
+        private readonly ProgressReporterInterface $progressReporter,
         private readonly MediaTypeClassifierInterface $mediaTypeClassifier,
         private readonly PerceptualHashCalculatorInterface $perceptualHashCalculator,
         private readonly LocalDifferenceAnalyzer $localDiffAnalyzer,
@@ -182,7 +182,7 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
             try {
                 $hash = $this->hashCalculator->hashFile($rename->getSource(), 'xxh128');
             } catch (HashComputationException $exception) {
-                $this->io->error($exception->getMessage());
+                $this->progressReporter->error($exception->getMessage());
 
                 // Treat as unique hash (own sub-group).
                 $hash = '__failed_' . $uniqueHashCounter;
@@ -850,17 +850,13 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
         string $reason,
         ?float $elapsed = null,
     ): void {
-        if (!$this->io->isDebug()) {
-            return;
-        }
-
         $nameA   = basename($fileA->getPathname());
         $nameB   = basename($fileB->getPathname());
         $verdict = $merge ? '<info>MERGE</info>' : '<comment>NO MERGE</comment>';
         $time    = ($elapsed !== null) ? sprintf(' %.0fms', $elapsed * 1000) : '';
         $rmse    = ($diff instanceof LocalDiffResult) ? sprintf(' rmse=%.4f chroma=%.4f', $diff->rmse, $diff->chromaDifference) : '';
 
-        $this->io->writeln(sprintf(
+        $this->progressReporter->debug(sprintf(
             '  [merge] %s <-> %s | score=%d dHash=%d color=%.3f |%s | %s (%s)%s',
             $nameA,
             $nameB,

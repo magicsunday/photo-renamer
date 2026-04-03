@@ -11,7 +11,6 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Pipeline;
 
-use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\AssetGroup;
@@ -21,9 +20,9 @@ use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Service\HashSubGroupingServiceInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
+use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use Override;
 use SplFileInfo;
-use Symfony\Component\Console\Style\SymfonyStyle;
 use Throwable;
 
 use function sprintf;
@@ -48,13 +47,13 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
      * @param HashSubGroupingServiceInterface $hashSubGroupingService Existing hash-based sub-grouping service
      * @param MediaTypeClassifierInterface    $mediaTypeClassifier    Classifies files as Live Photo stills or videos for companion bridging
      * @param OrphanLivePhotoVideoReconciler  $orphanVideoReconciler  Specialized pre-pass for orphan MOV reconciliation
-     * @param SymfonyStyle                    $io                     Console output for progress feedback
+     * @param ProgressReporterInterface       $progressReporter       Narrow reporting boundary for progress headings and diagnostics
      */
     public function __construct(
         private HashSubGroupingServiceInterface $hashSubGroupingService,
         private MediaTypeClassifierInterface $mediaTypeClassifier,
         private OrphanLivePhotoVideoReconciler $orphanVideoReconciler,
-        private SymfonyStyle $io,
+        private ProgressReporterInterface $progressReporter,
     ) {
     }
 
@@ -85,12 +84,8 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
             return;
         }
 
-        $this->io->newLine();
-        $this->io->text('<fg=cyan>Classifying subgroups</>');
-
-        $progressBar = $this->io->createProgressBar($groupsToClassify);
-        $progressBar->setFormat(Constants::PROGRESS_BAR_FORMAT);
-        $progressBar->start();
+        $this->progressReporter->section('<fg=cyan>Classifying subgroups</>');
+        $this->progressReporter->startProgress($groupsToClassify);
 
         foreach ($groups as $group) {
             if ($group->itemCount() <= 1) {
@@ -103,11 +98,10 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
                 $this->hashSubGroupingService->clearCache();
             }
 
-            $progressBar->advance();
+            $this->progressReporter->advance();
         }
 
-        $progressBar->finish();
-        $this->io->newLine();
+        $this->progressReporter->finish();
     }
 
     /**

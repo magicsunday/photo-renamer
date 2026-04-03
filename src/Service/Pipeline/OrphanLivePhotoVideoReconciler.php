@@ -11,14 +11,12 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Pipeline;
 
-use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
-use Symfony\Component\Console\Helper\ProgressBar;
-use Symfony\Component\Console\Style\SymfonyStyle;
+use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 
 use function array_keys;
 use function is_array;
@@ -42,12 +40,12 @@ final readonly class OrphanLivePhotoVideoReconciler
     /**
      * @param MediaTypeClassifierInterface      $mediaTypeClassifier      Classifies files as Live Photo stills or videos
      * @param PerceptualHashCalculatorInterface $perceptualHashCalculator Multi-frame similarity scoring for candidate videos
-     * @param SymfonyStyle                      $io                       Console output used for progress reporting
+     * @param ProgressReporterInterface         $progressReporter         Narrow reporting boundary for progress headings and diagnostics
      */
     public function __construct(
         private MediaTypeClassifierInterface $mediaTypeClassifier,
         private PerceptualHashCalculatorInterface $perceptualHashCalculator,
-        private SymfonyStyle $io,
+        private ProgressReporterInterface $progressReporter,
     ) {
     }
 
@@ -72,22 +70,16 @@ final readonly class OrphanLivePhotoVideoReconciler
 
         $comparisonCount = $this->countReconciliationComparisons($orphanVideos, $candidateCompanions);
 
-        $this->io->newLine();
-        $this->io->text('<fg=cyan>Reconciling orphan Live Photo videos</>');
-
-        $progressBar = $this->io->createProgressBar(max($comparisonCount, 1));
-        $progressBar->setFormat(Constants::PROGRESS_BAR_FORMAT);
-        $progressBar->start();
+        $this->progressReporter->section('<fg=cyan>Reconciling orphan Live Photo videos</>');
+        $this->progressReporter->startProgress($comparisonCount);
 
         $this->mergeOrphanVideoDuplicatesIntoLivePhotoGroups(
             $groups,
             $candidateCompanions,
             $orphanVideos,
-            $progressBar,
         );
 
-        $progressBar->finish();
-        $this->io->newLine();
+        $this->progressReporter->finish();
     }
 
     /**
@@ -97,13 +89,11 @@ final readonly class OrphanLivePhotoVideoReconciler
      * @param AssetGroupCollection                            $groups              Groups discovered by CaptureGroupBuilder
      * @param list<array{group: AssetGroup, item: AssetItem}> $candidateCompanions Valid existing companion videos
      * @param list<array{groupKey: string, item: AssetItem}>  $orphanVideos        Orphan singleton video groups with their video item
-     * @param ProgressBar                                     $progressBar         Progress bar for CLI feedback
      */
     private function mergeOrphanVideoDuplicatesIntoLivePhotoGroups(
         AssetGroupCollection $groups,
         array $candidateCompanions,
         array $orphanVideos,
-        ProgressBar $progressBar,
     ): void {
         foreach ($orphanVideos as $orphanEntry) {
             $groupKey = $orphanEntry['groupKey'];
@@ -130,7 +120,7 @@ final readonly class OrphanLivePhotoVideoReconciler
                     $orphanVideo->metadata?->getVideoDurationSeconds(),
                     $candidate['item']->metadata?->getVideoDurationSeconds(),
                 );
-                $progressBar->advance();
+                $this->progressReporter->advance();
 
                 if (!$similarity->isDuplicateLikely()) {
                     continue;

@@ -28,6 +28,7 @@ use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface
 use MagicSunday\Renamer\Service\Pipeline\OrphanLivePhotoVideoReconciler;
 use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifier;
 use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifierInterface;
+use MagicSunday\Renamer\Service\Reporting\NullProgressReporter;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
@@ -35,9 +36,6 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use SplFileInfo;
-use Symfony\Component\Console\Input\ArrayInput;
-use Symfony\Component\Console\Output\BufferedOutput;
-use Symfony\Component\Console\Style\SymfonyStyle;
 
 /**
  * Verifies SubgroupClassifier delegates to HashSubGroupingService and maps results
@@ -62,8 +60,6 @@ final class SubgroupClassifierTest extends TestCase
 {
     private HashSubGroupingServiceInterface&MockObject $hashSubGroupingService;
 
-    private BufferedOutput $output;
-
     private PerceptualHashCalculatorInterface $perceptualHashCalculator;
 
     private SubgroupClassifierInterface $classifier;
@@ -71,7 +67,6 @@ final class SubgroupClassifierTest extends TestCase
     protected function setUp(): void
     {
         $this->hashSubGroupingService   = $this->createMock(HashSubGroupingServiceInterface::class);
-        $this->output                   = new BufferedOutput();
         $this->perceptualHashCalculator = self::createStub(PerceptualHashCalculatorInterface::class);
         $this->classifier               = new SubgroupClassifier(
             $this->hashSubGroupingService,
@@ -79,9 +74,9 @@ final class SubgroupClassifierTest extends TestCase
             new OrphanLivePhotoVideoReconciler(
                 new MediaTypeClassifier(),
                 $this->perceptualHashCalculator,
-                new SymfonyStyle(new ArrayInput([]), $this->output),
+                new NullProgressReporter(),
             ),
-            new SymfonyStyle(new ArrayInput([]), $this->output),
+            new NullProgressReporter(),
         );
     }
 

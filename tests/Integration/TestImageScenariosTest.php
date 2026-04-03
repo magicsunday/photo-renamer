@@ -83,6 +83,7 @@ use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifier;
 use MagicSunday\Renamer\Service\Pipeline\TargetNameResolver;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\RenamePlanValidator;
+use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Service\ValidationResult;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
@@ -1093,12 +1094,13 @@ final class TestImageScenariosTest extends TestCase
         $metadataProvider    = new ExifMetadataProvider($metadataExtractor);
         $mediaTypeClassifier = new MediaTypeClassifier();
         $imageLoader         = new ImagickImageLoader($mediaTypeClassifier);
+        $progressReporter    = new ConsoleProgressReporter($style);
 
         $perceptualHashCalculator = new PerceptualHashCalculator($imageLoader);
 
         $hashSubGroupingService = new HashSubGroupingService(
             new SafeHashCalculator(),
-            $style,
+            $progressReporter,
             $mediaTypeClassifier,
             $perceptualHashCalculator,
             new LocalDifferenceAnalyzer(),
@@ -1108,7 +1110,7 @@ final class TestImageScenariosTest extends TestCase
         $livePhotoConflictDetector = new LivePhotoConflictDetector($mediaTypeClassifier);
 
         $captureGroupBuilder = new CaptureGroupBuilder(
-            $style,
+            $progressReporter,
             $mediaTypeClassifier,
             $livePhotoConflictDetector,
             new LivePhotoPairingService(),
@@ -1116,8 +1118,8 @@ final class TestImageScenariosTest extends TestCase
         $subgroupClassifier = new SubgroupClassifier(
             $hashSubGroupingService,
             $mediaTypeClassifier,
-            new OrphanLivePhotoVideoReconciler($mediaTypeClassifier, $perceptualHashCalculator, $style),
-            $style,
+            new OrphanLivePhotoVideoReconciler($mediaTypeClassifier, $perceptualHashCalculator, $progressReporter),
+            $progressReporter,
         );
         $mediaCompatibilityPolicy = new MediaCompatibilityPolicy($mediaTypeClassifier);
         $companionDetector        = new CompanionDetector($mediaCompatibilityPolicy);
@@ -1142,7 +1144,7 @@ final class TestImageScenariosTest extends TestCase
         $command = new RenameByExifDateCommand(
             new FileSystemService($style, $renderer),
             new DuplicateDetectionService(
-                $style,
+                $progressReporter,
                 $hashSubGroupingService,
                 $mediaTypeClassifier,
                 $livePhotoConflictDetector,

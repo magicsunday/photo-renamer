@@ -12,7 +12,6 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service;
 
 use Deprecated;
-use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Helper\FileHelper;
@@ -23,6 +22,7 @@ use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Model\SkippedFile;
 use MagicSunday\Renamer\Model\TargetFileResult;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetectorInterface;
+use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\LivePhotoAwareRenameStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\MetadataAwareRenameStrategyInterface;
@@ -31,8 +31,6 @@ use Override;
 use RecursiveIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
-use Symfony\Component\Console\Helper\ProgressBar;
-use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function assert;
 use function count;
@@ -157,7 +155,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
     private array $livePhotoConflictFiles = [];
 
     /**
-     * @param SymfonyStyle                             $io                                 Symfony Style IO for progress indicators and error output.
+     * @param ProgressReporterInterface                $progressReporter                   Narrow reporting boundary for progress indicators and recoverable diagnostics.
      * @param HashSubGroupingServiceInterface          $hashSubGroupingService             Service for content-based sub-grouping (deduplication).
      * @param MediaTypeClassifierInterface             $mediaTypeClassifier                Classifier for media types (Photo vs. Video).
      * @param LivePhotoConflictDetectorInterface|null  $livePhotoConflictDetector          Detector for ID conflicts in Live Photos.
@@ -182,7 +180,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
     private readonly LegacyContentIdentifierCoordinator $legacyContentIdentifierCoordinator;
 
     public function __construct(
-        private readonly SymfonyStyle $io,
+        private readonly ProgressReporterInterface $progressReporter,
         private readonly HashSubGroupingServiceInterface $hashSubGroupingService,
         private readonly MediaTypeClassifierInterface $mediaTypeClassifier,
         private readonly ?LivePhotoConflictDetectorInterface $livePhotoConflictDetector = null,
@@ -316,7 +314,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
 
         $this->buildDiskIndex($files);
 
-        $progressBar = $this->startProgressBar(count($files));
+        $this->startProgressBar(count($files));
 
         $fileDuplicateCollection = new FileDuplicateCollection();
         /**
@@ -371,7 +369,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
                     $this->skippedFiles,
                 );
 
-                $progressBar->advance();
+                $this->progressReporter->advance();
 
                 continue;
             }
@@ -403,7 +401,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
                     $contentIdentifierCacheEntry,
                 )
             ) {
-                $progressBar->advance();
+                $this->progressReporter->advance();
 
                 continue;
             }
@@ -418,9 +416,9 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
                     $targetFileInfo
                 );
             } catch (HashComputationException $exception) {
-                $this->io->error($exception->getMessage());
+                $this->progressReporter->error($exception->getMessage());
 
-                $progressBar->advance();
+                $this->progressReporter->advance();
 
                 continue;
             }
@@ -432,7 +430,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
                     $contentIdentifierCacheEntry,
                 );
 
-                $progressBar->advance();
+                $this->progressReporter->advance();
 
                 continue;
             }
@@ -465,11 +463,10 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
                 $contentIdentifierCacheEntry,
             );
 
-            $progressBar->advance();
+            $this->progressReporter->advance();
         }
 
-        $progressBar->finish();
-        $this->io->newLine();
+        $this->progressReporter->finish();
 
         // Resolve remaining pending video companions that have no paired still image.
         // These deferred videos fall back to their own EXIF date group.
@@ -549,7 +546,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
         /** @var list<LegacyLivePhotoPair> $livePhotoPairs */
         $livePhotoPairs = [];
 
-        $progressBar = $this->startProgressBar($fileDuplicateCollection->count());
+        $this->startProgressBar($fileDuplicateCollection->count());
 
         /** @var FileDuplicate $fileDuplicate */
         foreach ($fileDuplicateCollection as $fileDuplicate) {
@@ -627,7 +624,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
 
             if ($subGroupApplied) {
                 ++$this->namingCollisions;
-                $progressBar->advance();
+                $this->progressReporter->advance();
 
                 continue;
             }
@@ -728,11 +725,10 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
                 $fileDuplicate->setTarget($canonicalRename->getTarget());
             }
 
-            $progressBar->advance();
+            $this->progressReporter->advance();
         }
 
-        $progressBar->finish();
-        $this->io->newLine();
+        $this->progressReporter->finish();
 
         // LP atomicity pass: propagate the still image's quality flags to its
         // companion video so the pair is always tagged consistently.
@@ -758,19 +754,16 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
     }
 
     /**
-     * Creates and starts a Symfony progress bar tailored to the current workload.
+     * Starts a progress indicator tailored to the current workload.
      *
-     * @param int $max maximum number of steps the progress bar should represent
+     * Domain services depend on the narrow reporting boundary rather than
+     * constructing console progress bars directly.
      *
-     * @return ProgressBar configured progress bar instance ready for updates
+     * @param int $max Maximum number of steps the progress indicator should represent
      */
-    private function startProgressBar(int $max): ProgressBar
+    private function startProgressBar(int $max): void
     {
-        $progressBar = $this->io->createProgressBar(max($max, 1));
-        $progressBar->setFormat(Constants::PROGRESS_BAR_FORMAT);
-        $progressBar->start();
-
-        return $progressBar;
+        $this->progressReporter->startProgress($max);
     }
 
     /**

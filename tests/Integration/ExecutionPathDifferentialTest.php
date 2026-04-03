@@ -42,6 +42,7 @@ use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifier;
 use MagicSunday\Renamer\Service\Pipeline\TargetNameResolver;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\RenamePlanValidator;
+use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
@@ -257,12 +258,13 @@ final class ExecutionPathDifferentialTest extends TestCase
 
         $mediaTypeClassifier = new MediaTypeClassifier();
         $imageLoader         = new ImagickImageLoader($mediaTypeClassifier);
+        $progressReporter    = new ConsoleProgressReporter($io);
 
         $perceptualHashCalculator = new PerceptualHashCalculator($imageLoader);
 
         $hashSubGroupingService = new HashSubGroupingService(
             new SafeHashCalculator(),
-            $io,
+            $progressReporter,
             $mediaTypeClassifier,
             $perceptualHashCalculator,
             new LocalDifferenceAnalyzer(),
@@ -276,7 +278,7 @@ final class ExecutionPathDifferentialTest extends TestCase
 
         // Build pipeline services
         $captureGroupBuilder = new CaptureGroupBuilder(
-            $io,
+            $progressReporter,
             $mediaTypeClassifier,
             $livePhotoConflictDetector,
             new LivePhotoPairingService(),
@@ -285,8 +287,8 @@ final class ExecutionPathDifferentialTest extends TestCase
         $subgroupClassifier = new SubgroupClassifier(
             $hashSubGroupingService,
             $mediaTypeClassifier,
-            new OrphanLivePhotoVideoReconciler($mediaTypeClassifier, $perceptualHashCalculator, $io),
-            $io,
+            new OrphanLivePhotoVideoReconciler($mediaTypeClassifier, $perceptualHashCalculator, $progressReporter),
+            $progressReporter,
         );
 
         $canonicalScorer = new CanonicalScorer();

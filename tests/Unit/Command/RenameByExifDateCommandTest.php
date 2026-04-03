@@ -80,6 +80,7 @@ use MagicSunday\Renamer\Service\Pipeline\TargetNameResolver;
 use MagicSunday\Renamer\Service\Pipeline\TargetNameResolverInterface;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\RenamePlanValidator;
+use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Service\ValidationResult;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
@@ -253,17 +254,18 @@ final class RenameByExifDateCommandTest extends TestCase
 
             $hashCalculator            = new SafeHashCalculator();
             $mediaTypeClassifier       = new MediaTypeClassifier();
-            $hashSubGroupingService    = new HashSubGroupingService($hashCalculator, $style, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier()));
+            $progressReporter          = new ConsoleProgressReporter($style);
+            $hashSubGroupingService    = new HashSubGroupingService($hashCalculator, $progressReporter, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier()));
             $livePhotoConflictDetector = new LivePhotoConflictDetector($mediaTypeClassifier);
             $duplicateDetectionService = new DuplicateDetectionService(
-                $style,
+                $progressReporter,
                 $hashSubGroupingService,
                 $mediaTypeClassifier,
                 $livePhotoConflictDetector,
             );
 
             $captureGroupBuilder = new CaptureGroupBuilder(
-                $style,
+                $progressReporter,
                 $mediaTypeClassifier,
                 $livePhotoConflictDetector,
                 new LivePhotoPairingService(),
@@ -271,8 +273,8 @@ final class RenameByExifDateCommandTest extends TestCase
             $subgroupClassifier = new SubgroupClassifier(
                 $hashSubGroupingService,
                 $mediaTypeClassifier,
-                new OrphanLivePhotoVideoReconciler($mediaTypeClassifier, new StubPerceptualHashCalculator(), $style),
-                $style,
+                new OrphanLivePhotoVideoReconciler($mediaTypeClassifier, new StubPerceptualHashCalculator(), $progressReporter),
+                $progressReporter,
             );
             $mediaCompatibilityPolicy = new MediaCompatibilityPolicy($mediaTypeClassifier);
             $companionDetector        = new CompanionDetector($mediaCompatibilityPolicy);

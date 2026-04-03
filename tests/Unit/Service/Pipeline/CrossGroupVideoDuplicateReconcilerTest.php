@@ -22,6 +22,7 @@ use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\Pipeline\CrossGroupVideoDuplicateReconciler;
+use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use MagicSunday\Renamer\Service\Video\VideoStreamFingerprintMatcherInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -71,7 +72,7 @@ final class CrossGroupVideoDuplicateReconcilerTest extends TestCase
         $this->reconciler = new CrossGroupVideoDuplicateReconciler(
             new MediaCompatibilityPolicy(new MediaTypeClassifier()),
             $this->matcher,
-            new SymfonyStyle(new ArrayInput([]), $this->output),
+            new ConsoleProgressReporter(new SymfonyStyle(new ArrayInput([]), $this->output)),
         );
     }
 

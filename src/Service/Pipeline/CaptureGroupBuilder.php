@@ -11,7 +11,6 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Pipeline;
 
-use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Helper\FileHelper;
@@ -25,6 +24,7 @@ use MagicSunday\Renamer\Model\TargetFileResult;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetectorInterface;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingServiceInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
+use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use MagicSunday\Renamer\Service\TargetFileResolver;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\LivePhotoAwareRenameStrategyInterface;
@@ -34,13 +34,10 @@ use Override;
 use RecursiveIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
-use Symfony\Component\Console\Helper\ProgressBar;
-use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function array_keys;
 use function assert;
 use function count;
-use function max;
 use function substr_count;
 use function usort;
 
@@ -62,7 +59,7 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
     private CaptureContentIdentifierCoordinator $captureContentIdentifierCoordinator;
 
     /**
-     * @param SymfonyStyle                             $io                                  Console IO for progress bars and error output
+     * @param ProgressReporterInterface                $progressReporter                    Narrow reporting boundary for progress headings and diagnostics
      * @param MediaTypeClassifierInterface             $mediaTypeClassifier                 Classifies files by media type (still vs. video)
      * @param LivePhotoConflictDetectorInterface|null  $livePhotoConflictDetector           LP conflict detection (optional)
      * @param LivePhotoPairingServiceInterface|null    $livePhotoPairingService             LP second-pass pairing (optional)
@@ -73,7 +70,7 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
      * @param CaptureGroupQualityTracker               $captureGroupQualityTracker          Records fallback/timezone quality flags separately from grouping.
      */
     public function __construct(
-        private SymfonyStyle $io,
+        private ProgressReporterInterface $progressReporter,
         private MediaTypeClassifierInterface $mediaTypeClassifier,
         private ?LivePhotoConflictDetectorInterface $livePhotoConflictDetector = null,
         private ?LivePhotoPairingServiceInterface $livePhotoPairingService = null,
@@ -123,8 +120,8 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
         $context->setScannedFileCount(count($files));
 
         // Step 4: Show progress bar
-        $this->io->text('<fg=cyan>Scanning files</>');
-        $progressBar = $this->startProgressBar(count($files));
+        $this->progressReporter->text('<fg=cyan>Scanning files</>');
+        $this->startProgressBar(count($files));
 
         $collection = new AssetGroupCollection();
 
@@ -145,7 +142,7 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
                     $state,
                     $normalizedContentIdentifier,
                 );
-                $progressBar->advance();
+                $this->progressReporter->advance();
 
                 continue;
             }
@@ -160,7 +157,7 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
                 $state,
                 $normalizedContentIdentifier,
             )) {
-                $progressBar->advance();
+                $this->progressReporter->advance();
 
                 continue;
             }
@@ -174,7 +171,7 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
             );
 
             if ($duplicateIdentifier === null) {
-                $progressBar->advance();
+                $this->progressReporter->advance();
 
                 continue;
             }
@@ -188,11 +185,10 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
                 $normalizedContentIdentifier,
             );
 
-            $progressBar->advance();
+            $this->progressReporter->advance();
         }
 
-        $progressBar->finish();
-        $this->io->newLine();
+        $this->progressReporter->finish();
 
         // Resolve remaining pending video companions without paired still images
         $this->pendingLivePhotoVideoResolver->resolve(
@@ -261,19 +257,13 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
     }
 
     /**
-     * Creates and starts a progress bar for file processing.
+     * Starts a progress indicator for file processing.
      *
      * @param int $max Total number of files to process
-     *
-     * @return ProgressBar Started progress bar instance
      */
-    private function startProgressBar(int $max): ProgressBar
+    private function startProgressBar(int $max): void
     {
-        $progressBar = $this->io->createProgressBar(max($max, 1));
-        $progressBar->setFormat(Constants::PROGRESS_BAR_FORMAT);
-        $progressBar->start();
-
-        return $progressBar;
+        $this->progressReporter->startProgress($max);
     }
 
     /**
@@ -326,7 +316,7 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
         try {
             $duplicateIdentifier = $strategy->generateIdentifier($file, $targetFileInfo);
         } catch (HashComputationException $exception) {
-            $this->io->error($exception->getMessage());
+            $this->progressReporter->error($exception->getMessage());
 
             return null;
         }
@@ -404,11 +394,10 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
         // Rewind the iterator for the second scan
         $iterator->rewind();
 
-        $this->io->newLine();
-        $this->io->text('<fg=cyan>Pairing Live Photos</>');
+        $this->progressReporter->section('<fg=cyan>Pairing Live Photos</>');
 
-        $fileCount   = $context->getScannedFileCount();
-        $progressBar = $this->startProgressBar($fileCount);
+        $fileCount = $context->getScannedFileCount();
+        $this->startProgressBar($fileCount);
 
         // Build the content identifier resolver callback
         $contentIdentifierResolver = null;
@@ -418,8 +407,7 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
         }
 
         if ($contentIdentifierResolver === null) {
-            $progressBar->finish();
-            $this->io->newLine();
+            $this->progressReporter->finish();
 
             return;
         }
@@ -428,8 +416,8 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
             iterator: $iterator,
             fileDuplicateCollection: $tempCollection,
             contentIdentifierResolver: $contentIdentifierResolver,
-            onFileInspected: static function () use ($progressBar): void {
-                $progressBar->advance();
+            onFileInspected: function (): void {
+                $this->progressReporter->advance();
             },
         );
 
@@ -474,7 +462,6 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
             $context->markOccupied($pairing->getSourceFile()->getPathname());
         }
 
-        $progressBar->finish();
-        $this->io->newLine();
+        $this->progressReporter->finish();
     }
 }

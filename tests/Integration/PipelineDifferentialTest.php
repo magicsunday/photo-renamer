@@ -39,6 +39,7 @@ use MagicSunday\Renamer\Service\Pipeline\OrphanLivePhotoVideoReconciler;
 use MagicSunday\Renamer\Service\Pipeline\RoleAssigner;
 use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifier;
 use MagicSunday\Renamer\Service\Pipeline\TargetNameResolver;
+use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
@@ -163,7 +164,8 @@ final class PipelineDifferentialTest extends TestCase
      */
     private function runOldPipeline(string $workspace): array
     {
-        $io = $this->createSilentIo();
+        $io               = $this->createSilentIo();
+        $progressReporter = new ConsoleProgressReporter($io);
 
         $metadataExtractor = new MetadataExtractor(MetadataReader::createDefault());
         $metadataProvider  = new ExifMetadataProvider($metadataExtractor);
@@ -176,7 +178,7 @@ final class PipelineDifferentialTest extends TestCase
 
         $hashSubGroupingService = new HashSubGroupingService(
             new SafeHashCalculator(),
-            $io,
+            $progressReporter,
             $mediaTypeClassifier,
             $perceptualHashCalculator,
             new LocalDifferenceAnalyzer(),
@@ -186,7 +188,7 @@ final class PipelineDifferentialTest extends TestCase
         $livePhotoConflictDetector = new LivePhotoConflictDetector($mediaTypeClassifier);
 
         $duplicateDetectionService = new DuplicateDetectionService(
-            $io,
+            $progressReporter,
             $hashSubGroupingService,
             $mediaTypeClassifier,
             $livePhotoConflictDetector,
@@ -252,7 +254,8 @@ final class PipelineDifferentialTest extends TestCase
      */
     private function runNewPipeline(string $workspace): array
     {
-        $io = $this->createSilentIo();
+        $io               = $this->createSilentIo();
+        $progressReporter = new ConsoleProgressReporter($io);
 
         $metadataExtractor = new MetadataExtractor(MetadataReader::createDefault());
         $metadataProvider  = new ExifMetadataProvider($metadataExtractor);
@@ -265,7 +268,7 @@ final class PipelineDifferentialTest extends TestCase
 
         $hashSubGroupingService = new HashSubGroupingService(
             new SafeHashCalculator(),
-            $io,
+            $progressReporter,
             $mediaTypeClassifier,
             $perceptualHashCalculator,
             new LocalDifferenceAnalyzer(),
@@ -279,7 +282,7 @@ final class PipelineDifferentialTest extends TestCase
 
         // Step 1: CaptureGroupBuilder
         $captureGroupBuilder = new CaptureGroupBuilder(
-            $io,
+            $progressReporter,
             $mediaTypeClassifier,
             $livePhotoConflictDetector,
             new LivePhotoPairingService(),
@@ -299,8 +302,8 @@ final class PipelineDifferentialTest extends TestCase
         $subgroupClassifier = new SubgroupClassifier(
             $hashSubGroupingService,
             $mediaTypeClassifier,
-            new OrphanLivePhotoVideoReconciler($mediaTypeClassifier, $perceptualHashCalculator, $io),
-            $io,
+            new OrphanLivePhotoVideoReconciler($mediaTypeClassifier, $perceptualHashCalculator, $progressReporter),
+            $progressReporter,
         );
         $subgroupClassifier->classify($groups);
 

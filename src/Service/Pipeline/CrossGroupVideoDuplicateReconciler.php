@@ -11,15 +11,14 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Pipeline;
 
-use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\Pipeline\VideoDuplicateCandidate;
 use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
+use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use MagicSunday\Renamer\Service\Video\VideoStreamFingerprintMatcherInterface;
-use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function count;
 use function round;
@@ -44,12 +43,12 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
     /**
      * @param MediaCompatibilityPolicy               $mediaCompatibilityPolicy      Distinguishes video/still families consistently with the rest of the project
      * @param VideoStreamFingerprintMatcherInterface $videoStreamFingerprintMatcher Stream-level exact-content matcher for videos
-     * @param SymfonyStyle                           $io                            Console output for progress reporting
+     * @param ProgressReporterInterface              $progressReporter              Narrow reporting boundary for progress headings and diagnostics
      */
     public function __construct(
         private MediaCompatibilityPolicy $mediaCompatibilityPolicy,
         private VideoStreamFingerprintMatcherInterface $videoStreamFingerprintMatcher,
-        private SymfonyStyle $io,
+        private ProgressReporterInterface $progressReporter,
     ) {
     }
 
@@ -73,19 +72,15 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
             return;
         }
 
-        $this->io->newLine();
-        $this->io->text('<fg=cyan>Reconciling cross-group videos</>');
-
-        $progressBar = $this->io->createProgressBar($comparisonCount);
-        $progressBar->setFormat(Constants::PROGRESS_BAR_FORMAT);
-        $progressBar->start();
+        $this->progressReporter->section('<fg=cyan>Reconciling cross-group videos</>');
+        $this->progressReporter->startProgress($comparisonCount);
 
         foreach ($comparisons as $comparison) {
             $leftGroup  = $groups->get($comparison['leftGroupKey']);
             $rightGroup = $groups->get($comparison['rightGroupKey']);
 
             if (!$leftGroup instanceof AssetGroup || !$rightGroup instanceof AssetGroup) {
-                $progressBar->advance();
+                $this->progressReporter->advance();
 
                 continue;
             }
@@ -94,19 +89,19 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
             $rightItem = $rightGroup->getItemByPath($comparison['rightPath']);
 
             if (!$leftItem instanceof AssetItem || !$rightItem instanceof AssetItem) {
-                $progressBar->advance();
+                $this->progressReporter->advance();
 
                 continue;
             }
 
             if (!$this->shouldCompare($leftItem, $rightItem)) {
-                $progressBar->advance();
+                $this->progressReporter->advance();
 
                 continue;
             }
 
             $match = $this->videoStreamFingerprintMatcher->match($leftItem->file, $rightItem->file);
-            $progressBar->advance();
+            $this->progressReporter->advance();
 
             if ($match->isExactDuplicate()) {
                 $this->mergeExactDuplicate($groups, $leftGroup, $leftItem, $rightGroup, $rightItem);
@@ -123,8 +118,7 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
             }
         }
 
-        $progressBar->finish();
-        $this->io->newLine();
+        $this->progressReporter->finish();
     }
 
     /**

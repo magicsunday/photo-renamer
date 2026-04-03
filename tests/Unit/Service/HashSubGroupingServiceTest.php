@@ -25,6 +25,7 @@ use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
 use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzer;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityResult;
+use MagicSunday\Renamer\Service\Reporting\NullProgressReporter;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Service\SafeHashCalculatorInterface;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
@@ -34,9 +35,6 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
-use Symfony\Component\Console\Input\ArrayInput;
-use Symfony\Component\Console\Output\BufferedOutput;
-use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function file_put_contents;
 use function iterator_to_array;
@@ -768,14 +766,11 @@ final class HashSubGroupingServiceTest extends TestCase
         SafeHashCalculatorInterface $hashCalculator,
         PerceptualHashCalculatorInterface $perceptualHashCalculator,
     ): HashSubGroupingService {
-        $output = new BufferedOutput();
-        $io     = new SymfonyStyle(new ArrayInput([]), $output);
-
         $imageLoader = new ImagickImageLoader(new MediaTypeClassifier());
 
         return new HashSubGroupingService(
             $hashCalculator,
-            $io,
+            new NullProgressReporter(),
             new MediaTypeClassifier(),
             $perceptualHashCalculator,
             new LocalDifferenceAnalyzer(),

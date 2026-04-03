@@ -21,6 +21,7 @@ use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityClassification;
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityResult;
 use MagicSunday\Renamer\Service\Pipeline\OrphanLivePhotoVideoReconciler;
+use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
@@ -67,7 +68,7 @@ final class OrphanLivePhotoVideoReconcilerTest extends TestCase
         $this->reconciler               = new OrphanLivePhotoVideoReconciler(
             new MediaTypeClassifier(),
             $this->perceptualHashCalculator,
-            new SymfonyStyle(new ArrayInput([]), $this->output),
+            new ConsoleProgressReporter(new SymfonyStyle(new ArrayInput([]), $this->output)),
         );
     }
 

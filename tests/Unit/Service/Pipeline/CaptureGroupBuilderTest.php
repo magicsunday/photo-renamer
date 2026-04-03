@@ -26,6 +26,7 @@ use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuilderInterface;
 use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuildState;
 use MagicSunday\Renamer\Service\Pipeline\CaptureGroupQualityTracker;
 use MagicSunday\Renamer\Service\Pipeline\PendingLivePhotoVideoResolver;
+use MagicSunday\Renamer\Service\Reporting\NullProgressReporter;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\LivePhotoAwareRenameStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\MetadataAwareRenameStrategyInterface;
@@ -37,9 +38,6 @@ use PHPUnit\Framework\TestCase;
 use RecursiveArrayIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
-use Symfony\Component\Console\Helper\ProgressBar;
-use Symfony\Component\Console\Output\NullOutput;
-use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function count;
 use function in_array;
@@ -318,18 +316,10 @@ final class CaptureGroupBuilderTest extends TestCase
     private function createBuilder(
         ?MediaTypeClassifierInterface $mediaTypeClassifier = null,
     ): CaptureGroupBuilderInterface {
-        $io = self::createStub(SymfonyStyle::class);
-
-        $nullOutput = new NullOutput();
-
-        $io->method('createProgressBar')->willReturnCallback(
-            static fn (int $max = 0): ProgressBar => new ProgressBar($nullOutput, $max),
-        );
-
         $mediaTypeClassifier ??= $this->createDefaultMediaTypeClassifier();
 
         return new CaptureGroupBuilder(
-            $io,
+            new NullProgressReporter(),
             $mediaTypeClassifier,
         );
     }

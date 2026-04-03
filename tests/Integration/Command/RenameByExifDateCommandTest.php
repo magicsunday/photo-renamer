@@ -73,6 +73,7 @@ use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifier;
 use MagicSunday\Renamer\Service\Pipeline\TargetNameResolver;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\RenamePlanValidator;
+use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Service\ValidationResult;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
@@ -772,15 +773,16 @@ final class RenameByExifDateCommandTest extends TestCase
 
     private function runDryRunOutput(string $workspace, StubMetadataExtractor $metadataExtractor): string
     {
-        $output = new BufferedOutput();
-        $style  = new SymfonyStyle(new ArrayInput([]), $output);
+        $output           = new BufferedOutput();
+        $style            = new SymfonyStyle(new ArrayInput([]), $output);
+        $progressReporter = new ConsoleProgressReporter($style);
 
         $mediaTypeClassifier       = new MediaTypeClassifier();
-        $hashSubGroupingService    = new HashSubGroupingService(new SafeHashCalculator(), $style, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier()));
+        $hashSubGroupingService    = new HashSubGroupingService(new SafeHashCalculator(), $progressReporter, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier()));
         $livePhotoConflictDetector = new LivePhotoConflictDetector($mediaTypeClassifier);
 
         $captureGroupBuilder = new CaptureGroupBuilder(
-            $style,
+            $progressReporter,
             $mediaTypeClassifier,
             $livePhotoConflictDetector,
             new LivePhotoPairingService(),
@@ -788,8 +790,8 @@ final class RenameByExifDateCommandTest extends TestCase
         $subgroupClassifier = new SubgroupClassifier(
             $hashSubGroupingService,
             $mediaTypeClassifier,
-            new OrphanLivePhotoVideoReconciler($mediaTypeClassifier, new StubPerceptualHashCalculator(), $style),
-            $style,
+            new OrphanLivePhotoVideoReconciler($mediaTypeClassifier, new StubPerceptualHashCalculator(), $progressReporter),
+            $progressReporter,
         );
         $mediaCompatibilityPolicy = new MediaCompatibilityPolicy($mediaTypeClassifier);
         $companionDetector        = new CompanionDetector($mediaCompatibilityPolicy);
@@ -814,7 +816,7 @@ final class RenameByExifDateCommandTest extends TestCase
         $command = new RenameByExifDateCommand(
             new FileSystemService($style, $renderer),
             new DuplicateDetectionService(
-                $style,
+                $progressReporter,
                 $hashSubGroupingService,
                 $mediaTypeClassifier,
                 $livePhotoConflictDetector,
