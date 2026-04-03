@@ -30,6 +30,7 @@ use MagicSunday\Renamer\Model\RenameResult;
 use MagicSunday\Renamer\Service\Output\DiffHighlighter;
 use MagicSunday\Renamer\Service\Output\OutputCounters;
 use MagicSunday\Renamer\Service\Output\OutputDecisionLogRenderer;
+use MagicSunday\Renamer\Service\Output\OutputEntryBuildResult;
 use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
 use MagicSunday\Renamer\Service\Output\OutputSummaryRowBuilder;
 use Symfony\Component\Console\Style\SymfonyStyle;
@@ -101,15 +102,14 @@ final readonly class RenameOutputRenderer
      * @param string|null             $sourceBaseDirectory     The normalized base directory used to relativize
      *                                                         absolute paths for cleaner display.
      *
-     * @return array{list<OutputEntry>, int, int} A tuple containing the list of entries, the count of
-     *                                            skipped files, and the count of files with errors.
+     * @return OutputEntryBuildResult Typed result containing the projected entries plus skipped/error counters.
      */
     public function buildOutputEntries(
         FileDuplicateCollection $fileDuplicateCollection,
         RenameOptions $options,
         RenameResult $result,
         ?string $sourceBaseDirectory,
-    ): array {
+    ): OutputEntryBuildResult {
         /** @var list<OutputEntry> $outputEntries */
         $outputEntries = [];
 
@@ -186,7 +186,7 @@ final readonly class RenameOutputRenderer
             return $cmp !== 0 ? $cmp : ($entryA->type->sortOrder() <=> $entryB->type->sortOrder());
         });
 
-        return [$outputEntries, $skippedCount, $errorCount];
+        return new OutputEntryBuildResult($outputEntries, $skippedCount, $errorCount);
     }
 
     /**
@@ -340,14 +340,14 @@ final readonly class RenameOutputRenderer
      * @param RenameResult  $result              Scan/analysis summary data (skipped files)
      * @param string|null   $sourceBaseDirectory Base directory for relative path display
      *
-     * @return array{list<OutputEntry>, int, int} Tuple of [entries, skippedCount, errorCount]
+     * @return OutputEntryBuildResult Typed result containing the projected entries plus skipped/error counters.
      */
     public function buildOutputEntriesFromPlan(
         ExecutionPlan $plan,
         RenameOptions $options,
         RenameResult $result,
         ?string $sourceBaseDirectory = null,
-    ): array {
+    ): OutputEntryBuildResult {
         /** @var list<OutputEntry> $outputEntries */
         $outputEntries = [];
 
@@ -430,7 +430,7 @@ final readonly class RenameOutputRenderer
             return $cmp !== 0 ? $cmp : ($entryA->type->sortOrder() <=> $entryB->type->sortOrder());
         });
 
-        return [$outputEntries, $skippedCount, $errorCount];
+        return new OutputEntryBuildResult($outputEntries, $skippedCount, $errorCount);
     }
 
     /**
@@ -453,14 +453,14 @@ final readonly class RenameOutputRenderer
         ?array $showFilter = null,
         ?RenameResult $result = null,
     ): ExecutionPreview {
-        [$outputEntries] = $this->buildOutputEntriesFromPlan(
+        $buildResult = $this->buildOutputEntriesFromPlan(
             $plan,
             $options,
             $result ?? new RenameResult(),
             $sourceBaseDirectory,
         );
 
-        $counters = $this->renderEntryLines($outputEntries, $sourceBaseDirectory, $showFilter);
+        $counters = $this->renderEntryLines($buildResult->entries, $sourceBaseDirectory, $showFilter);
 
         return new ExecutionPreview(
             plannedMoves: $counters->plannedMoves,

@@ -34,6 +34,7 @@ use MagicSunday\Renamer\Service\Output\DiffHighlighter;
 use MagicSunday\Renamer\Service\Output\DiffTokenState;
 use MagicSunday\Renamer\Service\Output\OutputCounters;
 use MagicSunday\Renamer\Service\Output\OutputDecisionLogRenderer;
+use MagicSunday\Renamer\Service\Output\OutputEntryBuildResult;
 use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
 use MagicSunday\Renamer\Service\Output\OutputSkipReason;
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
@@ -87,6 +88,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 #[UsesClass(DiffTokenState::class)]
 #[UsesClass(OutputCounters::class)]
 #[UsesClass(OutputDecisionLogRenderer::class)]
+#[UsesClass(OutputEntryBuildResult::class)]
 #[UsesClass(OutputEntryPresenter::class)]
 #[UsesClass(OutputSkipReason::class)]
 #[UsesClass(OutputSkipReasonDecider::class)]
@@ -128,12 +130,15 @@ final class RenameOutputRendererTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('test', $fileDuplicate);
 
-        [$entries, $skippedCount, $errorCount] = $renderer->buildOutputEntries(
+        $buildResult = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(),
             new RenameResult(),
             $sourceDir,
         );
+        $entries      = $buildResult->entries;
+        $skippedCount = $buildResult->skippedCount;
+        $errorCount   = $buildResult->errorCount;
 
         self::assertCount(2, $entries);
         // Entries should be sorted by source path: a-image before b-image
@@ -169,12 +174,12 @@ final class RenameOutputRendererTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('test', $fileDuplicate);
 
-        [$entries] = $renderer->buildOutputEntries(
+        $entries = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(),
             new RenameResult(),
             $sourceDir,
-        );
+        )->entries;
 
         self::assertCount(2, $entries);
         self::assertSame(OutputEntryTag::Duplicate, $entries[0]->tag);
@@ -218,12 +223,12 @@ final class RenameOutputRendererTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('live-photo:cid-1', $fileDuplicate);
 
-        [$entries] = $renderer->buildOutputEntries(
+        $entries = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(),
             new RenameResult(),
             $sourceDir,
-        );
+        )->entries;
 
         self::assertCount(4, $entries);
 
@@ -271,14 +276,14 @@ final class RenameOutputRendererTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('test', $fileDuplicate);
 
-        [$entries] = $renderer->buildOutputEntries(
+        $entries = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(),
             new RenameResult(
                 livePhotoConflictFiles: [$source => true],
             ),
             $sourceDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Candidate, $entries[0]->tag);
@@ -309,12 +314,15 @@ final class RenameOutputRendererTest extends TestCase
             ],
         );
 
-        [$entries, $skippedCount, $errorCount] = $renderer->buildOutputEntries(
+        $buildResult = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(),
             $result,
             $sourceDir,
         );
+        $entries      = $buildResult->entries;
+        $skippedCount = $buildResult->skippedCount;
+        $errorCount   = $buildResult->errorCount;
 
         self::assertCount(2, $entries);
         self::assertSame(1, $skippedCount);
@@ -599,12 +607,12 @@ final class RenameOutputRendererTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('test', $fileDuplicate);
 
-        [$entries] = $renderer->buildOutputEntries(
+        $entries = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(maxDateDrift: 30),
             new RenameResult(),
             $sourceDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Warning, $entries[0]->tag);
@@ -632,12 +640,12 @@ final class RenameOutputRendererTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('test', $fileDuplicate);
 
-        [$entries] = $renderer->buildOutputEntries(
+        $entries = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(maxDateDrift: 30),
             new RenameResult(),
             $sourceDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Rename, $entries[0]->tag);
@@ -665,12 +673,12 @@ final class RenameOutputRendererTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('test', $fileDuplicate);
 
-        [$entries] = $renderer->buildOutputEntries(
+        $entries = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(maxDateDrift: 30),
             new RenameResult(),
             $sourceDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Rename, $entries[0]->tag);
@@ -697,12 +705,12 @@ final class RenameOutputRendererTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('test', $fileDuplicate);
 
-        [$entries] = $renderer->buildOutputEntries(
+        $entries = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(maxDateDrift: 0),
             new RenameResult(),
             $sourceDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Rename, $entries[0]->tag);
@@ -730,12 +738,12 @@ final class RenameOutputRendererTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('test', $fileDuplicate);
 
-        [$entries] = $renderer->buildOutputEntries(
+        $entries = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(maxDateDrift: 30),
             new RenameResult(),
             $sourceDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Warning, $entries[0]->tag);
@@ -873,14 +881,14 @@ final class RenameOutputRendererTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('test', $fileDuplicate);
 
-        [$entries] = $renderer->buildOutputEntries(
+        $entries = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(),
             new RenameResult(
                 ambiguousTimezoneFiles: [$canonical => true, $duplicate => true],
             ),
             $sourceDir,
-        );
+        )->entries;
 
         self::assertCount(2, $entries);
         // Both should be [W], not [D]
@@ -910,12 +918,12 @@ final class RenameOutputRendererTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('test', $fileDuplicate);
 
-        [$entries] = $renderer->buildOutputEntries(
+        $entries = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(maxDateDrift: 7),
             new RenameResult(),
             $sourceDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Warning, $entries[0]->tag);
@@ -968,14 +976,14 @@ final class RenameOutputRendererTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('test', $fileDuplicate);
 
-        [$entries] = $renderer->buildOutputEntries(
+        $entries = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(),
             new RenameResult(
                 fallbackDateFiles: [$source => true],
             ),
             $sourceDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Fallback, $entries[0]->tag);
@@ -1002,14 +1010,14 @@ final class RenameOutputRendererTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('test', $fileDuplicate);
 
-        [$entries] = $renderer->buildOutputEntries(
+        $entries = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(),
             new RenameResult(
                 fallbackDateFiles: [$source => true],
             ),
             $sourceDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Fallback, $entries[0]->tag);
@@ -1039,14 +1047,14 @@ final class RenameOutputRendererTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('test', $fileDuplicate);
 
-        [$entries] = $renderer->buildOutputEntries(
+        $entries = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(),
             new RenameResult(
                 fallbackDateFiles: [$duplicate => true],
             ),
             $sourceDir,
-        );
+        )->entries;
 
         self::assertCount(2, $entries);
 
@@ -1075,14 +1083,14 @@ final class RenameOutputRendererTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('test', $fileDuplicate);
 
-        [$entries] = $renderer->buildOutputEntries(
+        $entries = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(),
             new RenameResult(
                 ambiguousTimezoneFiles: [$source => true],
             ),
             $sourceDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Warning, $entries[0]->tag);
@@ -1177,12 +1185,12 @@ final class RenameOutputRendererTest extends TestCase
             ]),
         ]);
 
-        [$entries] = $renderer->buildOutputEntriesFromPlan(
+        $entries = $renderer->buildOutputEntriesFromPlan(
             $plan,
             new RenameOptions(),
             new RenameResult(),
             $baseDir,
-        );
+        )->entries;
 
         // Sorted by source path: 2025-01-01 (noop), clip, conflict, dup, img, scan
         /** @var array<string, OutputEntryTag> $tagMap */
@@ -1242,12 +1250,15 @@ final class RenameOutputRendererTest extends TestCase
             ],
         );
 
-        [$entries, $skippedCount, $errorCount] = $renderer->buildOutputEntriesFromPlan(
+        $buildResult = $renderer->buildOutputEntriesFromPlan(
             $plan,
             new RenameOptions(),
             $result,
             $baseDir,
         );
+        $entries      = $buildResult->entries;
+        $skippedCount = $buildResult->skippedCount;
+        $errorCount   = $buildResult->errorCount;
 
         // 2 items from plan + 1 duplicate-info line + 2 skipped files = 5 entries
         self::assertCount(5, $entries);
@@ -1370,12 +1381,12 @@ final class RenameOutputRendererTest extends TestCase
             ]),
         ]);
 
-        [$entries] = $renderer->buildOutputEntriesFromPlan(
+        $entries = $renderer->buildOutputEntriesFromPlan(
             $plan,
             new RenameOptions(),
             new RenameResult(),
             $baseDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Original, $entries[0]->tag);
@@ -1405,12 +1416,12 @@ final class RenameOutputRendererTest extends TestCase
             ]),
         ]);
 
-        [$entries] = $renderer->buildOutputEntriesFromPlan(
+        $entries = $renderer->buildOutputEntriesFromPlan(
             $plan,
             new RenameOptions(),
             new RenameResult(),
             $baseDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Duplicate, $entries[0]->tag);
@@ -1463,12 +1474,12 @@ final class RenameOutputRendererTest extends TestCase
             ]),
         ]);
 
-        [$entries] = $renderer->buildOutputEntriesFromPlan(
+        $entries = $renderer->buildOutputEntriesFromPlan(
             $plan,
             new RenameOptions(),
             new RenameResult(),
             $baseDir,
-        );
+        )->entries;
 
         self::assertCount(4, $entries);
 
@@ -1517,12 +1528,12 @@ final class RenameOutputRendererTest extends TestCase
             ]),
         ]);
 
-        [$entries] = $renderer->buildOutputEntriesFromPlan(
+        $entries = $renderer->buildOutputEntriesFromPlan(
             $plan,
             new RenameOptions(),
             new RenameResult(),
             $baseDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Fallback, $entries[0]->tag);
@@ -1554,12 +1565,12 @@ final class RenameOutputRendererTest extends TestCase
             ]),
         ]);
 
-        [$entries] = $renderer->buildOutputEntriesFromPlan(
+        $entries = $renderer->buildOutputEntriesFromPlan(
             $plan,
             new RenameOptions(),
             new RenameResult(),
             $baseDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Warning, $entries[0]->tag);
@@ -1581,7 +1592,7 @@ final class RenameOutputRendererTest extends TestCase
 
         $baseDir = '/tmp/source';
 
-        [$entries] = $renderer->buildOutputEntriesFromPlan(
+        $entries = $renderer->buildOutputEntriesFromPlan(
             new ExecutionPlan([]),
             new RenameOptions(),
             new RenameResult(
@@ -1596,7 +1607,7 @@ final class RenameOutputRendererTest extends TestCase
                 crossGroupVideoReviewCount: 1,
             ),
             $baseDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertTrue($entries[0]->isInfo());
@@ -1705,12 +1716,12 @@ final class RenameOutputRendererTest extends TestCase
             ]),
         ]);
 
-        [$entries] = $renderer->buildOutputEntriesFromPlan(
+        $entries = $renderer->buildOutputEntriesFromPlan(
             $plan,
             new RenameOptions(maxDateDrift: 7),
             new RenameResult(),
             $baseDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Warning, $entries[0]->tag);
@@ -1744,12 +1755,12 @@ final class RenameOutputRendererTest extends TestCase
             ]),
         ]);
 
-        [$entries] = $renderer->buildOutputEntriesFromPlan(
+        $entries = $renderer->buildOutputEntriesFromPlan(
             $plan,
             new RenameOptions(),
             new RenameResult(),
             $baseDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Skipped, $entries[0]->tag);

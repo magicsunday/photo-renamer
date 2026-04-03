@@ -73,19 +73,23 @@ final readonly class LegacyRenameExecutor
         $livePhotoGroups     = $this->renderer->countLivePhotoGroups($fileDuplicateCollection);
         $totalOperations     = $this->renderer->countTotalOperations($fileDuplicateCollection);
 
-        [$outputEntries, $skippedCount, $errorCount]
-            = $this->renderer->buildOutputEntries($fileDuplicateCollection, $options, $result, $sourceBaseDirectory);
+        $buildResult = $this->renderer->buildOutputEntries(
+            $fileDuplicateCollection,
+            $options,
+            $result,
+            $sourceBaseDirectory,
+        );
 
         $occupiedPaths = $this->buildOccupiedPaths($fileDuplicateCollection);
 
         $this->progressReporter->section('<fg=cyan>Renaming files</>');
 
-        $counters = $this->renderOutputEntries($outputEntries, $options, $occupiedPaths, $sourceBaseDirectory, $showFilter);
+        $counters = $this->renderOutputEntries($buildResult->entries, $options, $occupiedPaths, $sourceBaseDirectory, $showFilter);
 
         $this->renderer->renderSummary([
             'scannedFiles'     => $result->scannedFiles > 0 ? $result->scannedFiles : $totalOperations,
-            'skippedCount'     => $skippedCount,
-            'errorCount'       => $errorCount,
+            'skippedCount'     => $buildResult->skippedCount,
+            'errorCount'       => $buildResult->errorCount,
             'livePhotoGroups'  => $livePhotoGroups,
             'namingCollisions' => $result->namingCollisions,
             ...$counters->toArray(),

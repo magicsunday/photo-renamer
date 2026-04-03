@@ -122,7 +122,7 @@ final class VirtualRenameExifPipelineFlowTest extends TestCase
         self::assertSame(8, $renameResult->scannedFiles);
         self::assertSame(1, $renameResult->crossGroupVideoReviewCount);
 
-        [$entries] = $this->createRenderer()->buildOutputEntriesFromPlan(
+        $entries = $this->createRenderer()->buildOutputEntriesFromPlan(
             $executionPlan,
             new RenameOptions(
                 dryRun: true,
@@ -131,7 +131,7 @@ final class VirtualRenameExifPipelineFlowTest extends TestCase
             ),
             $renameResult,
             $sourceDirectory,
-        );
+        )->entries;
 
         $renameEntries = array_values(array_filter(
             $entries,

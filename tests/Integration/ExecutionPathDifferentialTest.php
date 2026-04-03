@@ -142,12 +142,12 @@ final class ExecutionPathDifferentialTest extends TestCase
 
             $sourceBaseDirectory = rtrim($targetDir, DIRECTORY_SEPARATOR);
 
-            [$oldEntries] = $renderer->buildOutputEntries(
+            $oldEntries = $renderer->buildOutputEntries(
                 $fileDuplicateCollection,
                 $options,
                 $result,
                 $sourceBaseDirectory,
-            );
+            )->entries;
 
             // NEW path: ExecutionPlanBuilder -> buildOutputEntriesFromPlan
             $builder       = new ExecutionPlanBuilder();
@@ -156,13 +156,13 @@ final class ExecutionPathDifferentialTest extends TestCase
                 $pipelineResult->context,
             );
 
-            $newRenderer  = $this->createRenderer();
-            [$newEntries] = $newRenderer->buildOutputEntriesFromPlan(
+            $newRenderer = $this->createRenderer();
+            $newEntries  = $newRenderer->buildOutputEntriesFromPlan(
                 $executionPlan,
                 $options,
                 $result,
                 $sourceBaseDirectory,
-            );
+            )->entries;
 
             // Compare entry count
             self::assertCount(
