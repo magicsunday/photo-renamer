@@ -11,7 +11,6 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Metadata;
 
-use DateMalformedStringException;
 use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
@@ -20,7 +19,6 @@ use MagicSunday\Renamer\Helper\FilenameDateParser;
 use SplFileInfo;
 
 use function array_key_exists;
-use function is_string;
 
 /**
  * Thin caching layer over the MetadataExtractor that provides unified access
@@ -294,7 +292,7 @@ final class ExifMetadataProvider
             if ($this->cache instanceof MetadataCache) {
                 $cached = $this->cache->get($splFileInfo);
 
-                if ($cached !== null) {
+                if ($cached instanceof MetadataCacheEntry) {
                     $this->metadataCache[$key] = $this->reconstructFromCache($cached);
 
                     return $this->metadataCache[$key];
@@ -325,82 +323,35 @@ final class ExifMetadataProvider
      *
      * Returns null when the cached entry represents a file with no usable metadata.
      *
-     * @param array{
-     *     mtime: int,
-     *     size: int,
-     *     captureDateTime: string|null,
-     *     contentId: string|null,
-     *     isFallback: bool,
-     *     isAmbiguousTimezone: bool,
-     *     livePhotoVideoIndex?: int|null,
-     *     cameraMake?: string|null,
-     *     cameraModel?: string|null,
-     *     software?: string|null,
-     *     latitude?: float|null,
-     *     longitude?: float|null,
-     *     videoDurationSeconds?: float|null,
-     *     hasQuickTimeLivePhotoMarker?: bool,
-     *     rawQuickTimeCreateDate?: string|null
-     * } $cached The cached metadata values.
+     * @param MetadataCacheEntry $cached The cached metadata values.
      *
      * @return TemporalMetadata|null Reconstructed metadata, or null when the cache
      *                               entry has no date or content ID.
      */
-    private function reconstructFromCache(array $cached): ?TemporalMetadata
+    private function reconstructFromCache(MetadataCacheEntry $cached): ?TemporalMetadata
     {
-        $dateTime = null;
-
-        if (is_string($cached['captureDateTime'])) {
-            try {
-                $dateTime = new DateTimeImmutable($cached['captureDateTime']);
-            } catch (DateMalformedStringException) {
-                return null;
-            }
-        }
-
-        $contentId = $cached['contentId'];
+        $dateTime  = $cached->getCaptureDateTime();
+        $contentId = $cached->getContentId();
 
         if ((!$dateTime instanceof DateTimeImmutable) && ($contentId === null)) {
             return null;
         }
 
-        $rawQtCreateDate = $this->parseCachedDateTime($cached['rawQuickTimeCreateDate'] ?? null);
-
         return new TemporalMetadata(
             $dateTime,
             $contentId,
-            $cached['isFallback'],
-            $cached['isAmbiguousTimezone'],
-            $cached['livePhotoVideoIndex'] ?? null,
-            $cached['cameraMake'] ?? null,
-            $cached['cameraModel'] ?? null,
-            $cached['software'] ?? null,
-            $cached['latitude'] ?? null,
-            $cached['longitude'] ?? null,
-            $cached['videoDurationSeconds'] ?? null,
-            $cached['hasQuickTimeLivePhotoMarker'] ?? false,
-            $rawQtCreateDate,
+            $cached->isFallback(),
+            $cached->isAmbiguousTimezone(),
+            $cached->getLivePhotoVideoIndex(),
+            $cached->getCameraMake(),
+            $cached->getCameraModel(),
+            $cached->getSoftware(),
+            $cached->getLatitude(),
+            $cached->getLongitude(),
+            $cached->getVideoDurationSeconds(),
+            $cached->hasQuickTimeLivePhotoMarker(),
+            $cached->getRawQuickTimeCreateDate(),
         );
-    }
-
-    /**
-     * Parses a date string from the persistent cache.
-     *
-     * @param mixed $value The value from the cache.
-     *
-     * @return DateTimeImmutable|null The parsed date, or null if invalid.
-     */
-    private function parseCachedDateTime(mixed $value): ?DateTimeImmutable
-    {
-        if (!is_string($value)) {
-            return null;
-        }
-
-        try {
-            return new DateTimeImmutable($value);
-        } catch (DateMalformedStringException) {
-            return null;
-        }
     }
 
     /**

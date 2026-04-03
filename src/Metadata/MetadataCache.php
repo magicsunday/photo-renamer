@@ -37,23 +37,7 @@ use const JSON_THROW_ON_ERROR;
 final class MetadataCache
 {
     /**
-     * @var array<string, array{
-     *     mtime: int,
-     *     size: int,
-     *     captureDateTime: string|null,
-     *     contentId: string|null,
-     *     isFallback: bool,
-     *     isAmbiguousTimezone: bool,
-     *     livePhotoVideoIndex?: int|null,
-     *     cameraMake?: string|null,
-     *     cameraModel?: string|null,
-     *     software?: string|null,
-     *     latitude?: float|null,
-     *     longitude?: float|null,
-     *     videoDurationSeconds?: float|null,
-     *     hasQuickTimeLivePhotoMarker?: bool,
-     *     rawQuickTimeCreateDate: string|null
-     * }> A map of file pathnames to their respective extracted metadata.
+     * @var array<string, MetadataCacheEntry> A map of file pathnames to their respective typed cache entries.
      */
     private array $entries = [];
 
@@ -88,25 +72,9 @@ final class MetadataCache
      *
      * @param SplFileInfo $file The file to retrieve metadata for.
      *
-     * @return array{
-     *     mtime: int,
-     *     size: int,
-     *     captureDateTime: string|null,
-     *     contentId: string|null,
-     *     isFallback: bool,
-     *     isAmbiguousTimezone: bool,
-     *     livePhotoVideoIndex?: int|null,
-     *     cameraMake?: string|null,
-     *     cameraModel?: string|null,
-     *     software?: string|null,
-     *     latitude?: float|null,
-     *     longitude?: float|null,
-     *     videoDurationSeconds?: float|null,
-     *     hasQuickTimeLivePhotoMarker?: bool,
-     *     rawQuickTimeCreateDate: string|null
-     * }|null Returns the flat metadata array or null if no fresh entry exists.
+     * @return MetadataCacheEntry|null Returns the typed cache entry or null if no fresh entry exists.
      */
-    public function get(SplFileInfo $file): ?array
+    public function get(SplFileInfo $file): ?MetadataCacheEntry
     {
         $key = $file->getPathname();
 
@@ -116,7 +84,7 @@ final class MetadataCache
 
         $entry = $this->entries[$key];
 
-        if (($entry['mtime'] !== $file->getMTime()) || ($entry['size'] !== $file->getSize())) {
+        if (($entry->getMtime() !== $file->getMTime()) || ($entry->getSize() !== $file->getSize())) {
             unset($this->entries[$key]);
             $this->dirty = true;
 
@@ -142,23 +110,7 @@ final class MetadataCache
      */
     public function set(SplFileInfo $file, ?TemporalMetadata $metadata): void
     {
-        $this->entries[$file->getPathname()] = [
-            'mtime'                       => $file->getMTime(),
-            'size'                        => $file->getSize(),
-            'captureDateTime'             => $metadata?->getCaptureDateTime()?->format('Y-m-d\TH:i:s.uP'),
-            'contentId'                   => $metadata?->getLivePhotoId(),
-            'isFallback'                  => $metadata?->isFallbackDateTime() ?? false,
-            'isAmbiguousTimezone'         => $metadata?->isAmbiguousTimezone() ?? false,
-            'livePhotoVideoIndex'         => $metadata?->getLivePhotoVideoIndex(),
-            'cameraMake'                  => $metadata?->getCameraMake(),
-            'cameraModel'                 => $metadata?->getCameraModel(),
-            'software'                    => $metadata?->getSoftware(),
-            'latitude'                    => $metadata?->getLatitude(),
-            'longitude'                   => $metadata?->getLongitude(),
-            'videoDurationSeconds'        => $metadata?->getVideoDurationSeconds(),
-            'hasQuickTimeLivePhotoMarker' => $metadata?->hasQuickTimeLivePhotoMarker() ?? false,
-            'rawQuickTimeCreateDate'      => $metadata?->getRawQuickTimeCreateDate()?->format('Y-m-d\TH:i:s.uP'),
-        ];
+        $this->entries[$file->getPathname()] = MetadataCacheEntry::fromFileAndMetadata($file, $metadata);
 
         $this->dirty = true;
     }
@@ -180,69 +132,18 @@ final class MetadataCache
             return;
         }
 
+        $serializedEntries = [];
+
+        foreach ($this->entries as $pathname => $entry) {
+            $serializedEntries[$pathname] = $entry->toArray();
+        }
+
         $this->filesystem->dumpFile(
             $this->cacheFile,
-            json_encode($this->entries, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE),
+            json_encode($serializedEntries, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE),
         );
 
         $this->dirty = false;
-    }
-
-    /**
-     * Migrates legacy cache entries to the current schema to ensure consistent
-     * data access throughout the application.
-     *
-     * As the metadata extraction logic evolves, new fields are added (e.g.,
-     * rawQuickTimeCreateDate). This method backfills missing keys for existing
-     * entries loaded from older cache files, avoiding 'undefined array key'
-     * errors when accessing these fields.
-     *
-     * @param array<string, array<string, mixed>> $data The raw, non-validated data array from JSON.
-     *
-     * @return array<string, array{
-     *     mtime: int,
-     *     size: int,
-     *     captureDateTime: string|null,
-     *     contentId: string|null,
-     *     isFallback: bool,
-     *     isAmbiguousTimezone: bool,
-     *     livePhotoVideoIndex?: int|null,
-     *     cameraMake?: string|null,
-     *     cameraModel?: string|null,
-     *     software?: string|null,
-     *     latitude?: float|null,
-     *     longitude?: float|null,
-     *     videoDurationSeconds?: float|null,
-     *     hasQuickTimeLivePhotoMarker?: bool,
-     *     rawQuickTimeCreateDate: string|null
-     * }> The migrated and correctly typed data array.
-     */
-    private function migrateEntries(array $data): array
-    {
-        foreach ($data as &$entry) {
-            $entry['rawQuickTimeCreateDate'] ??= null;
-        }
-
-        unset($entry);
-
-        /** @var array<string, array{
-         *     mtime: int,
-         *     size: int,
-         *     captureDateTime: string|null,
-         *     contentId: string|null,
-         *     isFallback: bool,
-         *     isAmbiguousTimezone: bool,
-         *     livePhotoVideoIndex?: int|null,
-         *     cameraMake?: string|null,
-         *     cameraModel?: string|null,
-         *     software?: string|null,
-         *     latitude?: float|null,
-         *     longitude?: float|null,
-         *     videoDurationSeconds?: float|null,
-         *     hasQuickTimeLivePhotoMarker?: bool,
-         *     rawQuickTimeCreateDate: string|null
-         * }> $data */
-        return $data;
     }
 
     /**
@@ -253,7 +154,8 @@ final class MetadataCache
      * essentially falling back to a "cold cache" state without interrupting
      * the application flow.
      *
-     * Decodes the JSON content and applies schema migrations via migrateEntries().
+     * Decodes the JSON content and reconstructs typed cache entries. Legacy JSON
+     * payloads remain supported through MetadataCacheEntry::fromArray().
      */
     private function load(): void
     {
@@ -270,8 +172,15 @@ final class MetadataCache
         $data = json_decode($contents, true);
 
         if (is_array($data)) {
-            /** @var array<string, array<string, mixed>> $data */
-            $this->entries = $this->migrateEntries($data);
+            /** @var array<string, mixed> $data */
+            foreach ($data as $pathname => $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+
+                /** @var array<string, mixed> $entry */
+                $this->entries[$pathname] = MetadataCacheEntry::fromArray($entry);
+            }
         }
     }
 }

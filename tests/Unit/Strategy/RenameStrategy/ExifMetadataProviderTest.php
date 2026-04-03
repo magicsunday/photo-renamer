@@ -17,6 +17,7 @@ use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Helper\FilenameDateParser;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\MetadataCache;
+use MagicSunday\Renamer\Metadata\MetadataCacheEntry;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -54,6 +55,7 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(FilenameDateParser::class)]
 #[UsesClass(TemporalMetadata::class)]
 #[UsesClass(MetadataCache::class)]
+#[UsesClass(MetadataCacheEntry::class)]
 final class ExifMetadataProviderTest extends TestCase
 {
     /**
@@ -300,8 +302,8 @@ final class ExifMetadataProviderTest extends TestCase
             $entry      = $freshCache->get($file);
 
             self::assertNotNull($entry);
-            self::assertSame('2024-08-20T15:00:00.000000+00:00', $entry['captureDateTime']);
-            self::assertSame('live-uuid', $entry['contentId']);
+            self::assertSame('2024-08-20T15:00:00.000000+00:00', $entry->getCaptureDateTime()?->format('Y-m-d\TH:i:s.uP'));
+            self::assertSame('live-uuid', $entry->getContentId());
         } finally {
             @unlink($filePath);
 

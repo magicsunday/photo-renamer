@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Test\Unit\Metadata;
 
 use DateTimeImmutable;
 use MagicSunday\Renamer\Metadata\MetadataCache;
+use MagicSunday\Renamer\Metadata\MetadataCacheEntry;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -49,6 +50,7 @@ use const DIRECTORY_SEPARATOR;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(MetadataCache::class)]
+#[UsesClass(MetadataCacheEntry::class)]
 #[UsesClass(TemporalMetadata::class)]
 final class MetadataCacheTest extends TestCase
 {
@@ -125,10 +127,10 @@ final class MetadataCacheTest extends TestCase
         $entry = $cache->get($file);
 
         self::assertNotNull($entry);
-        self::assertSame('2024-05-05T12:34:56.000000+02:00', $entry['captureDateTime']);
-        self::assertSame('uuid-1234', $entry['contentId']);
-        self::assertFalse($entry['isFallback']);
-        self::assertFalse($entry['isAmbiguousTimezone']);
+        self::assertSame('2024-05-05T12:34:56.000000+02:00', $entry->getCaptureDateTime()?->format('Y-m-d\TH:i:s.uP'));
+        self::assertSame('uuid-1234', $entry->getContentId());
+        self::assertFalse($entry->isFallback());
+        self::assertFalse($entry->isAmbiguousTimezone());
     }
 
     /**
@@ -211,10 +213,10 @@ final class MetadataCacheTest extends TestCase
         $entry  = $cache2->get($file);
 
         self::assertNotNull($entry);
-        self::assertSame('2024-01-01T00:00:00.000000+00:00', $entry['captureDateTime']);
-        self::assertSame('content-id', $entry['contentId']);
-        self::assertTrue($entry['isFallback']);
-        self::assertTrue($entry['isAmbiguousTimezone']);
+        self::assertSame('2024-01-01T00:00:00.000000+00:00', $entry->getCaptureDateTime()?->format('Y-m-d\TH:i:s.uP'));
+        self::assertSame('content-id', $entry->getContentId());
+        self::assertTrue($entry->isFallback());
+        self::assertTrue($entry->isAmbiguousTimezone());
     }
 
     /**
@@ -260,10 +262,10 @@ final class MetadataCacheTest extends TestCase
         $entry = $cache->get($file);
 
         self::assertNotNull($entry);
-        self::assertNull($entry['captureDateTime']);
-        self::assertNull($entry['contentId']);
-        self::assertFalse($entry['isFallback']);
-        self::assertFalse($entry['isAmbiguousTimezone']);
+        self::assertNull($entry->getCaptureDateTime());
+        self::assertNull($entry->getContentId());
+        self::assertFalse($entry->isFallback());
+        self::assertFalse($entry->isAmbiguousTimezone());
     }
 
     /**
