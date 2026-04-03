@@ -9,9 +9,8 @@
 
 declare(strict_types=1);
 
-namespace MagicSunday\Renamer\Service;
+namespace MagicSunday\Renamer\Metadata;
 
-use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use SplFileInfo;
 use Symfony\Component\Filesystem\Exception\IOException;
 use Symfony\Component\Filesystem\Filesystem;

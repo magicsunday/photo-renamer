@@ -9,9 +9,9 @@
 
 declare(strict_types=1);
 
-namespace MagicSunday\Renamer\Test\Unit\Service;
+namespace MagicSunday\Renamer\Test\Unit\Metadata;
 
-use MagicSunday\Renamer\Service\MetadataQualityFlagResolver;
+use MagicSunday\Renamer\Metadata\MetadataQualityFlagResolver;
 use MagicSunday\Renamer\Strategy\RenameStrategy\MetadataAwareRenameStrategyInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;

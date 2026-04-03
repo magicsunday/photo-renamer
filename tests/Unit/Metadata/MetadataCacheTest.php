@@ -9,11 +9,11 @@
 
 declare(strict_types=1);
 
-namespace MagicSunday\Renamer\Test\Unit\Service;
+namespace MagicSunday\Renamer\Test\Unit\Metadata;
 
 use DateTimeImmutable;
+use MagicSunday\Renamer\Metadata\MetadataCache;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
-use MagicSunday\Renamer\Service\MetadataCache;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;

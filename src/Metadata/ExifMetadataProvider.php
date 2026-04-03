@@ -17,7 +17,6 @@ use DateTimeInterface;
 use DateTimeZone;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Helper\FileHelper;
-use MagicSunday\Renamer\Service\MetadataCache;
 use SplFileInfo;
 
 use function array_key_exists;
