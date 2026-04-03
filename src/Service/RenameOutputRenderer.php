@@ -32,7 +32,10 @@ use MagicSunday\Renamer\Service\Output\OutputCounters;
 use MagicSunday\Renamer\Service\Output\OutputDecisionLogRenderer;
 use MagicSunday\Renamer\Service\Output\OutputEntryBuildResult;
 use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
+use MagicSunday\Renamer\Service\Output\OutputEntryTagResolution;
+use MagicSunday\Renamer\Service\Output\OutputSkipFlags;
 use MagicSunday\Renamer\Service\Output\OutputSummaryRowBuilder;
+use MagicSunday\Renamer\Service\Output\SkippedFileAppendResult;
 use MagicSunday\Renamer\Service\Output\SummaryRow;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
@@ -145,22 +148,22 @@ final readonly class RenameOutputRenderer
                     $result,
                 );
 
-                [$tag, $warningReason]                 = $this->applyDateDriftCheck($tag, null, $sourcePath, $targetPath, $options);
-                [$shouldSkip, $shouldPerformOperation] = $this->computeSkipFlags($tag, $isNoOp);
+                $tagResolution = $this->applyDateDriftCheck($tag, null, $sourcePath, $targetPath, $options);
+                $skipFlags     = $this->computeSkipFlags($tagResolution->tag, $isNoOp);
 
                 $outputEntries[] = OutputEntry::rename(
                     sortKey: $rename->getSource()->getPathname(),
                     sourcePath: $sourcePath,
                     targetPath: $targetPath,
-                    tag: $tag,
+                    tag: $tagResolution->tag,
                     isDuplicateTarget: $isDuplicateTarget,
-                    shouldSkip: $shouldSkip,
-                    shouldPerformOperation: $shouldPerformOperation,
-                    warningReason: $warningReason,
+                    shouldSkip: $skipFlags->shouldSkip,
+                    shouldPerformOperation: $skipFlags->shouldPerformOperation,
+                    warningReason: $tagResolution->warningReason,
                 );
 
                 // Append info line showing which file this is a duplicate of
-                if (($tag === OutputEntryTag::Duplicate) && !$isNoOp) {
+                if (($tagResolution->tag === OutputEntryTag::Duplicate) && !$isNoOp) {
                     $outputEntries[] = OutputEntry::info(
                         sortKey: $rename->getSource()->getPathname(),
                         sourcePath: $sourcePath,
@@ -179,7 +182,7 @@ final readonly class RenameOutputRenderer
             }
         }
 
-        [$skippedCount, $errorCount] = $this->appendSkippedFileEntries($outputEntries, $result, $sourceBaseDirectory);
+        $skippedAppendResult = $this->appendSkippedFileEntries($outputEntries, $result, $sourceBaseDirectory);
 
         usort($outputEntries, static function (OutputEntry $entryA, OutputEntry $entryB): int {
             $cmp = $entryA->sortKey <=> $entryB->sortKey;
@@ -187,7 +190,11 @@ final readonly class RenameOutputRenderer
             return $cmp !== 0 ? $cmp : ($entryA->type->sortOrder() <=> $entryB->type->sortOrder());
         });
 
-        return new OutputEntryBuildResult($outputEntries, $skippedCount, $errorCount);
+        return new OutputEntryBuildResult(
+            $outputEntries,
+            $skippedAppendResult->skippedCount,
+            $skippedAppendResult->errorCount,
+        );
     }
 
     /**
@@ -382,29 +389,28 @@ final readonly class RenameOutputRenderer
 
                 $tag = $this->resolveItemTag($item);
 
-                [$tag, $warningReason] = $this->applyDateDriftCheck($tag, $item->warningReason ?? $item->executionBlockReason, $sourcePath, $targetPath, $options);
-
-                // Use isExecutable from the ExecutionItem to determine skip status.
-                // Date drift (applied above) can also trigger a skip via the tag.
-                $shouldSkip = (!$item->isExecutable && !$item->isNoOp)
-                    || $tag->isScanningSkip()
-                    || ($tag === OutputEntryTag::Warning)
-                    || ($tag === OutputEntryTag::Candidate);
-                $shouldPerformOperation = !$shouldSkip && !$item->isNoOp;
+                $tagResolution = $this->applyDateDriftCheck(
+                    $tag,
+                    $item->warningReason ?? $item->executionBlockReason,
+                    $sourcePath,
+                    $targetPath,
+                    $options,
+                );
+                $skipFlags = $this->computeSkipFlags($tagResolution->tag, $item->isNoOp, $item->isExecutable);
 
                 $outputEntries[] = OutputEntry::rename(
                     sortKey: $item->sourcePath,
                     sourcePath: $sourcePath,
                     targetPath: $targetPath,
-                    tag: $tag,
+                    tag: $tagResolution->tag,
                     isDuplicateTarget: $item->isDuplicateTarget,
-                    shouldSkip: $shouldSkip,
-                    shouldPerformOperation: $shouldPerformOperation,
-                    warningReason: $warningReason,
+                    shouldSkip: $skipFlags->shouldSkip,
+                    shouldPerformOperation: $skipFlags->shouldPerformOperation,
+                    warningReason: $tagResolution->warningReason,
                 );
 
                 // Append info line showing which file this is a duplicate of
-                if (($tag === OutputEntryTag::Duplicate) && !$item->isNoOp && ($canonicalTargetPath !== null)) {
+                if (($tagResolution->tag === OutputEntryTag::Duplicate) && !$item->isNoOp && ($canonicalTargetPath !== null)) {
                     $outputEntries[] = OutputEntry::info(
                         sortKey: $item->sourcePath,
                         sourcePath: $sourcePath,
@@ -423,7 +429,7 @@ final readonly class RenameOutputRenderer
             }
         }
 
-        [$skippedCount, $errorCount] = $this->appendSkippedFileEntries($outputEntries, $result, $sourceBaseDirectory);
+        $skippedAppendResult = $this->appendSkippedFileEntries($outputEntries, $result, $sourceBaseDirectory);
 
         usort($outputEntries, static function (OutputEntry $entryA, OutputEntry $entryB): int {
             $cmp = $entryA->sortKey <=> $entryB->sortKey;
@@ -431,7 +437,11 @@ final readonly class RenameOutputRenderer
             return $cmp !== 0 ? $cmp : ($entryA->type->sortOrder() <=> $entryB->type->sortOrder());
         });
 
-        return new OutputEntryBuildResult($outputEntries, $skippedCount, $errorCount);
+        return new OutputEntryBuildResult(
+            $outputEntries,
+            $skippedAppendResult->skippedCount,
+            $skippedAppendResult->errorCount,
+        );
     }
 
     /**
@@ -544,7 +554,7 @@ final readonly class RenameOutputRenderer
      * @param string         $targetPath    Relative target path for date extraction
      * @param RenameOptions  $options       Command options (maxDateDrift)
      *
-     * @return array{OutputEntryTag, string|null} Adjusted [tag, warningReason]
+     * @return OutputEntryTagResolution Adjusted tag and warning reason
      */
     private function applyDateDriftCheck(
         OutputEntryTag $tag,
@@ -552,7 +562,7 @@ final readonly class RenameOutputRenderer
         string $sourcePath,
         string $targetPath,
         RenameOptions $options,
-    ): array {
+    ): OutputEntryTagResolution {
         if (($tag === OutputEntryTag::Warning) && ($warningReason === null)) {
             $warningReason = 'Ambiguous timezone: QuickTime UTC without offset — use --timezone or rename:write-date --reason=timezone';
         }
@@ -574,7 +584,7 @@ final readonly class RenameOutputRenderer
             }
         }
 
-        return [$tag, $warningReason];
+        return new OutputEntryTagResolution($tag, $warningReason);
     }
 
     /**
@@ -582,21 +592,24 @@ final readonly class RenameOutputRenderer
      * the resolved tag. [W] (ambiguous timezone) and [C] (LP conflict)
      * items are always skipped.
      *
-     * @param OutputEntryTag $tag    The resolved output entry tag
-     * @param bool           $isNoOp Whether source === target (no rename needed)
+     * @param OutputEntryTag $tag          The resolved output entry tag
+     * @param bool           $isNoOp       Whether source === target (no rename needed)
+     * @param bool           $isExecutable Whether the entry remains executable after validation
      *
-     * @return array{bool, bool} [shouldSkip, shouldPerformOperation]
+     * @return OutputSkipFlags Immutable skip and execution flags
      */
     private function computeSkipFlags(
         OutputEntryTag $tag,
         bool $isNoOp,
-    ): array {
-        $shouldSkip = ($tag === OutputEntryTag::Candidate)
+        bool $isExecutable = true,
+    ): OutputSkipFlags {
+        $shouldSkip = (!$isExecutable && !$isNoOp)
+            || ($tag === OutputEntryTag::Candidate)
             || ($tag === OutputEntryTag::Warning);
 
         $shouldPerformOperation = ($shouldSkip === false) && (!$isNoOp);
 
-        return [$shouldSkip, $shouldPerformOperation];
+        return new OutputSkipFlags($shouldSkip, $shouldPerformOperation);
     }
 
     /**
@@ -607,13 +620,13 @@ final readonly class RenameOutputRenderer
      * @param RenameResult      $result              Result carrying skipped files
      * @param string|null       $sourceBaseDirectory Base directory for path relativization
      *
-     * @return array{int, int} [skippedCount, errorCount]
+     * @return SkippedFileAppendResult Immutable skipped/error counters after projection
      */
     private function appendSkippedFileEntries(
         array &$outputEntries,
         RenameResult $result,
         ?string $sourceBaseDirectory,
-    ): array {
+    ): SkippedFileAppendResult {
         $skippedCount = 0;
         $errorCount   = 0;
 
@@ -649,7 +662,7 @@ final readonly class RenameOutputRenderer
             $outputEntries[] = $reviewEntry;
         }
 
-        return [$skippedCount, $errorCount];
+        return new SkippedFileAppendResult($skippedCount, $errorCount);
     }
 
     /**
