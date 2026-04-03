@@ -41,6 +41,7 @@ use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\DefaultOutputSkipRe
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\FallbackOutputSkipReasonRule;
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\ReviewOutputSkipReasonRule;
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\WarningOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSummaryRowBuilder;
 use MagicSunday\Renamer\Service\Output\SkipReasonFormatter;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -90,6 +91,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 #[UsesClass(FallbackOutputSkipReasonRule::class)]
 #[UsesClass(ReviewOutputSkipReasonRule::class)]
 #[UsesClass(WarningOutputSkipReasonRule::class)]
+#[UsesClass(OutputSummaryRowBuilder::class)]
 #[UsesClass(SkipReasonFormatter::class)]
 final class RenameOutputRendererTest extends TestCase
 {

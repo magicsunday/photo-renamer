@@ -29,10 +29,10 @@ use MagicSunday\Renamer\Model\RenameResult;
 use MagicSunday\Renamer\Service\Output\DiffHighlighter;
 use MagicSunday\Renamer\Service\Output\OutputCounters;
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
+use MagicSunday\Renamer\Service\Output\OutputSummaryRowBuilder;
 use MagicSunday\Renamer\Service\Output\SkipReasonFormatter;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
-use function array_key_exists;
 use function count;
 use function in_array;
 use function is_string;
@@ -75,6 +75,8 @@ final readonly class RenameOutputRenderer
 
     private DiffHighlighter $diffHighlighter;
 
+    private OutputSummaryRowBuilder $summaryRowBuilder;
+
     /**
      * @param SymfonyStyle $io Symfony Style IO for consistent console output formatting
      */
@@ -83,6 +85,7 @@ final readonly class RenameOutputRenderer
         $this->skipReasonDecider   = new OutputSkipReasonDecider();
         $this->skipReasonFormatter = new SkipReasonFormatter();
         $this->diffHighlighter     = new DiffHighlighter();
+        $this->summaryRowBuilder   = new OutputSummaryRowBuilder();
     }
 
     /**
@@ -313,45 +316,7 @@ final readonly class RenameOutputRenderer
     {
         $this->io->newLine();
 
-        $rows = [
-            ['Scanned files', (string) $counters['scannedFiles']],
-        ];
-
-        if ($counters['skippedCount'] > 0) {
-            $rows[] = ['Skipped (no metadata)', (string) $counters['skippedCount']];
-        }
-
-        if ($counters['errorCount'] > 0) {
-            $rows[] = ['Skipped (read errors)', (string) $counters['errorCount']];
-        }
-
-        if ($counters['plannedMoves'] > 0) {
-            $rows[] = ['Planned moves', (string) $counters['plannedMoves']];
-        }
-
-        if ($counters['plannedSkips'] > 0) {
-            $rows[] = ['Planned skips', (string) $counters['plannedSkips']];
-        }
-
-        if ($counters['livePhotoGroups'] > 0) {
-            $rows[] = ['Live Photo groups', (string) $counters['livePhotoGroups']];
-        }
-
-        if ($counters['duplicateCount'] > 0) {
-            $rows[] = ['Duplicates found', (string) $counters['duplicateCount']];
-        }
-
-        if ($counters['namingCollisions'] > 0) {
-            $rows[] = ['Naming collisions', (string) $counters['namingCollisions']];
-        }
-
-        if (array_key_exists('crossGroupVideoReviewCount', $counters) && ($counters['crossGroupVideoReviewCount'] > 0)) {
-            $rows[] = ['Cross-group video review', (string) $counters['crossGroupVideoReviewCount']];
-        }
-
-        $rows[] = [$dryRun ? 'Files to process' : 'Files processed', (string) $counters['fileCount']];
-
-        $this->renderSummarySection($rows);
+        $this->renderSummarySection($this->summaryRowBuilder->build($counters, $dryRun));
     }
 
     /**
