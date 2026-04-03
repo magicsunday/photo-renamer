@@ -28,6 +28,7 @@ use MagicSunday\Renamer\Service\ContentIdentifierCacheEntry;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetectorInterface;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingServiceInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
+use MagicSunday\Renamer\Service\TargetFileResolver;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\LivePhotoAwareRenameStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\MetadataAwareRenameStrategyInterface;
@@ -35,11 +36,9 @@ use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use Override;
 use RecursiveIterator;
 use RecursiveIteratorIterator;
-use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Style\SymfonyStyle;
-use Throwable;
 
 use function array_key_exists;
 use function array_keys;
@@ -47,14 +46,7 @@ use function assert;
 use function count;
 use function is_string;
 use function max;
-use function rtrim;
-use function sprintf;
-use function str_contains;
-use function str_starts_with;
-use function strlen;
-use function substr;
 use function substr_count;
-use function trim;
 use function usort;
 
 use const DIRECTORY_SEPARATOR;
@@ -77,6 +69,7 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
      * @param MediaTypeClassifierInterface            $mediaTypeClassifier           Classifies files by media type (still vs. video)
      * @param LivePhotoConflictDetectorInterface|null $livePhotoConflictDetector     LP conflict detection (optional)
      * @param LivePhotoPairingServiceInterface|null   $livePhotoPairingService       LP second-pass pairing (optional)
+     * @param TargetFileResolver                      $targetFileResolver            Resolves generated filenames into success/skip/error target results.
      * @param PendingLivePhotoVideoResolver           $pendingLivePhotoVideoResolver Resolves deferred videos that never found a still-image anchor.
      * @param CaptureGroupQualityTracker              $captureGroupQualityTracker    Records fallback/timezone quality flags separately from grouping.
      */
@@ -85,6 +78,7 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
         private MediaTypeClassifierInterface $mediaTypeClassifier,
         private ?LivePhotoConflictDetectorInterface $livePhotoConflictDetector = null,
         private ?LivePhotoPairingServiceInterface $livePhotoPairingService = null,
+        private TargetFileResolver $targetFileResolver = new TargetFileResolver(),
         private PendingLivePhotoVideoResolver $pendingLivePhotoVideoResolver = new PendingLivePhotoVideoResolver(),
         private CaptureGroupQualityTracker $captureGroupQualityTracker = new CaptureGroupQualityTracker(),
     ) {
@@ -272,70 +266,11 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
         RenameStrategyInterface $renameStrategy,
         PipelineContext $context,
     ): TargetFileResult {
-        try {
-            $targetFilename = $renameStrategy->generateFilename($sourceFileInfo);
-
-            if ($targetFilename !== null) {
-                return TargetFileResult::success(
-                    new SplFileInfo(
-                        $this->getTargetPathname(
-                            $sourceFileInfo,
-                            $targetFilename,
-                            $context->sourceDirectory,
-                        ),
-                    ),
-                );
-            }
-
-            return TargetFileResult::skipped('no capture date');
-        } catch (TargetFilenameException $exception) {
-            $rootCause = $exception;
-
-            while ($rootCause->getPrevious() instanceof Throwable) {
-                $rootCause = $rootCause->getPrevious();
-            }
-
-            return TargetFileResult::error($rootCause->getMessage());
-        }
-    }
-
-    /**
-     * Builds the full target pathname from the source file's directory structure
-     * and the computed target filename.
-     *
-     * @param SplFileInfo $sourceFileInfo  Source file providing the directory structure
-     * @param string      $targetFilename  Computed target filename (no directory separators)
-     * @param string      $sourceDirectory Absolute path to the source directory
-     *
-     * @return string Full target pathname
-     */
-    private function getTargetPathname(
-        SplFileInfo $sourceFileInfo,
-        string $targetFilename,
-        string $sourceDirectory,
-    ): string {
-        if (str_contains($targetFilename, DIRECTORY_SEPARATOR) || str_contains($targetFilename, '/')) {
-            throw new RuntimeException(
-                sprintf('Target filename "%s" must not contain directory separators', $targetFilename),
-            );
-        }
-
-        $sourcePath   = $sourceFileInfo->getPath();
-        $relativePath = $sourcePath;
-
-        if (str_starts_with($sourcePath, $sourceDirectory)) {
-            $relativePath = substr($sourcePath, strlen($sourceDirectory));
-        }
-
-        $relativePath = trim($relativePath, DIRECTORY_SEPARATOR);
-
-        $targetPath = rtrim($sourceDirectory, DIRECTORY_SEPARATOR);
-
-        if ($relativePath !== '') {
-            $targetPath .= DIRECTORY_SEPARATOR . $relativePath;
-        }
-
-        return $targetPath . DIRECTORY_SEPARATOR . $targetFilename;
+        return $this->targetFileResolver->resolve(
+            $context->sourceDirectory,
+            $sourceFileInfo,
+            $renameStrategy,
+        );
     }
 
     /**

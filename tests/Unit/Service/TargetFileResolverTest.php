@@ -12,7 +12,8 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
 use MagicSunday\Renamer\Exception\TargetFilenameException;
-use MagicSunday\Renamer\Service\LegacyTargetFileResolver;
+use MagicSunday\Renamer\Service\TargetFileResolver;
+use MagicSunday\Renamer\Service\TargetPathResolver;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -23,27 +24,27 @@ use SplFileInfo;
 use const DIRECTORY_SEPARATOR;
 
 /**
- * Verifies target-file resolution for the legacy duplicate pipeline.
+ * Verifies shared target-file resolution across both execution paths.
  *
- * The resolver must convert three strategy outcomes into stable result objects:
- * a generated filename becomes a success target, `null` becomes a skipped result,
- * and wrapped `TargetFilenameException`s surface only the root-cause message.
+ * The resolver must translate rename-strategy outcomes into stable result objects:
+ * generated filenames become success targets, `null` becomes the canonical skip
+ * reason, and wrapped metadata exceptions are flattened to their root cause.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-#[CoversClass(LegacyTargetFileResolver::class)]
-final class LegacyTargetFileResolverTest extends TestCase
+#[CoversClass(TargetFileResolver::class)]
+final class TargetFileResolverTest extends TestCase
 {
     /**
-     * Verifies that a generated filename is converted into a successful target
-     * path beneath the legacy source root.
+     * Verifies that a generated filename becomes a successful target file beneath
+     * the configured source root.
      */
     #[Test]
     public function resolveReturnsSuccessForGeneratedFilename(): void
     {
-        $resolver   = new LegacyTargetFileResolver();
+        $resolver   = new TargetFileResolver(new TargetPathResolver());
         $sourceRoot = DIRECTORY_SEPARATOR . 'tmp' . DIRECTORY_SEPARATOR . 'Fotos';
         $source     = new SplFileInfo(
             $sourceRoot
@@ -75,13 +76,13 @@ final class LegacyTargetFileResolverTest extends TestCase
     }
 
     /**
-     * Verifies that a `null` filename from the strategy becomes the legacy
-     * skipped state with the canonical `no capture date` reason.
+     * Verifies that a `null` filename from the strategy becomes the canonical
+     * skipped state with the shared `no capture date` reason.
      */
     #[Test]
     public function resolveReturnsSkippedWhenStrategyReturnsNull(): void
     {
-        $resolver   = new LegacyTargetFileResolver();
+        $resolver   = new TargetFileResolver(new TargetPathResolver());
         $sourceRoot = DIRECTORY_SEPARATOR . 'tmp' . DIRECTORY_SEPARATOR . 'Fotos';
         $source     = new SplFileInfo($sourceRoot . DIRECTORY_SEPARATOR . 'IMG_0002.mov');
         $strategy   = $this->createMock(RenameStrategyInterface::class);
@@ -105,7 +106,7 @@ final class LegacyTargetFileResolverTest extends TestCase
     #[Test]
     public function resolveReturnsErrorWithRootCauseMessage(): void
     {
-        $resolver   = new LegacyTargetFileResolver();
+        $resolver   = new TargetFileResolver(new TargetPathResolver());
         $sourceRoot = DIRECTORY_SEPARATOR . 'tmp' . DIRECTORY_SEPARATOR . 'Fotos';
         $source     = new SplFileInfo($sourceRoot . DIRECTORY_SEPARATOR . 'IMG_0003.heic');
         $strategy   = $this->createMock(RenameStrategyInterface::class);

@@ -178,8 +178,6 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
 
     private readonly LegacyLivePhotoDuplicateCoordinator $livePhotoDuplicateCoordinator;
 
-    private readonly LegacyTargetFileResolver $targetFileResolver;
-
     private readonly LegacyDuplicateTargetCandidateFactory $duplicateTargetCandidateFactory;
 
     public function __construct(
@@ -194,7 +192,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
         private readonly LegacyLivePhotoQualityFlagPropagator $livePhotoQualityFlagPropagator = new LegacyLivePhotoQualityFlagPropagator(),
         ?LegacyLivePhotoDuplicateCoordinator $livePhotoDuplicateCoordinator = null,
         private readonly LegacyTargetPathResolver $targetPathResolver = new LegacyTargetPathResolver(),
-        ?LegacyTargetFileResolver $targetFileResolver = null,
+        private readonly ?LegacyTargetFileResolver $targetFileResolver = new LegacyTargetFileResolver(),
         private readonly LegacyTargetOccupancyChecker $targetOccupancyChecker = new LegacyTargetOccupancyChecker(),
         ?LegacyDuplicateTargetCandidateFactory $duplicateTargetCandidateFactory = null,
     ) {
@@ -206,8 +204,6 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
                 $livePhotoCompanionDetector,
                 $this->mediaTypeClassifier,
             );
-        $this->targetFileResolver = $targetFileResolver
-            ?? new LegacyTargetFileResolver($this->targetPathResolver);
         $this->duplicateTargetCandidateFactory = $duplicateTargetCandidateFactory
             ?? new LegacyDuplicateTargetCandidateFactory($this->targetPathResolver);
     }
@@ -1045,7 +1041,10 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      */
     private function getTargetFileInfo(SplFileInfo $sourceFileInfo, RenameStrategyInterface $renameStrategy): TargetFileResult
     {
-        return $this->targetFileResolver->resolve(
+        $targetFileResolver = $this->targetFileResolver;
+        assert($targetFileResolver instanceof LegacyTargetFileResolver);
+
+        return $targetFileResolver->resolve(
             $this->sourceDirectory,
             $sourceFileInfo,
             $renameStrategy,

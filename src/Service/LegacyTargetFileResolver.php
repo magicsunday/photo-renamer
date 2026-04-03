@@ -11,11 +11,9 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service;
 
-use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Model\TargetFileResult;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use SplFileInfo;
-use Throwable;
 
 /**
  * Resolves target file information for the legacy duplicate pipeline.
@@ -33,10 +31,11 @@ use Throwable;
 final readonly class LegacyTargetFileResolver
 {
     /**
-     * @param LegacyTargetPathResolver $targetPathResolver Resolves the final absolute target pathname once a filename was generated.
+     * @param TargetFileResolver $targetFileResolver Shared target-file resolver reused by the legacy pipeline wrapper.
      */
-    public function __construct(private LegacyTargetPathResolver $targetPathResolver)
-    {
+    public function __construct(
+        private TargetFileResolver $targetFileResolver = new TargetFileResolver(),
+    ) {
     }
 
     /**
@@ -51,32 +50,10 @@ final readonly class LegacyTargetFileResolver
         SplFileInfo $sourceFileInfo,
         RenameStrategyInterface $renameStrategy,
     ): TargetFileResult {
-        try {
-            $targetFilename = $renameStrategy->generateFilename($sourceFileInfo);
-
-            if ($targetFilename !== null) {
-                return TargetFileResult::success(
-                    new SplFileInfo(
-                        $this->targetPathResolver->resolve(
-                            $sourceDirectory,
-                            $sourceFileInfo,
-                            $targetFilename,
-                        )
-                    )
-                );
-            }
-
-            return TargetFileResult::skipped('no capture date');
-        } catch (TargetFilenameException $exception) {
-            // Extract the root cause message from the exception chain to avoid
-            // double-wrapped "Unable to read..." prefixes in the output.
-            $rootCause = $exception;
-
-            while ($rootCause->getPrevious() instanceof Throwable) {
-                $rootCause = $rootCause->getPrevious();
-            }
-
-            return TargetFileResult::error($rootCause->getMessage());
-        }
+        return $this->targetFileResolver->resolve(
+            $sourceDirectory,
+            $sourceFileInfo,
+            $renameStrategy,
+        );
     }
 }
