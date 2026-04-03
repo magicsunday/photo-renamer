@@ -237,7 +237,7 @@ final class VirtualRenameExifPipelineFlowTest extends TestCase
     private function createFileIterator(array $files): RecursiveIteratorIterator
     {
         return new RecursiveIteratorIterator(
-            new FlatSplFileInfoRecursiveIterator(array_values($files))
+            new FlatSplFileInfoRecursiveIterator($files)
         );
     }
 

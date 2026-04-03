@@ -23,9 +23,9 @@ use SplFileInfo;
  * to AssetGroupPipeline. This adapter gives the tests the same iterator shape
  * without requiring real directories or child iterators.
  *
- * @extends ArrayIterator<int, SplFileInfo>
+ * @extends ArrayIterator<string, SplFileInfo>
  *
- * @implements RecursiveIterator<int, SplFileInfo>
+ * @implements RecursiveIterator<string, SplFileInfo>
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -47,7 +47,7 @@ final class FlatSplFileInfoRecursiveIterator extends ArrayIterator implements Re
      * Returning itself satisfies the RecursiveIterator contract while remaining
      * unreachable because hasChildren() is always false.
      *
-     * @return RecursiveIterator<int, SplFileInfo>
+     * @return RecursiveIterator<string, SplFileInfo>
      */
     public function getChildren(): RecursiveIterator
     {
