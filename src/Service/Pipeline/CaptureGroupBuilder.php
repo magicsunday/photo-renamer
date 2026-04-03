@@ -15,7 +15,6 @@ use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Helper\FileHelper;
-use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
@@ -65,13 +64,14 @@ use const DIRECTORY_SEPARATOR;
 final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
 {
     /**
-     * @param SymfonyStyle                            $io                            Console IO for progress bars and error output
-     * @param MediaTypeClassifierInterface            $mediaTypeClassifier           Classifies files by media type (still vs. video)
-     * @param LivePhotoConflictDetectorInterface|null $livePhotoConflictDetector     LP conflict detection (optional)
-     * @param LivePhotoPairingServiceInterface|null   $livePhotoPairingService       LP second-pass pairing (optional)
-     * @param TargetFileResolver                      $targetFileResolver            Resolves generated filenames into success/skip/error target results.
-     * @param PendingLivePhotoVideoResolver           $pendingLivePhotoVideoResolver Resolves deferred videos that never found a still-image anchor.
-     * @param CaptureGroupQualityTracker              $captureGroupQualityTracker    Records fallback/timezone quality flags separately from grouping.
+     * @param SymfonyStyle                            $io                             Console IO for progress bars and error output
+     * @param MediaTypeClassifierInterface            $mediaTypeClassifier            Classifies files by media type (still vs. video)
+     * @param LivePhotoConflictDetectorInterface|null $livePhotoConflictDetector      LP conflict detection (optional)
+     * @param LivePhotoPairingServiceInterface|null   $livePhotoPairingService        LP second-pass pairing (optional)
+     * @param TargetFileResolver                      $targetFileResolver             Resolves generated filenames into success/skip/error target results.
+     * @param CaptureAssetCandidateExtractor          $captureAssetCandidateExtractor Extracts AssetItem candidates and records metadata/content-ID state.
+     * @param PendingLivePhotoVideoResolver           $pendingLivePhotoVideoResolver  Resolves deferred videos that never found a still-image anchor.
+     * @param CaptureGroupQualityTracker              $captureGroupQualityTracker     Records fallback/timezone quality flags separately from grouping.
      */
     public function __construct(
         private SymfonyStyle $io,
@@ -79,6 +79,7 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
         private ?LivePhotoConflictDetectorInterface $livePhotoConflictDetector = null,
         private ?LivePhotoPairingServiceInterface $livePhotoPairingService = null,
         private TargetFileResolver $targetFileResolver = new TargetFileResolver(),
+        private CaptureAssetCandidateExtractor $captureAssetCandidateExtractor = new CaptureAssetCandidateExtractor(),
         private PendingLivePhotoVideoResolver $pendingLivePhotoVideoResolver = new PendingLivePhotoVideoResolver(),
         private CaptureGroupQualityTracker $captureGroupQualityTracker = new CaptureGroupQualityTracker(),
     ) {
@@ -128,7 +129,7 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
         foreach ($files as $sourceFileInfo) {
             $result = $this->getTargetFileResult($sourceFileInfo, $renameStrategy, $context);
 
-            $item                        = $this->extractAssetCandidate($sourceFileInfo, $renameStrategy, $state);
+            $item                        = $this->captureAssetCandidateExtractor->extract($sourceFileInfo, $renameStrategy, $state);
             $normalizedContentIdentifier = $item->contentIdentifier;
 
             $this->initContentIdCacheEntry($normalizedContentIdentifier, $state);
@@ -271,73 +272,6 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
             $sourceFileInfo,
             $renameStrategy,
         );
-    }
-
-    /**
-     * Resolves the normalized Live Photo content identifier for the given source file.
-     *
-     * @param RenameStrategyInterface $renameStrategy Strategy that may expose content identifiers
-     * @param SplFileInfo             $sourceFileInfo Source file to query
-     *
-     * @return string|null Lowercased content identifier, or null
-     *
-     * @throws TargetFilenameException When reading metadata fails
-     */
-    private function resolveNormalizedContentIdentifier(
-        RenameStrategyInterface $renameStrategy,
-        SplFileInfo $sourceFileInfo,
-    ): ?string {
-        if (!$renameStrategy instanceof LivePhotoAwareRenameStrategyInterface) {
-            return null;
-        }
-
-        return $renameStrategy->getLivePhotoContentIdentifier($sourceFileInfo);
-    }
-
-    /**
-     * Creates an AssetItem with temporal metadata and content identifier populated.
-     * Updates state maps (temporalMetadataMap, contentIdentifierMap) as side effects.
-     *
-     * @param SplFileInfo             $file     Source file to extract metadata for
-     * @param RenameStrategyInterface $strategy Rename strategy that may expose metadata
-     * @param CaptureGroupBuildState  $state    Mutable build-time state to update
-     *
-     * @return AssetItem Item with metadata and content identifier attached
-     */
-    private function extractAssetCandidate(
-        SplFileInfo $file,
-        RenameStrategyInterface $strategy,
-        CaptureGroupBuildState $state,
-    ): AssetItem {
-        $temporalMetadata = null;
-
-        if ($strategy instanceof MetadataAwareRenameStrategyInterface) {
-            try {
-                $temporalMetadata = $strategy->getTemporalMetadata($file);
-            } catch (TargetFilenameException) {
-                $temporalMetadata = null;
-            }
-
-            if ($temporalMetadata instanceof TemporalMetadata) {
-                $state->temporalMetadataMap[$file->getPathname()] = $temporalMetadata;
-            }
-        }
-
-        $normalizedContentIdentifier = null;
-
-        try {
-            $normalizedContentIdentifier = $this->resolveNormalizedContentIdentifier($strategy, $file);
-        } catch (TargetFilenameException) {
-            $normalizedContentIdentifier = null;
-        }
-
-        if ($normalizedContentIdentifier !== null) {
-            $state->contentIdentifierMap[$file->getPathname()] = $normalizedContentIdentifier;
-        }
-
-        $item = new AssetItem($file);
-
-        return $item->withMetadata($temporalMetadata, $normalizedContentIdentifier);
     }
 
     /**
