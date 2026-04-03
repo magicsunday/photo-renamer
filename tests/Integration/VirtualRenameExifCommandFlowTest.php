@@ -51,6 +51,7 @@ use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Tester\CommandTester;
+use Symfony\Component\Filesystem\Filesystem;
 
 /**
  * Verifies the virtual command-orchestration flow for `rename:exif`.
@@ -256,6 +257,7 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
             $fileSystemService,
             self::createStub(DuplicateDetectionServiceInterface::class),
             new SafeRegex(),
+            new Filesystem(),
             new ExifMetadataProvider(new StubMetadataExtractor()),
             self::createStub(PerceptualHashCalculatorInterface::class),
             self::createStub(HashSubGroupingServiceInterface::class),

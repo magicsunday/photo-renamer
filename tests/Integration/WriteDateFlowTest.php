@@ -106,6 +106,7 @@ use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Tester\CommandTester;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
 
 use function copy;
@@ -419,6 +420,7 @@ final class WriteDateFlowTest extends TestCase
                 $livePhotoConflictDetector,
             ),
             new SafeRegex(),
+            new Filesystem(),
             new ExifMetadataProvider(new MetadataExtractor(MetadataReader::createDefault())),
             $perceptualHashCalculator,
             $hashSubGroupingService,
@@ -457,6 +459,7 @@ final class WriteDateFlowTest extends TestCase
             $fileSystemService,
             new ExiftoolWriter(),
             $renderer,
+            new Filesystem(),
             new WriteDateCandidateAnalyzer(
                 $metadataProvider,
                 $mediaTypeClassifier,

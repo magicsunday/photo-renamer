@@ -48,6 +48,15 @@ use const DIRECTORY_SEPARATOR;
 trait ConfiguresMetadataProvider
 {
     /**
+     * Provides the command-facing filesystem boundary used by metadata-related
+     * cache helpers in this concern.
+     *
+     * Commands using this trait already own the runtime command boundary, so
+     * the trait must not instantiate its own Filesystem silently.
+     */
+    abstract protected function getCommandFilesystem(): Filesystem;
+
+    /**
      * Configures the default timezone on the EXIF metadata provider.
      *
      * This is essential for correctly converting UTC timestamps from QuickTime
@@ -104,7 +113,7 @@ trait ConfiguresMetadataProvider
      */
     protected function configureProviderCache(ExifMetadataProvider $provider): MetadataCache
     {
-        $cache = new MetadataCache($this->resolveCacheDir() . '/metadata-cache.json', new Filesystem());
+        $cache = new MetadataCache($this->resolveCacheDir() . '/metadata-cache.json', $this->getCommandFilesystem());
 
         $provider->setCache($cache);
 
@@ -121,7 +130,7 @@ trait ConfiguresMetadataProvider
      */
     protected function createPerceptualSignalCache(): PerceptualSignalCache
     {
-        return new PerceptualSignalCache($this->resolveCacheDir() . '/perceptual-signal-cache.json', new Filesystem());
+        return new PerceptualSignalCache($this->resolveCacheDir() . '/perceptual-signal-cache.json', $this->getCommandFilesystem());
     }
 
     /**

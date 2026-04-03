@@ -31,6 +31,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Filesystem\Filesystem;
 
 use function array_map;
 use function dirname;
@@ -60,6 +61,7 @@ final class VerifyCommand extends Command
      * @param ExifMetadataProvider          $exifMetadataProvider          Metadata provider with caching
      * @param FileSystemServiceInterface    $fileSystemService             Provides file iteration
      * @param RenameOutputRenderer          $renderer                      Shared output rendering utilities
+     * @param Filesystem                    $filesystem                    Command-facing filesystem boundary reused by metadata-cache helpers
      * @param VerifyDetailEntryFormatter    $verifyDetailEntryFormatter    Formats detail-mode verify entries
      * @param MetadataIssueScanner          $metadataIssueScanner          Scans per-file metadata issues before LP completeness checks
      * @param LivePhotoCompletenessAnalyzer $livePhotoCompletenessAnalyzer Analyzes missing Live Photo companions after the scan
@@ -69,12 +71,21 @@ final class VerifyCommand extends Command
         private readonly ExifMetadataProvider $exifMetadataProvider,
         private readonly FileSystemServiceInterface $fileSystemService,
         private readonly RenameOutputRenderer $renderer,
+        private readonly Filesystem $filesystem,
         private readonly VerifyDetailEntryFormatter $verifyDetailEntryFormatter,
         private readonly MetadataIssueScanner $metadataIssueScanner,
         private readonly LivePhotoCompletenessAnalyzer $livePhotoCompletenessAnalyzer,
         private readonly VerifyReportFormatter $verifyReportFormatter,
     ) {
         parent::__construct();
+    }
+
+    /**
+     * Exposes the command-level filesystem boundary to shared metadata provider configuration.
+     */
+    protected function getCommandFilesystem(): Filesystem
+    {
+        return $this->filesystem;
     }
 
     /**

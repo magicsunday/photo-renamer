@@ -31,6 +31,7 @@ use RecursiveArrayIterator;
 use RecursiveIteratorIterator;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
+use Symfony\Component\Filesystem\Filesystem;
 
 use function getcwd;
 use function ltrim;
@@ -118,15 +119,16 @@ final class AbstractRenameCommandTest extends TestCase
                 }),
             );
 
-        $command = new class($fileSystemService, $duplicateDetectionService, new SafeRegex(), $renameStrategy, $duplicateIdentifierStrategy) extends AbstractRenameCommand {
+        $command = new class($fileSystemService, $duplicateDetectionService, new SafeRegex(), new Filesystem(), $renameStrategy, $duplicateIdentifierStrategy) extends AbstractRenameCommand {
             public function __construct(
                 FileSystemServiceInterface $fileSystemService,
                 DuplicateDetectionServiceInterface $duplicateDetectionService,
                 SafeRegex $safeRegex,
+                Filesystem $filesystem,
                 private readonly RenameStrategyInterface $renameStrategy,
                 private readonly DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy,
             ) {
-                parent::__construct($fileSystemService, $duplicateDetectionService, $safeRegex);
+                parent::__construct($fileSystemService, $duplicateDetectionService, $safeRegex, $filesystem);
 
                 $this->setName('test:rename');
             }
@@ -216,15 +218,16 @@ final class AbstractRenameCommandTest extends TestCase
                 }),
             );
 
-        $command = new class($fileSystemService, $duplicateDetectionService, new SafeRegex(), $renameStrategy, $duplicateIdentifierStrategy) extends AbstractRenameCommand {
+        $command = new class($fileSystemService, $duplicateDetectionService, new SafeRegex(), new Filesystem(), $renameStrategy, $duplicateIdentifierStrategy) extends AbstractRenameCommand {
             public function __construct(
                 FileSystemServiceInterface $fileSystemService,
                 DuplicateDetectionServiceInterface $duplicateDetectionService,
                 SafeRegex $safeRegex,
+                Filesystem $filesystem,
                 private readonly RenameStrategyInterface $renameStrategy,
                 private readonly DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy,
             ) {
-                parent::__construct($fileSystemService, $duplicateDetectionService, $safeRegex);
+                parent::__construct($fileSystemService, $duplicateDetectionService, $safeRegex, $filesystem);
 
                 $this->setName('test:rename');
             }
@@ -313,15 +316,16 @@ final class AbstractRenameCommandTest extends TestCase
                 }),
             );
 
-        $command = new class($fileSystemService, $duplicateDetectionService, new SafeRegex(), $renameStrategy, $duplicateIdentifierStrategy) extends AbstractRenameCommand {
+        $command = new class($fileSystemService, $duplicateDetectionService, new SafeRegex(), new Filesystem(), $renameStrategy, $duplicateIdentifierStrategy) extends AbstractRenameCommand {
             public function __construct(
                 FileSystemServiceInterface $fileSystemService,
                 DuplicateDetectionServiceInterface $duplicateDetectionService,
                 SafeRegex $safeRegex,
+                Filesystem $filesystem,
                 private readonly RenameStrategyInterface $renameStrategy,
                 private readonly DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy,
             ) {
-                parent::__construct($fileSystemService, $duplicateDetectionService, $safeRegex);
+                parent::__construct($fileSystemService, $duplicateDetectionService, $safeRegex, $filesystem);
 
                 $this->setName('test:rename');
             }
@@ -366,15 +370,16 @@ final class AbstractRenameCommandTest extends TestCase
 
         // No setter stubs needed — directories are now method parameters
 
-        $command = new class($fileSystemService, $duplicateDetectionService, new SafeRegex(), $renameStrategy, $duplicateIdentifierStrategy) extends AbstractRenameCommand {
+        $command = new class($fileSystemService, $duplicateDetectionService, new SafeRegex(), new Filesystem(), $renameStrategy, $duplicateIdentifierStrategy) extends AbstractRenameCommand {
             public function __construct(
                 FileSystemServiceInterface $fileSystemService,
                 DuplicateDetectionServiceInterface $duplicateDetectionService,
                 SafeRegex $safeRegex,
+                Filesystem $filesystem,
                 private readonly RenameStrategyInterface $renameStrategy,
                 private readonly DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy,
             ) {
-                parent::__construct($fileSystemService, $duplicateDetectionService, $safeRegex);
+                parent::__construct($fileSystemService, $duplicateDetectionService, $safeRegex, $filesystem);
 
                 $this->setName('test:rename');
             }

@@ -34,6 +34,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Filesystem\Filesystem;
 
 use function array_map;
 use function dirname;
@@ -73,6 +74,7 @@ final class WriteDateCommand extends Command
      * @param FileSystemServiceInterface $fileSystemService          Provides file iteration
      * @param ExiftoolWriter             $exiftoolWriter             Writes metadata via exiftool
      * @param RenameOutputRenderer       $renderer                   Shared output rendering utilities
+     * @param Filesystem                 $filesystem                 Command-facing filesystem boundary reused by metadata-cache helpers
      * @param WriteDateCandidateAnalyzer $writeDateCandidateAnalyzer Scans files and produces pending metadata writes
      * @param WriteDateReportFormatter   $writeDateReportFormatter   Formats write-date summaries and per-file entries
      * @param (Closure(): bool)|null     $exiftoolAvailabilityCheck  Overrides the default exiftool check (for testing)
@@ -82,6 +84,7 @@ final class WriteDateCommand extends Command
         private readonly FileSystemServiceInterface $fileSystemService,
         private readonly ExiftoolWriter $exiftoolWriter,
         private readonly RenameOutputRenderer $renderer,
+        private readonly Filesystem $filesystem,
         private readonly WriteDateCandidateAnalyzer $writeDateCandidateAnalyzer,
         private readonly WriteDateReportFormatter $writeDateReportFormatter,
         ?Closure $exiftoolAvailabilityCheck = null,
@@ -97,6 +100,14 @@ final class WriteDateCommand extends Command
         };
 
         parent::__construct();
+    }
+
+    /**
+     * Exposes the command-level filesystem boundary to shared metadata provider configuration.
+     */
+    protected function getCommandFilesystem(): Filesystem
+    {
+        return $this->filesystem;
     }
 
     /**

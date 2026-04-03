@@ -45,6 +45,7 @@ use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Tester\CommandTester;
+use Symfony\Component\Filesystem\Filesystem;
 
 use function file_put_contents;
 use function unlink;
@@ -636,6 +637,7 @@ final class WriteDateCommandTest extends TestCase
             $fileSystemService,
             $exiftoolWriter,
             $renderer,
+            new Filesystem(),
             new WriteDateCandidateAnalyzer(
                 $metadataProvider,
                 $mediaTypeClassifier,
@@ -664,6 +666,7 @@ final class WriteDateCommandTest extends TestCase
             $fileSystemService,
             $exiftoolWriter,
             $renderer,
+            new Filesystem(),
             new WriteDateCandidateAnalyzer(
                 $metadataProvider,
                 $mediaTypeClassifier,

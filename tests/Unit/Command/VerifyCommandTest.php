@@ -43,6 +43,7 @@ use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Tester\CommandTester;
+use Symfony\Component\Filesystem\Filesystem;
 
 use function file_put_contents;
 use function unlink;
@@ -635,6 +636,7 @@ final class VerifyCommandTest extends TestCase
             $metadataProvider,
             $fileSystemService,
             $renderer,
+            new Filesystem(),
             new VerifyDetailEntryFormatter(),
             new MetadataIssueScanner($metadataProvider, new DateDriftAnalyzer(), $mediaTypeClassifier),
             new LivePhotoCompletenessAnalyzer(),

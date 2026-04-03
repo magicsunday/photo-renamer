@@ -18,6 +18,7 @@ use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
 
 /**
  * Verifies the RenameByPatternCommand configuration: command name registration
@@ -41,6 +42,7 @@ final class RenameByPatternCommandTest extends TestCase
             self::createStub(FileSystemServiceInterface::class),
             self::createStub(DuplicateDetectionServiceInterface::class),
             new SafeRegex(),
+            new Filesystem(),
         );
 
         self::assertSame('rename:pattern', $command->getName());

@@ -41,6 +41,7 @@ use RecursiveIteratorIterator;
 use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Filesystem\Filesystem;
 
 use function array_filter;
 use function array_map;
@@ -72,6 +73,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
      * @param FileSystemServiceInterface         $fileSystemService         Service to handle file system operations
      * @param DuplicateDetectionServiceInterface $duplicateDetectionService Service to handle grouping and duplicate resolution
      * @param SafeRegex                          $safeRegex                 Safe regex wrapper used by the supported-media iterator filter
+     * @param Filesystem                         $filesystem                Command-facing filesystem boundary reused by metadata-cache helpers
      * @param ExifMetadataProvider               $exifMetadataProvider      Provider for EXIF metadata from files
      * @param PerceptualHashCalculatorInterface  $perceptualHashCalculator  Calculator for perceptual image hashes (visual similarity)
      * @param HashSubGroupingServiceInterface    $hashSubGroupingService    Service to further group files by perceptual hash
@@ -85,6 +87,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
         FileSystemServiceInterface $fileSystemService,
         DuplicateDetectionServiceInterface $duplicateDetectionService,
         SafeRegex $safeRegex,
+        Filesystem $filesystem,
         private readonly ExifMetadataProvider $exifMetadataProvider,
         private readonly PerceptualHashCalculatorInterface $perceptualHashCalculator,
         private readonly HashSubGroupingServiceInterface $hashSubGroupingService,
@@ -94,7 +97,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
         private readonly PipelineReviewMapper $pipelineReviewMapper,
         private readonly RenameOutputRenderer $renameOutputRenderer,
     ) {
-        parent::__construct($fileSystemService, $duplicateDetectionService, $safeRegex);
+        parent::__construct($fileSystemService, $duplicateDetectionService, $safeRegex, $filesystem);
     }
 
     /**

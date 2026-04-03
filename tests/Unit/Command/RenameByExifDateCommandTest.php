@@ -98,6 +98,7 @@ use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Tester\CommandTester;
+use Symfony\Component\Filesystem\Filesystem;
 
 use const DIRECTORY_SEPARATOR;
 
@@ -190,6 +191,7 @@ final class RenameByExifDateCommandTest extends TestCase
             self::createStub(FileSystemServiceInterface::class),
             self::createStub(DuplicateDetectionServiceInterface::class),
             new SafeRegex(),
+            new Filesystem(),
             $this->createExifMetadataProvider(),
             new StubPerceptualHashCalculator(),
             self::createStub(HashSubGroupingServiceInterface::class),
@@ -301,6 +303,7 @@ final class RenameByExifDateCommandTest extends TestCase
                 $fileSystemService,
                 $duplicateDetectionService,
                 new SafeRegex(),
+                new Filesystem(),
                 $metadataProvider,
                 new StubPerceptualHashCalculator(),
                 $hashSubGroupingService,

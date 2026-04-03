@@ -92,6 +92,7 @@ use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Tester\CommandTester;
+use Symfony\Component\Filesystem\Filesystem;
 
 use function array_filter;
 use function array_keys;
@@ -824,6 +825,7 @@ final class RenameByExifDateCommandTest extends TestCase
                 $livePhotoConflictDetector,
             ),
             new SafeRegex(),
+            new Filesystem(),
             new ExifMetadataProvider($metadataExtractor),
             new StubPerceptualHashCalculator(),
             $hashSubGroupingService,

@@ -32,6 +32,7 @@ use RecursiveArrayIterator;
 use RecursiveIteratorIterator;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
+use Symfony\Component\Filesystem\Filesystem;
 
 use function mkdir;
 use function rmdir;
@@ -65,6 +66,7 @@ final class RenameLowerCaseCommandTest extends TestCase
             self::createStub(FileSystemServiceInterface::class),
             self::createStub(DuplicateDetectionServiceInterface::class),
             new SafeRegex(),
+            new Filesystem(),
         );
 
         self::assertSame('rename:lower', $command->getName());
@@ -134,7 +136,7 @@ final class RenameLowerCaseCommandTest extends TestCase
                     }),
                 );
 
-            $command = new RenameLowerCaseCommand($fileSystemService, $duplicateDetectionService, new SafeRegex());
+            $command = new RenameLowerCaseCommand($fileSystemService, $duplicateDetectionService, new SafeRegex(), new Filesystem());
 
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([

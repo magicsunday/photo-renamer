@@ -20,6 +20,7 @@ use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategy
 use MagicSunday\Renamer\Strategy\RenameStrategy\InheritFilenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use Override;
+use Symfony\Component\Filesystem\Filesystem;
 
 /**
  * Groups files by their binary content hash (xxh128) and assigns "-duplicate-NNN"
@@ -43,15 +44,17 @@ final class RenameByHashCommand extends AbstractRenameCommand
      * @param FileSystemServiceInterface         $fileSystemService         Service to handle file system operations
      * @param DuplicateDetectionServiceInterface $duplicateDetectionService Service to handle grouping and duplicate resolution
      * @param SafeRegex                          $safeRegex                 Safe regex wrapper used by the shared legacy file iterator path
+     * @param Filesystem                         $filesystem                Command-facing filesystem boundary reused by metadata-cache helpers
      * @param SafeHashCalculatorInterface        $hashCalculator            Service to calculate secure file hashes
      */
     public function __construct(
         FileSystemServiceInterface $fileSystemService,
         DuplicateDetectionServiceInterface $duplicateDetectionService,
         SafeRegex $safeRegex,
+        Filesystem $filesystem,
         private readonly SafeHashCalculatorInterface $hashCalculator,
     ) {
-        parent::__construct($fileSystemService, $duplicateDetectionService, $safeRegex);
+        parent::__construct($fileSystemService, $duplicateDetectionService, $safeRegex, $filesystem);
     }
 
     /**

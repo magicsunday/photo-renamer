@@ -35,6 +35,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Filesystem\Filesystem;
 
 use function array_filter;
 use function array_map;
@@ -119,13 +120,23 @@ abstract class AbstractRenameCommand extends Command
      * @param FileSystemServiceInterface         $fileSystemService         Service to handle file system operations like iteration and renames
      * @param DuplicateDetectionServiceInterface $duplicateDetectionService Service to handle grouping of files and suffix assignment for duplicates
      * @param SafeRegex                          $safeRegex                 Safe regex wrapper shared by legacy iterator filters and pattern strategies
+     * @param Filesystem                         $filesystem                Command-facing filesystem boundary reused by metadata-cache helpers
      */
     public function __construct(
         protected FileSystemServiceInterface $fileSystemService,
         protected DuplicateDetectionServiceInterface $duplicateDetectionService,
         protected readonly SafeRegex $safeRegex,
+        protected readonly Filesystem $filesystem,
     ) {
         parent::__construct();
+    }
+
+    /**
+     * Exposes the command-level filesystem boundary to shared metadata provider configuration.
+     */
+    protected function getCommandFilesystem(): Filesystem
+    {
+        return $this->filesystem;
     }
 
     /**

@@ -33,6 +33,7 @@ use RecursiveArrayIterator;
 use RecursiveIteratorIterator;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
+use Symfony\Component\Filesystem\Filesystem;
 
 use function mkdir;
 use function rmdir;
@@ -68,6 +69,7 @@ final class RenameByHashCommandTest extends TestCase
             self::createStub(FileSystemServiceInterface::class),
             self::createStub(DuplicateDetectionServiceInterface::class),
             new SafeRegex(),
+            new Filesystem(),
             new SafeHashCalculator(),
         );
 
@@ -140,7 +142,7 @@ final class RenameByHashCommandTest extends TestCase
                     }),
                 );
 
-            $command = new RenameByHashCommand($fileSystemService, $duplicateDetectionService, new SafeRegex(), new SafeHashCalculator());
+            $command = new RenameByHashCommand($fileSystemService, $duplicateDetectionService, new SafeRegex(), new Filesystem(), new SafeHashCalculator());
 
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([

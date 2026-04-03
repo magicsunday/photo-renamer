@@ -105,6 +105,7 @@ use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Tester\CommandTester;
+use Symfony\Component\Filesystem\Filesystem;
 
 use function assert;
 use function basename;
@@ -1152,6 +1153,7 @@ final class TestImageScenariosTest extends TestCase
                 $livePhotoConflictDetector,
             ),
             new SafeRegex(),
+            new Filesystem(),
             $metadataProvider,
             $perceptualHashCalculator,
             $hashSubGroupingService,
