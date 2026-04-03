@@ -320,7 +320,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
 
         $fileDuplicateCollection = new FileDuplicateCollection();
         /**
-         * @var array<string, LegacyContentIdentifierCacheEntry> Map for coordinating Live Photo still/video pairing during the first pass.
+         * @var array<string, ContentIdentifierCacheEntry> Map for coordinating Live Photo still/video pairing during the first pass.
          */
         $contentIdentifierCache = [];
 
@@ -361,7 +361,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
 
             if ($normalizedContentIdentifier !== null) {
                 if (!array_key_exists($normalizedContentIdentifier, $contentIdentifierCache)) {
-                    $contentIdentifierCache[$normalizedContentIdentifier] = new LegacyContentIdentifierCacheEntry();
+                    $contentIdentifierCache[$normalizedContentIdentifier] = new ContentIdentifierCacheEntry();
                 }
 
                 $contentIdentifierCacheEntry = &$contentIdentifierCache[$normalizedContentIdentifier];
@@ -401,7 +401,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
             // instead of being grouped by their own EXIF date. This ensures they
             // receive the paired still image's timestamp, not their own.
             if (
-                ($contentIdentifierCacheEntry instanceof LegacyContentIdentifierCacheEntry)
+                ($contentIdentifierCacheEntry instanceof ContentIdentifierCacheEntry)
                 && !$this->mediaTypeClassifier->isLivePhotoStill($sourceFileInfo)
             ) {
                 $cachedDuplicateIdentifier = $contentIdentifierCacheEntry->getDuplicateIdentifier();
@@ -452,7 +452,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
             }
 
             if ($duplicateIdentifier === false) {
-                if ($contentIdentifierCacheEntry instanceof LegacyContentIdentifierCacheEntry) {
+                if ($contentIdentifierCacheEntry instanceof ContentIdentifierCacheEntry) {
                     $contentIdentifierCacheEntry->addPendingFile($sourceFileInfo);
                     $contentIdentifierCacheEntry->rememberFallbackTarget($targetFileInfo);
                 }
@@ -485,7 +485,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
                 $fileDuplicateCollection->set($duplicateIdentifier, $fileDuplicate);
             }
 
-            if ($contentIdentifierCacheEntry instanceof LegacyContentIdentifierCacheEntry) {
+            if ($contentIdentifierCacheEntry instanceof ContentIdentifierCacheEntry) {
                 $contentIdentifierCacheEntry->rememberResolvedGroup(
                     $duplicateIdentifier,
                     $fileDuplicate->getTarget(),
@@ -895,18 +895,18 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      * already-resolved duplicate group or queued as pending. Otherwise, it is recorded
      * as a skipped file with its reason.
      *
-     * @param SplFileInfo                            $sourceFileInfo              the source file being processed
-     * @param TargetFileResult                       $result                      the skipped/error result from the rename strategy
-     * @param FileDuplicateCollection                $fileDuplicateCollection     collection of discovered duplicate groups
-     * @param LegacyContentIdentifierCacheEntry|null $contentIdentifierCacheEntry Cache entry for the file's content identifier, if one exists.
+     * @param SplFileInfo                      $sourceFileInfo              the source file being processed
+     * @param TargetFileResult                 $result                      the skipped/error result from the rename strategy
+     * @param FileDuplicateCollection          $fileDuplicateCollection     collection of discovered duplicate groups
+     * @param ContentIdentifierCacheEntry|null $contentIdentifierCacheEntry Cache entry for the file's content identifier, if one exists.
      */
     private function handleSkippedFile(
         SplFileInfo $sourceFileInfo,
         TargetFileResult $result,
         FileDuplicateCollection $fileDuplicateCollection,
-        ?LegacyContentIdentifierCacheEntry $contentIdentifierCacheEntry,
+        ?ContentIdentifierCacheEntry $contentIdentifierCacheEntry,
     ): void {
-        if ($contentIdentifierCacheEntry instanceof LegacyContentIdentifierCacheEntry) {
+        if ($contentIdentifierCacheEntry instanceof ContentIdentifierCacheEntry) {
             $cachedDuplicateIdentifier = $contentIdentifierCacheEntry->getDuplicateIdentifier();
 
             if (

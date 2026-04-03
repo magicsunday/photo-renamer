@@ -11,7 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
-use MagicSunday\Renamer\Service\LegacyContentIdentifierCacheEntry;
+use MagicSunday\Renamer\Service\ContentIdentifierCacheEntry;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -20,7 +20,7 @@ use SplFileInfo;
 use const DIRECTORY_SEPARATOR;
 
 /**
- * Verifies deferred content-identifier bookkeeping in the legacy grouping flow.
+ * Verifies deferred content-identifier bookkeeping shared by both execution paths.
  *
  * The cache entry must queue pending files, remember exactly one fallback
  * target, and switch to a resolved duplicate-group state once a still image
@@ -30,8 +30,8 @@ use const DIRECTORY_SEPARATOR;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-#[CoversClass(LegacyContentIdentifierCacheEntry::class)]
-final class LegacyContentIdentifierCacheEntryTest extends TestCase
+#[CoversClass(ContentIdentifierCacheEntry::class)]
+final class ContentIdentifierCacheEntryTest extends TestCase
 {
     /**
      * Verifies that fallback target storage is first-write-wins and that
@@ -40,7 +40,7 @@ final class LegacyContentIdentifierCacheEntryTest extends TestCase
     #[Test]
     public function rememberFallbackTargetAndPendingFilesBehavePredictably(): void
     {
-        $entry        = new LegacyContentIdentifierCacheEntry();
+        $entry        = new ContentIdentifierCacheEntry();
         $firstTarget  = new SplFileInfo(DIRECTORY_SEPARATOR . 'tmp' . DIRECTORY_SEPARATOR . 'first.mov');
         $secondTarget = new SplFileInfo(DIRECTORY_SEPARATOR . 'tmp' . DIRECTORY_SEPARATOR . 'second.mov');
         $pendingA     = new SplFileInfo(DIRECTORY_SEPARATOR . 'tmp' . DIRECTORY_SEPARATOR . 'a.mov');
@@ -70,12 +70,12 @@ final class LegacyContentIdentifierCacheEntryTest extends TestCase
     /**
      * Verifies that resolving the group stores both the duplicate identifier and
      * the canonical target so later companion videos can attach to the same
-     * legacy duplicate group.
+     * group in either execution path.
      */
     #[Test]
     public function rememberResolvedGroupStoresIdentifierAndTarget(): void
     {
-        $entry  = new LegacyContentIdentifierCacheEntry();
+        $entry  = new ContentIdentifierCacheEntry();
         $target = new SplFileInfo(DIRECTORY_SEPARATOR . 'tmp' . DIRECTORY_SEPARATOR . '2019-09-28_16-57-59.jpg');
 
         $entry->rememberResolvedGroup('live-photo:abc123', $target);

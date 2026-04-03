@@ -24,6 +24,7 @@ use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Model\SkippedFile;
 use MagicSunday\Renamer\Model\TargetFileResult;
+use MagicSunday\Renamer\Service\ContentIdentifierCacheEntry;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetectorInterface;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingServiceInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
@@ -419,11 +420,7 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
             return;
         }
 
-        $state->contentIdentifierCache[$normalizedContentIdentifier] = [
-            'duplicateIdentifier' => null,
-            'pendingFiles'        => [],
-            'target'              => null,
-        ];
+        $state->contentIdentifierCache[$normalizedContentIdentifier] = new ContentIdentifierCacheEntry();
     }
 
     /**
@@ -491,7 +488,8 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
             return false;
         }
 
-        $cachedDuplicateIdentifier = $state->contentIdentifierCache[$normalizedContentIdentifier]['duplicateIdentifier'];
+        $cacheEntry                = $state->contentIdentifierCache[$normalizedContentIdentifier];
+        $cachedDuplicateIdentifier = $cacheEntry->getDuplicateIdentifier();
 
         if (
             is_string($cachedDuplicateIdentifier)
@@ -505,8 +503,11 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
             }
         } else {
             // Still image not yet seen -- queue for later resolution.
-            $state->contentIdentifierCache[$normalizedContentIdentifier]['pendingFiles'][] = $file;
-            $state->contentIdentifierCache[$normalizedContentIdentifier]['target'] ??= $result->getTargetFile();
+            $cacheEntry->addPendingFile($file);
+
+            if ($result->getTargetFile() instanceof SplFileInfo) {
+                $cacheEntry->rememberFallbackTarget($result->getTargetFile());
+            }
         }
 
         return true;
@@ -548,8 +549,9 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
 
         if ($duplicateIdentifier === false) {
             if (($normalizedContentIdentifier !== null) && array_key_exists($normalizedContentIdentifier, $state->contentIdentifierCache)) {
-                $state->contentIdentifierCache[$normalizedContentIdentifier]['pendingFiles'][] = $file;
-                $state->contentIdentifierCache[$normalizedContentIdentifier]['target']         = $targetFileInfo;
+                $cacheEntry = $state->contentIdentifierCache[$normalizedContentIdentifier];
+                $cacheEntry->addPendingFile($file);
+                $cacheEntry->rememberFallbackTarget($targetFileInfo);
             }
 
             return null;
@@ -592,10 +594,10 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
             $targetFileInfo = $result->getTargetFile();
             assert($targetFileInfo instanceof SplFileInfo);
 
-            $state->contentIdentifierCache[$normalizedContentIdentifier]['duplicateIdentifier'] = $duplicateIdentifier;
-            $state->contentIdentifierCache[$normalizedContentIdentifier]['target']              = $targetFileInfo;
+            $cacheEntry = $state->contentIdentifierCache[$normalizedContentIdentifier];
+            $cacheEntry->rememberResolvedGroup($duplicateIdentifier, $targetFileInfo);
 
-            foreach ($state->contentIdentifierCache[$normalizedContentIdentifier]['pendingFiles'] as $pendingFile) {
+            foreach ($cacheEntry->getPendingFiles() as $pendingFile) {
                 $pendingItem = new AssetItem($pendingFile);
                 $pendingItem = $pendingItem->withMetadata(
                     $state->temporalMetadataMap[$pendingFile->getPathname()] ?? null,
@@ -604,7 +606,7 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
                 $group->addItem($pendingItem);
             }
 
-            $state->contentIdentifierCache[$normalizedContentIdentifier]['pendingFiles'] = [];
+            $cacheEntry->clearPendingFiles();
         }
     }
 
@@ -631,7 +633,8 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
         ?string $normalizedContentIdentifier,
     ): void {
         if (($normalizedContentIdentifier !== null) && array_key_exists($normalizedContentIdentifier, $state->contentIdentifierCache)) {
-            $cachedDuplicateIdentifier = $state->contentIdentifierCache[$normalizedContentIdentifier]['duplicateIdentifier'];
+            $cacheEntry                = $state->contentIdentifierCache[$normalizedContentIdentifier];
+            $cachedDuplicateIdentifier = $cacheEntry->getDuplicateIdentifier();
 
             if (
                 is_string($cachedDuplicateIdentifier)
@@ -649,7 +652,7 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
                     $existingGroup->addItem($item);
                 }
             } else {
-                $state->contentIdentifierCache[$normalizedContentIdentifier]['pendingFiles'][] = $sourceFileInfo;
+                $cacheEntry->addPendingFile($sourceFileInfo);
             }
         } else {
             $context->addSkippedFile(new SkippedFile(
@@ -807,19 +810,20 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
         AssetGroupCollection $collection,
     ): void {
         foreach ($state->contentIdentifierCache as $cacheEntry) {
-            if ($cacheEntry['pendingFiles'] === []) {
+            if (!$cacheEntry->hasPendingFiles()) {
                 continue;
             }
 
-            if (!$cacheEntry['target'] instanceof SplFileInfo) {
+            if (!$cacheEntry->getTarget() instanceof SplFileInfo) {
                 continue;
             }
 
-            $targetFileInfo = $cacheEntry['target'];
+            $targetFileInfo = $cacheEntry->getTarget();
+            $pendingFiles   = $cacheEntry->getPendingFiles();
 
             try {
                 $duplicateIdentifier = $duplicateIdentifierStrategy->generateIdentifier(
-                    $cacheEntry['pendingFiles'][0],
+                    $pendingFiles[0],
                     $targetFileInfo,
                 );
             } catch (HashComputationException) {
@@ -840,7 +844,7 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
                 $group = new AssetGroup($duplicateIdentifier);
             }
 
-            foreach ($cacheEntry['pendingFiles'] as $pendingFile) {
+            foreach ($pendingFiles as $pendingFile) {
                 $pendingItem = new AssetItem($pendingFile);
                 $pendingItem = $pendingItem->withMetadata(
                     $state->temporalMetadataMap[$pendingFile->getPathname()] ?? null,

@@ -14,18 +14,20 @@ namespace MagicSunday\Renamer\Service;
 use SplFileInfo;
 
 /**
- * Tracks deferred legacy Live Photo files for one normalized content identifier.
+ * Tracks deferred Live Photo files for one normalized content identifier.
  *
- * During the first legacy grouping pass, videos with a content identifier may
- * appear before their still image or may never find a still at all. This small
- * mutable DTO stores the pending files, the eventually resolved duplicate group
- * identifier, and the fallback target used when no still is found.
+ * Both the legacy duplicate-detection path and the rename:exif pipeline need a
+ * small mutable cache entry while scanning files in encounter order. Videos may
+ * appear before their still image, or no still may be found at all, so this DTO
+ * stores queued files, the resolved duplicate identifier once a still anchors
+ * the group, and the fallback target used when resolution falls back to the
+ * video's own date-based target.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-final class LegacyContentIdentifierCacheEntry
+final class ContentIdentifierCacheEntry
 {
     /**
      * @var list<SplFileInfo>
@@ -37,7 +39,7 @@ final class LegacyContentIdentifierCacheEntry
     private ?SplFileInfo $target = null;
 
     /**
-     * @return string|null The resolved duplicate group identifier once a still image anchored the pair.
+     * @return string|null The resolved duplicate identifier once a still anchored the content identifier.
      */
     public function getDuplicateIdentifier(): ?string
     {
@@ -45,11 +47,11 @@ final class LegacyContentIdentifierCacheEntry
     }
 
     /**
-     * Records the duplicate group identifier and canonical target once a still
-     * image anchored this content identifier to a concrete duplicate group.
+     * Records the resolved duplicate identifier and canonical target once a
+     * still image anchored this content identifier to a concrete group.
      *
-     * @param string      $duplicateIdentifier Resolved duplicate group identifier for this content identifier.
-     * @param SplFileInfo $target              Canonical group target to reuse for queued companion files.
+     * @param string      $duplicateIdentifier Resolved duplicate identifier for this content identifier.
+     * @param SplFileInfo $target              Canonical group target to reuse for deferred companion files.
      */
     public function rememberResolvedGroup(string $duplicateIdentifier, SplFileInfo $target): void
     {
