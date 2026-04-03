@@ -13,8 +13,8 @@ namespace MagicSunday\Renamer\Service\Filesystem;
 
 use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
 use MagicSunday\Renamer\Model\Execution\ExecutionResult;
+use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use RuntimeException;
-use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function sprintf;
 
@@ -34,15 +34,15 @@ use function sprintf;
 final readonly class ExecutionPlanExecutor
 {
     /**
-     * @param SymfonyStyle                 $io                      Console IO used for runtime warnings and recoverable errors.
+     * @param ProgressReporterInterface    $progressReporter        Reporter used for runtime warnings and recoverable errors.
      * @param RuntimeFileMoveExecutor|null $runtimeFileMoveExecutor Shared runtime mover for concrete filesystem mutations and duplicate-suffix fallback handling.
      */
     public function __construct(
-        private SymfonyStyle $io,
+        private ProgressReporterInterface $progressReporter,
         ?RuntimeFileMoveExecutor $runtimeFileMoveExecutor = null,
     ) {
         $this->runtimeFileMoveExecutor = $runtimeFileMoveExecutor
-            ?? new RuntimeFileMoveExecutor($this->io);
+            ?? new RuntimeFileMoveExecutor($this->progressReporter);
     }
 
     private RuntimeFileMoveExecutor $runtimeFileMoveExecutor;
@@ -94,7 +94,7 @@ final readonly class ExecutionPlanExecutor
                     }
                 } catch (RuntimeException $exception) {
                     $occupiedPaths[$item->sourcePath] = true;
-                    $this->io->error(sprintf('Failed to rename %s: %s', $item->sourcePath, $exception->getMessage()));
+                    $this->progressReporter->error(sprintf('Failed to rename %s: %s', $item->sourcePath, $exception->getMessage()));
 
                     if (!$dryRun) {
                         ++$runtimeErrors;

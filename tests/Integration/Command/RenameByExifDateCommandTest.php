@@ -815,7 +815,7 @@ final class RenameByExifDateCommandTest extends TestCase
         $renderer = OutputRendererFactory::create($style);
 
         $command = new RenameByExifDateCommand(
-            new FileSystemService($style, $renderer),
+            new FileSystemService($renderer, new ConsoleProgressReporter($style)),
             new DuplicateDetectionService(
                 $progressReporter,
                 $hashSubGroupingService,

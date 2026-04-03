@@ -27,6 +27,7 @@ use MagicSunday\Renamer\Service\ExiftoolWriter;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
+use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use MagicSunday\Renamer\Service\WriteDate\TimezoneRewritePlanner;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateCandidateAnalyzer;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateReasonAnalyzer;
@@ -627,7 +628,7 @@ final class WriteDateCommandTest extends TestCase
         $metadataProvider    = new ExifMetadataProvider($metadataExtractor);
         $mediaTypeClassifier = new MediaTypeClassifier();
         $renderer            = OutputRendererFactory::create($style);
-        $fileSystemService   = new FileSystemService($style, $renderer);
+        $fileSystemService   = new FileSystemService($renderer, new ConsoleProgressReporter($style));
         $exiftoolWriter      = new ExiftoolWriter();
 
         return new WriteDateCommand(
@@ -655,7 +656,7 @@ final class WriteDateCommandTest extends TestCase
         $metadataProvider    = new ExifMetadataProvider($metadataExtractor);
         $mediaTypeClassifier = new MediaTypeClassifier();
         $renderer            = OutputRendererFactory::create($style);
-        $fileSystemService   = new FileSystemService($style, $renderer);
+        $fileSystemService   = new FileSystemService($renderer, new ConsoleProgressReporter($style));
         $exiftoolWriter      = new ExiftoolWriter();
 
         return new WriteDateCommand(

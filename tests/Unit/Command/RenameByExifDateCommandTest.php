@@ -236,7 +236,7 @@ final class RenameByExifDateCommandTest extends TestCase
             $output = new BufferedOutput();
             $style  = new SymfonyStyle(new ArrayInput([]), $output);
 
-            $fileSystemService = new FileSystemService($style, OutputRendererFactory::create($style));
+            $fileSystemService = new FileSystemService(OutputRendererFactory::create($style), new ConsoleProgressReporter($style));
 
             $metadataExtractor = new StubMetadataExtractor();
             $metadataExtractor->withResponse(

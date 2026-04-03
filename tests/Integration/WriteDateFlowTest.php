@@ -410,7 +410,7 @@ final class WriteDateFlowTest extends TestCase
         $renderer = OutputRendererFactory::create($style);
 
         $command = new RenameByExifDateCommand(
-            new FileSystemService($style, $renderer),
+            new FileSystemService($renderer, new ConsoleProgressReporter($style)),
             new DuplicateDetectionService(
                 $progressReporter,
                 $hashSubGroupingService,
@@ -448,7 +448,7 @@ final class WriteDateFlowTest extends TestCase
         $metadataProvider    = new ExifMetadataProvider(new MetadataExtractor(MetadataReader::createDefault()));
         $mediaTypeClassifier = new MediaTypeClassifier();
         $renderer            = OutputRendererFactory::create($style);
-        $fileSystemService   = new FileSystemService($style, $renderer);
+        $fileSystemService   = new FileSystemService($renderer, new ConsoleProgressReporter($style));
 
         return new WriteDateCommand(
             $metadataProvider,

@@ -2847,7 +2847,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         $output = new BufferedOutput();
         $io     = new SymfonyStyle(new ArrayInput([]), $output);
 
-        $fileSystemService      = new FileSystemService($io, OutputRendererFactory::create($io));
+        $fileSystemService      = new FileSystemService(OutputRendererFactory::create($io), new ConsoleProgressReporter($io));
         $hashCalculator         = new SafeHashCalculator();
         $progressReporter       = new ConsoleProgressReporter($io);
         $mediaTypeClassifier    = new MediaTypeClassifier();

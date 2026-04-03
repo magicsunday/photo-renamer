@@ -11,9 +11,9 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Filesystem;
 
+use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use RuntimeException;
 use SplFileInfo;
-use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Filesystem\Filesystem;
 
 use function basename;
@@ -37,12 +37,12 @@ use function sprintf;
 final readonly class RuntimeFileMoveExecutor
 {
     /**
-     * @param SymfonyStyle                  $io                            Console IO used for runtime fallback warnings.
+     * @param ProgressReporterInterface     $progressReporter              Reporter used for runtime fallback diagnostics.
      * @param Filesystem                    $filesystem                    Symfony Filesystem used for mkdir/rename operations.
      * @param RuntimeCollisionPathAllocator $runtimeCollisionPathAllocator Allocates duplicate-suffix fallbacks when a target becomes occupied during execution.
      */
     public function __construct(
-        private SymfonyStyle $io,
+        private ProgressReporterInterface $progressReporter,
         private Filesystem $filesystem = new Filesystem(),
         private RuntimeCollisionPathAllocator $runtimeCollisionPathAllocator = new RuntimeCollisionPathAllocator(),
     ) {
@@ -77,8 +77,8 @@ final readonly class RuntimeFileMoveExecutor
         }
 
         if ($targetPath !== $plannedTarget) {
-            $this->io->warning(sprintf(
-                'Runtime collision fallback: %s → %s (planned: %s)',
+            $this->progressReporter->text(sprintf(
+                '<fg=yellow>Runtime collision fallback:</> %s → %s (planned: %s)',
                 basename($sourcePath),
                 basename($targetPath),
                 basename($plannedTarget),

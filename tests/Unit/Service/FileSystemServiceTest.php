@@ -43,6 +43,7 @@ use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\ReviewOutputSkipRea
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\WarningOutputSkipReasonRule;
 use MagicSunday\Renamer\Service\Output\SkipReasonFormatter;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
+use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -748,7 +749,7 @@ final class FileSystemServiceTest extends TestCase
 
         $renderer = OutputRendererFactory::create($io);
 
-        return [new FileSystemService($io, $renderer), $output, $io];
+        return [new FileSystemService($renderer, new ConsoleProgressReporter($io)), $output, $io];
     }
 
     private function createFileDuplicateCollection(

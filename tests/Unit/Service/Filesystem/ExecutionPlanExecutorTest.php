@@ -20,6 +20,7 @@ use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
 use MagicSunday\Renamer\Model\Execution\ExecutionResult;
 use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
+use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -512,7 +513,7 @@ final class ExecutionPlanExecutorTest extends TestCase
     {
         $output   = new BufferedOutput();
         $io       = new SymfonyStyle(new ArrayInput([]), $output);
-        $executor = new ExecutionPlanExecutor($io);
+        $executor = new ExecutionPlanExecutor(new ConsoleProgressReporter($io));
 
         $sourceDir = $this->workspace . DIRECTORY_SEPARATOR . 'source-warn';
         $targetDir = $this->workspace . DIRECTORY_SEPARATOR . 'target-warn';
@@ -568,6 +569,6 @@ final class ExecutionPlanExecutorTest extends TestCase
         $output = new BufferedOutput();
         $io     = new SymfonyStyle(new ArrayInput([]), $output);
 
-        return new ExecutionPlanExecutor($io);
+        return new ExecutionPlanExecutor(new ConsoleProgressReporter($io));
     }
 }

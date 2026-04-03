@@ -17,8 +17,8 @@ use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
 use MagicSunday\Renamer\Service\Output\OutputCounters;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
+use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use SplFileInfo;
-use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function rtrim;
 
@@ -40,12 +40,12 @@ use const DIRECTORY_SEPARATOR;
 final readonly class LegacyRenameExecutor
 {
     /**
-     * @param SymfonyStyle            $io                      Console IO for headings and summary output
-     * @param RenameOutputRenderer    $renderer                Shared output renderer for entry projection and summary rendering
-     * @param RuntimeFileMoveExecutor $runtimeFileMoveExecutor Performs concrete move operations with runtime fallback handling
+     * @param ProgressReporterInterface $progressReporter        Reporter used for operator-facing section headings
+     * @param RenameOutputRenderer      $renderer                Shared output renderer for entry projection and summary rendering
+     * @param RuntimeFileMoveExecutor   $runtimeFileMoveExecutor Performs concrete move operations with runtime fallback handling
      */
     public function __construct(
-        private SymfonyStyle $io,
+        private ProgressReporterInterface $progressReporter,
         private RenameOutputRenderer $renderer,
         private RuntimeFileMoveExecutor $runtimeFileMoveExecutor,
     ) {
@@ -78,9 +78,7 @@ final readonly class LegacyRenameExecutor
 
         $occupiedPaths = $this->buildOccupiedPaths($fileDuplicateCollection);
 
-        $this->io->newLine();
-        $this->io->text('<fg=cyan>Renaming files</>');
-        $this->io->newLine();
+        $this->progressReporter->section('<fg=cyan>Renaming files</>');
 
         $counters = $this->renderOutputEntries($outputEntries, $options, $occupiedPaths, $sourceBaseDirectory, $showFilter);
 
