@@ -11,18 +11,16 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service;
 
-use FilesystemIterator;
-use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
 use MagicSunday\Renamer\Model\Execution\ExecutionResult;
 use MagicSunday\Renamer\Model\OutputEntry;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
+use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
 use MagicSunday\Renamer\Service\Output\OutputCounters;
 use Override;
-use RecursiveDirectoryIterator;
 use RecursiveIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
@@ -38,11 +36,16 @@ use function sprintf;
 use const DIRECTORY_SEPARATOR;
 
 /**
- * Handles all direct file system interactions: creating file iterators, counting files,
- * executing the actual rename operations, and resolving runtime target collisions
- * via {@see RuntimeCollisionPathAllocator}. Delegates output entry building
- * and summary rendering to {@see RenameOutputRenderer}. Tracks occupied paths in-memory
- * to prevent data loss during batch moves.
+ * Handles command-facing file system interactions while delegating narrower
+ * responsibilities to specialized collaborators.
+ *
+ * The facade keeps the legacy command wiring stable, while:
+ * - {@see FileCollector} owns directory traversal
+ * - {@see RuntimeCollisionPathAllocator} owns runtime duplicate-suffix fallback
+ * - {@see RenameOutputRenderer} owns output projection and presentation
+ *
+ * The remaining responsibility of this class is orchestrating physical file
+ * mutation and occupied-path tracking around those collaborators.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -54,12 +57,14 @@ final readonly class FileSystemService implements FileSystemServiceInterface
      * @param SymfonyStyle                  $io                            Console IO for progress bars, status output and error messages
      * @param RenameOutputRenderer          $renderer                      Handles output entry building and summary rendering
      * @param Filesystem                    $filesystem                    Symfony Filesystem for file operations
+     * @param FileCollector                 $fileCollector                 Collects files and creates iterators for directory scans
      * @param RuntimeCollisionPathAllocator $runtimeCollisionPathAllocator Allocates duplicate-suffix fallback paths during runtime collisions
      */
     public function __construct(
         private SymfonyStyle $io,
         private RenameOutputRenderer $renderer,
         private Filesystem $filesystem = new Filesystem(),
+        private FileCollector $fileCollector = new FileCollector(),
         private RuntimeCollisionPathAllocator $runtimeCollisionPathAllocator = new RuntimeCollisionPathAllocator(),
     ) {
     }
@@ -77,20 +82,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
         string $directory,
         ?RecursiveIterator $recursiveIterator = null,
     ): RecursiveIteratorIterator {
-        if (!$recursiveIterator instanceof RecursiveIterator) {
-            $recursiveIterator = new RecursiveRegexFileFilterIterator(
-                new RecursiveDirectoryIterator(
-                    $directory,
-                    FilesystemIterator::SKIP_DOTS
-                ),
-                '/^.+$/'
-            );
-        }
-
-        return new RecursiveIteratorIterator(
-            $recursiveIterator,
-            RecursiveIteratorIterator::LEAVES_ONLY
-        );
+        return $this->fileCollector->createFileIterator($directory, $recursiveIterator);
     }
 
     /**
@@ -103,19 +95,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
     #[Override]
     public function collectFiles(string $directory): array
     {
-        $iterator = $this->createFileIterator($directory);
-
-        /** @var list<SplFileInfo> $files */
-        $files = [];
-
-        /** @var SplFileInfo $file */
-        foreach ($iterator as $file) {
-            if ($file->isFile()) {
-                $files[] = $file;
-            }
-        }
-
-        return $files;
+        return $this->fileCollector->collectFiles($directory);
     }
 
     /**

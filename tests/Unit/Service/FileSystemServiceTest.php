@@ -24,6 +24,7 @@ use MagicSunday\Renamer\Model\OutputEntryType;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
+use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\Output\DiffHighlighter;
@@ -83,6 +84,7 @@ use const DIRECTORY_SEPARATOR;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[UsesClass(FileHelper::class)]
+#[UsesClass(FileCollector::class)]
 #[UsesClass(RuntimeCollisionPathAllocator::class)]
 #[UsesClass(FileList::class)]
 #[UsesClass(RenameList::class)]
