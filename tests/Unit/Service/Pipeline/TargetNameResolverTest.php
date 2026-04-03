@@ -17,6 +17,7 @@ use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\ItemRole;
+use MagicSunday\Renamer\Service\Pipeline\SubgroupNameResolver;
 use MagicSunday\Renamer\Service\Pipeline\TargetNameResolver;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -48,6 +49,7 @@ use SplFileInfo;
 #[UsesClass(AssetGroupCollection::class)]
 #[UsesClass(FileHelper::class)]
 #[UsesClass(Constants::class)]
+#[UsesClass(SubgroupNameResolver::class)]
 final class TargetNameResolverTest extends TestCase
 {
     /**
