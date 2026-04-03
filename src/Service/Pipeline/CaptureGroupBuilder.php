@@ -28,7 +28,6 @@ use MagicSunday\Renamer\Service\ContentIdentifierCacheEntry;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetectorInterface;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingServiceInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
-use MagicSunday\Renamer\Service\MetadataQualityFlagResolver;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\LivePhotoAwareRenameStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\MetadataAwareRenameStrategyInterface;
@@ -79,6 +78,7 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
      * @param LivePhotoConflictDetectorInterface|null $livePhotoConflictDetector     LP conflict detection (optional)
      * @param LivePhotoPairingServiceInterface|null   $livePhotoPairingService       LP second-pass pairing (optional)
      * @param PendingLivePhotoVideoResolver           $pendingLivePhotoVideoResolver Resolves deferred videos that never found a still-image anchor.
+     * @param CaptureGroupQualityTracker              $captureGroupQualityTracker    Records fallback/timezone quality flags separately from grouping.
      */
     public function __construct(
         private SymfonyStyle $io,
@@ -86,6 +86,7 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
         private ?LivePhotoConflictDetectorInterface $livePhotoConflictDetector = null,
         private ?LivePhotoPairingServiceInterface $livePhotoPairingService = null,
         private PendingLivePhotoVideoResolver $pendingLivePhotoVideoResolver = new PendingLivePhotoVideoResolver(),
+        private CaptureGroupQualityTracker $captureGroupQualityTracker = new CaptureGroupQualityTracker(),
     ) {
     }
 
@@ -145,7 +146,7 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
                 continue;
             }
 
-            $this->trackQualityFlags($sourceFileInfo, $renameStrategy, $context);
+            $this->captureGroupQualityTracker->track($sourceFileInfo, $renameStrategy, $context);
 
             if ($this->deferVideoCompanion($sourceFileInfo, $item, $result, $collection, $state, $normalizedContentIdentifier)) {
                 $progressBar->advance();
@@ -423,34 +424,6 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
         }
 
         $state->contentIdentifierCache[$normalizedContentIdentifier] = new ContentIdentifierCacheEntry();
-    }
-
-    /**
-     * Tracks quality flags for files with unreliable date metadata.
-     * Adds fallback-date and ambiguous-timezone flags to the pipeline context.
-     *
-     * @param SplFileInfo             $file     Source file to check
-     * @param RenameStrategyInterface $strategy Rename strategy that may expose quality info
-     * @param PipelineContext         $context  Pipeline context to record quality flags
-     */
-    private function trackQualityFlags(
-        SplFileInfo $file,
-        RenameStrategyInterface $strategy,
-        PipelineContext $context,
-    ): void {
-        if (!$strategy instanceof MetadataAwareRenameStrategyInterface) {
-            return;
-        }
-
-        $qualityFlags = MetadataQualityFlagResolver::resolve($file, $strategy);
-
-        if ($qualityFlags['hasFallbackDate']) {
-            $context->addFallbackDateFile($file->getPathname());
-        }
-
-        if ($qualityFlags['hasAmbiguousTimezone']) {
-            $context->addAmbiguousTimezoneFile($file->getPathname());
-        }
     }
 
     /**
