@@ -21,9 +21,7 @@ use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\PipelineContext;
-use MagicSunday\Renamer\Model\SkippedFile;
 use MagicSunday\Renamer\Model\TargetFileResult;
-use MagicSunday\Renamer\Service\ContentIdentifierCacheEntry;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetectorInterface;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingServiceInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
@@ -39,11 +37,9 @@ use SplFileInfo;
 use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
-use function array_key_exists;
 use function array_keys;
 use function assert;
 use function count;
-use function is_string;
 use function max;
 use function substr_count;
 use function usort;
@@ -63,15 +59,18 @@ use const DIRECTORY_SEPARATOR;
  */
 final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
 {
+    private CaptureContentIdentifierCoordinator $captureContentIdentifierCoordinator;
+
     /**
-     * @param SymfonyStyle                            $io                             Console IO for progress bars and error output
-     * @param MediaTypeClassifierInterface            $mediaTypeClassifier            Classifies files by media type (still vs. video)
-     * @param LivePhotoConflictDetectorInterface|null $livePhotoConflictDetector      LP conflict detection (optional)
-     * @param LivePhotoPairingServiceInterface|null   $livePhotoPairingService        LP second-pass pairing (optional)
-     * @param TargetFileResolver                      $targetFileResolver             Resolves generated filenames into success/skip/error target results.
-     * @param CaptureAssetCandidateExtractor          $captureAssetCandidateExtractor Extracts AssetItem candidates and records metadata/content-ID state.
-     * @param PendingLivePhotoVideoResolver           $pendingLivePhotoVideoResolver  Resolves deferred videos that never found a still-image anchor.
-     * @param CaptureGroupQualityTracker              $captureGroupQualityTracker     Records fallback/timezone quality flags separately from grouping.
+     * @param SymfonyStyle                             $io                                  Console IO for progress bars and error output
+     * @param MediaTypeClassifierInterface             $mediaTypeClassifier                 Classifies files by media type (still vs. video)
+     * @param LivePhotoConflictDetectorInterface|null  $livePhotoConflictDetector           LP conflict detection (optional)
+     * @param LivePhotoPairingServiceInterface|null    $livePhotoPairingService             LP second-pass pairing (optional)
+     * @param TargetFileResolver                       $targetFileResolver                  Resolves generated filenames into success/skip/error target results.
+     * @param CaptureAssetCandidateExtractor           $captureAssetCandidateExtractor      Extracts AssetItem candidates and records metadata/content-ID state.
+     * @param CaptureContentIdentifierCoordinator|null $captureContentIdentifierCoordinator Coordinates Live Photo content-ID cache, pending files, and skipped-file attachment rules.
+     * @param PendingLivePhotoVideoResolver            $pendingLivePhotoVideoResolver       Resolves deferred videos that never found a still-image anchor.
+     * @param CaptureGroupQualityTracker               $captureGroupQualityTracker          Records fallback/timezone quality flags separately from grouping.
      */
     public function __construct(
         private SymfonyStyle $io,
@@ -80,9 +79,12 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
         private ?LivePhotoPairingServiceInterface $livePhotoPairingService = null,
         private TargetFileResolver $targetFileResolver = new TargetFileResolver(),
         private CaptureAssetCandidateExtractor $captureAssetCandidateExtractor = new CaptureAssetCandidateExtractor(),
+        ?CaptureContentIdentifierCoordinator $captureContentIdentifierCoordinator = null,
         private PendingLivePhotoVideoResolver $pendingLivePhotoVideoResolver = new PendingLivePhotoVideoResolver(),
         private CaptureGroupQualityTracker $captureGroupQualityTracker = new CaptureGroupQualityTracker(),
     ) {
+        $this->captureContentIdentifierCoordinator = $captureContentIdentifierCoordinator
+            ?? new CaptureContentIdentifierCoordinator($this->mediaTypeClassifier);
     }
 
     /**
@@ -132,10 +134,17 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
             $item                        = $this->captureAssetCandidateExtractor->extract($sourceFileInfo, $renameStrategy, $state);
             $normalizedContentIdentifier = $item->contentIdentifier;
 
-            $this->initContentIdCacheEntry($normalizedContentIdentifier, $state);
+            $this->captureContentIdentifierCoordinator->initializeCacheEntry($normalizedContentIdentifier, $state);
 
             if ($result->isSkipped()) {
-                $this->handleSkippedFile($sourceFileInfo, $result, $collection, $context, $state, $normalizedContentIdentifier);
+                $this->captureContentIdentifierCoordinator->handleSkippedFile(
+                    $sourceFileInfo,
+                    $result,
+                    $collection,
+                    $context,
+                    $state,
+                    $normalizedContentIdentifier,
+                );
                 $progressBar->advance();
 
                 continue;
@@ -143,7 +152,14 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
 
             $this->captureGroupQualityTracker->track($sourceFileInfo, $renameStrategy, $context);
 
-            if ($this->deferVideoCompanion($sourceFileInfo, $item, $result, $collection, $state, $normalizedContentIdentifier)) {
+            if ($this->captureContentIdentifierCoordinator->handleDeferredVideoCompanion(
+                $sourceFileInfo,
+                $item,
+                $result,
+                $collection,
+                $state,
+                $normalizedContentIdentifier,
+            )) {
                 $progressBar->advance();
 
                 continue;
@@ -163,7 +179,14 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
                 continue;
             }
 
-            $this->attachToGroup($item, $duplicateIdentifier, $result, $collection, $state, $normalizedContentIdentifier);
+            $this->captureContentIdentifierCoordinator->attachToResolvedGroup(
+                $item,
+                $duplicateIdentifier,
+                $result,
+                $collection,
+                $state,
+                $normalizedContentIdentifier,
+            );
 
             $progressBar->advance();
         }
@@ -275,89 +298,6 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
     }
 
     /**
-     * Ensures a content identifier cache entry exists for the given identifier.
-     *
-     * @param string|null            $normalizedContentIdentifier Normalized content identifier (null is a no-op)
-     * @param CaptureGroupBuildState $state                       Mutable build-time state containing the cache
-     */
-    private function initContentIdCacheEntry(
-        ?string $normalizedContentIdentifier,
-        CaptureGroupBuildState $state,
-    ): void {
-        if ($normalizedContentIdentifier === null) {
-            return;
-        }
-
-        if (array_key_exists($normalizedContentIdentifier, $state->contentIdentifierCache)) {
-            return;
-        }
-
-        $state->contentIdentifierCache[$normalizedContentIdentifier] = new ContentIdentifierCacheEntry();
-    }
-
-    /**
-     * Defers a video companion with a content identifier for Live Photo pairing.
-     * Returns true if the file was deferred and the caller should skip to the next file.
-     *
-     * Videos with a content identifier are either added directly to an existing group
-     * (when the still image has already been processed) or queued as pending (when the
-     * still image has not yet been seen).
-     *
-     * @param SplFileInfo            $file                        Source file to check
-     * @param AssetItem              $item                        Asset item with metadata attached
-     * @param TargetFileResult       $result                      Target file result for fallback target
-     * @param AssetGroupCollection   $collection                  Collection of discovered capture groups
-     * @param CaptureGroupBuildState $state                       Mutable build-time state
-     * @param string|null            $normalizedContentIdentifier Normalized content identifier for cache lookup
-     *
-     * @return bool True if the file was deferred (caller should continue to next file)
-     */
-    private function deferVideoCompanion(
-        SplFileInfo $file,
-        AssetItem $item,
-        TargetFileResult $result,
-        AssetGroupCollection $collection,
-        CaptureGroupBuildState $state,
-        ?string $normalizedContentIdentifier,
-    ): bool {
-        if ($normalizedContentIdentifier === null) {
-            return false;
-        }
-
-        if (!array_key_exists($normalizedContentIdentifier, $state->contentIdentifierCache)) {
-            return false;
-        }
-
-        if ($this->mediaTypeClassifier->isLivePhotoStill($file)) {
-            return false;
-        }
-
-        $cacheEntry                = $state->contentIdentifierCache[$normalizedContentIdentifier];
-        $cachedDuplicateIdentifier = $cacheEntry->getDuplicateIdentifier();
-
-        if (
-            is_string($cachedDuplicateIdentifier)
-            && $collection->has($cachedDuplicateIdentifier)
-        ) {
-            // Still image already processed -- add video directly to its group.
-            $existingGroup = $collection->get($cachedDuplicateIdentifier);
-
-            if ($existingGroup instanceof AssetGroup) {
-                $existingGroup->addItem($item);
-            }
-        } else {
-            // Still image not yet seen -- queue for later resolution.
-            $cacheEntry->addPendingFile($file);
-
-            if ($result->getTargetFile() instanceof SplFileInfo) {
-                $cacheEntry->rememberFallbackTarget($result->getTargetFile());
-            }
-        }
-
-        return true;
-    }
-
-    /**
      * Generates a duplicate identifier for the given file, handling errors and
      * the false-return case where the strategy cannot produce an identifier.
      *
@@ -392,119 +332,17 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
         }
 
         if ($duplicateIdentifier === false) {
-            if (($normalizedContentIdentifier !== null) && array_key_exists($normalizedContentIdentifier, $state->contentIdentifierCache)) {
-                $cacheEntry = $state->contentIdentifierCache[$normalizedContentIdentifier];
-                $cacheEntry->addPendingFile($file);
-                $cacheEntry->rememberFallbackTarget($targetFileInfo);
-            }
+            $this->captureContentIdentifierCoordinator->queuePendingFileForUnresolvedIdentifier(
+                $file,
+                $targetFileInfo,
+                $state,
+                $normalizedContentIdentifier,
+            );
 
             return null;
         }
 
         return $duplicateIdentifier;
-    }
-
-    /**
-     * Creates a new capture group or adds the item to an existing group, then
-     * resolves any pending files from the content identifier cache.
-     *
-     * @param AssetItem              $item                        Asset item to attach
-     * @param string                 $duplicateIdentifier         Grouping key for the capture group
-     * @param TargetFileResult       $result                      Target file result (guaranteed non-skipped)
-     * @param AssetGroupCollection   $collection                  Collection of discovered capture groups
-     * @param CaptureGroupBuildState $state                       Mutable build-time state
-     * @param string|null            $normalizedContentIdentifier Normalized content identifier for cache resolution
-     */
-    private function attachToGroup(
-        AssetItem $item,
-        string $duplicateIdentifier,
-        TargetFileResult $result,
-        AssetGroupCollection $collection,
-        CaptureGroupBuildState $state,
-        ?string $normalizedContentIdentifier,
-    ): void {
-        if ($collection->has($duplicateIdentifier)) {
-            /** @var AssetGroup $group */
-            $group = $collection->get($duplicateIdentifier);
-            $group->addItem($item);
-        } else {
-            $group = new AssetGroup($duplicateIdentifier);
-            $group->addItem($item);
-            $collection->set($duplicateIdentifier, $group);
-        }
-
-        // Resolve content identifier cache entries
-        if (($normalizedContentIdentifier !== null) && array_key_exists($normalizedContentIdentifier, $state->contentIdentifierCache)) {
-            $targetFileInfo = $result->getTargetFile();
-            assert($targetFileInfo instanceof SplFileInfo);
-
-            $cacheEntry = $state->contentIdentifierCache[$normalizedContentIdentifier];
-            $cacheEntry->rememberResolvedGroup($duplicateIdentifier, $targetFileInfo);
-
-            foreach ($cacheEntry->getPendingFiles() as $pendingFile) {
-                $pendingItem = new AssetItem($pendingFile);
-                $pendingItem = $pendingItem->withMetadata(
-                    $state->temporalMetadataMap[$pendingFile->getPathname()] ?? null,
-                    $state->contentIdentifierMap[$pendingFile->getPathname()] ?? null,
-                );
-                $group->addItem($pendingItem);
-            }
-
-            $cacheEntry->clearPendingFiles();
-        }
-    }
-
-    /**
-     * Handles a file whose rename strategy returned a skipped or error result.
-     *
-     * When a content identifier cache entry exists, the file is either added to an
-     * already-resolved capture group or queued as pending. Otherwise, it is recorded
-     * as a skipped file with its reason in the pipeline context.
-     *
-     * @param SplFileInfo            $sourceFileInfo              Source file being processed
-     * @param TargetFileResult       $result                      Skipped/error result from the rename strategy
-     * @param AssetGroupCollection   $collection                  Collection of discovered capture groups
-     * @param PipelineContext        $context                     Pipeline context to record skipped files
-     * @param CaptureGroupBuildState $state                       Mutable build-time state
-     * @param string|null            $normalizedContentIdentifier Normalized content identifier for cache lookup
-     */
-    private function handleSkippedFile(
-        SplFileInfo $sourceFileInfo,
-        TargetFileResult $result,
-        AssetGroupCollection $collection,
-        PipelineContext $context,
-        CaptureGroupBuildState $state,
-        ?string $normalizedContentIdentifier,
-    ): void {
-        if (($normalizedContentIdentifier !== null) && array_key_exists($normalizedContentIdentifier, $state->contentIdentifierCache)) {
-            $cacheEntry                = $state->contentIdentifierCache[$normalizedContentIdentifier];
-            $cachedDuplicateIdentifier = $cacheEntry->getDuplicateIdentifier();
-
-            if (
-                is_string($cachedDuplicateIdentifier)
-                && $collection->has($cachedDuplicateIdentifier)
-            ) {
-                $existingGroup = $collection->get($cachedDuplicateIdentifier);
-
-                if ($existingGroup instanceof AssetGroup) {
-                    $pathname = $sourceFileInfo->getPathname();
-                    $item     = new AssetItem($sourceFileInfo);
-                    $item     = $item->withMetadata(
-                        $state->temporalMetadataMap[$pathname] ?? null,
-                        $state->contentIdentifierMap[$pathname] ?? null,
-                    );
-                    $existingGroup->addItem($item);
-                }
-            } else {
-                $cacheEntry->addPendingFile($sourceFileInfo);
-            }
-        } else {
-            $context->addSkippedFile(new SkippedFile(
-                $sourceFileInfo,
-                $result->getSkipReason() ?? 'no capture date',
-                $result->isError(),
-            ));
-        }
     }
 
     /**
