@@ -91,7 +91,11 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         // timezone ambiguity detection.
         $hasExifDateTimeOriginal = $metadata->exifDoc?->dateTimeOriginal() instanceof DateTimeInterface;
 
-        [$captureDateTime, $isFallback, $isAmbiguousTimezone] = $this->extractCaptureDateTimeWithFallbackFlag($structured, $isQuickTimeContainer, $hasExifDateTimeOriginal);
+        $captureTimestampExtraction = $this->extractCaptureDateTimeWithFallbackFlag(
+            $structured,
+            $isQuickTimeContainer,
+            $hasExifDateTimeOriginal,
+        );
 
         $livePhotoVideoIndex         = $structured->makerNotesApple?->livePhoto?->index;
         $cameraMake                  = $this->normalizeNullable($structured->hardware->camera->make);
@@ -103,7 +107,7 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         $hasQuickTimeLivePhotoMarker = $this->hasQuickTimeLivePhotoMarker($metadata);
 
         if (
-            !($captureDateTime instanceof DateTimeInterface)
+            !($captureTimestampExtraction->captureDateTime instanceof DateTimeInterface)
             && ($livePhotoId === null)
             && ($livePhotoVideoIndex === null)
             && !$hasQuickTimeLivePhotoMarker
@@ -117,10 +121,10 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
             : null;
 
         return new TemporalMetadata(
-            $captureDateTime,
+            $captureTimestampExtraction->captureDateTime,
             $livePhotoId,
-            $isFallback,
-            $isAmbiguousTimezone,
+            $captureTimestampExtraction->isFallback,
+            $captureTimestampExtraction->isAmbiguousTimezone,
             $livePhotoVideoIndex,
             $cameraMake,
             $cameraModel,
@@ -144,13 +148,13 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
      * @param bool               $isQuickTimeContainer    Whether the file is a MOV/MP4 container.
      * @param bool               $hasExifDateTimeOriginal Whether an EXIF DateTimeOriginal was found.
      *
-     * @return array{0: DateTimeInterface|null, 1: bool, 2: bool} A tuple of [captureDateTime, isFallback, isAmbiguousTimezone].
+     * @return CaptureTimestampExtraction Resolved capture timestamp facts for the current file
      */
     private function extractCaptureDateTimeWithFallbackFlag(
         StructuredMetadata $structured,
         bool $isQuickTimeContainer,
         bool $hasExifDateTimeOriginal,
-    ): array {
+    ): CaptureTimestampExtraction {
         $temporal = $structured->locationTime->temporal;
         $original = $temporal->original;
         $create   = $temporal->create;
@@ -161,7 +165,7 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         $dateTime = $original ?? $create ?? $capture;
 
         if (!$dateTime instanceof DateTimeInterface) {
-            return [null, false, false];
+            return new CaptureTimestampExtraction(null, false, false);
         }
 
         // Fallback detection: if the EXIF document has no DateTimeOriginal (0x9003),
@@ -191,7 +195,7 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
             && ($temporal->offsetTimeDigitized === null)
             && ($temporal->offsetTime === null);
 
-        return [$dateTime, $isFallback, $isAmbiguousTimezone];
+        return new CaptureTimestampExtraction($dateTime, $isFallback, $isAmbiguousTimezone);
     }
 
     /**
