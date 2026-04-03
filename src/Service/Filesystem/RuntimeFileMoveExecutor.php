@@ -43,8 +43,8 @@ final readonly class RuntimeFileMoveExecutor
      */
     public function __construct(
         private ProgressReporterInterface $progressReporter,
-        private Filesystem $filesystem = new Filesystem(),
-        private RuntimeCollisionPathAllocator $runtimeCollisionPathAllocator = new RuntimeCollisionPathAllocator(),
+        private Filesystem $filesystem,
+        private RuntimeCollisionPathAllocator $runtimeCollisionPathAllocator,
     ) {
     }
 

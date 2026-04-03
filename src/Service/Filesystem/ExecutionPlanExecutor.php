@@ -34,18 +34,14 @@ use function sprintf;
 final readonly class ExecutionPlanExecutor
 {
     /**
-     * @param ProgressReporterInterface    $progressReporter        Reporter used for runtime warnings and recoverable errors.
-     * @param RuntimeFileMoveExecutor|null $runtimeFileMoveExecutor Shared runtime mover for concrete filesystem mutations and duplicate-suffix fallback handling.
+     * @param ProgressReporterInterface $progressReporter        Reporter used for runtime warnings and recoverable errors.
+     * @param RuntimeFileMoveExecutor   $runtimeFileMoveExecutor Shared runtime mover for concrete filesystem mutations and duplicate-suffix fallback handling.
      */
     public function __construct(
         private ProgressReporterInterface $progressReporter,
-        ?RuntimeFileMoveExecutor $runtimeFileMoveExecutor = null,
+        private RuntimeFileMoveExecutor $runtimeFileMoveExecutor,
     ) {
-        $this->runtimeFileMoveExecutor = $runtimeFileMoveExecutor
-            ?? new RuntimeFileMoveExecutor($this->progressReporter);
     }
-
-    private RuntimeFileMoveExecutor $runtimeFileMoveExecutor;
 
     /**
      * Executes the provided runtime plan and returns the observed execution

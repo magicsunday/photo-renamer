@@ -19,6 +19,7 @@ use MagicSunday\Renamer\Model\Execution\ExecutionItemType;
 use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
 use MagicSunday\Renamer\Model\Execution\ExecutionResult;
 use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
+use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
 use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
@@ -29,6 +30,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Filesystem\Filesystem;
 
 use function file_get_contents;
 use function file_put_contents;
@@ -55,6 +57,7 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(ExecutionResult::class)]
 #[UsesClass(Constants::class)]
 #[UsesClass(FileHelper::class)]
+#[UsesClass(RuntimeCollisionPathAllocator::class)]
 #[UsesClass(RuntimeFileMoveExecutor::class)]
 final class ExecutionPlanExecutorTest extends TestCase
 {
@@ -513,7 +516,7 @@ final class ExecutionPlanExecutorTest extends TestCase
     {
         $output   = new BufferedOutput();
         $io       = new SymfonyStyle(new ArrayInput([]), $output);
-        $executor = new ExecutionPlanExecutor(new ConsoleProgressReporter($io));
+        $executor = $this->createExecutor($io);
 
         $sourceDir = $this->workspace . DIRECTORY_SEPARATOR . 'source-warn';
         $targetDir = $this->workspace . DIRECTORY_SEPARATOR . 'target-warn';
@@ -564,11 +567,15 @@ final class ExecutionPlanExecutorTest extends TestCase
         self::assertStringContainsString('Runtime collision fallback', $outputText);
     }
 
-    private function createExecutor(): ExecutionPlanExecutor
+    private function createExecutor(?SymfonyStyle $io = null): ExecutionPlanExecutor
     {
-        $output = new BufferedOutput();
-        $io     = new SymfonyStyle(new ArrayInput([]), $output);
+        $io ??= new SymfonyStyle(new ArrayInput([]), new BufferedOutput());
+        $runtimeFileMoveExecutor = new RuntimeFileMoveExecutor(
+            new ConsoleProgressReporter($io),
+            new Filesystem(),
+            new RuntimeCollisionPathAllocator(),
+        );
 
-        return new ExecutionPlanExecutor(new ConsoleProgressReporter($io));
+        return new ExecutionPlanExecutor(new ConsoleProgressReporter($io), $runtimeFileMoveExecutor);
     }
 }
