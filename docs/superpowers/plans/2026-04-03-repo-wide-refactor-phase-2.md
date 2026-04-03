@@ -16,9 +16,9 @@
 
 This plan intentionally spans all of `src/`, not just one or two leftover classes.
 
-**Primary design rule:** Business semantics should live in named DTOs, policies, analyzers, planners, resolvers, and coordinators, not in array shapes, hidden tuples, or broad infrastructure buckets.
+**Primary design rule:** Business semantics should live in named DTOs, policies, rules, deciders, analyzers, planners, resolvers, and coordinators, not in array shapes, hidden tuples, or broad infrastructure buckets.
 
-**Secondary design rule:** Commands orchestrate. Renderers render. Filesystem services perform I/O. Metadata services resolve metadata. Policies decide. Builders construct. Coordinators compose. Helpers stay small and mechanical, or should be removed entirely when a value object or dedicated collaborator is clearer.
+**Secondary design rule:** Commands orchestrate. Renderers render. Filesystem services perform I/O. Metadata services resolve metadata. Policies decide. Rules contribute ordered evidence or applicability checks. Deciders own priority and final decision shaping. Builders construct. Coordinators compose. Helpers stay small and mechanical, or should be removed entirely when a value object or dedicated collaborator is clearer.
 
 **Pattern rule:** Prefer `Strategy`, `Builder`, targeted `Decorator` / `Proxy`, and narrowly scoped `Facade` / `Adapter` only where they remove a visible coupling, branching, or boundary problem. Do not introduce a pattern before the code demonstrates the need.
 
@@ -133,7 +133,7 @@ The current top-level structure is mostly sound, but a few responsibilities are 
   - to `src/Service/Output/RenameOutputRenderer.php`
 - new output collaborators under `src/Service/Output/`
 - `src/Service/FileSystemService.php`
-  - either stays as a thin facade or is replaced by narrower `Filesystem` services
+  - retained as the stable command-facing facade for this wave, with narrower filesystem collaborators behind it
 - `src/Service/MetadataCache.php`
   - to `src/Metadata/MetadataCache.php`
 - `src/Service/MetadataQualityFlagResolver.php`
@@ -167,6 +167,10 @@ Use enums/catalogs/constants instead of string literals when:
 - the value participates in filtering, classification, or policy decisions
 
 ### High-priority DTO candidates
+
+These are candidates, not automatic obligations. Introduce them where the tuple/array
+structure crosses a meaningful boundary or carries repeated stable semantics across
+collaborators.
 
 - `src/Metadata/MetadataExtractor.php`
   - replace capture timestamp tuple with `CaptureTimestampExtraction`
@@ -224,6 +228,27 @@ Services that currently report progress or warnings directly should move to:
 - `ConsoleProgressReporter`
 - `NullProgressReporter`
 
+Minimum contract for `ProgressReporterInterface`:
+
+- `startProgress(int $max): void`
+- `advance(int $step = 1): void`
+- `finish(): void`
+- `text(string $message): void`
+- `error(string $message): void`
+- `section(string $title): void` when a service currently emits named progress phases
+
+If a concrete reporter does not need section semantics, it should still implement the
+method as a no-op rather than widening the interface hierarchy for this wave.
+
+The interface should stay deliberately small. If a service needs richer console behavior than this contract supports, that is a signal to keep the richer behavior at the command/output boundary instead of widening the reporting abstraction.
+
+Wiring direction for reporting adapters:
+
+- do not autowire `ConsoleProgressReporter` against a global `SymfonyStyle`
+- commands remain the runtime boundary that creates `SymfonyStyle`
+- commands should construct or obtain the reporting adapter at runtime and pass only `ProgressReporterInterface` into domain services
+- `NullProgressReporter` is the default test double and virtual-flow boundary
+
 Primary current candidates:
 
 - `src/Service/Pipeline/CaptureGroupBuilder.php`
@@ -250,6 +275,13 @@ Preferred direction:
 ### Filesystem boundary rule
 
 Do not let filesystem collection, filesystem mutation, and output concerns collapse into a single service boundary.
+
+Repository decision for this wave:
+
+- keep a stable `FileSystemServiceInterface` as the command-facing facade contract
+- split collection, execution, and runtime collision logic behind that facade
+- do not force all commands to absorb a broad interface split during this wave
+- if the facade remains, it must stay thin: delegation-first, little or no business decision logic, and no ownership of more than a small number of responsibilities
 
 ---
 
@@ -279,6 +311,10 @@ This is distinct from the existing temp-directory integration tests. The reposit
 
 - realistic integration tests with workspace files
 - virtual flow tests that fail fast and isolate special-case semantics
+
+Global correctness requirement:
+
+- the refactor wave must not introduce behavioral regressions in grouping, rename planning, output tags/reasons, validation behavior, or file-operation orchestration
 
 ### Mandatory future test categories
 
@@ -314,6 +350,8 @@ The current PHPat rules mostly validate broad layer direction. That is no longer
 - analyzers must not mutate domain collections
 - planners must not perform file I/O
 - policies must not depend on console or filesystem boundaries
+- rules must not perform file/process I/O, depend on console boundaries, or mutate domain collections
+- deciders may orchestrate rules and apply priority, but must not perform rendering or file/process I/O
 - helpers must remain mechanical and must not depend on services or metadata
 - reporting adapters may depend on `SymfonyStyle`, but domain services must only depend on `ProgressReporterInterface`
 - classes with suffix:
@@ -321,11 +359,31 @@ The current PHPat rules mostly validate broad layer direction. That is no longer
   - `Analyzer`
   - `Planner`
   - `Policy`
+  - `Rule`
+  - `Decider`
   - `Builder`
   - `Coordinator`
   should have explicit allowed-dependency envelopes
 - product classes must not use constructor-default collaborator instantiation
 - tuple-style return values at public/protected `Service`, `Metadata`, and `Helper` boundaries should be forbidden or tightly allowlisted
+
+### Enforcement mechanism mapping
+
+Use the right enforcement tool for the right kind of rule:
+
+- `PHPat`
+  - namespace/layer direction
+  - disallowed class-to-class dependencies
+  - role-based dependency envelopes where dependency shape is class-based
+- reflection-based PHPUnit architecture tests
+  - constructor-default collaborator instantiation
+  - presence/absence of forbidden promoted/defaulted object dependencies
+  - selected suffix/role invariants when they are easier to express structurally than in PHPat
+- targeted custom static analysis or reflection-backed boundary tests
+  - tuple-style return values at public/protected boundaries
+  - rule/decider interface conformance where return-shape contracts matter
+
+Do not leave PHPat as the implied enforcement mechanism for rules it cannot realistically express.
 
 ### Optional stronger rule
 
@@ -366,6 +424,7 @@ The tracks below are not all the same kind of work and should not be reviewed as
 
 ### Required tests
 
+- inventory existing tests first and identify characterization gaps per target class
 - result-level characterization
 - reason-level characterization
 - output projection characterization
@@ -410,10 +469,13 @@ That is still output-related work, but too much for one implementation bucket.
 - `src/Service/Output/RenameOutputRenderer.php`
 - `src/Service/Output/OutputEntryProjector.php`
 - `src/Service/Output/OutputEntryPresenter.php`
-- `src/Service/Output/SkipReasonResolver.php`
+- `src/Service/Output/SkipReasonFormatter.php`
+- `src/Service/Output/OutputSkipReasonRuleInterface.php`
+- `src/Service/Output/OutputSkipReasonDecider.php`
 - `src/Service/Output/SummaryTableRenderer.php`
 - `src/Service/Output/DiffHighlighter.php`
 - optional `src/Service/Output/ReviewEntryProjector.php`
+- optional local rule/decider boundary for visibility or review precedence if that logic proves priority-driven
 - DTOs such as:
   - `RenderedOutputBatch`
   - `SummarySection`
@@ -424,9 +486,14 @@ That is still output-related work, but too much for one implementation bucket.
 
 - the renderer remains the visible boundary
 - projection, highlighting, and summary assembly no longer live in one monolith
-- tuple returns inside the output boundary are replaced with DTOs
+- tuple-style returns at public/protected or meaningful collaborator boundaries inside the output module are replaced with DTOs
 - skip-reason resolution no longer happens via repeated inline `match` blocks in renderer or execution services
 - render branches that differ only in presentation form are projected once and rendered once, rather than duplicated with small string-template variations
+- output policy cuts should land directly in their intended final style where priority matters
+  - do not move skip/review branching into a temporary helper-only structure in Track 1 and remodel it again later in Track 8
+  - if output reason selection has real precedence rules, introduce the small local rule/decider boundary during Track 1 already
+  - the decider should own which skip/review reason applies
+  - the formatter should only project the already-decided reason into operator-facing text
 
 ### Risk
 
@@ -457,13 +524,17 @@ Those concerns are adjacent but not identical.
 - `src/Service/Filesystem/ExecutionPlanExecutor.php`
 - `src/Service/Filesystem/RuntimeCollisionPathAllocator.php`
 - `src/Service/Filesystem/FileSystemService.php`
-  - optional thin facade only if still useful
+  - retained as the stable command-facing facade for this wave
 
 ### Acceptance criteria
 
 - no single filesystem service owns both collection and mutation strategy and output orchestration
 - runtime collision fallback becomes directly unit-testable
 - filesystem mutation remains isolated
+- the retained `FileSystemServiceInterface` stays thin
+  - primarily delegates
+  - contains little or no business decision logic
+  - exists to stabilize command-facing wiring while narrower collaborators take over implementation work
 
 ### Risk
 
@@ -495,13 +566,14 @@ The result is workable but not structurally clean enough.
   - `MetadataCache`
   - `MetadataQualityFlagResolver`
 - add DTOs:
-  - `CaptureTimestampExtraction`
+  - consider `CaptureTimestampExtraction` if the extracted timestamp structure survives a meaningful boundary and is not merely a tiny private tuple consumed immediately
   - `MetadataQualityFlags`
 
 ### Acceptance criteria
 
 - metadata retrieval, metadata caching, and metadata-quality rules live in one coherent module area
-- tuple-return metadata extraction is replaced by explicit DTOs
+- tuple-return metadata extraction that crosses a meaningful service or module boundary is replaced by explicit DTOs
+- tiny private tuples that remain hyper-local are not a refactor target by themselves
 
 ### Risk
 
@@ -525,6 +597,13 @@ The result is workable but not structurally clean enough.
 
 An abstract command base is not automatically a design problem. It only becomes one when it accumulates business decisions, execution-specific branches, or new rule pressure.
 
+Go / no-go check before starting the structural split:
+
+- inspect current change frequency
+- inspect constructor/dependency breadth
+- inspect branch density and shared-flow complexity
+- skip the track for this wave if the class is stable and no longer under active pressure
+
 ### Proposed structure
 
 - keep `AbstractRenameCommand` as a thin template boundary if it remains stable
@@ -537,6 +616,9 @@ An abstract command base is not automatically a design problem. It only becomes 
 
 - `AbstractRenameCommand` is either significantly thinner or explicitly retained as a minimal stable template boundary
 - shared command concerns stop accumulating inline in the inheritance base
+- if retained, it stays thin
+  - primarily shared orchestration/template flow
+  - little or no business decision logic
 
 ### Risk
 
@@ -553,6 +635,7 @@ An abstract command base is not automatically a design problem. It only becomes 
 - `ProgressReporterInterface`
 - `src/Service/Reporting/ConsoleProgressReporter.php`
 - `src/Service/Reporting/NullProgressReporter.php`
+- command-side runtime creation or factory wiring for `ConsoleProgressReporter`
 
 ### Scope
 
@@ -636,9 +719,9 @@ Typical targets:
 
 ---
 
-## Track 8: DTO and Enum Sweep Across Remaining Broad Services
+## Track 8: DTO, Enum, and Priority-Policy Modeling Cleanup
 
-**Goal:** Replace the remaining meaningful tuple/array contracts with named objects.
+**Goal:** Replace the remaining meaningful tuple/array contracts with named objects and model hidden policy precedence explicitly where inline branching still obscures it.
 
 ### Scope
 
@@ -665,6 +748,10 @@ inline branching in an orchestrator.
 This is not a call for one generic rule engine across the whole codebase. It is
 a call for boundary-local ordered rule stacks where priority and fallback behavior
 must stay visible and testable.
+
+Do not introduce a rule/decider boundary when a small explicit policy method is still the clearer representation of the logic.
+
+This pattern is a cross-cutting design rule for the wave, not something that must wait until the end of the execution order to be defined. Earlier boundary tracks may adopt it immediately when they cut a boundary that clearly has ordered precedence logic.
 
 Preferred structure:
 
@@ -707,14 +794,27 @@ High-priority candidates for this pattern:
 - `Verify` issue classification where multiple ordered checks compete
 - output skip/review reason selection where tags and state currently drive inline branching
 
-Concrete first application: cross-group video reconciliation
+When one of these candidates is already being cut in an earlier boundary track,
+that earlier track should prefer the final local rule/decider shape directly
+instead of introducing an intermediate helper-only structure and reworking it later.
+
+Primary candidate for first application: cross-group video reconciliation
+
+Go / no-go check before introducing the full local rule/decider split there:
+
+- inspect branch density
+- inspect precedence complexity
+- inspect test fragility
+- keep a small explicit local policy-method structure if it remains clearer than a full rule/decider boundary
+
+Possible shape if the go/no-go check justifies a full local split:
 
 - `CrossGroupVideoComparisonRuleInterface`
 - `CrossGroupVideoEligibilityDecider`
 - `CrossGroupVideoDecisionDecider`
 - `CrossGroupVideoMergePolicy`
 
-Minimum ordered rule set there:
+Possible minimum ordered rule set there:
 
 1. `ConflictingContentIdentifierRule`
    - if both items expose non-null content identifiers and they differ, the pair is ignored
@@ -823,7 +923,7 @@ This track should explicitly add two complementary virtual-flow levels:
 ### Scope
 
 - extend PHPat rules
-- possibly add lightweight reflection/static assertions where PHPat is insufficient
+- add reflection/static assertions where PHPat is insufficient
 - cover role-based restrictions and constructor anti-patterns
 
 ### Acceptance criteria
@@ -839,7 +939,7 @@ This track should explicitly add two complementary virtual-flow levels:
 
 ## Delivery workflow
 
-Every track in this phase-2 plan should be executed as a sequence of small reviewed subtasks:
+Every track in this Wave 2 plan should be executed as a sequence of small reviewed subtasks:
 
 1. add or sharpen tests first
 2. implement the smallest structural slice
@@ -880,7 +980,8 @@ Recommended order for this second wave:
 - do filesystem cleanup after metadata because it has more operational coupling
 - establish the reporting boundary before the command-level virtual harness
 - helper cleanup should follow clarified ownership, not race ahead of it
-- DI and DTO/enum cleanup should land later as boundary-aware consolidation work, not early broad sweeps
+- DI and DTO/enum/policy cleanup should land later as boundary-aware consolidation work, not early broad sweeps
+- `Track 8` is a late consolidation checkpoint, but its rule/DTO/enum work should also be applied opportunistically during earlier boundary tracks when those boundaries are already being cut
 - harden architecture rules after the new boundaries exist, not before
 
 ---
@@ -916,7 +1017,7 @@ Until then, boundary cleanup, DTO discipline, DI cleanup, and stricter tests yie
 
 ## Success criteria for the repository
 
-This phase is successful when:
+This wave is successful when:
 
 - untouched broad boundaries from the first wave are no longer weak spots
 - `src/` layout reflects actual responsibility clusters more clearly
@@ -925,5 +1026,6 @@ This phase is successful when:
 - constructor DI is explicit and container-driven
 - the repository has both real integration tests and virtual semantic flow tests
 - architecture rules actively prevent regression into broad buckets and hidden coupling
+- no behavioral regression was introduced in grouping, rename planning, output tags/reasons, validation behavior, or file-operation orchestration
 
 At that point, the repository will not only be functionally solid, but structurally much closer to the standard implied by strict PHP best practices, deliberate design patterns, and long-term maintainability.
