@@ -13,8 +13,8 @@ namespace MagicSunday\Renamer\Model;
 
 use function array_filter;
 use function array_map;
+use function array_splice;
 use function array_unique;
-use function array_values;
 use function count;
 
 /**
@@ -86,6 +86,23 @@ final class AssetGroup
         foreach ($this->items as $index => $item) {
             if ($item === $old) {
                 $this->items[$index] = $new;
+
+                return;
+            }
+        }
+    }
+
+    /**
+     * Removes an item in-place using identity comparison.
+     * Silently no-ops if the item is not present.
+     *
+     * @param AssetItem $item Item instance to remove from the group
+     */
+    public function removeItem(AssetItem $item): void
+    {
+        foreach ($this->items as $index => $candidate) {
+            if ($candidate === $item) {
+                array_splice($this->items, $index, 1);
 
                 return;
             }

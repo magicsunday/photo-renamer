@@ -57,6 +57,11 @@ services:
         arguments:
             $io: '@Symfony\Component\Console\Style\SymfonyStyle'
 
+    MagicSunday\Renamer\Service\Pipeline\CrossGroupVideoDuplicateReconcilerInterface:
+        class: MagicSunday\Renamer\Service\Pipeline\CrossGroupVideoDuplicateReconciler
+        arguments:
+            $io: '@Symfony\Component\Console\Style\SymfonyStyle'
+
     MagicSunday\Renamer\Service\Pipeline\SubgroupClassifierInterface:
         class: MagicSunday\Renamer\Service\Pipeline\SubgroupClassifier
         arguments:
@@ -65,6 +70,9 @@ services:
     MagicSunday\Renamer\Service\Pipeline\OrphanLivePhotoVideoReconciler:
         arguments:
             $io: '@Symfony\Component\Console\Style\SymfonyStyle'
+
+    MagicSunday\Renamer\Service\Video\VideoStreamFingerprintMatcherInterface:
+        class: MagicSunday\Renamer\Service\Video\VideoStreamFingerprintMatcher
 
     MagicSunday\Renamer\Service\Pipeline\CompanionDetectorInterface:
         class: MagicSunday\Renamer\Service\Pipeline\CompanionDetector
