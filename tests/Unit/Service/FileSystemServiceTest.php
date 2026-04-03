@@ -26,6 +26,7 @@ use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
 use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
 use MagicSunday\Renamer\Service\Filesystem\FileCollector;
+use MagicSunday\Renamer\Service\Filesystem\LegacyRenameExecutor;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
 use MagicSunday\Renamer\Service\FileSystemService;
@@ -88,6 +89,7 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(FileHelper::class)]
 #[UsesClass(ExecutionPlanExecutor::class)]
 #[UsesClass(FileCollector::class)]
+#[UsesClass(LegacyRenameExecutor::class)]
 #[UsesClass(RuntimeFileMoveExecutor::class)]
 #[UsesClass(RuntimeCollisionPathAllocator::class)]
 #[UsesClass(FileList::class)]

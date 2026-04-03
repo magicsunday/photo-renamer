@@ -14,25 +14,19 @@ namespace MagicSunday\Renamer\Service;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
 use MagicSunday\Renamer\Model\Execution\ExecutionResult;
-use MagicSunday\Renamer\Model\OutputEntry;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
 use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
 use MagicSunday\Renamer\Service\Filesystem\FileCollector;
+use MagicSunday\Renamer\Service\Filesystem\LegacyRenameExecutor;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
-use MagicSunday\Renamer\Service\Output\OutputCounters;
 use Override;
 use RecursiveIterator;
 use RecursiveIteratorIterator;
-use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Filesystem\Filesystem;
-
-use function rtrim;
-
-use const DIRECTORY_SEPARATOR;
 
 /**
  * Handles command-facing file system interactions while delegating narrower
@@ -58,6 +52,8 @@ final readonly class FileSystemService implements FileSystemServiceInterface
 
     private ExecutionPlanExecutor $executionPlanExecutor;
 
+    private LegacyRenameExecutor $legacyRenameExecutor;
+
     /**
      * @param SymfonyStyle                  $io                            Console IO for progress bars, status output and error messages
      * @param RenameOutputRenderer          $renderer                      Handles output entry building and summary rendering
@@ -66,6 +62,7 @@ final readonly class FileSystemService implements FileSystemServiceInterface
      * @param RuntimeCollisionPathAllocator $runtimeCollisionPathAllocator Allocates duplicate-suffix fallback paths during runtime collisions
      * @param RuntimeFileMoveExecutor|null  $runtimeFileMoveExecutor       Performs concrete runtime moves with duplicate-suffix fallback handling
      * @param ExecutionPlanExecutor|null    $executionPlanExecutor         Executes the runtime ExecutionPlan path behind the stable facade
+     * @param LegacyRenameExecutor|null     $legacyRenameExecutor          Executes the bounded legacy rename flow behind the stable facade
      */
     public function __construct(
         private SymfonyStyle $io,
@@ -75,11 +72,14 @@ final readonly class FileSystemService implements FileSystemServiceInterface
         private RuntimeCollisionPathAllocator $runtimeCollisionPathAllocator = new RuntimeCollisionPathAllocator(),
         ?RuntimeFileMoveExecutor $runtimeFileMoveExecutor = null,
         ?ExecutionPlanExecutor $executionPlanExecutor = null,
+        ?LegacyRenameExecutor $legacyRenameExecutor = null,
     ) {
         $this->runtimeFileMoveExecutor = $runtimeFileMoveExecutor
             ?? new RuntimeFileMoveExecutor($this->io, $this->filesystem, $this->runtimeCollisionPathAllocator);
         $this->executionPlanExecutor = $executionPlanExecutor
             ?? new ExecutionPlanExecutor($this->io, $this->runtimeFileMoveExecutor);
+        $this->legacyRenameExecutor = $legacyRenameExecutor
+            ?? new LegacyRenameExecutor($this->io, $this->renderer, $this->runtimeFileMoveExecutor);
     }
 
     /**
@@ -130,30 +130,12 @@ final readonly class FileSystemService implements FileSystemServiceInterface
         RenameResult $result = new RenameResult(),
         ?array $showFilter = null,
     ): void {
-        $sourceBaseDirectory = $this->normalizeBaseDirectory($options->sourceBaseDirectory);
-
-        $livePhotoGroups = $this->renderer->countLivePhotoGroups($fileDuplicateCollection);
-        $totalOperations = $this->renderer->countTotalOperations($fileDuplicateCollection);
-
-        [$outputEntries, $skippedCount, $errorCount]
-            = $this->renderer->buildOutputEntries($fileDuplicateCollection, $options, $result, $sourceBaseDirectory);
-
-        $occupiedPaths = $this->buildOccupiedPaths($fileDuplicateCollection);
-
-        $this->io->newLine();
-        $this->io->text('<fg=cyan>Renaming files</>');
-        $this->io->newLine();
-
-        $counters = $this->renderOutputEntries($outputEntries, $options, $occupiedPaths, $sourceBaseDirectory, $showFilter);
-
-        $this->renderer->renderSummary([
-            'scannedFiles'     => $result->scannedFiles > 0 ? $result->scannedFiles : $totalOperations,
-            'skippedCount'     => $skippedCount,
-            'errorCount'       => $errorCount,
-            'livePhotoGroups'  => $livePhotoGroups,
-            'namingCollisions' => $result->namingCollisions,
-            ...$counters->toArray(),
-        ], $options->dryRun);
+        $this->legacyRenameExecutor->renameFiles(
+            $fileDuplicateCollection,
+            $options,
+            $result,
+            $showFilter,
+        );
     }
 
     /**
@@ -172,121 +154,5 @@ final readonly class FileSystemService implements FileSystemServiceInterface
     public function executePlan(ExecutionPlan $plan, bool $dryRun = false): ExecutionResult
     {
         return $this->executionPlanExecutor->executePlan($plan, $dryRun);
-    }
-
-    /**
-     * Builds an in-memory index of all occupied file paths for collision detection.
-     *
-     * @return array<string, true>
-     */
-    private function buildOccupiedPaths(
-        FileDuplicateCollection $fileDuplicateCollection,
-    ): array {
-        /** @var array<string, true> $occupiedPaths */
-        $occupiedPaths = [];
-
-        foreach ($fileDuplicateCollection as $fileDuplicate) {
-            foreach ($fileDuplicate->getRenames() as $rename) {
-                $occupiedPaths[$rename->getSource()->getPathname()] = true;
-            }
-        }
-
-        return $occupiedPaths;
-    }
-
-    /**
-     * Renders the filtered output entries and executes file operations.
-     *
-     * @param list<OutputEntry>   $outputEntries
-     * @param array<string, true> $occupiedPaths
-     * @param list<string>|null   $showFilter
-     *
-     * @return OutputCounters Immutable counters already computed by the shared renderer
-     */
-    private function renderOutputEntries(
-        array $outputEntries,
-        RenameOptions $options,
-        array &$occupiedPaths,
-        ?string $sourceBaseDirectory = null,
-        ?array $showFilter = null,
-    ): OutputCounters {
-        $counters = $this->renderer->renderEntryLines($outputEntries, $sourceBaseDirectory, $showFilter);
-
-        foreach ($outputEntries as $entry) {
-            if (!$entry->isRename()) {
-                continue;
-            }
-
-            // sortKey carries the absolute source path; reconstruct absolute
-            // target by prepending the base directory when paths were relativized.
-            $absoluteSource = $entry->sortKey;
-            $absoluteTarget = ($sourceBaseDirectory !== null && ($entry->targetPath !== null))
-                ? $sourceBaseDirectory . DIRECTORY_SEPARATOR . $entry->targetPath
-                : ($entry->targetPath ?? $absoluteSource);
-
-            if ($entry->shouldSkip) {
-                // Skipped file stays at its source path — keep it occupied so
-                // other files do not try to rename into it. Also mark the
-                // source path as occupied in case it was freed by a prior move.
-                $occupiedPaths[$absoluteSource] = true;
-            } elseif ($entry->shouldPerformOperation) {
-                $this->moveFile(
-                    new SplFileInfo($absoluteSource),
-                    new SplFileInfo($absoluteTarget),
-                    $occupiedPaths,
-                    $options->dryRun,
-                );
-            }
-        }
-
-        return $counters;
-    }
-
-    /**
-     * Strips trailing directory separators from a base directory string.
-     * Returns null for null or empty inputs.
-     *
-     * @param string|null $baseDirectory Raw base directory path
-     *
-     * @return string|null Trimmed path, or null
-     */
-    private function normalizeBaseDirectory(?string $baseDirectory): ?string
-    {
-        if ($baseDirectory === null) {
-            return null;
-        }
-
-        $normalized = rtrim($baseDirectory, DIRECTORY_SEPARATOR);
-
-        if ($normalized === '') {
-            return null;
-        }
-
-        return $normalized;
-    }
-
-    /**
-     * Moves a single file from source to target, creating directories as needed.
-     * Delegates to {@see moveFileByPath()} for the actual move logic.
-     *
-     * @param SplFileInfo         $sourceFileInfo Source file to move
-     * @param SplFileInfo         $targetFileInfo Intended target path
-     * @param array<string, true> $occupiedPaths  Mutable index of paths currently occupied on disk
-     * @param bool                $dryRun         When true, track path changes without touching the filesystem
-     *
-     * @throws RuntimeException When the directory cannot be created or the file operation fails
-     */
-    private function moveFile(
-        SplFileInfo $sourceFileInfo,
-        SplFileInfo $targetFileInfo,
-        array &$occupiedPaths = [],
-        bool $dryRun = false,
-    ): void {
-        $this->runtimeFileMoveExecutor->moveFileByPath(
-            $sourceFileInfo->getPathname(),
-            $targetFileInfo->getPathname(),
-            $occupiedPaths,
-            $dryRun,
-        );
     }
 }
