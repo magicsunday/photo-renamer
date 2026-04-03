@@ -21,9 +21,6 @@ use Override;
 
 use function array_unique;
 use function count;
-use function sprintf;
-
-use const DIRECTORY_SEPARATOR;
 
 /**
  * Pure semantic naming: computes proposed target names from role + group key.
@@ -39,10 +36,12 @@ use const DIRECTORY_SEPARATOR;
 final readonly class TargetNameResolver implements TargetNameResolverInterface
 {
     /**
+     * @param FlatGroupNameResolver         $flatGroupNameResolver         Resolves the simple naming path when a group does not split into subgroups.
      * @param SubgroupNameResolver          $subgroupNameResolver          Resolves naming once a group contains multiple content subgroups.
      * @param ExistingSubgroupNamePreserver $existingSubgroupNamePreserver Preserves coherent subgroup names when degraded classification proves a prior successful run should remain authoritative.
      */
     public function __construct(
+        private FlatGroupNameResolver $flatGroupNameResolver = new FlatGroupNameResolver(),
         private SubgroupNameResolver $subgroupNameResolver = new SubgroupNameResolver(),
         private ExistingSubgroupNamePreserver $existingSubgroupNamePreserver = new ExistingSubgroupNamePreserver(),
     ) {
@@ -126,35 +125,13 @@ final readonly class TargetNameResolver implements TargetNameResolverInterface
             return;
         }
 
-        /** @var array<string, int> $sequenceCounterByExt */
-        $sequenceCounterByExt = [];
-
-        foreach ($items as $item) {
-            $extension = $this->resolveExtension(
-                $item,
-                $canonicalExtension,
-                $useFileExtensionFromSource,
-            );
-
-            $sequenceCounterByExt[$extension] ??= 0;
-
-            $directory    = $item->file->getPath();
-            $proposedName = $this->buildProposedName(
-                $directory,
-                $group->groupKey,
-                $extension,
-                $item->role,
-                $sequenceCounterByExt[$extension],
-            );
-
-            $updated = $item->withProposedName($proposedName);
-
-            if (($item->role === ItemRole::Duplicate) || ($item->role === ItemRole::Ambiguous)) {
-                $updated = $updated->withSequenceNumber($sequenceCounterByExt[$extension]);
-            }
-
-            $group->replaceItem($item, $updated);
-        }
+        $this->flatGroupNameResolver->resolve(
+            $group,
+            $items,
+            $canonicalExtension,
+            $useFileExtensionFromSource,
+            $this->resolveExtension(...),
+        );
     }
 
     /**
@@ -241,55 +218,5 @@ final readonly class TargetNameResolver implements TargetNameResolverInterface
         }
 
         return $canonicalExtension;
-    }
-
-    /**
-     * Builds the full proposed pathname from directory, group key, extension, and role.
-     * Duplicates and ambiguous items receive an auto-incremented sequence suffix.
-     *
-     * @param string   $directory       Directory part of the target path
-     * @param string   $groupKey        Stable group key used as the basename
-     * @param string   $extension       Normalized file extension (without leading dot)
-     * @param ItemRole $role            Item role determining suffix behavior
-     * @param int      $sequenceCounter Running counter for duplicate/ambiguous suffixes (modified by reference)
-     */
-    private function buildProposedName(
-        string $directory,
-        string $groupKey,
-        string $extension,
-        ItemRole $role,
-        int &$sequenceCounter,
-    ): string {
-        return match ($role) {
-            ItemRole::Canonical,
-            ItemRole::Companion => $this->buildCleanName($directory, $groupKey, $extension),
-            ItemRole::Duplicate,
-            ItemRole::Ambiguous => $this->buildDuplicateName($directory, $groupKey, ++$sequenceCounter, $extension),
-        };
-    }
-
-    /**
-     * Builds a clean target pathname without any duplicate or subgroup suffix.
-     *
-     * @param string $directory Directory part of the target path
-     * @param string $basename  Base filename (without extension)
-     * @param string $extension Normalized file extension (without leading dot)
-     */
-    private function buildCleanName(string $directory, string $basename, string $extension): string
-    {
-        return $directory . DIRECTORY_SEPARATOR . $basename . '.' . $extension;
-    }
-
-    /**
-     * Builds a target pathname with a duplicate suffix (e.g. "key-duplicate-001").
-     *
-     * @param string $directory       Directory part of the target path
-     * @param string $basename        Base filename (without extension)
-     * @param int    $duplicateNumber Sequential duplicate number (e.g. 1 → "-duplicate-001")
-     * @param string $extension       Normalized file extension (without leading dot)
-     */
-    private function buildDuplicateName(string $directory, string $basename, int $duplicateNumber, string $extension): string
-    {
-        return $directory . DIRECTORY_SEPARATOR . sprintf('%s%s%03d', $basename, Constants::DUPLICATE_IDENTIFIER, $duplicateNumber) . '.' . $extension;
     }
 }
