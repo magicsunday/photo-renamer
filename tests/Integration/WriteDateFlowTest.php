@@ -94,6 +94,7 @@ use MagicSunday\Renamer\Service\WriteDate\WriteDateReportFormatter;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use MagicSunday\Renamer\Test\Fixtures\ConsoleOutputParserTrait;
+use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -410,7 +411,7 @@ final class WriteDateFlowTest extends TestCase
         $renderer = OutputRendererFactory::create($style);
 
         $command = new RenameByExifDateCommand(
-            new FileSystemService($renderer, new ConsoleProgressReporter($style)),
+            FileSystemServiceFactory::create($renderer, $style),
             new DuplicateDetectionService(
                 $progressReporter,
                 $hashSubGroupingService,
@@ -448,7 +449,7 @@ final class WriteDateFlowTest extends TestCase
         $metadataProvider    = new ExifMetadataProvider(new MetadataExtractor(MetadataReader::createDefault()));
         $mediaTypeClassifier = new MediaTypeClassifier();
         $renderer            = OutputRendererFactory::create($style);
-        $fileSystemService   = new FileSystemService($renderer, new ConsoleProgressReporter($style));
+        $fileSystemService   = FileSystemServiceFactory::create($renderer, $style);
 
         return new WriteDateCommand(
             $metadataProvider,

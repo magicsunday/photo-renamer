@@ -19,14 +19,10 @@ use MagicSunday\Renamer\Model\RenameResult;
 use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
 use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Service\Filesystem\LegacyRenameExecutor;
-use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
-use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
-use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use Override;
 use RecursiveIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
-use Symfony\Component\Filesystem\Filesystem;
 
 /**
  * Handles command-facing file system interactions while delegating narrower
@@ -48,38 +44,16 @@ use Symfony\Component\Filesystem\Filesystem;
  */
 final readonly class FileSystemService implements FileSystemServiceInterface
 {
-    private RuntimeFileMoveExecutor $runtimeFileMoveExecutor;
-
-    private ExecutionPlanExecutor $executionPlanExecutor;
-
-    private LegacyRenameExecutor $legacyRenameExecutor;
-
     /**
-     * @param RenameOutputRenderer          $renderer                      Handles output entry building and summary rendering
-     * @param ProgressReporterInterface     $progressReporter              Narrow reporting boundary used by deeper filesystem collaborators
-     * @param Filesystem                    $filesystem                    Symfony Filesystem for file operations
-     * @param FileCollector                 $fileCollector                 Collects files and creates iterators for directory scans
-     * @param RuntimeCollisionPathAllocator $runtimeCollisionPathAllocator Allocates duplicate-suffix fallback paths during runtime collisions
-     * @param RuntimeFileMoveExecutor|null  $runtimeFileMoveExecutor       Performs concrete runtime moves with duplicate-suffix fallback handling
-     * @param ExecutionPlanExecutor|null    $executionPlanExecutor         Executes the runtime ExecutionPlan path behind the stable facade
-     * @param LegacyRenameExecutor|null     $legacyRenameExecutor          Executes the bounded legacy rename flow behind the stable facade
+     * @param FileCollector         $fileCollector         Collects files and creates iterators for directory scans
+     * @param ExecutionPlanExecutor $executionPlanExecutor Executes the runtime ExecutionPlan path behind the stable facade
+     * @param LegacyRenameExecutor  $legacyRenameExecutor  Executes the bounded legacy rename flow behind the stable facade
      */
     public function __construct(
-        private RenameOutputRenderer $renderer,
-        private ProgressReporterInterface $progressReporter,
-        private Filesystem $filesystem = new Filesystem(),
-        private FileCollector $fileCollector = new FileCollector(),
-        private RuntimeCollisionPathAllocator $runtimeCollisionPathAllocator = new RuntimeCollisionPathAllocator(),
-        ?RuntimeFileMoveExecutor $runtimeFileMoveExecutor = null,
-        ?ExecutionPlanExecutor $executionPlanExecutor = null,
-        ?LegacyRenameExecutor $legacyRenameExecutor = null,
+        private FileCollector $fileCollector,
+        private ExecutionPlanExecutor $executionPlanExecutor,
+        private LegacyRenameExecutor $legacyRenameExecutor,
     ) {
-        $this->runtimeFileMoveExecutor = $runtimeFileMoveExecutor
-            ?? new RuntimeFileMoveExecutor($this->progressReporter, $this->filesystem, $this->runtimeCollisionPathAllocator);
-        $this->executionPlanExecutor = $executionPlanExecutor
-            ?? new ExecutionPlanExecutor($this->progressReporter, $this->runtimeFileMoveExecutor);
-        $this->legacyRenameExecutor = $legacyRenameExecutor
-            ?? new LegacyRenameExecutor($this->progressReporter, $this->renderer, $this->runtimeFileMoveExecutor);
     }
 
     /**

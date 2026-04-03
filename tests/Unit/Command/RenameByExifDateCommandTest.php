@@ -85,6 +85,7 @@ use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Service\ValidationResult;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
+use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubPerceptualHashCalculator;
@@ -236,7 +237,7 @@ final class RenameByExifDateCommandTest extends TestCase
             $output = new BufferedOutput();
             $style  = new SymfonyStyle(new ArrayInput([]), $output);
 
-            $fileSystemService = new FileSystemService(OutputRendererFactory::create($style), new ConsoleProgressReporter($style));
+            $fileSystemService = FileSystemServiceFactory::create(OutputRendererFactory::create($style), $style);
 
             $metadataExtractor = new StubMetadataExtractor();
             $metadataExtractor->withResponse(

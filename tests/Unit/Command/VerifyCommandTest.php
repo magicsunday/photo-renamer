@@ -26,11 +26,11 @@ use MagicSunday\Renamer\Service\DateDriftAnalyzer;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
-use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use MagicSunday\Renamer\Service\Verify\LivePhotoCompletenessAnalyzer;
 use MagicSunday\Renamer\Service\Verify\MetadataIssueScanner;
 use MagicSunday\Renamer\Service\Verify\VerifyDetailEntryFormatter;
 use MagicSunday\Renamer\Service\Verify\VerifyReportFormatter;
+use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
@@ -629,7 +629,7 @@ final class VerifyCommandTest extends TestCase
         $metadataProvider    = new ExifMetadataProvider($metadataExtractor);
         $mediaTypeClassifier = new MediaTypeClassifier();
         $renderer            = OutputRendererFactory::create($style);
-        $fileSystemService   = new FileSystemService($renderer, new ConsoleProgressReporter($style));
+        $fileSystemService   = FileSystemServiceFactory::create($renderer, $style);
 
         return new VerifyCommand(
             $metadataProvider,

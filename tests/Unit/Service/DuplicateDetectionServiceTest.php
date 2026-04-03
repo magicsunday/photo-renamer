@@ -45,6 +45,7 @@ use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\LivePhotoAwareRenameStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\MetadataAwareRenameStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
+use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubPerceptualHashCalculator;
@@ -2847,7 +2848,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         $output = new BufferedOutput();
         $io     = new SymfonyStyle(new ArrayInput([]), $output);
 
-        $fileSystemService      = new FileSystemService(OutputRendererFactory::create($io), new ConsoleProgressReporter($io));
+        $fileSystemService      = FileSystemServiceFactory::create(OutputRendererFactory::create($io), $io);
         $hashCalculator         = new SafeHashCalculator();
         $progressReporter       = new ConsoleProgressReporter($io);
         $mediaTypeClassifier    = new MediaTypeClassifier();

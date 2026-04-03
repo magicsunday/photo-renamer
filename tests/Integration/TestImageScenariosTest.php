@@ -89,6 +89,7 @@ use MagicSunday\Renamer\Service\ValidationResult;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use MagicSunday\Renamer\Test\Fixtures\ConsoleOutputParserTrait;
+use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -1143,7 +1144,7 @@ final class TestImageScenariosTest extends TestCase
         $renderer = OutputRendererFactory::create($style);
 
         $command = new RenameByExifDateCommand(
-            new FileSystemService($renderer, new ConsoleProgressReporter($style)),
+            FileSystemServiceFactory::create($renderer, $style),
             new DuplicateDetectionService(
                 $progressReporter,
                 $hashSubGroupingService,
