@@ -63,7 +63,7 @@ final class DedupCommand extends Command
         private readonly FileSystemServiceInterface $fileSystemService,
         private readonly DedupOriginalMatcher $dedupOriginalMatcher,
         private readonly RenameOutputRenderer $renderer,
-        private readonly Filesystem $filesystem = new Filesystem(),
+        private readonly Filesystem $filesystem,
     ) {
         parent::__construct();
     }

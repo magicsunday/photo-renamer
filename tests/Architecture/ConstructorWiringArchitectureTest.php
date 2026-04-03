@@ -33,9 +33,9 @@ use const DIRECTORY_SEPARATOR;
  *
  * The refactor plan intentionally removes product-level `= new Foo()` defaults
  * from the constructor signatures of Output, Metadata, Reporting, and
- * Filesystem boundaries. These modules are now expected to rely on container
- * wiring or explicit test factories instead of silently instantiating their own
- * collaborators.
+ * Filesystem boundaries, plus the remaining command-facing filesystem boundary.
+ * These modules are now expected to rely on container wiring or explicit test
+ * factories instead of silently instantiating their own collaborators.
  *
  * @internal
  */
@@ -47,9 +47,10 @@ final class ConstructorWiringArchitectureTest extends TestCase
      * parameter defaults that instantiate collaborators directly.
      *
      * The check is intentionally narrow: it only inspects constructor
-     * signatures in Output, Metadata, Reporting, Filesystem, and the
-     * FileSystemService facade. Value-object creation inside methods is still
-     * allowed; only hidden constructor wiring defaults are rejected.
+     * signatures in Output, Metadata, Reporting, Filesystem, the
+     * FileSystemService facade, and the DedupCommand boundary. Value-object
+     * creation inside methods is still allowed; only hidden constructor wiring
+     * defaults are rejected.
      */
     #[Test]
     public function waveTwoBoundariesDoNotInstantiateCollaboratorsInConstructorDefaults(): void
@@ -83,6 +84,7 @@ final class ConstructorWiringArchitectureTest extends TestCase
 
         $files = [
             __DIR__ . '/../../src/Service/FileSystemService.php',
+            __DIR__ . '/../../src/Command/DedupCommand.php',
         ];
 
         foreach ($directories as $directory) {
