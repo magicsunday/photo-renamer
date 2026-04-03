@@ -20,7 +20,6 @@ use MagicSunday\Renamer\Model\Execution\ExecutionItemType;
 use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
 use MagicSunday\Renamer\Model\Execution\ExecutionPreview;
 use MagicSunday\Renamer\Model\FileDuplicate;
-use MagicSunday\Renamer\Model\LinkConfig;
 use MagicSunday\Renamer\Model\OutputEntry;
 use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\Rename;
@@ -29,20 +28,17 @@ use MagicSunday\Renamer\Model\RenameResult;
 use MagicSunday\Renamer\Service\Output\DiffHighlighter;
 use MagicSunday\Renamer\Service\Output\OutputCounters;
 use MagicSunday\Renamer\Service\Output\OutputDecisionLogRenderer;
+use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
 use MagicSunday\Renamer\Service\Output\OutputSummaryRowBuilder;
 use MagicSunday\Renamer\Service\Output\SkipReasonFormatter;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function count;
-use function in_array;
 use function is_string;
-use function max;
-use function mb_strlen;
 use function pathinfo;
 use function sprintf;
 use function str_contains;
-use function str_repeat;
 use function str_starts_with;
 use function strlen;
 use function ucfirst;
@@ -78,6 +74,8 @@ final readonly class RenameOutputRenderer
 
     private OutputDecisionLogRenderer $decisionLogRenderer;
 
+    private OutputEntryPresenter $entryPresenter;
+
     private OutputSummaryRowBuilder $summaryRowBuilder;
 
     /**
@@ -89,7 +87,12 @@ final readonly class RenameOutputRenderer
         $this->skipReasonFormatter = new SkipReasonFormatter();
         $this->diffHighlighter     = new DiffHighlighter();
         $this->decisionLogRenderer = new OutputDecisionLogRenderer();
-        $this->summaryRowBuilder   = new OutputSummaryRowBuilder();
+        $this->entryPresenter      = new OutputEntryPresenter(
+            $this->skipReasonDecider,
+            $this->skipReasonFormatter,
+            $this->diffHighlighter,
+        );
+        $this->summaryRowBuilder = new OutputSummaryRowBuilder();
     }
 
     /**
@@ -676,99 +679,11 @@ final readonly class RenameOutputRenderer
         ?string $sourceBaseDirectory = null,
         ?array $showFilter = null,
     ): OutputCounters {
-        // Compute max path length only over visible entries so padding is tight
-        $maxFilenameLength = 0;
-
-        foreach ($outputEntries as $entry) {
-            if (!$this->isTagVisible($entry->tag, $showFilter)) {
-                continue;
-            }
-
-            $maxFilenameLength = max($maxFilenameLength, mb_strlen($entry->sourcePath));
-        }
-
-        $linkConfig = LinkConfig::fromEnv();
-
-        $fileCount           = 0;
-        $duplicateCount      = 0;
-        $plannedMoves        = 0;
-        $plannedSkips        = 0;
-        $lastRenderedSortKey = null;
-
-        foreach ($outputEntries as $entry) {
-            $padding    = str_repeat(' ', max(0, $maxFilenameLength - mb_strlen($entry->sourcePath)));
-            $linkedPath = FileHelper::linkifyPath($entry->sourcePath, $entry->sourcePath, $sourceBaseDirectory, $linkConfig, 'yellow');
-
-            if ($entry->isInfo()) {
-                if (!$this->isTagVisible($entry->tag, $showFilter)) {
-                    continue;
-                }
-
-                if ($lastRenderedSortKey === $entry->sortKey) {
-                    // Render as continuation line under the previous entry.
-                    $this->io->text(sprintf(
-                        '     <fg=cyan>→</> <fg=%s>%s</>',
-                        $entry->tag->color(),
-                        $entry->reason ?? '',
-                    ));
-                } else {
-                    // No visible anchor line was rendered for this sort key, so show a
-                    // standalone two-line block with the path on the first line.
-                    $this->renderTwoLineReasonBlock($entry->tag, $linkedPath, $entry->reason ?? '');
-                }
-
-                $lastRenderedSortKey = $entry->sortKey;
-
-                continue;
-            }
-
-            if ($entry->isSkip()) {
-                if ($this->isTagVisible($entry->tag, $showFilter)) {
-                    $this->renderTwoLineReasonBlock($entry->tag, $linkedPath, $entry->reason ?? '');
-
-                    $lastRenderedSortKey = $entry->sortKey;
-                }
-
-                continue;
-            }
-
-            // Rename entry (Structural type: Rename)
-            if ($this->isTagVisible($entry->tag, $showFilter)) {
-                if ($entry->shouldSkip) {
-                    $skipReason = $this->skipReasonFormatter->format(
-                        $this->skipReasonDecider->decide($entry),
-                    );
-
-                    $this->renderTwoLineReasonBlock($entry->tag, $linkedPath, $skipReason);
-                } else {
-                    $this->io->text(sprintf(
-                        ' %s %s' . $padding . ' <fg=cyan>→</> %s',
-                        $entry->tag->formattedTag(),
-                        $linkedPath,
-                        $this->highlightDiff($entry->sourcePath, $entry->targetPath ?? '', 'green'),
-                    ));
-                }
-
-                $lastRenderedSortKey = $entry->sortKey;
-            }
-
-            if ($entry->isDuplicateTarget) {
-                ++$duplicateCount;
-            }
-
-            if ($entry->shouldSkip) {
-                ++$plannedSkips;
-            } elseif ($entry->shouldPerformOperation) {
-                ++$plannedMoves;
-                ++$fileCount;
-            }
-        }
-
-        return new OutputCounters(
-            fileCount: $fileCount,
-            duplicateCount: $duplicateCount,
-            plannedMoves: $plannedMoves,
-            plannedSkips: $plannedSkips,
+        return $this->entryPresenter->render(
+            $outputEntries,
+            $this->io,
+            $sourceBaseDirectory,
+            $showFilter,
         );
     }
 
@@ -809,44 +724,6 @@ final readonly class RenameOutputRenderer
         }
 
         return OutputEntryTag::Rename;
-    }
-
-    /**
-     * Checks whether a tag should be displayed given the current show filter.
-     *
-     * @param OutputEntryTag    $tag        The tag to check
-     * @param list<string>|null $showFilter Tag letters to display (null = show all)
-     *
-     * @return bool True when the tag should be rendered
-     */
-    private function isTagVisible(OutputEntryTag $tag, ?array $showFilter): bool
-    {
-        return ($showFilter === null) || in_array($tag->letter(), $showFilter, true);
-    }
-
-    /**
-     * Renders a two-line output block with the tagged source path on the first line
-     * and a colored reason on the second line.
-     *
-     * This layout keeps long warning/notice texts from pushing the source path out of
-     * view and matches the two-line style already used by rename:dedup.
-     *
-     * @param OutputEntryTag $tag        Visual tag of the rendered entry
-     * @param string         $linkedPath Source path, already linkified for console output
-     * @param string         $reason     Human-readable explanation shown on the second line
-     */
-    private function renderTwoLineReasonBlock(OutputEntryTag $tag, string $linkedPath, string $reason): void
-    {
-        $this->io->text(sprintf(
-            ' %s %s',
-            $tag->formattedTag(),
-            $linkedPath,
-        ));
-        $this->io->text(sprintf(
-            '     <fg=cyan>→</> <fg=%s>%s</>',
-            $tag->color(),
-            $reason,
-        ));
     }
 
     /**
