@@ -37,6 +37,7 @@ use function mb_stripos;
 use function mb_strlen;
 use function mb_strtolower;
 use function mb_substr;
+use function pathinfo;
 use function preg_match;
 use function preg_match_all;
 use function sprintf;
@@ -48,6 +49,8 @@ use function strrpos;
 use function substr;
 use function ucfirst;
 use function usort;
+
+use const PATHINFO_EXTENSION;
 
 /**
  * Handles all console output rendering for the rename phase.
@@ -402,15 +405,27 @@ final readonly class RenameOutputRenderer
         $outputEntries = [];
 
         foreach ($plan->groups as $group) {
-            // Find the canonical target path for "Duplicate of" info lines
-            $canonicalTargetPath = null;
+            $canonicalTargetPath   = null;
+            $referenceTargetsByExt = [];
 
             foreach ($group->items as $item) {
-                if ($item->type === ExecutionItemType::Canonical) {
+                if (($item->type === ExecutionItemType::Canonical) && ($canonicalTargetPath === null)) {
                     $canonicalTargetPath = $item->targetPath;
-
-                    break;
                 }
+
+                if ($item->isDuplicateTarget) {
+                    continue;
+                }
+
+                $normalizedExtension = FileHelper::normalizeExtension(
+                    pathinfo($item->targetPath, PATHINFO_EXTENSION),
+                );
+
+                if ($normalizedExtension === '') {
+                    continue;
+                }
+
+                $referenceTargetsByExt[$normalizedExtension] ??= $item->targetPath;
             }
 
             foreach ($group->items as $item) {
@@ -442,12 +457,17 @@ final readonly class RenameOutputRenderer
 
                 // Append info line showing which file this is a duplicate of
                 if (($tag === OutputEntryTag::Duplicate) && !$item->isNoOp && ($canonicalTargetPath !== null)) {
+                    $normalizedExtension = FileHelper::normalizeExtension(
+                        pathinfo($item->targetPath, PATHINFO_EXTENSION),
+                    );
+                    $duplicateReferenceTargetPath = $referenceTargetsByExt[$normalizedExtension] ?? $canonicalTargetPath;
+
                     $outputEntries[] = OutputEntry::info(
                         sortKey: $item->sourcePath,
                         sourcePath: $sourcePath,
                         reason: sprintf(
                             'Duplicate of %s',
-                            FileHelper::relativizePath($canonicalTargetPath, $sourceBaseDirectory),
+                            FileHelper::relativizePath($duplicateReferenceTargetPath, $sourceBaseDirectory),
                         ),
                         tag: OutputEntryTag::Duplicate,
                     );

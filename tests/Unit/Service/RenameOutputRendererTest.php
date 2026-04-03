@@ -1324,6 +1324,80 @@ final class RenameOutputRendererTest extends TestCase
     }
 
     /**
+     * Verifies that duplicate companion videos reference the matching non-duplicate
+     * video target, not the canonical still target, in the "Duplicate of ..." info line.
+     *
+     * Live Photo groups can contain a canonical still plus a non-duplicate companion
+     * MOV. When another MOV in the same group becomes a duplicate target, the operator
+     * expects the explanatory info line to point at the unsuffixed MOV target rather
+     * than at the canonical JPG/HEIC target of the group.
+     */
+    #[Test]
+    public function duplicateCompanionUsesMatchingExtensionReferenceTarget(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $baseDir = '/tmp/source';
+
+        $plan = new ExecutionPlan([
+            new ExecutionGroup('live-photo:cid-1', true, null, [
+                new ExecutionItem(
+                    $baseDir . '/still.jpg',
+                    $baseDir . '/2025-01-01_10-00-00-000.jpg',
+                    ExecutionItemType::Canonical,
+                    renameRequired: true,
+                    isNoOp: false,
+                    groupKey: 'live-photo:cid-1',
+                ),
+                new ExecutionItem(
+                    $baseDir . '/primary.mov',
+                    $baseDir . '/2025-01-01_10-00-00-000.mov',
+                    ExecutionItemType::Companion,
+                    renameRequired: true,
+                    isNoOp: false,
+                    groupKey: 'live-photo:cid-1',
+                ),
+                new ExecutionItem(
+                    $baseDir . '/duplicate.mov',
+                    $baseDir . '/2025-01-01_10-00-00-000' . Constants::DUPLICATE_IDENTIFIER . '001.mov',
+                    ExecutionItemType::Duplicate,
+                    renameRequired: true,
+                    isNoOp: false,
+                    groupKey: 'live-photo:cid-1',
+                    isDuplicateTarget: true,
+                ),
+            ]),
+        ]);
+
+        [$entries] = $renderer->buildOutputEntriesFromPlan(
+            $plan,
+            new RenameOptions(),
+            new RenameResult(),
+            $baseDir,
+        );
+
+        self::assertCount(4, $entries);
+
+        $duplicateEntry = null;
+        $infoEntry      = null;
+
+        foreach ($entries as $entry) {
+            if (($entry->sourcePath === 'duplicate.mov') && ($entry->type === OutputEntryType::Rename)) {
+                $duplicateEntry = $entry;
+            }
+
+            if (($entry->sourcePath === 'duplicate.mov') && ($entry->type === OutputEntryType::Info)) {
+                $infoEntry = $entry;
+            }
+        }
+
+        self::assertNotNull($duplicateEntry);
+        self::assertNotNull($infoEntry);
+        self::assertSame(OutputEntryTag::Duplicate, $duplicateEntry->tag);
+        self::assertSame('Duplicate of 2025-01-01_10-00-00-000.mov', $infoEntry->reason);
+    }
+
+    /**
      * Verifies that a fallback-date item is tagged as Fallback.
      */
     #[Test]
