@@ -28,6 +28,7 @@ use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
 use MagicSunday\Renamer\Service\Output\DiffHighlighter;
 use MagicSunday\Renamer\Service\Output\OutputCounters;
+use MagicSunday\Renamer\Service\Output\OutputDecisionLogRenderer;
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
 use MagicSunday\Renamer\Service\Output\OutputSummaryRowBuilder;
 use MagicSunday\Renamer\Service\Output\SkipReasonFormatter;
@@ -75,6 +76,8 @@ final readonly class RenameOutputRenderer
 
     private DiffHighlighter $diffHighlighter;
 
+    private OutputDecisionLogRenderer $decisionLogRenderer;
+
     private OutputSummaryRowBuilder $summaryRowBuilder;
 
     /**
@@ -85,6 +88,7 @@ final readonly class RenameOutputRenderer
         $this->skipReasonDecider   = new OutputSkipReasonDecider();
         $this->skipReasonFormatter = new SkipReasonFormatter();
         $this->diffHighlighter     = new DiffHighlighter();
+        $this->decisionLogRenderer = new OutputDecisionLogRenderer();
         $this->summaryRowBuilder   = new OutputSummaryRowBuilder();
     }
 
@@ -328,31 +332,7 @@ final readonly class RenameOutputRenderer
     public function renderDecisionLog(
         AssetGroupCollection $groups,
     ): void {
-        $hasAnyLog = false;
-
-        foreach ($groups as $group) {
-            $log = $group->getDecisionLog();
-
-            if ($log === []) {
-                continue;
-            }
-
-            if (!$hasAnyLog) {
-                $this->io->newLine();
-                $this->io->text('<fg=cyan>Decision Log</>');
-                $hasAnyLog = true;
-            }
-
-            $this->io->text(sprintf('  <fg=yellow>%s</>:', $group->groupKey));
-
-            foreach ($log as $entry) {
-                $this->io->text('    ' . $entry);
-            }
-        }
-
-        if ($hasAnyLog) {
-            $this->io->newLine();
-        }
+        $this->decisionLogRenderer->renderAssetGroupDecisionLog($groups, $this->io);
     }
 
     // ---------------------------------------------------------------
@@ -560,29 +540,7 @@ final readonly class RenameOutputRenderer
      */
     public function renderDecisionLogFromPlan(ExecutionPlan $plan): void
     {
-        $hasAnyLog = false;
-
-        foreach ($plan->groups as $group) {
-            if ($group->decisionLog === []) {
-                continue;
-            }
-
-            if (!$hasAnyLog) {
-                $this->io->newLine();
-                $this->io->text('<fg=cyan>Decision Log</>');
-                $hasAnyLog = true;
-            }
-
-            $this->io->text(sprintf('  <fg=yellow>%s</>:', $group->groupKey));
-
-            foreach ($group->decisionLog as $entry) {
-                $this->io->text('    ' . $entry);
-            }
-        }
-
-        if ($hasAnyLog) {
-            $this->io->newLine();
-        }
+        $this->decisionLogRenderer->renderExecutionPlanDecisionLog($plan, $this->io);
     }
 
     /**

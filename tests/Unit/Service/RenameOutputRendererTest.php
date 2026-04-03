@@ -33,6 +33,7 @@ use MagicSunday\Renamer\Model\SkippedFile;
 use MagicSunday\Renamer\Service\Output\DiffHighlighter;
 use MagicSunday\Renamer\Service\Output\DiffTokenState;
 use MagicSunday\Renamer\Service\Output\OutputCounters;
+use MagicSunday\Renamer\Service\Output\OutputDecisionLogRenderer;
 use MagicSunday\Renamer\Service\Output\OutputSkipReason;
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecision;
@@ -83,6 +84,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 #[UsesClass(DiffHighlighter::class)]
 #[UsesClass(DiffTokenState::class)]
 #[UsesClass(OutputCounters::class)]
+#[UsesClass(OutputDecisionLogRenderer::class)]
 #[UsesClass(OutputSkipReason::class)]
 #[UsesClass(OutputSkipReasonDecider::class)]
 #[UsesClass(OutputSkipReasonDecision::class)]
