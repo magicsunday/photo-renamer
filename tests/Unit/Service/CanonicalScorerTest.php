@@ -14,6 +14,7 @@ namespace MagicSunday\Renamer\Test\Unit\Service;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
+use MagicSunday\Renamer\Service\CanonicalScore;
 use MagicSunday\Renamer\Service\CanonicalScorer;
 use MagicSunday\Renamer\Service\CanonicalScorerInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -38,6 +39,7 @@ use SplFileInfo;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(CanonicalScorer::class)]
+#[UsesClass(CanonicalScore::class)]
 #[UsesClass(AssetGroup::class)]
 #[UsesClass(AssetItem::class)]
 #[UsesClass(FileHelper::class)]

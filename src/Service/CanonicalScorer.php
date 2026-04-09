@@ -117,9 +117,9 @@ final class CanonicalScorer implements CanonicalScorerInterface
     public function scoreItems(AssetGroup $group): void
     {
         foreach ($group->getItems() as $item) {
-            [$score, $reasoning] = $this->computeScore($item, $group);
+            $score = $this->computeScore($item, $group);
 
-            $group->replaceItem($item, $item->withScore($score, $reasoning));
+            $group->replaceItem($item, $item->withScore($score->totalScore, $score->reasoning));
         }
     }
 
@@ -152,9 +152,9 @@ final class CanonicalScorer implements CanonicalScorerInterface
      * @param AssetItem  $item  Asset to score
      * @param AssetGroup $group Parent group for context (e.g. groupKey for idempotency)
      *
-     * @return array{int, list<string>} Tuple of [totalScore, reasons]
+     * @return CanonicalScore Explicit score object carrying total score and reasoning fragments
      */
-    private function computeScore(AssetItem $item, AssetGroup $group): array
+    private function computeScore(AssetItem $item, AssetGroup $group): CanonicalScore
     {
         $score     = 0;
         $reasoning = [];
@@ -195,7 +195,7 @@ final class CanonicalScorer implements CanonicalScorerInterface
             $reasoning[] = sprintf('tieBreak=%d', $tieBreak);
         }
 
-        return [$score, $reasoning];
+        return new CanonicalScore($score, $reasoning);
     }
 
     /**
