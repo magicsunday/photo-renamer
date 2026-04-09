@@ -20,7 +20,10 @@ use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityClassification;
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityResult;
+use MagicSunday\Renamer\Service\Pipeline\ExistingCompanionVideoCandidate;
 use MagicSunday\Renamer\Service\Pipeline\OrphanLivePhotoVideoReconciler;
+use MagicSunday\Renamer\Service\Pipeline\OrphanVideoBestMatch;
+use MagicSunday\Renamer\Service\Pipeline\OrphanVideoCandidate;
 use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -53,6 +56,9 @@ use function implode;
 #[UsesClass(AssetGroupCollection::class)]
 #[UsesClass(TemporalMetadata::class)]
 #[UsesClass(MediaTypeClassifier::class)]
+#[UsesClass(ExistingCompanionVideoCandidate::class)]
+#[UsesClass(OrphanVideoCandidate::class)]
+#[UsesClass(OrphanVideoBestMatch::class)]
 final class OrphanLivePhotoVideoReconcilerTest extends TestCase
 {
     private PerceptualHashCalculatorInterface&MockObject $perceptualHashCalculator;

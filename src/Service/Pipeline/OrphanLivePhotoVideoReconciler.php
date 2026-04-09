@@ -19,7 +19,6 @@ use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface
 use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 
 use function array_keys;
-use function is_array;
 use function round;
 use function sprintf;
 
@@ -86,9 +85,9 @@ final readonly class OrphanLivePhotoVideoReconciler
      * Merges standalone video-only groups into existing Live Photo groups when the
      * video is perceptually identical to an already valid companion video.
      *
-     * @param AssetGroupCollection                            $groups              Groups discovered by CaptureGroupBuilder
-     * @param list<array{group: AssetGroup, item: AssetItem}> $candidateCompanions Valid existing companion videos
-     * @param list<array{groupKey: string, item: AssetItem}>  $orphanVideos        Orphan singleton video groups with their video item
+     * @param AssetGroupCollection                  $groups              Groups discovered by CaptureGroupBuilder
+     * @param list<ExistingCompanionVideoCandidate> $candidateCompanions Valid existing companion videos
+     * @param list<OrphanVideoCandidate>            $orphanVideos        Orphan singleton video groups with their video item
      */
     private function mergeOrphanVideoDuplicatesIntoLivePhotoGroups(
         AssetGroupCollection $groups,
@@ -96,16 +95,15 @@ final readonly class OrphanLivePhotoVideoReconciler
         array $orphanVideos,
     ): void {
         foreach ($orphanVideos as $orphanEntry) {
-            $groupKey = $orphanEntry['groupKey'];
+            $groupKey = $orphanEntry->groupKey;
             $group    = $groups->get($groupKey);
 
             if (!$group instanceof AssetGroup) {
                 continue;
             }
 
-            $orphanVideo = $orphanEntry['item'];
+            $orphanVideo = $orphanEntry->item;
 
-            /** @var array{group: AssetGroup, item: AssetItem, score: int}|null $bestMatch */
             $bestMatch = null;
             $bestScore = -1;
 
@@ -116,9 +114,9 @@ final readonly class OrphanLivePhotoVideoReconciler
 
                 $similarity = $this->perceptualHashCalculator->similarityScore(
                     $orphanVideo->file,
-                    $candidate['item']->file,
+                    $candidate->item->file,
                     $orphanVideo->metadata?->getVideoDurationSeconds(),
-                    $candidate['item']->metadata?->getVideoDurationSeconds(),
+                    $candidate->item->metadata?->getVideoDurationSeconds(),
                 );
                 $this->progressReporter->advance();
 
@@ -128,29 +126,29 @@ final readonly class OrphanLivePhotoVideoReconciler
 
                 if ($similarity->score > $bestScore) {
                     $bestScore = $similarity->score;
-                    $bestMatch = [
-                        'group' => $candidate['group'],
-                        'item'  => $candidate['item'],
-                        'score' => $similarity->score,
-                    ];
+                    $bestMatch = new OrphanVideoBestMatch(
+                        $candidate->group,
+                        $candidate->item,
+                        $similarity->score,
+                    );
                 }
             }
 
             $this->perceptualHashCalculator->clearCache();
 
-            if (!is_array($bestMatch)) {
+            if (!$bestMatch instanceof OrphanVideoBestMatch) {
                 continue;
             }
 
-            $targetGroup = $bestMatch['group'];
-            $targetVideo = $bestMatch['item'];
+            $targetGroup = $bestMatch->group;
+            $targetVideo = $bestMatch->item;
 
             $targetGroup->addItem($orphanVideo);
             $targetGroup->addDecision(sprintf(
                 'Merged orphan video duplicate: %s matched %s (score %d, content-id %s vs %s)',
                 $orphanVideo->file->getBasename(),
                 $targetVideo->file->getBasename(),
-                $bestMatch['score'],
+                $bestMatch->score,
                 $orphanVideo->contentIdentifier ?? 'none',
                 $targetVideo->contentIdentifier ?? 'none',
             ));
@@ -164,7 +162,7 @@ final readonly class OrphanLivePhotoVideoReconciler
      *
      * @param AssetGroupCollection $groups Available capture groups
      *
-     * @return list<array{group: AssetGroup, item: AssetItem}> Candidate companion videos
+     * @return list<ExistingCompanionVideoCandidate> Candidate companion videos
      */
     private function collectValidCompanionCandidates(AssetGroupCollection $groups): array
     {
@@ -193,7 +191,7 @@ final readonly class OrphanLivePhotoVideoReconciler
                 }
 
                 if (($item->contentIdentifier !== null) && isset($stillContentIds[$item->contentIdentifier])) {
-                    $candidates[] = ['group' => $group, 'item' => $item];
+                    $candidates[] = new ExistingCompanionVideoCandidate($group, $item);
                 }
             }
         }
@@ -204,8 +202,8 @@ final readonly class OrphanLivePhotoVideoReconciler
     /**
      * Counts how many candidate comparisons the reconciliation step will attempt.
      *
-     * @param list<array{groupKey: string, item: AssetItem}>  $orphanVideos        Orphan singleton video groups with their video item
-     * @param list<array{group: AssetGroup, item: AssetItem}> $candidateCompanions Valid existing companion videos
+     * @param list<OrphanVideoCandidate>            $orphanVideos        Orphan singleton video groups with their video item
+     * @param list<ExistingCompanionVideoCandidate> $candidateCompanions Valid existing companion videos
      *
      * @return int Number of perceptual comparisons after cheap pre-filtering
      */
@@ -215,7 +213,7 @@ final readonly class OrphanLivePhotoVideoReconciler
 
         foreach ($orphanVideos as $orphanEntry) {
             foreach ($candidateCompanions as $candidate) {
-                if ($this->isReconcilableCandidate($orphanEntry['groupKey'], $orphanEntry['item'], $candidate)) {
+                if ($this->isReconcilableCandidate($orphanEntry->groupKey, $orphanEntry->item, $candidate)) {
                     ++$comparisons;
                 }
             }
@@ -229,7 +227,7 @@ final readonly class OrphanLivePhotoVideoReconciler
      *
      * @param AssetGroupCollection $groups Available capture groups
      *
-     * @return list<array{groupKey: string, item: AssetItem}> Orphan singleton video groups with their video item
+     * @return list<OrphanVideoCandidate> Orphan singleton video groups with their video item
      */
     private function collectOrphanVideos(AssetGroupCollection $groups): array
     {
@@ -245,7 +243,7 @@ final readonly class OrphanLivePhotoVideoReconciler
             $orphanVideo = $this->findOrphanVideo($group);
 
             if ($orphanVideo instanceof AssetItem) {
-                $orphans[] = ['groupKey' => $groupKey, 'item' => $orphanVideo];
+                $orphans[] = new OrphanVideoCandidate($groupKey, $orphanVideo);
             }
         }
 
@@ -259,17 +257,17 @@ final readonly class OrphanLivePhotoVideoReconciler
      * unrelated videos by rejecting same-group candidates and videos with materially
      * different durations.
      *
-     * @param string                                    $orphanGroupKey Group key of the orphan singleton video
-     * @param AssetItem                                 $orphanVideo    Orphan singleton video
-     * @param array{group: AssetGroup, item: AssetItem} $candidate      Existing valid companion candidate
+     * @param string                          $orphanGroupKey Group key of the orphan singleton video
+     * @param AssetItem                       $orphanVideo    Orphan singleton video
+     * @param ExistingCompanionVideoCandidate $candidate      Existing valid companion candidate
      */
-    private function isReconcilableCandidate(string $orphanGroupKey, AssetItem $orphanVideo, array $candidate): bool
+    private function isReconcilableCandidate(string $orphanGroupKey, AssetItem $orphanVideo, ExistingCompanionVideoCandidate $candidate): bool
     {
-        if ($candidate['group']->groupKey === $orphanGroupKey) {
+        if ($candidate->group->groupKey === $orphanGroupKey) {
             return false;
         }
 
-        return $this->haveComparableDurations($orphanVideo, $candidate['item']);
+        return $this->haveComparableDurations($orphanVideo, $candidate->item);
     }
 
     /**
