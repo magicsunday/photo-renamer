@@ -45,6 +45,7 @@ use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\FallbackOutputSkipR
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\ReviewOutputSkipReasonRule;
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\WarningOutputSkipReasonRule;
 use MagicSunday\Renamer\Service\Output\OutputSummaryRowBuilder;
+use MagicSunday\Renamer\Service\Output\PathPrefixSplit;
 use MagicSunday\Renamer\Service\Output\RenameSummaryCounters;
 use MagicSunday\Renamer\Service\Output\SkipReasonFormatter;
 use MagicSunday\Renamer\Service\Output\SummaryRow;
@@ -92,6 +93,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 #[UsesClass(OutputDecisionLogRenderer::class)]
 #[UsesClass(OutputEntryBuildResult::class)]
 #[UsesClass(OutputEntryPresenter::class)]
+#[UsesClass(PathPrefixSplit::class)]
 #[UsesClass(OutputSkipReason::class)]
 #[UsesClass(OutputSkipReasonDecider::class)]
 #[UsesClass(OutputSkipReasonDecision::class)]

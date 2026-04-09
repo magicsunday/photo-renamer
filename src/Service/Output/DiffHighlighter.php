@@ -52,15 +52,15 @@ final readonly class DiffHighlighter
             return sprintf('<fg=%s>%s</>', $baseColor, $target);
         }
 
-        [$sourcePrefix, $sourceFilename] = $this->splitPathPrefix($source);
-        [$targetPrefix, $targetFilename] = $this->splitPathPrefix($target);
+        $sourceSplit = $this->splitPathPrefix($source);
+        $targetSplit = $this->splitPathPrefix($target);
 
-        if ($sourcePrefix !== $targetPrefix) {
+        if ($sourceSplit->directoryPrefix !== $targetSplit->directoryPrefix) {
             return $this->highlightSequentialTokenDiff($source, $target, $baseColor);
         }
 
-        return sprintf('<fg=%s>%s</>', $baseColor, $targetPrefix)
-            . $this->highlightSequentialTokenDiff($sourceFilename, $targetFilename, $baseColor);
+        return sprintf('<fg=%s>%s</>', $baseColor, $targetSplit->directoryPrefix)
+            . $this->highlightSequentialTokenDiff($sourceSplit->filename, $targetSplit->filename, $baseColor);
     }
 
     /**
@@ -68,9 +68,9 @@ final readonly class DiffHighlighter
      *
      * @param string $path Pathname to split
      *
-     * @return array{string, string} Directory prefix and filename
+     * @return PathPrefixSplit Directory prefix and filename wrapped in an explicit value object
      */
-    private function splitPathPrefix(string $path): array
+    private function splitPathPrefix(string $path): PathPrefixSplit
     {
         $slashPos     = strrpos($path, '/');
         $backslashPos = strrpos($path, '\\');
@@ -81,13 +81,13 @@ final readonly class DiffHighlighter
         );
 
         if ($lastSlashPos < 0) {
-            return ['', $path];
+            return new PathPrefixSplit('', $path);
         }
 
-        return [
+        return new PathPrefixSplit(
             substr($path, 0, $lastSlashPos + 1),
             substr($path, $lastSlashPos + 1),
-        ];
+        );
     }
 
     /**

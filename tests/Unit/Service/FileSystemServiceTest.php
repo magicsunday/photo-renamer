@@ -41,6 +41,7 @@ use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\DefaultOutputSkipRe
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\FallbackOutputSkipReasonRule;
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\ReviewOutputSkipReasonRule;
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\WarningOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\PathPrefixSplit;
 use MagicSunday\Renamer\Service\Output\SkipReasonFormatter;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
@@ -103,6 +104,7 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(DiffHighlighter::class)]
 #[UsesClass(DiffTokenState::class)]
 #[UsesClass(OutputCounters::class)]
+#[UsesClass(PathPrefixSplit::class)]
 #[UsesClass(OutputSkipReason::class)]
 #[UsesClass(OutputSkipReasonDecider::class)]
 #[UsesClass(OutputSkipReasonDecision::class)]
