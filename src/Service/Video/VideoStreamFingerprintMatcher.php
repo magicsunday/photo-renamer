@@ -45,7 +45,7 @@ final class VideoStreamFingerprintMatcher implements VideoStreamFingerprintMatch
     /**
      * In-memory fingerprint cache keyed by pathname, mtime, and size.
      *
-     * @var array<string, array{videoHash: string|null, audioHash: string|null, hasAudio: bool}>
+     * @var array<string, VideoStreamFingerprint>
      */
     private array $fingerprintCache = [];
 
@@ -74,18 +74,18 @@ final class VideoStreamFingerprintMatcher implements VideoStreamFingerprintMatch
         $fingerprintA = $this->fingerprint($fileA);
         $fingerprintB = $this->fingerprint($fileB);
 
-        $videoStreamMatched = ($fingerprintA['videoHash'] !== null)
-            && ($fingerprintA['videoHash'] === $fingerprintB['videoHash']);
+        $videoStreamMatched = ($fingerprintA->videoHash !== null)
+            && ($fingerprintA->videoHash === $fingerprintB->videoHash);
 
         if (!$videoStreamMatched) {
             return new VideoFingerprintMatch(false, false, false, false, false);
         }
 
-        if (!$fingerprintA['hasAudio'] && !$fingerprintB['hasAudio']) {
+        if (!$fingerprintA->hasAudio && !$fingerprintB->hasAudio) {
             return new VideoFingerprintMatch(true, false, true, false, false);
         }
 
-        if ($fingerprintA['hasAudio'] xor $fingerprintB['hasAudio']) {
+        if ($fingerprintA->hasAudio xor $fingerprintB->hasAudio) {
             return new VideoFingerprintMatch(
                 true,
                 false,
@@ -96,8 +96,8 @@ final class VideoStreamFingerprintMatcher implements VideoStreamFingerprintMatch
             );
         }
 
-        $audioStreamMatched = ($fingerprintA['audioHash'] !== null)
-            && ($fingerprintA['audioHash'] === $fingerprintB['audioHash']);
+        $audioStreamMatched = ($fingerprintA->audioHash !== null)
+            && ($fingerprintA->audioHash === $fingerprintB->audioHash);
 
         if ($audioStreamMatched) {
             return new VideoFingerprintMatch(true, true, false, false, false);
@@ -118,9 +118,9 @@ final class VideoStreamFingerprintMatcher implements VideoStreamFingerprintMatch
      *
      * @param SplFileInfo $file Video file whose streams should be hashed
      *
-     * @return array{videoHash: string|null, audioHash: string|null, hasAudio: bool} Primary video/audio hashes
+     * @return VideoStreamFingerprint Primary video/audio hashes
      */
-    private function fingerprint(SplFileInfo $file): array
+    private function fingerprint(SplFileInfo $file): VideoStreamFingerprint
     {
         $cacheKey = $this->cacheKey($file);
 
@@ -149,19 +149,11 @@ final class VideoStreamFingerprintMatcher implements VideoStreamFingerprintMatch
         try {
             $process->run();
         } catch (Throwable) {
-            return $this->fingerprintCache[$cacheKey] = [
-                'videoHash' => null,
-                'audioHash' => null,
-                'hasAudio'  => false,
-            ];
+            return $this->fingerprintCache[$cacheKey] = new VideoStreamFingerprint(null, null, false);
         }
 
         if (!$process->isSuccessful()) {
-            return $this->fingerprintCache[$cacheKey] = [
-                'videoHash' => null,
-                'audioHash' => null,
-                'hasAudio'  => false,
-            ];
+            return $this->fingerprintCache[$cacheKey] = new VideoStreamFingerprint(null, null, false);
         }
 
         $videoHash = null;
@@ -187,11 +179,11 @@ final class VideoStreamFingerprintMatcher implements VideoStreamFingerprintMatch
             }
         }
 
-        return $this->fingerprintCache[$cacheKey] = [
-            'videoHash' => $videoHash,
-            'audioHash' => $audioHash,
-            'hasAudio'  => $audioHash !== null,
-        ];
+        return $this->fingerprintCache[$cacheKey] = new VideoStreamFingerprint(
+            $videoHash,
+            $audioHash,
+            $audioHash !== null,
+        );
     }
 
     /**

@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service\Video;
 
 use MagicSunday\Renamer\Model\Pipeline\VideoFingerprintMatch;
+use MagicSunday\Renamer\Service\Video\VideoStreamFingerprint;
 use MagicSunday\Renamer\Service\Video\VideoStreamFingerprintMatcher;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -37,6 +38,7 @@ use function sprintf;
  */
 #[CoversClass(VideoStreamFingerprintMatcher::class)]
 #[UsesClass(VideoFingerprintMatch::class)]
+#[UsesClass(VideoStreamFingerprint::class)]
 final class VideoStreamFingerprintMatcherTest extends TestCase
 {
     use WorkspaceTrait;
