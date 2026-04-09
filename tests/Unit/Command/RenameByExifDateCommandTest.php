@@ -210,6 +210,7 @@ final class RenameByExifDateCommandTest extends TestCase
             new ExecutionPlanBuilder(),
             new PipelineReviewMapper(),
             OutputRendererFactory::create($io),
+            new TargetBasenameStrategy(),
         );
 
         self::assertSame('rename:exif', $command->getName());
@@ -315,6 +316,7 @@ final class RenameByExifDateCommandTest extends TestCase
                 $executionPlanBuilder,
                 new PipelineReviewMapper(),
                 OutputRendererFactory::create($style),
+                new TargetBasenameStrategy(),
             );
 
             $tester   = new CommandTester($command);

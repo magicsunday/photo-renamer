@@ -837,6 +837,7 @@ final class RenameByExifDateCommandTest extends TestCase
             $executionPlanBuilder,
             new PipelineReviewMapper(),
             $renderer,
+            new TargetBasenameStrategy(),
         );
 
         $tester   = new CommandTester($command);

@@ -13,6 +13,9 @@ namespace MagicSunday\Renamer\Command;
 
 use FilesystemIterator;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
+use MagicSunday\Renamer\Regex\SafeRegex;
+use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
+use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetPathnameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\PatternFilenameStrategy;
@@ -23,6 +26,7 @@ use RecursiveIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
 use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Filesystem\Filesystem;
 
 use function is_string;
 
@@ -40,11 +44,26 @@ final class RenameByPatternCommand extends AbstractRenameCommand
 {
     private ?RenameStrategyInterface $renameStrategy = null;
 
-    private ?DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy = null;
-
     private string $pattern = '';
 
     private string $replacement = '';
+
+    /**
+     * @param FileSystemServiceInterface         $fileSystemService           Service to handle file system operations
+     * @param DuplicateDetectionServiceInterface $duplicateDetectionService   Service to handle grouping and duplicate resolution
+     * @param SafeRegex                          $safeRegex                   Safe regex wrapper used by the shared legacy file iterator path
+     * @param Filesystem                         $filesystem                  Command-facing filesystem boundary reused by metadata-cache helpers
+     * @param TargetPathnameStrategy             $duplicateIdentifierStrategy Fixed target-path grouping strategy for this command
+     */
+    public function __construct(
+        FileSystemServiceInterface $fileSystemService,
+        DuplicateDetectionServiceInterface $duplicateDetectionService,
+        SafeRegex $safeRegex,
+        Filesystem $filesystem,
+        private readonly TargetPathnameStrategy $duplicateIdentifierStrategy,
+    ) {
+        parent::__construct($fileSystemService, $duplicateDetectionService, $safeRegex, $filesystem);
+    }
 
     /**
      * Configures the current command.
@@ -155,6 +174,6 @@ final class RenameByPatternCommand extends AbstractRenameCommand
     #[Override]
     protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
     {
-        return $this->duplicateIdentifierStrategy ??= new TargetPathnameStrategy();
+        return $this->duplicateIdentifierStrategy;
     }
 }

@@ -15,6 +15,7 @@ use MagicSunday\Renamer\Command\RenameByPatternCommand;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetPathnameStrategy;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -43,6 +44,7 @@ final class RenameByPatternCommandTest extends TestCase
             self::createStub(DuplicateDetectionServiceInterface::class),
             new SafeRegex(),
             new Filesystem(),
+            new TargetPathnameStrategy(),
         );
 
         self::assertSame('rename:pattern', $command->getName());

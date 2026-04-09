@@ -70,18 +70,19 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
     /**
      * Constructor.
      *
-     * @param FileSystemServiceInterface         $fileSystemService         Service to handle file system operations
-     * @param DuplicateDetectionServiceInterface $duplicateDetectionService Service to handle grouping and duplicate resolution
-     * @param SafeRegex                          $safeRegex                 Safe regex wrapper used by the supported-media iterator filter
-     * @param Filesystem                         $filesystem                Command-facing filesystem boundary reused by metadata-cache helpers
-     * @param ExifMetadataProvider               $exifMetadataProvider      Provider for EXIF metadata from files
-     * @param PerceptualHashCalculatorInterface  $perceptualHashCalculator  Calculator for perceptual image hashes (visual similarity)
-     * @param HashSubGroupingServiceInterface    $hashSubGroupingService    Service to further group files by perceptual hash
-     * @param AssetGroupPipeline                 $pipeline                  The main asset processing pipeline
-     * @param CanonicalScorerInterface           $canonicalScorer           Scorer to determine the "best" file in a group
-     * @param ExecutionPlanBuilderInterface      $executionPlanBuilder      Builder for the final execution plan
-     * @param PipelineReviewMapper               $pipelineReviewMapper      Maps structured pipeline review facts to output-ready entries
-     * @param RenameOutputRenderer               $renameOutputRenderer      Renderer for the rename operation output
+     * @param FileSystemServiceInterface         $fileSystemService           Service to handle file system operations
+     * @param DuplicateDetectionServiceInterface $duplicateDetectionService   Service to handle grouping and duplicate resolution
+     * @param SafeRegex                          $safeRegex                   Safe regex wrapper used by the supported-media iterator filter
+     * @param Filesystem                         $filesystem                  Command-facing filesystem boundary reused by metadata-cache helpers
+     * @param ExifMetadataProvider               $exifMetadataProvider        Provider for EXIF metadata from files
+     * @param PerceptualHashCalculatorInterface  $perceptualHashCalculator    Calculator for perceptual image hashes (visual similarity)
+     * @param HashSubGroupingServiceInterface    $hashSubGroupingService      Service to further group files by perceptual hash
+     * @param AssetGroupPipeline                 $pipeline                    The main asset processing pipeline
+     * @param CanonicalScorerInterface           $canonicalScorer             Scorer to determine the "best" file in a group
+     * @param ExecutionPlanBuilderInterface      $executionPlanBuilder        Builder for the final execution plan
+     * @param PipelineReviewMapper               $pipelineReviewMapper        Maps structured pipeline review facts to output-ready entries
+     * @param RenameOutputRenderer               $renameOutputRenderer        Renderer for the rename operation output
+     * @param TargetBasenameStrategy             $duplicateIdentifierStrategy Fixed basename grouping strategy for EXIF rename groups
      */
     public function __construct(
         FileSystemServiceInterface $fileSystemService,
@@ -96,6 +97,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
         private readonly ExecutionPlanBuilderInterface $executionPlanBuilder,
         private readonly PipelineReviewMapper $pipelineReviewMapper,
         private readonly RenameOutputRenderer $renameOutputRenderer,
+        private readonly TargetBasenameStrategy $duplicateIdentifierStrategy,
     ) {
         parent::__construct($fileSystemService, $duplicateDetectionService, $safeRegex, $filesystem);
     }
@@ -109,11 +111,6 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
      * Lazily created EXIF date filename strategy, reset when the pattern changes.
      */
     private ?ExifDateFilenameStrategy $exifDateFilenameStrategy = null;
-
-    /**
-     * Lazily created duplicate identifier strategy.
-     */
-    private ?DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy = null;
 
     /**
      * Configures the EXIF date rename command with its name, description, and options.
@@ -161,9 +158,8 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
         $targetFilenamePattern = $this->input->getOption('target-filename-pattern');
 
         if (is_string($targetFilenamePattern)) {
-            $this->targetFilenamePattern       = $targetFilenamePattern;
-            $this->exifDateFilenameStrategy    = null;
-            $this->duplicateIdentifierStrategy = null;
+            $this->targetFilenamePattern    = $targetFilenamePattern;
+            $this->exifDateFilenameStrategy = null;
         }
 
         $this->configureProviderTimezone($this->exifMetadataProvider, $this->input);
@@ -265,7 +261,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
     #[Override]
     protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
     {
-        return $this->duplicateIdentifierStrategy ??= new TargetBasenameStrategy();
+        return $this->duplicateIdentifierStrategy;
     }
 
     /**
@@ -289,7 +285,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
         $pipelineResult = $this->pipeline->run(
             $this->createFileIterator(),
             $this->getTargetFilenameStrategy(),
-            $this->getDuplicateIdentifierStrategy(),
+            $this->duplicateIdentifierStrategy,
             $this->sourceDirectory,
             $this->useFileExtensionFromSource,
         );

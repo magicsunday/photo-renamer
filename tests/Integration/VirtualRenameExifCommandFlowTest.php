@@ -35,6 +35,7 @@ use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifierInterface;
 use MagicSunday\Renamer\Service\Pipeline\TargetNameResolverInterface;
 use MagicSunday\Renamer\Service\RenamePlanValidator;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
+use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\VirtualFlow\FlatSplFileInfoRecursiveIterator;
@@ -266,6 +267,7 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
             $executionPlanBuilder,
             new PipelineReviewMapper(),
             OutputRendererFactory::create($style),
+            new TargetBasenameStrategy(),
         );
 
         return [$command, $fileSystemService, $output];

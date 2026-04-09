@@ -1165,6 +1165,7 @@ final class TestImageScenariosTest extends TestCase
             $executionPlanBuilder,
             new PipelineReviewMapper(),
             $renderer,
+            new TargetBasenameStrategy(),
         );
 
         $tester   = new CommandTester($command);

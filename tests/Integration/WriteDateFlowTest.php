@@ -432,6 +432,7 @@ final class WriteDateFlowTest extends TestCase
             $executionPlanBuilder,
             new PipelineReviewMapper(),
             $renderer,
+            new TargetBasenameStrategy(),
         );
 
         $tester   = new CommandTester($command);
