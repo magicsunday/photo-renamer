@@ -26,6 +26,7 @@ use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingServiceInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
 use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use MagicSunday\Renamer\Service\TargetFileResolver;
+use MagicSunday\Renamer\Service\TargetPathResolver;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\LivePhotoAwareRenameStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\MetadataAwareRenameStrategyInterface;
@@ -74,7 +75,7 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
         private MediaTypeClassifierInterface $mediaTypeClassifier,
         private ?LivePhotoConflictDetectorInterface $livePhotoConflictDetector = null,
         private ?LivePhotoPairingServiceInterface $livePhotoPairingService = null,
-        private TargetFileResolver $targetFileResolver = new TargetFileResolver(),
+        private TargetFileResolver $targetFileResolver = new TargetFileResolver(new TargetPathResolver()),
         private CaptureAssetCandidateExtractor $captureAssetCandidateExtractor = new CaptureAssetCandidateExtractor(),
         ?CaptureContentIdentifierCoordinator $captureContentIdentifierCoordinator = null,
         private PendingLivePhotoVideoResolver $pendingLivePhotoVideoResolver = new PendingLivePhotoVideoResolver(),

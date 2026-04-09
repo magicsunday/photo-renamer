@@ -34,7 +34,7 @@ final readonly class LegacyTargetFileResolver
      * @param TargetFileResolver $targetFileResolver Shared target-file resolver reused by the legacy pipeline wrapper.
      */
     public function __construct(
-        private TargetFileResolver $targetFileResolver = new TargetFileResolver(),
+        private TargetFileResolver $targetFileResolver,
     ) {
     }
 

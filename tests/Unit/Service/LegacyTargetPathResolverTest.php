@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
 use MagicSunday\Renamer\Service\LegacyTargetPathResolver;
+use MagicSunday\Renamer\Service\TargetPathResolver;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -41,7 +42,7 @@ final class LegacyTargetPathResolverTest extends TestCase
     #[Test]
     public function resolveRetainsNestedDirectoriesWithDuplicateNames(): void
     {
-        $resolver   = new LegacyTargetPathResolver();
+        $resolver   = new LegacyTargetPathResolver(new TargetPathResolver());
         $sourceRoot = DIRECTORY_SEPARATOR . 'tmp' . DIRECTORY_SEPARATOR . 'Fotos';
         $source     = new SplFileInfo(
             $sourceRoot
@@ -70,7 +71,7 @@ final class LegacyTargetPathResolverTest extends TestCase
     #[Test]
     public function resolvePreservesRelativeDepthForAbsoluteDirectories(): void
     {
-        $resolver   = new LegacyTargetPathResolver();
+        $resolver   = new LegacyTargetPathResolver(new TargetPathResolver());
         $sourceRoot = DIRECTORY_SEPARATOR . 'volume1' . DIRECTORY_SEPARATOR . 'Fotos';
         $source     = new SplFileInfo(
             $sourceRoot
@@ -99,7 +100,7 @@ final class LegacyTargetPathResolverTest extends TestCase
     #[Test]
     public function resolveThrowsOnDirectorySeparatorInFilename(): void
     {
-        $resolver   = new LegacyTargetPathResolver();
+        $resolver   = new LegacyTargetPathResolver(new TargetPathResolver());
         $sourceRoot = DIRECTORY_SEPARATOR . 'tmp' . DIRECTORY_SEPARATOR . 'Fotos';
         $source     = new SplFileInfo($sourceRoot . DIRECTORY_SEPARATOR . 'IMG_0001.jpg');
 

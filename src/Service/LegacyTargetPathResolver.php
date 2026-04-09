@@ -31,7 +31,7 @@ final readonly class LegacyTargetPathResolver
      * @param TargetPathResolver $targetPathResolver Shared target-path resolver reused by the legacy pipeline wrapper.
      */
     public function __construct(
-        private TargetPathResolver $targetPathResolver = new TargetPathResolver(),
+        private TargetPathResolver $targetPathResolver,
     ) {
     }
 

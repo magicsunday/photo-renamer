@@ -34,7 +34,7 @@ final readonly class TargetFileResolver
      * @param TargetPathResolver $targetPathResolver Resolves the final absolute target pathname once a filename was generated.
      */
     public function __construct(
-        private TargetPathResolver $targetPathResolver = new TargetPathResolver(),
+        private TargetPathResolver $targetPathResolver,
     ) {
     }
 

@@ -13,6 +13,8 @@ namespace MagicSunday\Renamer\Test\Unit\Service;
 
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Service\LegacyTargetFileResolver;
+use MagicSunday\Renamer\Service\TargetFileResolver;
+use MagicSunday\Renamer\Service\TargetPathResolver;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -43,7 +45,7 @@ final class LegacyTargetFileResolverTest extends TestCase
     #[Test]
     public function resolveReturnsSuccessForGeneratedFilename(): void
     {
-        $resolver   = new LegacyTargetFileResolver();
+        $resolver   = new LegacyTargetFileResolver(new TargetFileResolver(new TargetPathResolver()));
         $sourceRoot = DIRECTORY_SEPARATOR . 'tmp' . DIRECTORY_SEPARATOR . 'Fotos';
         $source     = new SplFileInfo(
             $sourceRoot
@@ -81,7 +83,7 @@ final class LegacyTargetFileResolverTest extends TestCase
     #[Test]
     public function resolveReturnsSkippedWhenStrategyReturnsNull(): void
     {
-        $resolver   = new LegacyTargetFileResolver();
+        $resolver   = new LegacyTargetFileResolver(new TargetFileResolver(new TargetPathResolver()));
         $sourceRoot = DIRECTORY_SEPARATOR . 'tmp' . DIRECTORY_SEPARATOR . 'Fotos';
         $source     = new SplFileInfo($sourceRoot . DIRECTORY_SEPARATOR . 'IMG_0002.mov');
         $strategy   = $this->createMock(RenameStrategyInterface::class);
@@ -105,7 +107,7 @@ final class LegacyTargetFileResolverTest extends TestCase
     #[Test]
     public function resolveReturnsErrorWithRootCauseMessage(): void
     {
-        $resolver   = new LegacyTargetFileResolver();
+        $resolver   = new LegacyTargetFileResolver(new TargetFileResolver(new TargetPathResolver()));
         $sourceRoot = DIRECTORY_SEPARATOR . 'tmp' . DIRECTORY_SEPARATOR . 'Fotos';
         $source     = new SplFileInfo($sourceRoot . DIRECTORY_SEPARATOR . 'IMG_0003.heic');
         $strategy   = $this->createMock(RenameStrategyInterface::class);

@@ -14,6 +14,7 @@ namespace MagicSunday\Renamer\Test\Unit\Service;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Service\LegacyDuplicateTargetCandidateFactory;
 use MagicSunday\Renamer\Service\LegacyTargetPathResolver;
+use MagicSunday\Renamer\Service\TargetPathResolver;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -43,7 +44,7 @@ final class LegacyDuplicateTargetCandidateFactoryTest extends TestCase
     #[Test]
     public function createBuildsDuplicateCandidateInLegacyTargetDirectory(): void
     {
-        $factory    = new LegacyDuplicateTargetCandidateFactory(new LegacyTargetPathResolver());
+        $factory    = new LegacyDuplicateTargetCandidateFactory(new LegacyTargetPathResolver(new TargetPathResolver()));
         $sourceRoot = DIRECTORY_SEPARATOR . 'tmp' . DIRECTORY_SEPARATOR . 'Fotos';
         $source     = new SplFileInfo(
             $sourceRoot
