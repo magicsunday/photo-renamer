@@ -17,6 +17,8 @@ use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Service\DateDriftAnalyzer;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
+use MagicSunday\Renamer\Service\Verify\LivePhotoContentIdMap;
+use MagicSunday\Renamer\Service\Verify\LivePhotoContentIdObservation;
 use MagicSunday\Renamer\Service\Verify\MetadataIssueScanner;
 use MagicSunday\Renamer\Service\Verify\VerifyCategoryCatalog;
 use MagicSunday\Renamer\Service\Verify\VerifyScanResult;
@@ -49,6 +51,8 @@ use const DIRECTORY_SEPARATOR;
 #[CoversClass(MetadataIssueScanner::class)]
 #[UsesClass(VerifyCategoryCatalog::class)]
 #[UsesClass(VerifyScanResult::class)]
+#[UsesClass(LivePhotoContentIdMap::class)]
+#[UsesClass(LivePhotoContentIdObservation::class)]
 #[UsesClass(ExifMetadataProvider::class)]
 #[UsesClass(TemporalMetadata::class)]
 #[UsesClass(DateDriftAnalyzer::class)]
@@ -141,8 +145,8 @@ final class MetadataIssueScannerTest extends TestCase
 
             self::assertSame(['timezone|clip.mov'], $result->categories[VerifyCategoryCatalog::TIMEZONE]);
             self::assertSame(['2024-01-01_09-00-00.jpg'], $result->categories[VerifyCategoryCatalog::DRIFT]);
-            self::assertArrayHasKey($workspace, $result->contentIdMap);
-            self::assertArrayHasKey('live-id', $result->contentIdMap[$workspace]);
+            self::assertContains($workspace, $result->livePhotoContentIdMap->directories());
+            self::assertTrue($result->livePhotoContentIdMap->hasBucket($workspace, 'live-id'));
         } finally {
             @unlink($movPath);
             @unlink($jpgPath);

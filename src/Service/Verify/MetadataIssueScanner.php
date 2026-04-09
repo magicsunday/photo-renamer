@@ -87,9 +87,10 @@ final readonly class MetadataIssueScanner
         ];
 
         /**
-         * @var array<string, array<string, list<array{pathname: string, isStill: bool}>>> $contentIdMap
+         * Aggregated content-identifier observations used by the later Live Photo
+         * completeness analysis.
          */
-        $contentIdMap = [];
+        $contentIdMap = new LivePhotoContentIdMap();
 
         $scannedFiles = 0;
         $okCount      = 0;
@@ -190,18 +191,19 @@ final readonly class MetadataIssueScanner
     /**
      * Adds a file's content identifier to the per-directory content-ID map.
      *
-     * @param array<string, array<string, list<array{pathname: string, isStill: bool}>>> $contentIdMap Mutable aggregation map
-     * @param SplFileInfo                                                                $file         File contributing the content identifier
-     * @param string                                                                     $contentId    Apple content identifier extracted from metadata
+     * @param LivePhotoContentIdMap $contentIdMap Mutable aggregation map
+     * @param SplFileInfo           $file         File contributing the content identifier
+     * @param string                $contentId    Apple content identifier extracted from metadata
      */
-    private function addToContentIdMap(array &$contentIdMap, SplFileInfo $file, string $contentId): void
+    private function addToContentIdMap(LivePhotoContentIdMap $contentIdMap, SplFileInfo $file, string $contentId): void
     {
         $directory = dirname($file->getPathname());
         $isStill   = $this->mediaTypeClassifier->isLivePhotoStill($file);
 
-        $contentIdMap[$directory][$contentId][] = [
-            'pathname' => $file->getPathname(),
-            'isStill'  => $isStill,
-        ];
+        $contentIdMap->add(
+            $directory,
+            $contentId,
+            new LivePhotoContentIdObservation($file->getPathname(), $isStill),
+        );
     }
 }

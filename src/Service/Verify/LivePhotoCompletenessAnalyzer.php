@@ -30,23 +30,23 @@ final class LivePhotoCompletenessAnalyzer
     /**
      * Returns human-readable verify findings for incomplete Live Photo pairs.
      *
-     * @param array<string, array<string, list<array{pathname: string, isStill: bool}>>> $contentIdMap
-     *                                                                                                    Per-directory content identifier map built during the metadata scan.
-     * @param string                                                                     $sourceDirectory Source directory used to relativize file paths for output
+     * @param LivePhotoContentIdMap $contentIdMap    Per-directory content identifier map built during the metadata scan
+     * @param string                $sourceDirectory Source directory used to relativize file paths for output
      *
      * @return list<string> Missing-companion findings ready for verify output
      */
-    public function analyze(array $contentIdMap, string $sourceDirectory): array
+    public function analyze(LivePhotoContentIdMap $contentIdMap, string $sourceDirectory): array
     {
         $findings = [];
 
-        foreach ($contentIdMap as $dirFiles) {
-            foreach ($dirFiles as $contentIdFiles) {
-                $hasStill = false;
-                $hasVideo = false;
+        foreach ($contentIdMap->directories() as $directory) {
+            foreach ($contentIdMap->contentIdsInDirectory($directory) as $contentId) {
+                $contentIdFiles = $contentIdMap->observationsFor($directory, $contentId);
+                $hasStill       = false;
+                $hasVideo       = false;
 
                 foreach ($contentIdFiles as $entry) {
-                    if ($entry['isStill']) {
+                    if ($entry->isStill) {
                         $hasStill = true;
                     } else {
                         $hasVideo = true;
@@ -58,9 +58,9 @@ final class LivePhotoCompletenessAnalyzer
                 }
 
                 foreach ($contentIdFiles as $entry) {
-                    $relativePath = PathHelper::relativizePath($entry['pathname'], $sourceDirectory);
+                    $relativePath = PathHelper::relativizePath($entry->pathname, $sourceDirectory);
 
-                    $findings[] = $entry['isStill'] ? $relativePath . ' → no paired MOV' : $relativePath . ' → no paired JPG/HEIC';
+                    $findings[] = $entry->isStill ? $relativePath . ' → no paired MOV' : $relativePath . ' → no paired JPG/HEIC';
                 }
             }
         }

@@ -26,16 +26,16 @@ namespace MagicSunday\Renamer\Service\Verify;
 final readonly class VerifyScanResult
 {
     /**
-     * @param int                                                                        $scannedFiles Total number of files seen by the scanner
-     * @param int                                                                        $okCount      Number of files without immediate metadata issues
-     * @param array<string, list<string>>                                                $categories   Categorized findings excluding the later Live Photo pass
-     * @param array<string, array<string, list<array{pathname: string, isStill: bool}>>> $contentIdMap Per-directory content-ID map for the completeness analyzer
+     * @param int                         $scannedFiles          Total number of files seen by the scanner
+     * @param int                         $okCount               Number of files without immediate metadata issues
+     * @param array<string, list<string>> $categories            Categorized findings excluding the later Live Photo pass
+     * @param LivePhotoContentIdMap       $livePhotoContentIdMap Per-directory content-ID map for the completeness analyzer
      */
     public function __construct(
         public int $scannedFiles,
         public int $okCount,
         public array $categories,
-        public array $contentIdMap,
+        public LivePhotoContentIdMap $livePhotoContentIdMap,
     ) {
     }
 }

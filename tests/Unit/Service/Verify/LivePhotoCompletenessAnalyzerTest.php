@@ -13,6 +13,8 @@ namespace MagicSunday\Renamer\Test\Unit\Service\Verify;
 
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Service\Verify\LivePhotoCompletenessAnalyzer;
+use MagicSunday\Renamer\Service\Verify\LivePhotoContentIdMap;
+use MagicSunday\Renamer\Service\Verify\LivePhotoContentIdObservation;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
@@ -31,6 +33,8 @@ use PHPUnit\Framework\TestCase;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(LivePhotoCompletenessAnalyzer::class)]
+#[UsesClass(LivePhotoContentIdMap::class)]
+#[UsesClass(LivePhotoContentIdObservation::class)]
 #[UsesClass(FileHelper::class)]
 final class LivePhotoCompletenessAnalyzerTest extends TestCase
 {
@@ -41,17 +45,13 @@ final class LivePhotoCompletenessAnalyzerTest extends TestCase
     #[Test]
     public function completeLivePhotoPairProducesNoFindings(): void
     {
-        $analyzer = new LivePhotoCompletenessAnalyzer();
+        $analyzer     = new LivePhotoCompletenessAnalyzer();
+        $contentIdMap = new LivePhotoContentIdMap();
+        $contentIdMap->add('/photos', 'uuid-1', new LivePhotoContentIdObservation('/photos/IMG_0001.heic', true));
+        $contentIdMap->add('/photos', 'uuid-1', new LivePhotoContentIdObservation('/photos/IMG_0001.mov', false));
 
         $findings = $analyzer->analyze(
-            [
-                '/photos' => [
-                    'uuid-1' => [
-                        ['pathname' => '/photos/IMG_0001.heic', 'isStill' => true],
-                        ['pathname' => '/photos/IMG_0001.mov', 'isStill' => false],
-                    ],
-                ],
-            ],
+            $contentIdMap,
             '/photos',
         );
 
@@ -65,16 +65,12 @@ final class LivePhotoCompletenessAnalyzerTest extends TestCase
     #[Test]
     public function orphanVideoProducesMissingStillFinding(): void
     {
-        $analyzer = new LivePhotoCompletenessAnalyzer();
+        $analyzer     = new LivePhotoCompletenessAnalyzer();
+        $contentIdMap = new LivePhotoContentIdMap();
+        $contentIdMap->add('/photos', 'uuid-1', new LivePhotoContentIdObservation('/photos/IMG_0042.mov', false));
 
         $findings = $analyzer->analyze(
-            [
-                '/photos' => [
-                    'uuid-1' => [
-                        ['pathname' => '/photos/IMG_0042.mov', 'isStill' => false],
-                    ],
-                ],
-            ],
+            $contentIdMap,
             '/photos',
         );
 

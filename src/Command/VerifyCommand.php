@@ -190,7 +190,7 @@ final class VerifyCommand extends Command
         $io->newLine(2);
 
         $categories                                   = $scanResult->categories;
-        $categories[VerifyCategoryCatalog::LIVEPHOTO] = $this->livePhotoCompletenessAnalyzer->analyze($scanResult->contentIdMap, $sourceDirectory);
+        $categories[VerifyCategoryCatalog::LIVEPHOTO] = $this->livePhotoCompletenessAnalyzer->analyze($scanResult->livePhotoContentIdMap, $sourceDirectory);
         $scannedFiles                                 = $scanResult->scannedFiles;
         $okCount                                      = $scanResult->okCount;
 
