@@ -52,20 +52,19 @@ final readonly class CompanionDetector implements CompanionDetectorInterface
      * @param AssetGroup $group     Group containing candidate companion items
      * @param AssetItem  $canonical Canonical item whose companions are sought
      *
-     * @return array<string, true> Pathnames of detected companion items
+     * @return CompanionPathSet Pathnames of detected companion items
      */
     #[Override]
-    public function detect(AssetGroup $group, AssetItem $canonical): array
+    public function detect(AssetGroup $group, AssetItem $canonical): CompanionPathSet
     {
         // Safety: canonical must have a content identifier for any companion detection
         if ($canonical->contentIdentifier === null) {
-            return [];
+            return new CompanionPathSet();
         }
 
         $canonicalBasename = FileHelper::basenameWithoutExtension($canonical->file);
 
-        /** @var array<string, true> $companions */
-        $companions = [];
+        $companions = new CompanionPathSet();
 
         // Phase 1: Content-ID matching (highest priority)
         // Collect candidates grouped by media type, then select the best per type.
@@ -93,15 +92,15 @@ final readonly class CompanionDetector implements CompanionDetectorInterface
         // Select best candidate per media type
         foreach ($candidatesByMediaType as $candidates) {
             if (count($candidates) === 1) {
-                $companions[$candidates[0]->file->getPathname()] = true;
+                $companions->add($candidates[0]->file->getPathname());
             } else {
-                $winner                                   = $this->selectBestCandidate($candidates, $canonical);
-                $companions[$winner->file->getPathname()] = true;
+                $winner = $this->selectBestCandidate($candidates, $canonical);
+                $companions->add($winner->file->getPathname());
             }
         }
 
         // Phase 2: Basename fallback (only when no content-ID companions found)
-        if ($companions === []) {
+        if ($companions->isEmpty()) {
             /** @var list<AssetItem> $fallbackCandidates */
             $fallbackCandidates = [];
 
@@ -140,10 +139,10 @@ final readonly class CompanionDetector implements CompanionDetectorInterface
                         ),
                     );
 
-                    return [];
+                    return new CompanionPathSet();
                 }
 
-                $companions[$candidate->file->getPathname()] = true;
+                $companions->add($candidate->file->getPathname());
             }
         }
 

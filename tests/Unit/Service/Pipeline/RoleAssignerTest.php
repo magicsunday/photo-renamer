@@ -20,6 +20,7 @@ use MagicSunday\Renamer\Service\CanonicalScorerInterface;
 use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\Pipeline\CompanionDetectorInterface;
+use MagicSunday\Renamer\Service\Pipeline\CompanionPathSet;
 use MagicSunday\Renamer\Service\Pipeline\RoleAssigner;
 use MagicSunday\Renamer\Service\Pipeline\RoleAssignerInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -44,6 +45,7 @@ use SplFileInfo;
 #[UsesClass(PipelineContext::class)]
 #[UsesClass(MediaTypeClassifier::class)]
 #[UsesClass(MediaCompatibilityPolicy::class)]
+#[UsesClass(CompanionPathSet::class)]
 final class RoleAssignerTest extends TestCase
 {
     /**
@@ -110,7 +112,7 @@ final class RoleAssignerTest extends TestCase
         $companionDetector = $this->createMock(CompanionDetectorInterface::class);
         $companionDetector->expects(self::once())
             ->method('detect')
-            ->willReturn([]);
+            ->willReturn(new CompanionPathSet());
 
         $assigner = $this->createAssigner($scorer, $companionDetector);
 
@@ -161,7 +163,7 @@ final class RoleAssignerTest extends TestCase
         $companionDetector = $this->createMock(CompanionDetectorInterface::class);
         $companionDetector->expects(self::once())
             ->method('detect')
-            ->willReturn(['/photos/IMG_0001.mov' => true]);
+            ->willReturn($this->createCompanionPathSet('/photos/IMG_0001.mov'));
 
         $assigner = $this->createAssigner($scorer, $companionDetector);
 
@@ -224,7 +226,7 @@ final class RoleAssignerTest extends TestCase
         $companionDetector = $this->createMock(CompanionDetectorInterface::class);
         $companionDetector->expects(self::once())
             ->method('detect')
-            ->willReturn(['/photos/IMG_0001.mov' => true]);
+            ->willReturn($this->createCompanionPathSet('/photos/IMG_0001.mov'));
 
         $assigner = $this->createAssigner($scorer, $companionDetector);
 
@@ -269,7 +271,7 @@ final class RoleAssignerTest extends TestCase
         $scorer = $this->createScorerMock($heic, $scoredHeic, $jpg, $scoredJpg);
 
         $companionDetector = self::createStub(CompanionDetectorInterface::class);
-        $companionDetector->method('detect')->willReturn([]);
+        $companionDetector->method('detect')->willReturn(new CompanionPathSet());
 
         $assigner = $this->createAssigner($scorer, $companionDetector);
 
@@ -316,7 +318,7 @@ final class RoleAssignerTest extends TestCase
 
         $companionDetector = self::createStub(CompanionDetectorInterface::class);
         $companionDetector->method('detect')
-            ->willReturn(['/photos/IMG_0001.mov' => true]);
+            ->willReturn($this->createCompanionPathSet('/photos/IMG_0001.mov'));
 
         $assigner = $this->createAssigner($scorer, $companionDetector);
 
@@ -364,7 +366,7 @@ final class RoleAssignerTest extends TestCase
 
         $companionDetector = self::createStub(CompanionDetectorInterface::class);
         $companionDetector->method('detect')
-            ->willReturn(['/photos/IMG_0001.mov' => true]);
+            ->willReturn($this->createCompanionPathSet('/photos/IMG_0001.mov'));
 
         $assigner = $this->createAssigner($scorer, $companionDetector);
 
@@ -414,7 +416,7 @@ final class RoleAssignerTest extends TestCase
 
         $companionDetector = self::createStub(CompanionDetectorInterface::class);
         $companionDetector->method('detect')
-            ->willReturn(['/photos/IMG_0001.heic' => true]);
+            ->willReturn($this->createCompanionPathSet('/photos/IMG_0001.heic'));
 
         $assigner = $this->createAssigner($scorer, $companionDetector);
 
@@ -483,7 +485,7 @@ final class RoleAssignerTest extends TestCase
         $scorer = $this->createScorerMock($heic, $scoredHeic, $jpg, $scoredJpg);
 
         $companionDetector = self::createStub(CompanionDetectorInterface::class);
-        $companionDetector->method('detect')->willReturn([]);
+        $companionDetector->method('detect')->willReturn(new CompanionPathSet());
 
         $assigner = $this->createAssigner($scorer, $companionDetector);
 
@@ -539,5 +541,21 @@ final class RoleAssignerTest extends TestCase
             ->willReturn($scored1);
 
         return $scorer;
+    }
+
+    /**
+     * Creates a detected companion set for the given pathnames.
+     *
+     * @param string ...$paths Absolute companion pathnames to add to the set
+     */
+    private function createCompanionPathSet(string ...$paths): CompanionPathSet
+    {
+        $set = new CompanionPathSet();
+
+        foreach ($paths as $path) {
+            $set->add($path);
+        }
+
+        return $set;
     }
 }

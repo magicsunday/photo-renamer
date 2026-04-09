@@ -18,6 +18,7 @@ use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\Pipeline\CompanionDetector;
 use MagicSunday\Renamer\Service\Pipeline\CompanionDetectorInterface;
+use MagicSunday\Renamer\Service\Pipeline\CompanionPathSet;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
@@ -36,6 +37,7 @@ use SplFileInfo;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(CompanionDetector::class)]
+#[UsesClass(CompanionPathSet::class)]
 #[UsesClass(FileHelper::class)]
 #[UsesClass(AssetGroup::class)]
 #[UsesClass(AssetItem::class)]
@@ -69,8 +71,8 @@ final class CompanionDetectorTest extends TestCase
 
         $companions = $detector->detect($group, $heic);
 
-        self::assertArrayHasKey($mov->file->getPathname(), $companions);
-        self::assertCount(1, $companions);
+        self::assertTrue($companions->contains($mov->file->getPathname()));
+        self::assertCount(1, $companions->toPathList());
     }
 
     /**
@@ -98,7 +100,7 @@ final class CompanionDetectorTest extends TestCase
 
         $companions = $detector->detect($group, $heic);
 
-        self::assertEmpty($companions);
+        self::assertTrue($companions->isEmpty());
     }
 
     /**
@@ -126,8 +128,8 @@ final class CompanionDetectorTest extends TestCase
 
         $companions = $detector->detect($group, $heic);
 
-        self::assertArrayHasKey($mov->file->getPathname(), $companions);
-        self::assertCount(1, $companions);
+        self::assertTrue($companions->contains($mov->file->getPathname()));
+        self::assertCount(1, $companions->toPathList());
     }
 
     /**
@@ -161,7 +163,7 @@ final class CompanionDetectorTest extends TestCase
 
         $companions = $detector->detect($group, $heic);
 
-        self::assertEmpty($companions);
+        self::assertTrue($companions->isEmpty());
     }
 
     /**
@@ -189,7 +191,7 @@ final class CompanionDetectorTest extends TestCase
 
         $companions = $detector->detect($group, $heic);
 
-        self::assertEmpty($companions);
+        self::assertTrue($companions->isEmpty());
         self::assertNotEmpty($group->getDecisionLog());
         self::assertCount(1, $group->getDecisionLog());
     }
@@ -219,7 +221,7 @@ final class CompanionDetectorTest extends TestCase
 
         $companions = $detector->detect($group, $heic);
 
-        self::assertEmpty($companions);
+        self::assertTrue($companions->isEmpty());
     }
 
     /**
@@ -240,7 +242,7 @@ final class CompanionDetectorTest extends TestCase
 
         $companions = $detector->detect($group, $heic);
 
-        self::assertEmpty($companions);
+        self::assertTrue($companions->isEmpty());
     }
 
     /**
@@ -275,8 +277,8 @@ final class CompanionDetectorTest extends TestCase
         $companions = $detector->detect($group, $heic);
 
         // Only one video companion selected (MOV wins: basename matches canonical)
-        self::assertCount(1, $companions);
-        self::assertArrayHasKey($mov->file->getPathname(), $companions);
+        self::assertCount(1, $companions->toPathList());
+        self::assertTrue($companions->contains($mov->file->getPathname()));
     }
 
     /**
@@ -304,8 +306,8 @@ final class CompanionDetectorTest extends TestCase
 
         $companions = $detector->detect($group, $mov);
 
-        self::assertArrayHasKey($heic->file->getPathname(), $companions);
-        self::assertCount(1, $companions);
+        self::assertTrue($companions->contains($heic->file->getPathname()));
+        self::assertCount(1, $companions->toPathList());
     }
 
     /**
@@ -339,7 +341,7 @@ final class CompanionDetectorTest extends TestCase
 
         $companions = $detector->detect($group, $heic);
 
-        self::assertCount(1, $companions);
+        self::assertCount(1, $companions->toPathList());
     }
 
     /**
@@ -374,8 +376,8 @@ final class CompanionDetectorTest extends TestCase
 
         $companions = $detector->detect($group, $heic);
 
-        self::assertCount(1, $companions);
-        self::assertArrayHasKey($movMatch->file->getPathname(), $companions);
+        self::assertCount(1, $companions->toPathList());
+        self::assertTrue($companions->contains($movMatch->file->getPathname()));
     }
 
     /**
@@ -413,8 +415,8 @@ final class CompanionDetectorTest extends TestCase
         $companions = $detector->detect($group, $heic);
 
         // Lower clusterRank wins
-        self::assertCount(1, $companions);
-        self::assertArrayHasKey($movLowRank->file->getPathname(), $companions);
+        self::assertCount(1, $companions->toPathList());
+        self::assertTrue($companions->contains($movLowRank->file->getPathname()));
 
         // Test without clusterRank: shorter pathname wins
         $movLong = new AssetItem(
@@ -435,8 +437,8 @@ final class CompanionDetectorTest extends TestCase
         $companions2 = $detector->detect($group2, $heic);
 
         // Shorter pathname wins
-        self::assertCount(1, $companions2);
-        self::assertArrayHasKey($movShort->file->getPathname(), $companions2);
+        self::assertCount(1, $companions2->toPathList());
+        self::assertTrue($companions2->contains($movShort->file->getPathname()));
 
         // Test lexicographic tie-breaker (same length)
         $movAlpha = new AssetItem(
@@ -457,8 +459,8 @@ final class CompanionDetectorTest extends TestCase
         $companions3 = $detector->detect($group3, $heic);
 
         // Lexicographic: AAA < BBB
-        self::assertCount(1, $companions3);
-        self::assertArrayHasKey($movAlpha->file->getPathname(), $companions3);
+        self::assertCount(1, $companions3->toPathList());
+        self::assertTrue($companions3->contains($movAlpha->file->getPathname()));
     }
 
     private function createDetector(): CompanionDetectorInterface
