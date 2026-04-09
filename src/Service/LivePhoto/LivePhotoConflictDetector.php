@@ -67,28 +67,10 @@ final readonly class LivePhotoConflictDetector implements LivePhotoConflictDetec
     #[Override]
     public function detectConflictFiles(array $filesByPath, array $metadataByPath): array
     {
-        /** @var list<array{
-         *     pathname: string,
-         *     captureTimestamp: float,
-         *     captureSecond: int,
-         *     contentIdentifier: string|null,
-         *     deviceKey: string,
-         *     latitude: float|null,
-         *     longitude: float|null,
-         *     videoDurationSeconds: float|null
-         * }> $stills */
+        /** @var list<LivePhotoConflictAsset> $stills */
         $stills = [];
 
-        /** @var list<array{
-         *     pathname: string,
-         *     captureTimestamp: float,
-         *     captureSecond: int,
-         *     contentIdentifier: string|null,
-         *     deviceKey: string,
-         *     latitude: float|null,
-         *     longitude: float|null,
-         *     videoDurationSeconds: float|null
-         * }> $videos */
+        /** @var list<LivePhotoConflictAsset> $videos */
         $videos = [];
 
         foreach ($filesByPath as $pathname => $file) {
@@ -108,16 +90,16 @@ final readonly class LivePhotoConflictDetector implements LivePhotoConflictDetec
                 continue;
             }
 
-            $asset = [
-                'pathname'             => $pathname,
-                'captureTimestamp'     => (float) $captureDateTime->format('U.u'),
-                'captureSecond'        => $captureDateTime->getTimestamp(),
-                'contentIdentifier'    => $metadata->getNormalizedLivePhotoId(),
-                'deviceKey'            => $metadata->getNormalizedDeviceKey(),
-                'latitude'             => $metadata->getLatitude(),
-                'longitude'            => $metadata->getLongitude(),
-                'videoDurationSeconds' => $metadata->getVideoDurationSeconds(),
-            ];
+            $asset = new LivePhotoConflictAsset(
+                $pathname,
+                (float) $captureDateTime->format('U.u'),
+                $captureDateTime->getTimestamp(),
+                $metadata->getNormalizedLivePhotoId(),
+                $metadata->getNormalizedDeviceKey(),
+                $metadata->getLatitude(),
+                $metadata->getLongitude(),
+                $metadata->getVideoDurationSeconds(),
+            );
 
             if ($this->mediaTypeClassifier->isLivePhotoStill($file)) {
                 if ($metadata->hasStillLivePhotoMarker()) {
@@ -137,16 +119,16 @@ final readonly class LivePhotoConflictDetector implements LivePhotoConflictDetec
         $stills = array_values(
             array_filter(
                 $stills,
-                static fn (array $asset): bool => ($asset['contentIdentifier'] === null)
-                    || !isset($exactPairContentIdentifiers[$asset['contentIdentifier']]),
+                static fn (LivePhotoConflictAsset $asset): bool => ($asset->contentIdentifier === null)
+                    || !isset($exactPairContentIdentifiers[$asset->contentIdentifier]),
             ),
         );
 
         $videos = array_values(
             array_filter(
                 $videos,
-                static fn (array $asset): bool => ($asset['contentIdentifier'] === null)
-                    || !isset($exactPairContentIdentifiers[$asset['contentIdentifier']]),
+                static fn (LivePhotoConflictAsset $asset): bool => ($asset->contentIdentifier === null)
+                    || !isset($exactPairContentIdentifiers[$asset->contentIdentifier]),
             ),
         );
 
@@ -166,16 +148,16 @@ final readonly class LivePhotoConflictDetector implements LivePhotoConflictDetec
                 continue;
             }
 
-            $conflictFiles[$stills[$stillIndex]['pathname']] = true;
-            $conflictFiles[$videos[$videoIndex]['pathname']] = true;
+            $conflictFiles[$stills[$stillIndex]->pathname] = true;
+            $conflictFiles[$videos[$videoIndex]->pathname] = true;
         }
 
         return $conflictFiles;
     }
 
     /**
-     * @param list<array{contentIdentifier: string|null}> $stills
-     * @param list<array{contentIdentifier: string|null}> $videos
+     * @param list<LivePhotoConflictAsset> $stills
+     * @param list<LivePhotoConflictAsset> $videos
      *
      * @return array<string, true>
      */
@@ -188,14 +170,14 @@ final readonly class LivePhotoConflictDetector implements LivePhotoConflictDetec
         $videoIdentifiers = [];
 
         foreach ($stills as $asset) {
-            if ($asset['contentIdentifier'] !== null) {
-                $stillIdentifiers[$asset['contentIdentifier']] = true;
+            if ($asset->contentIdentifier !== null) {
+                $stillIdentifiers[$asset->contentIdentifier] = true;
             }
         }
 
         foreach ($videos as $asset) {
-            if ($asset['contentIdentifier'] !== null) {
-                $videoIdentifiers[$asset['contentIdentifier']] = true;
+            if ($asset->contentIdentifier !== null) {
+                $videoIdentifiers[$asset->contentIdentifier] = true;
             }
         }
 
@@ -212,26 +194,8 @@ final readonly class LivePhotoConflictDetector implements LivePhotoConflictDetec
     }
 
     /**
-     * @param list<array{
-     *     pathname: string,
-     *     captureTimestamp: float,
-     *     captureSecond: int,
-     *     contentIdentifier: string|null,
-     *     deviceKey: string,
-     *     latitude: float|null,
-     *     longitude: float|null,
-     *     videoDurationSeconds: float|null
-     * }> $stills
-     * @param list<array{
-     *     pathname: string,
-     *     captureTimestamp: float,
-     *     captureSecond: int,
-     *     contentIdentifier: string|null,
-     *     deviceKey: string,
-     *     latitude: float|null,
-     *     longitude: float|null,
-     *     videoDurationSeconds: float|null
-     * }> $videos
+     * @param list<LivePhotoConflictAsset> $stills
+     * @param list<LivePhotoConflictAsset> $videos
      *
      * @return array{array<int, list<int>>, array<int, list<int>>}
      */
@@ -243,25 +207,25 @@ final readonly class LivePhotoConflictDetector implements LivePhotoConflictDetec
         /** @var array<int, list<int>> $videoCandidates */
         $videoCandidates = [];
 
-        /** @var array<int, array{exact: list<int>, fallback: list<int>}> $stillCandidateTiers */
+        /** @var array<int, LivePhotoConflictCandidateTiers> $stillCandidateTiers */
         $stillCandidateTiers = [];
 
-        /** @var array<int, array{exact: list<int>, fallback: list<int>}> $videoCandidateTiers */
+        /** @var array<int, LivePhotoConflictCandidateTiers> $videoCandidateTiers */
         $videoCandidateTiers = [];
 
         /** @var array<string, array<int, list<int>>> $videoBuckets */
         $videoBuckets = [];
 
         foreach ($videos as $videoIndex => $video) {
-            $videoBuckets[$video['deviceKey']][$video['captureSecond']][] = $videoIndex;
+            $videoBuckets[$video->deviceKey][$video->captureSecond][] = $videoIndex;
         }
 
         foreach ($stills as $stillIndex => $still) {
             /** @var array<int, true> $candidateVideoIndexSet */
             $candidateVideoIndexSet = [];
 
-            foreach ($this->candidateSeconds($still['captureSecond']) as $second) {
-                foreach ($videoBuckets[$still['deviceKey']][$second] ?? [] as $videoIndex) {
+            foreach ($this->candidateSeconds($still->captureSecond) as $second) {
+                foreach ($videoBuckets[$still->deviceKey][$second] ?? [] as $videoIndex) {
                     $candidateVideoIndexSet[$videoIndex] = true;
                 }
             }
@@ -273,95 +237,62 @@ final readonly class LivePhotoConflictDetector implements LivePhotoConflictDetec
                     continue;
                 }
 
-                if ($still['captureSecond'] === $video['captureSecond']) {
-                    $stillCandidateTiers[$stillIndex]['exact'][] = $videoIndex;
-                    $videoCandidateTiers[$videoIndex]['exact'][] = $stillIndex;
+                $stillCandidateTiers[$stillIndex] ??= new LivePhotoConflictCandidateTiers();
+                $videoCandidateTiers[$videoIndex] ??= new LivePhotoConflictCandidateTiers();
+
+                if ($still->captureSecond === $video->captureSecond) {
+                    $stillCandidateTiers[$stillIndex]->addExact($videoIndex);
+                    $videoCandidateTiers[$videoIndex]->addExact($stillIndex);
 
                     continue;
                 }
 
-                $stillCandidateTiers[$stillIndex]['fallback'][] = $videoIndex;
-                $videoCandidateTiers[$videoIndex]['fallback'][] = $stillIndex;
+                $stillCandidateTiers[$stillIndex]->addFallback($videoIndex);
+                $videoCandidateTiers[$videoIndex]->addFallback($stillIndex);
             }
         }
 
         foreach ($stillCandidateTiers as $stillIndex => $tiers) {
-            $stillCandidates[$stillIndex] = $this->choosePreferredCandidates($tiers);
+            $stillCandidates[$stillIndex] = $tiers->preferredCandidates();
         }
 
         foreach ($videoCandidateTiers as $videoIndex => $tiers) {
-            $videoCandidates[$videoIndex] = $this->choosePreferredCandidates($tiers);
+            $videoCandidates[$videoIndex] = $tiers->preferredCandidates();
         }
 
         return [$stillCandidates, $videoCandidates];
     }
 
-    /**
-     * @param array{
-     *     pathname: string,
-     *     captureTimestamp: float,
-     *     captureSecond: int,
-     *     contentIdentifier: string|null,
-     *     deviceKey: string,
-     *     latitude: float|null,
-     *     longitude: float|null,
-     *     videoDurationSeconds: float|null
-     * } $still
-     * @param array{
-     *     pathname: string,
-     *     captureTimestamp: float,
-     *     captureSecond: int,
-     *     contentIdentifier: string|null,
-     *     deviceKey: string,
-     *     latitude: float|null,
-     *     longitude: float|null,
-     *     videoDurationSeconds: float|null
-     * } $video
-     */
-    private function assetsMatchHeuristic(array $still, array $video): bool
+    private function assetsMatchHeuristic(LivePhotoConflictAsset $still, LivePhotoConflictAsset $video): bool
     {
-        if (abs($still['captureSecond'] - $video['captureSecond']) > $this->fallbackSecondWindow) {
+        if (abs($still->captureSecond - $video->captureSecond) > $this->fallbackSecondWindow) {
             return false;
         }
 
-        if (($video['videoDurationSeconds'] === null) || ($video['videoDurationSeconds'] > $this->maxVideoDurationSeconds)) {
+        if (($video->videoDurationSeconds === null) || ($video->videoDurationSeconds > $this->maxVideoDurationSeconds)) {
             return false;
         }
 
-        if (($still['contentIdentifier'] === null) || ($video['contentIdentifier'] === null)) {
+        if (($still->contentIdentifier === null) || ($video->contentIdentifier === null)) {
             return false;
         }
 
-        if ($still['contentIdentifier'] === $video['contentIdentifier']) {
+        if ($still->contentIdentifier === $video->contentIdentifier) {
             return false;
         }
 
-        if ($still['deviceKey'] !== $video['deviceKey']) {
+        if ($still->deviceKey !== $video->deviceKey) {
             return false;
         }
 
         $distanceMeters = $this->distanceMeters(
-            $still['latitude'],
-            $still['longitude'],
-            $video['latitude'],
-            $video['longitude'],
+            $still->latitude,
+            $still->longitude,
+            $video->latitude,
+            $video->longitude,
         );
 
         return ($distanceMeters !== null) && ($distanceMeters <= $this->maxGpsDistanceMeters);
-    }
-
-    /**
-     * @param array{exact?: list<int>, fallback?: list<int>} $tiers
-     *
-     * @return list<int>
-     */
-    private function choosePreferredCandidates(array $tiers): array
-    {
-        if (($tiers['exact'] ?? []) !== []) {
-            return $tiers['exact'];
-        }
-
-        return $tiers['fallback'] ?? [];
     }
 
     /**
