@@ -24,7 +24,6 @@ use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\AssetGroupAdapter;
 use MagicSunday\Renamer\Service\CanonicalScorer;
-use MagicSunday\Renamer\Service\DuplicateDetectionService;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetector;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingService;
@@ -43,6 +42,7 @@ use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use MagicSunday\Renamer\Test\Fixtures\CaptureGroupBuilderFactory;
+use MagicSunday\Renamer\Test\Fixtures\DuplicateDetectionServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\TargetNameResolverFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversNothing;
@@ -188,7 +188,7 @@ final class PipelineDifferentialTest extends TestCase
 
         $livePhotoConflictDetector = new LivePhotoConflictDetector($mediaTypeClassifier);
 
-        $duplicateDetectionService = new DuplicateDetectionService(
+        $duplicateDetectionService = DuplicateDetectionServiceFactory::create(
             $progressReporter,
             $hashSubGroupingService,
             $mediaTypeClassifier,

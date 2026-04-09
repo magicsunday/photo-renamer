@@ -86,6 +86,7 @@ use MagicSunday\Renamer\Service\ValidationResult;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use MagicSunday\Renamer\Test\Fixtures\CaptureGroupBuilderFactory;
+use MagicSunday\Renamer\Test\Fixtures\DuplicateDetectionServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\TargetNameResolverFactory;
@@ -264,7 +265,7 @@ final class RenameByExifDateCommandTest extends TestCase
             $progressReporter          = new ConsoleProgressReporter($style);
             $hashSubGroupingService    = new HashSubGroupingService($hashCalculator, $progressReporter, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier()));
             $livePhotoConflictDetector = new LivePhotoConflictDetector($mediaTypeClassifier);
-            $duplicateDetectionService = new DuplicateDetectionService(
+            $duplicateDetectionService = DuplicateDetectionServiceFactory::create(
                 $progressReporter,
                 $hashSubGroupingService,
                 $mediaTypeClassifier,

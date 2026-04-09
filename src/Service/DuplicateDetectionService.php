@@ -156,59 +156,35 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
     private array $livePhotoConflictFiles = [];
 
     /**
-     * @param ProgressReporterInterface                $progressReporter                   Narrow reporting boundary for progress indicators and recoverable diagnostics.
-     * @param HashSubGroupingServiceInterface          $hashSubGroupingService             Service for content-based sub-grouping (deduplication).
-     * @param MediaTypeClassifierInterface             $mediaTypeClassifier                Classifier for media types (Photo vs. Video).
-     * @param LivePhotoConflictDetectorInterface|null  $livePhotoConflictDetector          Detector for ID conflicts in Live Photos.
-     * @param DuplicateCanonicalRenameSelector         $duplicateCanonicalRenameSelector   Selector for canonical rename choice and promotion flags.
-     * @param DuplicateSuffixAssigner                  $duplicateSuffixAssigner            Assigns unique `-duplicate-NNN` targets in the legacy flow.
-     * @param LegacyLivePhotoCompanionDetector|null    $livePhotoCompanionDetector         Detects companion renames inside legacy Live Photo groups.
-     * @param LegacyLivePhotoTargetPromoter|null       $livePhotoTargetPromoter            Promotes live-photo canonicals from video targets to still targets.
-     * @param LegacyLivePhotoQualityFlagPropagator     $livePhotoQualityFlagPropagator     Propagates still-side quality flags to paired companion videos.
-     * @param LegacyLivePhotoDuplicateCoordinator|null $livePhotoDuplicateCoordinator      Coordinates companion detection and pair recording for legacy Live Photo groups.
-     * @param LegacyTargetPathResolver                 $targetPathResolver                 Resolves absolute target pathnames while preserving legacy directory structure.
-     * @param LegacyTargetFileResolver                 $targetFileResolver                 Resolves target-file results from generated filenames and strategy failures.
-     * @param LegacyTargetOccupancyChecker             $targetOccupancyChecker             Checks whether a target pathname is blocked by an external file.
-     * @param LegacyDuplicateTargetCandidateFactory    $duplicateTargetCandidateFactory    Builds concrete `-duplicate-NNN` target candidates in the legacy directory layout.
-     * @param LegacyContentIdentifierCoordinator|null  $legacyContentIdentifierCoordinator Coordinates pending/skipped Live Photo content-ID handling in the legacy grouping pass.
+     * @param ProgressReporterInterface               $progressReporter                   Narrow reporting boundary for progress indicators and recoverable diagnostics.
+     * @param HashSubGroupingServiceInterface         $hashSubGroupingService             Service for content-based sub-grouping (deduplication).
+     * @param LivePhotoConflictDetectorInterface|null $livePhotoConflictDetector          Detector for ID conflicts in Live Photos.
+     * @param DuplicateCanonicalRenameSelector        $duplicateCanonicalRenameSelector   Selector for canonical rename choice and promotion flags.
+     * @param DuplicateSuffixAssigner                 $duplicateSuffixAssigner            Assigns unique `-duplicate-NNN` targets in the legacy flow.
+     * @param LegacyLivePhotoTargetPromoter           $livePhotoTargetPromoter            Promotes live-photo canonicals from video targets to still targets.
+     * @param LegacyLivePhotoQualityFlagPropagator    $livePhotoQualityFlagPropagator     Propagates still-side quality flags to paired companion videos.
+     * @param LegacyLivePhotoDuplicateCoordinator     $livePhotoDuplicateCoordinator      Coordinates companion detection and pair recording for legacy Live Photo groups.
+     * @param LegacyTargetPathResolver                $targetPathResolver                 Resolves absolute target pathnames while preserving legacy directory structure.
+     * @param LegacyTargetFileResolver                $targetFileResolver                 Resolves target-file results from generated filenames and strategy failures.
+     * @param LegacyTargetOccupancyChecker            $targetOccupancyChecker             Checks whether a target pathname is blocked by an external file.
+     * @param LegacyDuplicateTargetCandidateFactory   $duplicateTargetCandidateFactory    Builds concrete `-duplicate-NNN` target candidates in the legacy directory layout.
+     * @param LegacyContentIdentifierCoordinator      $legacyContentIdentifierCoordinator Coordinates pending/skipped Live Photo content-ID handling in the legacy grouping pass.
      */
-    private readonly LegacyLivePhotoTargetPromoter $livePhotoTargetPromoter;
-
-    private readonly LegacyLivePhotoDuplicateCoordinator $livePhotoDuplicateCoordinator;
-
-    private readonly LegacyDuplicateTargetCandidateFactory $duplicateTargetCandidateFactory;
-
-    private readonly LegacyContentIdentifierCoordinator $legacyContentIdentifierCoordinator;
-
     public function __construct(
         private readonly ProgressReporterInterface $progressReporter,
         private readonly HashSubGroupingServiceInterface $hashSubGroupingService,
-        private readonly MediaTypeClassifierInterface $mediaTypeClassifier,
-        private readonly ?LivePhotoConflictDetectorInterface $livePhotoConflictDetector = null,
-        private readonly DuplicateCanonicalRenameSelector $duplicateCanonicalRenameSelector = new DuplicateCanonicalRenameSelector(),
-        private readonly DuplicateSuffixAssigner $duplicateSuffixAssigner = new DuplicateSuffixAssigner(),
-        ?LegacyLivePhotoCompanionDetector $livePhotoCompanionDetector = null,
-        ?LegacyLivePhotoTargetPromoter $livePhotoTargetPromoter = null,
-        private readonly LegacyLivePhotoQualityFlagPropagator $livePhotoQualityFlagPropagator = new LegacyLivePhotoQualityFlagPropagator(),
-        ?LegacyLivePhotoDuplicateCoordinator $livePhotoDuplicateCoordinator = null,
-        private readonly LegacyTargetPathResolver $targetPathResolver = new LegacyTargetPathResolver(new TargetPathResolver()),
-        private readonly ?LegacyTargetFileResolver $targetFileResolver = new LegacyTargetFileResolver(new TargetFileResolver(new TargetPathResolver())),
-        private readonly LegacyTargetOccupancyChecker $targetOccupancyChecker = new LegacyTargetOccupancyChecker(),
-        ?LegacyDuplicateTargetCandidateFactory $duplicateTargetCandidateFactory = null,
-        ?LegacyContentIdentifierCoordinator $legacyContentIdentifierCoordinator = null,
+        private readonly ?LivePhotoConflictDetectorInterface $livePhotoConflictDetector,
+        private readonly DuplicateCanonicalRenameSelector $duplicateCanonicalRenameSelector,
+        private readonly DuplicateSuffixAssigner $duplicateSuffixAssigner,
+        private readonly LegacyLivePhotoTargetPromoter $livePhotoTargetPromoter,
+        private readonly LegacyLivePhotoQualityFlagPropagator $livePhotoQualityFlagPropagator,
+        private readonly LegacyLivePhotoDuplicateCoordinator $livePhotoDuplicateCoordinator,
+        private readonly LegacyTargetPathResolver $targetPathResolver,
+        private readonly LegacyTargetFileResolver $targetFileResolver,
+        private readonly LegacyTargetOccupancyChecker $targetOccupancyChecker,
+        private readonly LegacyDuplicateTargetCandidateFactory $duplicateTargetCandidateFactory,
+        private readonly LegacyContentIdentifierCoordinator $legacyContentIdentifierCoordinator,
     ) {
-        $livePhotoCompanionDetector ??= new LegacyLivePhotoCompanionDetector($this->mediaTypeClassifier);
-        $this->livePhotoTargetPromoter = $livePhotoTargetPromoter
-            ?? new LegacyLivePhotoTargetPromoter($this->mediaTypeClassifier);
-        $this->livePhotoDuplicateCoordinator = $livePhotoDuplicateCoordinator
-            ?? new LegacyLivePhotoDuplicateCoordinator(
-                $livePhotoCompanionDetector,
-                $this->mediaTypeClassifier,
-            );
-        $this->duplicateTargetCandidateFactory = $duplicateTargetCandidateFactory
-            ?? new LegacyDuplicateTargetCandidateFactory($this->targetPathResolver);
-        $this->legacyContentIdentifierCoordinator = $legacyContentIdentifierCoordinator
-            ?? new LegacyContentIdentifierCoordinator($this->mediaTypeClassifier);
     }
 
     /**
@@ -936,10 +912,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      */
     private function getTargetFileInfo(SplFileInfo $sourceFileInfo, RenameStrategyInterface $renameStrategy): TargetFileResult
     {
-        $targetFileResolver = $this->targetFileResolver;
-        assert($targetFileResolver instanceof LegacyTargetFileResolver);
-
-        return $targetFileResolver->resolve(
+        return $this->targetFileResolver->resolve(
             $this->sourceDirectory,
             $sourceFileInfo,
             $renameStrategy,
