@@ -38,10 +38,10 @@ final readonly class TargetNameResolver implements TargetNameResolverInterface
      * @param SubgroupPresenceDetector      $subgroupPresenceDetector      Detects whether items represent multiple effective subgroups or just one flat cluster.
      */
     public function __construct(
-        private FlatGroupNameResolver $flatGroupNameResolver = new FlatGroupNameResolver(),
-        private SubgroupNameResolver $subgroupNameResolver = new SubgroupNameResolver(),
-        private ExistingSubgroupNamePreserver $existingSubgroupNamePreserver = new ExistingSubgroupNamePreserver(),
-        private SubgroupPresenceDetector $subgroupPresenceDetector = new SubgroupPresenceDetector(),
+        private FlatGroupNameResolver $flatGroupNameResolver,
+        private SubgroupNameResolver $subgroupNameResolver,
+        private ExistingSubgroupNamePreserver $existingSubgroupNamePreserver,
+        private SubgroupPresenceDetector $subgroupPresenceDetector,
     ) {
     }
 

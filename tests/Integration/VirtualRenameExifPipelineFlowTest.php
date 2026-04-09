@@ -32,13 +32,13 @@ use MagicSunday\Renamer\Service\Pipeline\OrphanLivePhotoVideoReconciler;
 use MagicSunday\Renamer\Service\Pipeline\PipelineReviewMapper;
 use MagicSunday\Renamer\Service\Pipeline\RoleAssigner;
 use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifier;
-use MagicSunday\Renamer\Service\Pipeline\TargetNameResolver;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\RenamePlanValidator;
 use MagicSunday\Renamer\Service\Reporting\NullProgressReporter;
 use MagicSunday\Renamer\Service\Video\VideoStreamFingerprintMatcherInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
+use MagicSunday\Renamer\Test\Fixtures\TargetNameResolverFactory;
 use MagicSunday\Renamer\Test\Fixtures\VirtualFlow\FlatSplFileInfoRecursiveIterator;
 use MagicSunday\Renamer\Test\Fixtures\VirtualFlow\StubMetadataAwareLivePhotoRenameStrategy;
 use PHPUnit\Framework\Attributes\CoversNothing;
@@ -417,7 +417,7 @@ final class VirtualRenameExifPipelineFlowTest extends TestCase
             $captureGroupBuilder,
             $subgroupClassifier,
             $roleAssigner,
-            new TargetNameResolver(),
+            TargetNameResolverFactory::create(),
             new CollisionResolver(),
             new RenamePlanValidator(),
             $crossGroupVideoReconciler,

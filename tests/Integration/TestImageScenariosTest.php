@@ -91,6 +91,7 @@ use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use MagicSunday\Renamer\Test\Fixtures\ConsoleOutputParserTrait;
 use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
+use MagicSunday\Renamer\Test\Fixtures\TargetNameResolverFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -1128,7 +1129,7 @@ final class TestImageScenariosTest extends TestCase
         $companionDetector        = new CompanionDetector($mediaCompatibilityPolicy);
         $canonicalScorer          = new CanonicalScorer();
         $roleAssigner             = new RoleAssigner($canonicalScorer, $companionDetector, $mediaCompatibilityPolicy);
-        $targetNameResolver       = new TargetNameResolver();
+        $targetNameResolver       = TargetNameResolverFactory::create();
         $collisionResolver        = new CollisionResolver();
         $renamePlanValidator      = new RenamePlanValidator();
         $executionPlanBuilder     = new ExecutionPlanBuilder();
