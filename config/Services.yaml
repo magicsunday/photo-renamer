@@ -10,6 +10,8 @@ services:
         MagicSunday\Renamer\Service\Output\OutputSkipReasonRuleInterface:
             tags: ['renamer.output_skip_reason_rule']
 
+    Symfony\Component\Filesystem\Filesystem: ~
+
     # Makes classes in src/ available to be used as services.
     # This creates a service per class whose id is the fully qualified class name.
     MagicSunday\Renamer\:
