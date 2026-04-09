@@ -22,7 +22,6 @@ use function explode;
 use function filemtime;
 use function filesize;
 use function hash;
-use function is_array;
 use function is_numeric;
 use function preg_match;
 use function sprintf;
@@ -166,16 +165,16 @@ final class VideoStreamFingerprintMatcher implements VideoStreamFingerprintMatch
 
             $parsedLine = $this->parseStreamhashLine($line);
 
-            if (!is_array($parsedLine)) {
+            if (!$parsedLine instanceof StreamHashRecord) {
                 continue;
             }
 
-            if (($parsedLine['type'] === 'v') && ($videoHash === null)) {
-                $videoHash = $parsedLine['hash'];
+            if (($parsedLine->type === StreamHashType::Video) && ($videoHash === null)) {
+                $videoHash = $parsedLine->hash;
             }
 
-            if (($parsedLine['type'] === 'a') && ($audioHash === null)) {
-                $audioHash = $parsedLine['hash'];
+            if (($parsedLine->type === StreamHashType::Audio) && ($audioHash === null)) {
+                $audioHash = $parsedLine->hash;
             }
         }
 
@@ -191,9 +190,9 @@ final class VideoStreamFingerprintMatcher implements VideoStreamFingerprintMatch
      *
      * @param string $line Raw line emitted by ffmpeg's streamhash muxer
      *
-     * @return array{type: string, hash: string}|null Parsed stream type and hash, or null when the line is unusable
+     * @return StreamHashRecord|null Parsed stream type and hash, or null when the line is unusable
      */
-    private function parseStreamhashLine(string $line): ?array
+    private function parseStreamhashLine(string $line): ?StreamHashRecord
     {
         $parts = explode(',', $line);
 
@@ -209,10 +208,13 @@ final class VideoStreamFingerprintMatcher implements VideoStreamFingerprintMatch
             return null;
         }
 
-        return [
-            'type' => $parts[1],
-            'hash' => $matches[1],
-        ];
+        $type = StreamHashType::tryFrom($parts[1]);
+
+        if ($type === null) {
+            return null;
+        }
+
+        return new StreamHashRecord($type, $matches[1]);
     }
 
     /**

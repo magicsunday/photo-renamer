@@ -12,6 +12,8 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service\Video;
 
 use MagicSunday\Renamer\Model\Pipeline\VideoFingerprintMatch;
+use MagicSunday\Renamer\Service\Video\StreamHashRecord;
+use MagicSunday\Renamer\Service\Video\StreamHashType;
 use MagicSunday\Renamer\Service\Video\VideoStreamFingerprint;
 use MagicSunday\Renamer\Service\Video\VideoStreamFingerprintMatcher;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
@@ -38,6 +40,8 @@ use function sprintf;
  */
 #[CoversClass(VideoStreamFingerprintMatcher::class)]
 #[UsesClass(VideoFingerprintMatch::class)]
+#[UsesClass(StreamHashRecord::class)]
+#[UsesClass(StreamHashType::class)]
 #[UsesClass(VideoStreamFingerprint::class)]
 final class VideoStreamFingerprintMatcherTest extends TestCase
 {
