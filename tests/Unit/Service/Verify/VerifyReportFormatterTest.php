@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Test\Unit\Service\Verify;
 
 use MagicSunday\Renamer\Service\Output\SummaryRow;
 use MagicSunday\Renamer\Service\Verify\VerifyCategoryCatalog;
+use MagicSunday\Renamer\Service\Verify\VerifyCategorySection;
 use MagicSunday\Renamer\Service\Verify\VerifyReportFormatter;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -33,6 +34,7 @@ use PHPUnit\Framework\TestCase;
 #[CoversClass(VerifyReportFormatter::class)]
 #[UsesClass(SummaryRow::class)]
 #[UsesClass(VerifyCategoryCatalog::class)]
+#[UsesClass(VerifyCategorySection::class)]
 final class VerifyReportFormatterTest extends TestCase
 {
     /**
@@ -55,9 +57,9 @@ final class VerifyReportFormatterTest extends TestCase
         ], [VerifyCategoryCatalog::TIMEZONE]);
 
         self::assertCount(1, $sections);
-        self::assertSame('Ambiguous timezone', $sections[0]['label']);
-        self::assertSame(['a.mov', 'b.mov'], $sections[0]['files']);
-        self::assertFalse($sections[0]['detail']);
+        self::assertSame('Ambiguous timezone', $sections[0]->label);
+        self::assertSame(['a.mov', 'b.mov'], $sections[0]->files);
+        self::assertFalse($sections[0]->detail);
     }
 
     /**
@@ -79,7 +81,7 @@ final class VerifyReportFormatterTest extends TestCase
             VerifyCategoryCatalog::FILETYPE  => [],
         ], null);
 
-        self::assertTrue($sections[0]['detail']);
+        self::assertTrue($sections[0]->detail);
     }
 
     /**

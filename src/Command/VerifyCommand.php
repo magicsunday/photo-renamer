@@ -282,12 +282,12 @@ final class VerifyCommand extends Command
     private function renderCategories(SymfonyStyle $io, array $categories, ?array $showFilter): void
     {
         foreach ($this->verifyReportFormatter->formatCategorySections($categories, $showFilter) as $section) {
-            $io->text(sprintf('<fg=cyan>%s</> (%d files):', $section['label'], count($section['files'])));
+            $io->text(sprintf('<fg=cyan>%s</> (%d files):', $section->label, count($section->files)));
 
-            foreach ($section['files'] as $file) {
+            foreach ($section->files as $file) {
                 $io->text(sprintf('  %s', $file));
 
-                if ($section['detail']) {
+                if ($section->detail) {
                     $io->newLine();
                 }
             }

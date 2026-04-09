@@ -29,13 +29,13 @@ use function str_replace;
 use const DIRECTORY_SEPARATOR;
 
 /**
- * Verifies explicit constructor wiring for the Wave-2 boundary modules.
+ * Verifies explicit constructor wiring for the Wave-2 product boundaries.
  *
  * The refactor plan intentionally removes product-level `= new Foo()` defaults
- * from the constructor signatures of Output, Metadata, Reporting, Filesystem,
- * and command-facing boundaries. These modules are now expected to rely on
- * container wiring or explicit test factories instead of silently
- * instantiating their own collaborators.
+ * from the constructor signatures of Service, Metadata, Helper, Strategy,
+ * Reporting, Filesystem, and command-facing boundaries. These modules are now
+ * expected to rely on container wiring or explicit test factories instead of
+ * silently instantiating their own collaborators.
  *
  * @internal
  */
@@ -43,18 +43,16 @@ use const DIRECTORY_SEPARATOR;
 final class ConstructorWiringArchitectureTest extends TestCase
 {
     /**
-     * Verifies that targeted Wave-2 boundary modules do not use constructor
+     * Verifies that targeted Wave-2 product boundaries do not use constructor
      * parameter defaults that instantiate collaborators directly.
      *
-     * The check is intentionally narrow: it only inspects constructor
-     * signatures in Output, Metadata, Reporting, Filesystem, and Command.
      * Value-object creation inside methods is still allowed; only hidden
      * constructor wiring defaults are rejected.
      */
     #[Test]
-    public function waveTwoBoundariesDoNotInstantiateCollaboratorsInConstructorDefaults(): void
+    public function productBoundariesDoNotInstantiateCollaboratorsInConstructorDefaults(): void
     {
-        foreach ($this->waveTwoBoundaryFiles() as $pathname) {
+        foreach ($this->productBoundaryFiles() as $pathname) {
             $contents = file_get_contents($pathname);
 
             self::assertNotFalse($contents);
@@ -67,24 +65,20 @@ final class ConstructorWiringArchitectureTest extends TestCase
     }
 
     /**
-     * Collects the PHP files belonging to the currently enforced Wave-2
-     * boundary modules.
+     * Collects the PHP files belonging to the currently enforced product boundaries.
      *
      * @return list<string> Absolute file paths that should obey explicit constructor wiring
      */
-    private function waveTwoBoundaryFiles(): array
+    private function productBoundaryFiles(): array
     {
         $directories = [
             __DIR__ . '/../../src/Command',
-            __DIR__ . '/../../src/Service/Output',
+            __DIR__ . '/../../src/Helper',
             __DIR__ . '/../../src/Metadata',
-            __DIR__ . '/../../src/Service/Reporting',
-            __DIR__ . '/../../src/Service/Filesystem',
+            __DIR__ . '/../../src/Service',
+            __DIR__ . '/../../src/Strategy',
         ];
-
-        $files = [
-            __DIR__ . '/../../src/Service/FileSystemService.php',
-        ];
+        $files = [];
 
         foreach ($directories as $directory) {
             /** @var RecursiveIteratorIterator<RecursiveDirectoryIterator> $iterator */

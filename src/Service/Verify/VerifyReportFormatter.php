@@ -40,7 +40,7 @@ final class VerifyReportFormatter
      * @param array<string, list<string>> $categories Categorized verify findings
      * @param list<string>|null           $showFilter Optional category filter from `--show`
      *
-     * @return list<array{label: string, files: list<string>, detail: bool}>
+     * @return list<VerifyCategorySection> Ordered display sections for command rendering.
      */
     public function formatCategorySections(array $categories, ?array $showFilter): array
     {
@@ -59,11 +59,11 @@ final class VerifyReportFormatter
 
             sort($files);
 
-            $sections[] = [
-                'label'  => $label,
-                'files'  => $files,
-                'detail' => str_contains($files[0], "\n"),
-            ];
+            $sections[] = new VerifyCategorySection(
+                $label,
+                $files,
+                str_contains($files[0], "\n"),
+            );
         }
 
         return $sections;
