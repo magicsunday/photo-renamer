@@ -23,10 +23,8 @@ use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Model\TargetFileResult;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetectorInterface;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingServiceInterface;
-use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
 use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use MagicSunday\Renamer\Service\TargetFileResolver;
-use MagicSunday\Renamer\Service\TargetPathResolver;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\LivePhotoAwareRenameStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\MetadataAwareRenameStrategyInterface;
@@ -57,32 +55,26 @@ use const DIRECTORY_SEPARATOR;
  */
 final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
 {
-    private CaptureContentIdentifierCoordinator $captureContentIdentifierCoordinator;
-
     /**
-     * @param ProgressReporterInterface                $progressReporter                    Narrow reporting boundary for progress headings and diagnostics
-     * @param MediaTypeClassifierInterface             $mediaTypeClassifier                 Classifies files by media type (still vs. video)
-     * @param LivePhotoConflictDetectorInterface|null  $livePhotoConflictDetector           LP conflict detection (optional)
-     * @param LivePhotoPairingServiceInterface|null    $livePhotoPairingService             LP second-pass pairing (optional)
-     * @param TargetFileResolver                       $targetFileResolver                  Resolves generated filenames into success/skip/error target results.
-     * @param CaptureAssetCandidateExtractor           $captureAssetCandidateExtractor      Extracts AssetItem candidates and records metadata/content-ID state.
-     * @param CaptureContentIdentifierCoordinator|null $captureContentIdentifierCoordinator Coordinates Live Photo content-ID cache, pending files, and skipped-file attachment rules.
-     * @param PendingLivePhotoVideoResolver            $pendingLivePhotoVideoResolver       Resolves deferred videos that never found a still-image anchor.
-     * @param CaptureGroupQualityTracker               $captureGroupQualityTracker          Records fallback/timezone quality flags separately from grouping.
+     * @param ProgressReporterInterface               $progressReporter                    Narrow reporting boundary for progress headings and diagnostics
+     * @param LivePhotoConflictDetectorInterface|null $livePhotoConflictDetector           LP conflict detection (optional)
+     * @param LivePhotoPairingServiceInterface|null   $livePhotoPairingService             LP second-pass pairing (optional)
+     * @param TargetFileResolver                      $targetFileResolver                  Resolves generated filenames into success/skip/error target results.
+     * @param CaptureAssetCandidateExtractor          $captureAssetCandidateExtractor      Extracts AssetItem candidates and records metadata/content-ID state.
+     * @param CaptureContentIdentifierCoordinator     $captureContentIdentifierCoordinator Coordinates Live Photo content-ID cache, pending files, and skipped-file attachment rules.
+     * @param PendingLivePhotoVideoResolver           $pendingLivePhotoVideoResolver       Resolves deferred videos that never found a still-image anchor.
+     * @param CaptureGroupQualityTracker              $captureGroupQualityTracker          Records fallback/timezone quality flags separately from grouping.
      */
     public function __construct(
         private ProgressReporterInterface $progressReporter,
-        private MediaTypeClassifierInterface $mediaTypeClassifier,
-        private ?LivePhotoConflictDetectorInterface $livePhotoConflictDetector = null,
-        private ?LivePhotoPairingServiceInterface $livePhotoPairingService = null,
-        private TargetFileResolver $targetFileResolver = new TargetFileResolver(new TargetPathResolver()),
-        private CaptureAssetCandidateExtractor $captureAssetCandidateExtractor = new CaptureAssetCandidateExtractor(),
-        ?CaptureContentIdentifierCoordinator $captureContentIdentifierCoordinator = null,
-        private PendingLivePhotoVideoResolver $pendingLivePhotoVideoResolver = new PendingLivePhotoVideoResolver(),
-        private CaptureGroupQualityTracker $captureGroupQualityTracker = new CaptureGroupQualityTracker(),
+        private ?LivePhotoConflictDetectorInterface $livePhotoConflictDetector,
+        private ?LivePhotoPairingServiceInterface $livePhotoPairingService,
+        private TargetFileResolver $targetFileResolver,
+        private CaptureAssetCandidateExtractor $captureAssetCandidateExtractor,
+        private CaptureContentIdentifierCoordinator $captureContentIdentifierCoordinator,
+        private PendingLivePhotoVideoResolver $pendingLivePhotoVideoResolver,
+        private CaptureGroupQualityTracker $captureGroupQualityTracker,
     ) {
-        $this->captureContentIdentifierCoordinator = $captureContentIdentifierCoordinator
-            ?? new CaptureContentIdentifierCoordinator($this->mediaTypeClassifier);
     }
 
     /**

@@ -33,7 +33,6 @@ use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
 use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzer;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator;
 use MagicSunday\Renamer\Service\Pipeline\AssetGroupPipeline;
-use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuilder;
 use MagicSunday\Renamer\Service\Pipeline\CollisionResolver;
 use MagicSunday\Renamer\Service\Pipeline\CompanionDetector;
 use MagicSunday\Renamer\Service\Pipeline\ExifRenamePipelineResult;
@@ -46,6 +45,7 @@ use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
+use MagicSunday\Renamer\Test\Fixtures\CaptureGroupBuilderFactory;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\TargetNameResolverFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
@@ -279,7 +279,7 @@ final class ExecutionPathDifferentialTest extends TestCase
         $duplicateIdentifierStrategy = new TargetBasenameStrategy();
 
         // Build pipeline services
-        $captureGroupBuilder = new CaptureGroupBuilder(
+        $captureGroupBuilder = CaptureGroupBuilderFactory::create(
             $progressReporter,
             $mediaTypeClassifier,
             $livePhotoConflictDetector,

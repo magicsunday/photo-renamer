@@ -93,6 +93,7 @@ use MagicSunday\Renamer\Service\WriteDate\WriteDateReasonAnalyzer;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateReportFormatter;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
+use MagicSunday\Renamer\Test\Fixtures\CaptureGroupBuilderFactory;
 use MagicSunday\Renamer\Test\Fixtures\ConsoleOutputParserTrait;
 use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
@@ -380,7 +381,7 @@ final class WriteDateFlowTest extends TestCase
 
         $livePhotoConflictDetector = new LivePhotoConflictDetector($mediaTypeClassifier);
 
-        $captureGroupBuilder = new CaptureGroupBuilder(
+        $captureGroupBuilder = CaptureGroupBuilderFactory::create(
             $progressReporter,
             $mediaTypeClassifier,
             $livePhotoConflictDetector,

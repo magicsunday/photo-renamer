@@ -33,7 +33,6 @@ use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
 use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzer;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator;
-use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuilder;
 use MagicSunday\Renamer\Service\Pipeline\CollisionResolver;
 use MagicSunday\Renamer\Service\Pipeline\CompanionDetector;
 use MagicSunday\Renamer\Service\Pipeline\OrphanLivePhotoVideoReconciler;
@@ -43,6 +42,7 @@ use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
+use MagicSunday\Renamer\Test\Fixtures\CaptureGroupBuilderFactory;
 use MagicSunday\Renamer\Test\Fixtures\TargetNameResolverFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversNothing;
@@ -282,7 +282,7 @@ final class PipelineDifferentialTest extends TestCase
         $duplicateIdentifierStrategy = new TargetBasenameStrategy();
 
         // Step 1: CaptureGroupBuilder
-        $captureGroupBuilder = new CaptureGroupBuilder(
+        $captureGroupBuilder = CaptureGroupBuilderFactory::create(
             $progressReporter,
             $mediaTypeClassifier,
             $livePhotoConflictDetector,

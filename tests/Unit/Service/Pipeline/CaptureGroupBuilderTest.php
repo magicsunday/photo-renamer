@@ -31,6 +31,7 @@ use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategy
 use MagicSunday\Renamer\Strategy\RenameStrategy\LivePhotoAwareRenameStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\MetadataAwareRenameStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
+use MagicSunday\Renamer\Test\Fixtures\CaptureGroupBuilderFactory;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
@@ -318,7 +319,7 @@ final class CaptureGroupBuilderTest extends TestCase
     ): CaptureGroupBuilderInterface {
         $mediaTypeClassifier ??= $this->createDefaultMediaTypeClassifier();
 
-        return new CaptureGroupBuilder(
+        return CaptureGroupBuilderFactory::create(
             new NullProgressReporter(),
             $mediaTypeClassifier,
         );
