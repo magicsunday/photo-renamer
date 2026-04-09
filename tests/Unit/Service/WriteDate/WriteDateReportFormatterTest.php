@@ -41,11 +41,11 @@ final class WriteDateReportFormatterTest extends TestCase
      * the existing "Found N file(s) needing metadata repair" wording.
      */
     #[Test]
-    public function formatPendingWriteSummaryGroupsByReason(): void
+    public function formatOverviewLinesGroupsPendingWritesByReason(): void
     {
         $formatter = new WriteDateReportFormatter();
 
-        $lines = $formatter->formatPendingWriteSummary([
+        $lines = $formatter->formatOverviewLines(3, [
             new WriteDatePendingWrite('/tmp/a.jpg', WriteDateReasonCatalog::NODATA, 'no date in metadata', false, new DateTimeImmutable('2024-01-15 00:00:00'), false),
             new WriteDatePendingWrite('/tmp/b.jpg', WriteDateReasonCatalog::NODATA, 'no date in metadata', false, new DateTimeImmutable('2024-01-16 00:00:00'), false),
             new WriteDatePendingWrite('/tmp/c.mov', WriteDateReasonCatalog::TIMEZONE, 'QuickTime timestamp without timezone info', true, new DateTimeImmutable('2024-01-17 10:30:00'), true),
@@ -56,6 +56,20 @@ final class WriteDateReportFormatterTest extends TestCase
         self::assertStringContainsString('no date in metadata', $lines[1]);
         self::assertStringContainsString('1 file', $lines[2]);
         self::assertStringContainsString('QuickTime timestamp without timezone info', $lines[2]);
+    }
+
+    /**
+     * Verifies that the overview emits the historical green no-op message when
+     * files were scanned but no metadata repair remains necessary.
+     */
+    #[Test]
+    public function formatOverviewLinesBuildsNothingToDoNotice(): void
+    {
+        $formatter = new WriteDateReportFormatter();
+
+        $lines = $formatter->formatOverviewLines(4, []);
+
+        self::assertSame(['<fg=green>All files have correct metadata — nothing to do.</>'], $lines);
     }
 
     /**

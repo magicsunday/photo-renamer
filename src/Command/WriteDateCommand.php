@@ -247,11 +247,10 @@ final class WriteDateCommand extends Command
         $pendingWrites = $scanResult->pendingWrites;
 
         // Post-scan summary before listing individual entries
-        if ($pendingWrites !== []) {
-            $io->text($this->writeDateReportFormatter->formatPendingWriteSummary($pendingWrites));
-            $io->newLine();
-        } elseif ($scannedFiles > 0) {
-            $io->text($this->writeDateReportFormatter->formatNothingToDoNotice());
+        $overviewLines = $this->writeDateReportFormatter->formatOverviewLines($scannedFiles, $pendingWrites);
+
+        if ($overviewLines !== []) {
+            $io->text($overviewLines);
             $io->newLine();
         }
 

@@ -30,16 +30,24 @@ final class WriteDateReportFormatter
     /**
      * Formats the post-scan overview for pending metadata repairs.
      *
-     * The command historically prints a grouped summary before individual file
-     * entries. The formatter keeps that wording centralized while the command
-     * remains responsible for deciding when that section should be shown.
+     * The command historically prints either a grouped summary before the
+     * individual entries or a green no-op message when everything is already
+     * correct. Keeping that branching here lets the command stay focused on
+     * orchestration and execution.
      *
+     * @param int                         $scannedFiles  Total number of scanned files
      * @param list<WriteDatePendingWrite> $pendingWrites Planned writes found during the scan
      *
-     * @return list<string> Console lines for the grouped pending-write summary
+     * @return list<string> Console lines for the post-scan overview block
      */
-    public function formatPendingWriteSummary(array $pendingWrites): array
+    public function formatOverviewLines(int $scannedFiles, array $pendingWrites): array
     {
+        if ($pendingWrites === []) {
+            return ($scannedFiles > 0)
+                ? ['<fg=green>All files have correct metadata — nothing to do.</>']
+                : [];
+        }
+
         /** @var array<string, int> $reasonCounts */
         $reasonCounts = [];
 
@@ -61,16 +69,6 @@ final class WriteDateReportFormatter
         }
 
         return $lines;
-    }
-
-    /**
-     * Formats the no-op message shown when every scanned file is already correct.
-     *
-     * @return list<string> Console lines for the no-op case
-     */
-    public function formatNothingToDoNotice(): array
-    {
-        return ['<fg=green>All files have correct metadata — nothing to do.</>'];
     }
 
     /**
