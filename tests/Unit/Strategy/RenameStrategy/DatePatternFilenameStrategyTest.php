@@ -204,7 +204,7 @@ final class DatePatternFilenameStrategyTest extends TestCase
         return new DatePatternFilenameStrategy(
             $regex,
             $replacement,
-            PatternMatchSet::fromPattern($replacement),
+            PatternMatchSet::fromPattern($replacement, new SafeRegex()),
             new SafeRegex(),
         );
     }
@@ -218,7 +218,7 @@ final class DatePatternFilenameStrategyTest extends TestCase
         return new DatePatternFilenameStrategy(
             $regex,
             $replacement,
-            PatternMatchSet::fromPattern($sourcePattern),
+            PatternMatchSet::fromPattern($sourcePattern, new SafeRegex()),
             new SafeRegex(),
         );
     }

@@ -47,7 +47,7 @@ final class DatePlaceholderExpressionMapTest extends TestCase
         $pattern  = '/^{Y}-{m}-{d}$/';
         $expected = '/^(\\d{4})-(\\d{2})-(\\d{2})$/';
 
-        self::assertSame($expected, $map->replacePlaceholders($pattern));
+        self::assertSame($expected, $map->replacePlaceholders($pattern, new SafeRegex()));
     }
 
     /**
@@ -61,6 +61,6 @@ final class DatePlaceholderExpressionMapTest extends TestCase
         $map     = DatePlaceholderExpressionMap::default();
         $pattern = '/^{X}-{Y}$/';
 
-        self::assertSame('/^{X}-(\\d{4})$/', $map->replacePlaceholders($pattern));
+        self::assertSame('/^{X}-(\\d{4})$/', $map->replacePlaceholders($pattern, new SafeRegex()));
     }
 }

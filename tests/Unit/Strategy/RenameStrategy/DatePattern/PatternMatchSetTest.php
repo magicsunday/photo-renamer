@@ -44,7 +44,7 @@ final class PatternMatchSetTest extends TestCase
     #[Test]
     public function itExtractsPlaceholders(): void
     {
-        $set = PatternMatchSet::fromPattern('/^{Y}-{m}-{d}$/');
+        $set = PatternMatchSet::fromPattern('/^{Y}-{m}-{d}$/', new SafeRegex());
 
         self::assertSame(['Y', 'm', 'd'], $set->placeholders());
     }
@@ -55,7 +55,7 @@ final class PatternMatchSetTest extends TestCase
     #[Test]
     public function itExtractsSinglePlaceholder(): void
     {
-        $set = PatternMatchSet::fromPattern('/^{H}$/');
+        $set = PatternMatchSet::fromPattern('/^{H}$/', new SafeRegex());
 
         self::assertSame(['H'], $set->placeholders());
     }

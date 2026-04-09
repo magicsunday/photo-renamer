@@ -106,9 +106,9 @@ final class RenameByDatePatternCommand extends AbstractRenameCommand
         }
 
         $this->patternRegex = DatePlaceholderExpressionMap::default()
-            ->replacePlaceholders($patternOption);
+            ->replacePlaceholders($patternOption, $this->safeRegex);
 
-        $this->patternMatchSet = PatternMatchSet::fromPattern($patternOption);
+        $this->patternMatchSet = PatternMatchSet::fromPattern($patternOption, $this->safeRegex);
         $this->replacement     = $replacementOption;
 
         return parent::executeCommand();
