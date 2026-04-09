@@ -199,30 +199,10 @@ final class VerifyCommand extends Command
         $this->exifMetadataProvider->clearCache();
 
         // Post-scan summary before detailed listing
-        $totalIssues = 0;
+        $overviewLines = $this->verifyReportFormatter->formatOverviewLines($scannedFiles, $categories);
 
-        foreach ($categories as $categoryFiles) {
-            $totalIssues += count($categoryFiles);
-        }
-
-        if ($totalIssues > 0) {
-            $io->text(sprintf(
-                '<fg=cyan>Found %d issue(s) in %d scanned file(s):</>',
-                $totalIssues,
-                $scannedFiles,
-            ));
-
-            foreach (VerifyCategoryCatalog::LABELS as $categoryId => $label) {
-                $cnt = count($categories[$categoryId]);
-
-                if ($cnt > 0) {
-                    $io->text(sprintf('  %d %s', $cnt, $label));
-                }
-            }
-
-            $io->newLine();
-        } elseif ($scannedFiles > 0) {
-            $io->text('<fg=green>All files OK — no metadata issues found.</>');
+        if ($overviewLines !== []) {
+            $io->text($overviewLines);
             $io->newLine();
         }
 

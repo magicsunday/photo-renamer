@@ -38,6 +38,53 @@ use PHPUnit\Framework\TestCase;
 final class VerifyReportFormatterTest extends TestCase
 {
     /**
+     * Verifies that the post-scan overview starts with the grouped issue header
+     * and then appends only non-empty categories in stable catalog order.
+     */
+    #[Test]
+    public function formatOverviewLinesBuildsGroupedIssueSummary(): void
+    {
+        $formatter = new VerifyReportFormatter();
+
+        $lines = $formatter->formatOverviewLines(5, [
+            VerifyCategoryCatalog::TIMEZONE  => ['clip.mov'],
+            VerifyCategoryCatalog::FALLBACK  => [],
+            VerifyCategoryCatalog::DRIFT     => [],
+            VerifyCategoryCatalog::LIVEPHOTO => ['IMG_0001.mov'],
+            VerifyCategoryCatalog::ERROR     => [],
+            VerifyCategoryCatalog::NODATA    => [],
+            VerifyCategoryCatalog::FILETYPE  => [],
+        ]);
+
+        self::assertSame('<fg=cyan>Found 2 issue(s) in 5 scanned file(s):</>', $lines[0]);
+        self::assertSame('  1 Ambiguous timezone', $lines[1]);
+        self::assertSame('  1 Missing Live Photo companion', $lines[2]);
+        self::assertCount(3, $lines);
+    }
+
+    /**
+     * Verifies that the overview emits the historical green no-issues notice
+     * when files were scanned but no findings remain.
+     */
+    #[Test]
+    public function formatOverviewLinesBuildsNoIssuesNotice(): void
+    {
+        $formatter = new VerifyReportFormatter();
+
+        $lines = $formatter->formatOverviewLines(3, [
+            VerifyCategoryCatalog::TIMEZONE  => [],
+            VerifyCategoryCatalog::FALLBACK  => [],
+            VerifyCategoryCatalog::DRIFT     => [],
+            VerifyCategoryCatalog::LIVEPHOTO => [],
+            VerifyCategoryCatalog::ERROR     => [],
+            VerifyCategoryCatalog::NODATA    => [],
+            VerifyCategoryCatalog::FILETYPE  => [],
+        ]);
+
+        self::assertSame(['<fg=green>All files OK — no metadata issues found.</>'], $lines);
+    }
+
+    /**
      * Verifies that category sections respect the show filter, stay label-based,
      * and sort filenames for deterministic output.
      */

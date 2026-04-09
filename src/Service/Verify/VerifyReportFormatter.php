@@ -16,6 +16,7 @@ use MagicSunday\Renamer\Service\Output\SummaryRow;
 use function count;
 use function in_array;
 use function sort;
+use function sprintf;
 
 /**
  * Formats verify category sections and summary rows for console rendering.
@@ -31,6 +32,52 @@ use function sort;
  */
 final class VerifyReportFormatter
 {
+    /**
+     * Builds the post-scan overview shown before detailed category sections.
+     *
+     * The verify command historically prints either an issue summary grouped by
+     * category or a single green "all files OK" notice. Keeping that wording in
+     * the formatter prevents the command from mixing orchestration with report
+     * assembly details.
+     *
+     * @param int                         $scanned    Total number of files scanned
+     * @param array<string, list<string>> $categories Categorized verify findings
+     *
+     * @return list<string> Console lines for the post-scan overview block
+     */
+    public function formatOverviewLines(int $scanned, array $categories): array
+    {
+        $totalIssues = 0;
+
+        foreach ($categories as $categoryFiles) {
+            $totalIssues += count($categoryFiles);
+        }
+
+        if ($totalIssues === 0) {
+            return ($scanned > 0)
+                ? ['<fg=green>All files OK — no metadata issues found.</>']
+                : [];
+        }
+
+        $lines = [
+            sprintf(
+                '<fg=cyan>Found %d issue(s) in %d scanned file(s):</>',
+                $totalIssues,
+                $scanned,
+            ),
+        ];
+
+        foreach (VerifyCategoryCatalog::LABELS as $categoryId => $label) {
+            $count = count($categories[$categoryId]);
+
+            if ($count > 0) {
+                $lines[] = sprintf('  %d %s', $count, $label);
+            }
+        }
+
+        return $lines;
+    }
+
     /**
      * Builds display-ready category sections from the categorized findings.
      *
