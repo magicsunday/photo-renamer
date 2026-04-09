@@ -11,11 +11,15 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Command;
 
+use MagicSunday\Renamer\Regex\SafeRegex;
+use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
+use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetPathnameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\LowerCaseFilenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use Override;
+use Symfony\Component\Filesystem\Filesystem;
 
 /**
  * Converts all filenames in the source directory to lowercase using multibyte-safe
@@ -28,9 +32,24 @@ use Override;
  */
 final class RenameLowerCaseCommand extends AbstractRenameCommand
 {
-    private ?RenameStrategyInterface $renameStrategy = null;
-
-    private ?DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy = null;
+    /**
+     * @param FileSystemServiceInterface         $fileSystemService           Service to handle file system operations
+     * @param DuplicateDetectionServiceInterface $duplicateDetectionService   Service to handle grouping and duplicate resolution
+     * @param SafeRegex                          $safeRegex                   Safe regex wrapper used by the shared legacy file iterator path
+     * @param Filesystem                         $filesystem                  Command-facing filesystem boundary reused by metadata-cache helpers
+     * @param LowerCaseFilenameStrategy          $renameStrategy              Fixed lowercase rename strategy for this command
+     * @param TargetPathnameStrategy             $duplicateIdentifierStrategy Fixed target-path grouping strategy for this command
+     */
+    public function __construct(
+        FileSystemServiceInterface $fileSystemService,
+        DuplicateDetectionServiceInterface $duplicateDetectionService,
+        SafeRegex $safeRegex,
+        Filesystem $filesystem,
+        private readonly LowerCaseFilenameStrategy $renameStrategy,
+        private readonly TargetPathnameStrategy $duplicateIdentifierStrategy,
+    ) {
+        parent::__construct($fileSystemService, $duplicateDetectionService, $safeRegex, $filesystem);
+    }
 
     /**
      * Configures the current command.
@@ -57,7 +76,7 @@ final class RenameLowerCaseCommand extends AbstractRenameCommand
     #[Override]
     protected function getTargetFilenameStrategy(): RenameStrategyInterface
     {
-        return $this->renameStrategy ??= new LowerCaseFilenameStrategy();
+        return $this->renameStrategy;
     }
 
     /**
@@ -70,6 +89,6 @@ final class RenameLowerCaseCommand extends AbstractRenameCommand
     #[Override]
     protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
     {
-        return $this->duplicateIdentifierStrategy ??= new TargetPathnameStrategy();
+        return $this->duplicateIdentifierStrategy;
     }
 }

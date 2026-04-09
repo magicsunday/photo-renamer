@@ -67,6 +67,8 @@ final class RenameLowerCaseCommandTest extends TestCase
             self::createStub(DuplicateDetectionServiceInterface::class),
             new SafeRegex(),
             new Filesystem(),
+            new LowerCaseFilenameStrategy(),
+            new TargetPathnameStrategy(),
         );
 
         self::assertSame('rename:lower', $command->getName());
@@ -136,7 +138,14 @@ final class RenameLowerCaseCommandTest extends TestCase
                     }),
                 );
 
-            $command = new RenameLowerCaseCommand($fileSystemService, $duplicateDetectionService, new SafeRegex(), new Filesystem());
+            $command = new RenameLowerCaseCommand(
+                $fileSystemService,
+                $duplicateDetectionService,
+                new SafeRegex(),
+                new Filesystem(),
+                new LowerCaseFilenameStrategy(),
+                new TargetPathnameStrategy(),
+            );
 
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([

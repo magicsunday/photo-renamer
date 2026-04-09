@@ -70,7 +70,8 @@ final class RenameByHashCommandTest extends TestCase
             self::createStub(DuplicateDetectionServiceInterface::class),
             new SafeRegex(),
             new Filesystem(),
-            new SafeHashCalculator(),
+            new InheritFilenameStrategy(),
+            new ContentHashStrategy(new SafeHashCalculator()),
         );
 
         self::assertSame('rename:hash', $command->getName());
@@ -142,7 +143,14 @@ final class RenameByHashCommandTest extends TestCase
                     }),
                 );
 
-            $command = new RenameByHashCommand($fileSystemService, $duplicateDetectionService, new SafeRegex(), new Filesystem(), new SafeHashCalculator());
+            $command = new RenameByHashCommand(
+                $fileSystemService,
+                $duplicateDetectionService,
+                new SafeRegex(),
+                new Filesystem(),
+                new InheritFilenameStrategy(),
+                new ContentHashStrategy(new SafeHashCalculator()),
+            );
 
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([

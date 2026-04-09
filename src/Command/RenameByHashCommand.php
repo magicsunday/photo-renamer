@@ -14,7 +14,6 @@ namespace MagicSunday\Renamer\Command;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
-use MagicSunday\Renamer\Service\SafeHashCalculatorInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\ContentHashStrategy;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\InheritFilenameStrategy;
@@ -34,25 +33,23 @@ use Symfony\Component\Filesystem\Filesystem;
  */
 final class RenameByHashCommand extends AbstractRenameCommand
 {
-    private ?RenameStrategyInterface $renameStrategy = null;
-
-    private ?DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy = null;
-
     /**
      * Constructor.
      *
-     * @param FileSystemServiceInterface         $fileSystemService         Service to handle file system operations
-     * @param DuplicateDetectionServiceInterface $duplicateDetectionService Service to handle grouping and duplicate resolution
-     * @param SafeRegex                          $safeRegex                 Safe regex wrapper used by the shared legacy file iterator path
-     * @param Filesystem                         $filesystem                Command-facing filesystem boundary reused by metadata-cache helpers
-     * @param SafeHashCalculatorInterface        $hashCalculator            Service to calculate secure file hashes
+     * @param FileSystemServiceInterface         $fileSystemService           Service to handle file system operations
+     * @param DuplicateDetectionServiceInterface $duplicateDetectionService   Service to handle grouping and duplicate resolution
+     * @param SafeRegex                          $safeRegex                   Safe regex wrapper used by the shared legacy file iterator path
+     * @param Filesystem                         $filesystem                  Command-facing filesystem boundary reused by metadata-cache helpers
+     * @param InheritFilenameStrategy            $renameStrategy              Fixed inherit-name strategy used by the hash command
+     * @param ContentHashStrategy                $duplicateIdentifierStrategy Hash-based grouping strategy for duplicate detection
      */
     public function __construct(
         FileSystemServiceInterface $fileSystemService,
         DuplicateDetectionServiceInterface $duplicateDetectionService,
         SafeRegex $safeRegex,
         Filesystem $filesystem,
-        private readonly SafeHashCalculatorInterface $hashCalculator,
+        private readonly InheritFilenameStrategy $renameStrategy,
+        private readonly ContentHashStrategy $duplicateIdentifierStrategy,
     ) {
         parent::__construct($fileSystemService, $duplicateDetectionService, $safeRegex, $filesystem);
     }
@@ -83,7 +80,7 @@ final class RenameByHashCommand extends AbstractRenameCommand
     #[Override]
     protected function getTargetFilenameStrategy(): RenameStrategyInterface
     {
-        return $this->renameStrategy ??= new InheritFilenameStrategy();
+        return $this->renameStrategy;
     }
 
     /**
@@ -96,7 +93,7 @@ final class RenameByHashCommand extends AbstractRenameCommand
     #[Override]
     protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
     {
-        return $this->duplicateIdentifierStrategy ??= new ContentHashStrategy($this->hashCalculator);
+        return $this->duplicateIdentifierStrategy;
     }
 
     /**
