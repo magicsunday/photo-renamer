@@ -76,8 +76,8 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
         $this->progressReporter->startProgress($comparisonCount);
 
         foreach ($comparisons as $comparison) {
-            $leftGroup  = $groups->get($comparison['leftGroupKey']);
-            $rightGroup = $groups->get($comparison['rightGroupKey']);
+            $leftGroup  = $groups->get($comparison->leftGroupKey);
+            $rightGroup = $groups->get($comparison->rightGroupKey);
 
             if (!$leftGroup instanceof AssetGroup || !$rightGroup instanceof AssetGroup) {
                 $this->progressReporter->advance();
@@ -85,8 +85,8 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
                 continue;
             }
 
-            $leftItem  = $leftGroup->getItemByPath($comparison['leftPath']);
-            $rightItem = $rightGroup->getItemByPath($comparison['rightPath']);
+            $leftItem  = $leftGroup->getItemByPath($comparison->leftPath);
+            $rightItem = $rightGroup->getItemByPath($comparison->rightPath);
 
             if (!$leftItem instanceof AssetItem || !$rightItem instanceof AssetItem) {
                 $this->progressReporter->advance();
@@ -157,7 +157,7 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
      *
      * @param AssetGroupCollection $groups Capture groups to inspect
      *
-     * @return array<string, list<array{groupKey: string, item: AssetItem}>> Videos bucketed by normalized duration
+     * @return array<string, list<DurationBucketedVideoCandidate>> Videos bucketed by normalized duration
      */
     private function collectCandidateVideos(AssetGroupCollection $groups): array
     {
@@ -178,17 +178,17 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
                     continue;
                 }
 
-                $bucketedVideos['duration:' . sprintf('%.3f', round($duration, 3))][] = [
-                    'groupKey' => $group->groupKey,
-                    'item'     => $item,
-                ];
+                $bucketedVideos['duration:' . sprintf('%.3f', round($duration, 3))][] = new DurationBucketedVideoCandidate(
+                    $group->groupKey,
+                    $item,
+                );
             }
         }
 
         foreach ($bucketedVideos as &$bucketEntries) {
             usort(
                 $bucketEntries,
-                static fn (array $entryA, array $entryB): int => $entryA['item']->file->getPathname() <=> $entryB['item']->file->getPathname(),
+                static fn (DurationBucketedVideoCandidate $entryA, DurationBucketedVideoCandidate $entryB): int => $entryA->item->file->getPathname() <=> $entryB->item->file->getPathname(),
             );
         }
 
@@ -198,9 +198,9 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
     /**
      * Builds the flat comparison plan the reconciler will execute.
      *
-     * @param array<string, list<array{groupKey: string, item: AssetItem}>> $candidateVideos Videos bucketed by normalized duration
+     * @param array<string, list<DurationBucketedVideoCandidate>> $candidateVideos Videos bucketed by normalized duration
      *
-     * @return list<array{leftGroupKey: string, leftPath: string, rightGroupKey: string, rightPath: string}> Flat cross-group comparison plan
+     * @return list<CrossGroupVideoComparisonPlan> Flat cross-group comparison plan
      */
     private function buildComparisons(array $candidateVideos): array
     {
@@ -211,16 +211,16 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
 
             for ($leftIndex = 0; $leftIndex < $entryCount; ++$leftIndex) {
                 for ($rightIndex = $leftIndex + 1; $rightIndex < $entryCount; ++$rightIndex) {
-                    if ($bucketEntries[$leftIndex]['groupKey'] === $bucketEntries[$rightIndex]['groupKey']) {
+                    if ($bucketEntries[$leftIndex]->groupKey === $bucketEntries[$rightIndex]->groupKey) {
                         continue;
                     }
 
-                    $comparisons[] = [
-                        'leftGroupKey'  => $bucketEntries[$leftIndex]['groupKey'],
-                        'leftPath'      => $bucketEntries[$leftIndex]['item']->file->getPathname(),
-                        'rightGroupKey' => $bucketEntries[$rightIndex]['groupKey'],
-                        'rightPath'     => $bucketEntries[$rightIndex]['item']->file->getPathname(),
-                    ];
+                    $comparisons[] = new CrossGroupVideoComparisonPlan(
+                        $bucketEntries[$leftIndex]->groupKey,
+                        $bucketEntries[$leftIndex]->item->file->getPathname(),
+                        $bucketEntries[$rightIndex]->groupKey,
+                        $bucketEntries[$rightIndex]->item->file->getPathname(),
+                    );
                 }
             }
         }
@@ -248,30 +248,30 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
         AssetGroup $rightGroup,
         AssetItem $rightItem,
     ): void {
-        [$targetGroup, $targetItem, $sourceGroup, $sourceItem] = $this->determineMergeDirection(
+        $mergeDecision = $this->determineMergeDirection(
             $leftGroup,
             $leftItem,
             $rightGroup,
             $rightItem,
         );
 
-        $existing = $targetGroup->getItemByPath($sourceItem->file->getPathname());
+        $existing = $mergeDecision->targetGroup->getItemByPath($mergeDecision->sourceItem->file->getPathname());
 
         if ($existing instanceof AssetItem) {
             return;
         }
 
-        $targetGroup->addItem($sourceItem);
-        $targetGroup->addDecision(sprintf(
+        $mergeDecision->targetGroup->addItem($mergeDecision->sourceItem);
+        $mergeDecision->targetGroup->addDecision(sprintf(
             'Merged cross-group video duplicate: %s matched %s via stream hash',
-            $sourceItem->file->getBasename(),
-            $targetItem->file->getBasename(),
+            $mergeDecision->sourceItem->file->getBasename(),
+            $mergeDecision->targetItem->file->getBasename(),
         ));
 
-        $sourceGroup->removeItem($sourceItem);
+        $mergeDecision->sourceGroup->removeItem($mergeDecision->sourceItem);
 
-        if ($sourceGroup->itemCount() === 0) {
-            $groups->remove($sourceGroup->groupKey);
+        if ($mergeDecision->sourceGroup->itemCount() === 0) {
+            $groups->remove($mergeDecision->sourceGroup->groupKey);
         }
     }
 
@@ -287,26 +287,26 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
      * @param AssetGroup $rightGroup Second group from the flat comparison plan
      * @param AssetItem  $rightItem  Matching video item from the second group
      *
-     * @return array{0: AssetGroup, 1: AssetItem, 2: AssetGroup, 3: AssetItem} Target group/item followed by source group/item
+     * @return CrossGroupVideoMergeDecision Explicit target/source merge direction
      */
     private function determineMergeDirection(
         AssetGroup $leftGroup,
         AssetItem $leftItem,
         AssetGroup $rightGroup,
         AssetItem $rightItem,
-    ): array {
+    ): CrossGroupVideoMergeDecision {
         if ($leftGroup->groupKey < $rightGroup->groupKey) {
-            return [$leftGroup, $leftItem, $rightGroup, $rightItem];
+            return new CrossGroupVideoMergeDecision($leftGroup, $leftItem, $rightGroup, $rightItem);
         }
 
         if ($rightGroup->groupKey < $leftGroup->groupKey) {
-            return [$rightGroup, $rightItem, $leftGroup, $leftItem];
+            return new CrossGroupVideoMergeDecision($rightGroup, $rightItem, $leftGroup, $leftItem);
         }
 
         if ($leftItem->file->getPathname() <= $rightItem->file->getPathname()) {
-            return [$leftGroup, $leftItem, $rightGroup, $rightItem];
+            return new CrossGroupVideoMergeDecision($leftGroup, $leftItem, $rightGroup, $rightItem);
         }
 
-        return [$rightGroup, $rightItem, $leftGroup, $leftItem];
+        return new CrossGroupVideoMergeDecision($rightGroup, $rightItem, $leftGroup, $leftItem);
     }
 }

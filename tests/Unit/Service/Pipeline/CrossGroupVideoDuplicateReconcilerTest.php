@@ -21,7 +21,10 @@ use MagicSunday\Renamer\Model\Pipeline\VideoFingerprintMatch;
 use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
+use MagicSunday\Renamer\Service\Pipeline\CrossGroupVideoComparisonPlan;
 use MagicSunday\Renamer\Service\Pipeline\CrossGroupVideoDuplicateReconciler;
+use MagicSunday\Renamer\Service\Pipeline\CrossGroupVideoMergeDecision;
+use MagicSunday\Renamer\Service\Pipeline\DurationBucketedVideoCandidate;
 use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use MagicSunday\Renamer\Service\Video\VideoStreamFingerprintMatcherInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -57,6 +60,9 @@ use function implode;
 #[UsesClass(VideoDuplicateCandidate::class)]
 #[UsesClass(MediaCompatibilityPolicy::class)]
 #[UsesClass(MediaTypeClassifier::class)]
+#[UsesClass(DurationBucketedVideoCandidate::class)]
+#[UsesClass(CrossGroupVideoComparisonPlan::class)]
+#[UsesClass(CrossGroupVideoMergeDecision::class)]
 final class CrossGroupVideoDuplicateReconcilerTest extends TestCase
 {
     private VideoStreamFingerprintMatcherInterface&MockObject $matcher;
