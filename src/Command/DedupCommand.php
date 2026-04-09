@@ -15,8 +15,8 @@ use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Service\Dedup\DedupOriginalMatcher;
+use MagicSunday\Renamer\Service\Dedup\DedupReportFormatter;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
-use MagicSunday\Renamer\Service\Output\SummaryRow;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use Override;
 use RuntimeException;
@@ -56,12 +56,14 @@ final class DedupCommand extends Command
      *
      * @param FileSystemServiceInterface $fileSystemService    Service to handle file system operations like iteration
      * @param DedupOriginalMatcher       $dedupOriginalMatcher Service that resolves actionable originals for duplicate files
+     * @param DedupReportFormatter       $dedupReportFormatter Formatter for dedup overviews, action blocks, and footer rows
      * @param RenameOutputRenderer       $renderer             Service to render output in a consistent format
      * @param Filesystem                 $filesystem           Symfony Filesystem component for file operations
      */
     public function __construct(
         private readonly FileSystemServiceInterface $fileSystemService,
         private readonly DedupOriginalMatcher $dedupOriginalMatcher,
+        private readonly DedupReportFormatter $dedupReportFormatter,
         private readonly RenameOutputRenderer $renderer,
         private readonly Filesystem $filesystem,
     ) {
@@ -189,22 +191,20 @@ final class DedupCommand extends Command
         ));
         $orphanCount = count($duplicates) - $actionableCount;
 
-        if ($duplicates !== []) {
-            $io->text(sprintf(
-                '<fg=cyan>Found %d duplicate file(s) (%d actionable, %d orphaned).</>',
-                count($duplicates),
-                $actionableCount,
-                $orphanCount,
-            ));
+        $overviewLines = $this->dedupReportFormatter->formatOverviewLines(
+            count($duplicates),
+            $actionableCount,
+            $orphanCount,
+            $delete,
+            $files !== [],
+        );
 
-            if ($actionableCount > 0) {
-                $io->text(sprintf('  Action: <fg=yellow>%s</> duplicates whose original still exists.', $action));
+        if ($overviewLines !== []) {
+            if (($duplicates === []) && ($files !== [])) {
+                $io->newLine();
             }
 
-            $io->newLine();
-        } elseif ($files !== []) {
-            $io->newLine();
-            $io->text('<fg=green>No duplicate files found — nothing to do.</>');
+            $io->text($overviewLines);
             $io->newLine();
         }
 
@@ -319,12 +319,7 @@ final class DedupCommand extends Command
         string $relativePath,
         string $actionText,
     ): void {
-        $io->text(sprintf(
-            '<fg=%s>[D]</> %s' . "\n" . '     <fg=cyan>→</> %s',
-            $tagColor,
-            $relativePath,
-            $actionText,
-        ));
+        $io->text($this->dedupReportFormatter->formatIndentedAction($tagColor, $relativePath, $actionText));
     }
 
     /**
@@ -346,17 +341,9 @@ final class DedupCommand extends Command
         int $orphanedCount,
         int $spaceReclaimable,
     ): void {
-        $rows = [
-            new SummaryRow('Scanned files', (string) $scannedFiles),
-            new SummaryRow('Duplicates found', (string) $duplicatesFound),
-        ];
-
-        if ($orphanedCount > 0) {
-            $rows[] = new SummaryRow('Orphaned (skipped)', (string) $orphanedCount);
-        }
-
-        $rows[] = new SummaryRow('Space reclaimable', FileHelper::formatSize($spaceReclaimable));
-
-        $this->renderer->renderSummarySection($rows, $io);
+        $this->renderer->renderSummarySection(
+            $this->dedupReportFormatter->formatSummaryRows($scannedFiles, $duplicatesFound, $orphanedCount, $spaceReclaimable),
+            $io,
+        );
     }
 }

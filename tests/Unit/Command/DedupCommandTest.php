@@ -17,6 +17,7 @@ use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Regex\RegexMatchResult;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\Dedup\DedupOriginalMatcher;
+use MagicSunday\Renamer\Service\Dedup\DedupReportFormatter;
 use MagicSunday\Renamer\Service\Dedup\OriginalCandidateIndex;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\FormatPriorityResolver;
@@ -480,6 +481,7 @@ final class DedupCommandTest extends TestCase
         return new DedupCommand(
             $fileSystemService,
             $matcher,
+            new DedupReportFormatter(),
             $renderer,
             new Filesystem(),
         );
