@@ -52,6 +52,39 @@ The aim is not maximal indirection. The aim is a repository where responsibiliti
 
 ---
 
+## Completion status
+
+Status as of `2026-04-09`:
+
+- `Track 0` completed
+- `Track 1` completed
+- `Track 2` completed
+- `Track 3` completed
+- `Track 4` completed
+- `Track 5` completed
+- `Track 6` intentionally skipped after the planned go/no-go review
+- `Track 7` completed
+- `Track 8` completed where boundary value justified explicit DTO / enum / rule / decider modeling
+- `Track 9a` completed
+- `Track 9b` completed
+- `Track 10` completed
+
+Intentional end-state notes:
+
+- runtime-configured rename strategies remain lazy only in:
+  - `src/Command/RenameByExifDateCommand.php`
+  - `src/Command/RenameByPatternCommand.php`
+  - `src/Command/RenameByDatePatternCommand.php`
+- this remaining exception is deliberate and guarded by `tests/Architecture/LazyCommandStrategyArchitectureTest.php`
+- coherent algorithmic cores remain unsplit by decision rule:
+  - `src/Service/HashSubGroupingService.php`
+  - `src/Service/PerceptualHash/PerceptualHashCalculator.php`
+  - `src/Service/PerceptualHash/LocalDifferenceAnalyzer.php`
+
+Wave 2 is structurally complete. The remaining exceptions are deliberate, documented, and covered by tests or explicit decision rules.
+
+---
+
 ## Current assessment
 
 ### Areas already in good shape
