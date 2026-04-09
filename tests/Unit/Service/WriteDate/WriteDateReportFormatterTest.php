@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service\WriteDate;
 
 use DateTimeImmutable;
+use MagicSunday\Renamer\Service\Output\SummaryRow;
 use MagicSunday\Renamer\Service\WriteDate\WriteDatePendingWrite;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateReasonCatalog;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateReportFormatter;
@@ -32,6 +33,7 @@ use PHPUnit\Framework\TestCase;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(WriteDateReportFormatter::class)]
+#[UsesClass(SummaryRow::class)]
 #[UsesClass(WriteDatePendingWrite::class)]
 #[UsesClass(WriteDateReasonCatalog::class)]
 final class WriteDateReportFormatterTest extends TestCase
@@ -112,5 +114,38 @@ final class WriteDateReportFormatterTest extends TestCase
 
         self::assertCount(1, $lines);
         self::assertSame(' <fg=red>[E]</> 2024-01-15.jpg <fg=cyan>→</> FAILED to write: 2024:01:15 00:00:00', $lines[0]);
+    }
+
+    /**
+     * Verifies that summary rows preserve the historical footer order and only
+     * append secondary counters when they are non-zero.
+     */
+    #[Test]
+    public function formatSummaryRowsPreservesFooterOrdering(): void
+    {
+        $formatter = new WriteDateReportFormatter();
+
+        $rows = $formatter->formatSummaryRows(
+            10,
+            4,
+            3,
+            0,
+            0,
+            1,
+            2,
+            1,
+            true,
+        );
+
+        self::assertSame('Scanned files', $rows[0]->label);
+        self::assertSame('10', $rows[0]->value);
+        self::assertSame('Already correct', $rows[1]->label);
+        self::assertSame('4', $rows[1]->value);
+        self::assertSame('Would write', $rows[2]->label);
+        self::assertSame('3', $rows[2]->value);
+        self::assertSame('No date in name', $rows[3]->label);
+        self::assertSame('Unsupported write', $rows[4]->label);
+        self::assertSame('Read errors', $rows[5]->label);
+        self::assertCount(6, $rows);
     }
 }

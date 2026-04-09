@@ -11,6 +11,8 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\WriteDate;
 
+use MagicSunday\Renamer\Service\Output\SummaryRow;
+
 use function count;
 use function sprintf;
 
@@ -104,5 +106,66 @@ final class WriteDateReportFormatter
         }
 
         return $lines;
+    }
+
+    /**
+     * Builds the summary rows shown at the end of write-date execution.
+     *
+     * The command owns the underlying counters, but this formatter keeps the
+     * footer row ordering and dry-run/live branching stable in one place.
+     *
+     * @param int  $scannedFiles     Total number of scanned files
+     * @param int  $alreadyCorrect   Files that already had correct metadata
+     * @param int  $wouldWrite       Planned writes during dry-run mode
+     * @param int  $written          Successful writes in live mode
+     * @param int  $writeFailed      Failed writes in live mode
+     * @param int  $noDateInName     Files skipped because the filename has no date
+     * @param int  $readErrors       Files skipped due to metadata read errors
+     * @param int  $unsupportedWrite Files skipped because writing is unsupported
+     * @param bool $dryRun           Whether the command is currently previewing instead of writing
+     *
+     * @return list<SummaryRow> Summary rows for footer rendering
+     */
+    public function formatSummaryRows(
+        int $scannedFiles,
+        int $alreadyCorrect,
+        int $wouldWrite,
+        int $written,
+        int $writeFailed,
+        int $noDateInName,
+        int $readErrors,
+        int $unsupportedWrite,
+        bool $dryRun,
+    ): array {
+        $rows = [
+            new SummaryRow('Scanned files', (string) $scannedFiles),
+            new SummaryRow('Already correct', (string) $alreadyCorrect),
+        ];
+
+        if ($dryRun) {
+            $rows[] = new SummaryRow('Would write', (string) $wouldWrite);
+        } else {
+            if ($written > 0) {
+                $rows[] = new SummaryRow('Written', (string) $written);
+            }
+
+            if ($writeFailed > 0) {
+                $rows[] = new SummaryRow('Write failed', (string) $writeFailed);
+            }
+        }
+
+        if ($noDateInName > 0) {
+            $rows[] = new SummaryRow('No date in name', (string) $noDateInName);
+        }
+
+        if ($unsupportedWrite > 0) {
+            $rows[] = new SummaryRow('Unsupported write', (string) $unsupportedWrite);
+        }
+
+        if ($readErrors > 0) {
+            $rows[] = new SummaryRow('Read errors', (string) $readErrors);
+        }
+
+        return $rows;
     }
 }
