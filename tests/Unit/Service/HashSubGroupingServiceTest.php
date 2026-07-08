@@ -12,9 +12,11 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
 use Closure;
+use DateTimeImmutable;
 use Imagick;
 use ImagickPixel;
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\Collection\FileList;
 use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
@@ -640,6 +642,59 @@ final class HashSubGroupingServiceTest extends TestCase
         );
 
         self::assertNull($result, 'dHash-identical format noise should merge under the default threshold.');
+    }
+
+    /**
+     * Verifies that simple two-file format backups are merged even when the
+     * perceptual pre-classifier downgrades them to edited variants.
+     */
+    #[Test]
+    public function applyMergesSimpleFormatBackupEditedVariantWhenMetadataMatches(): void
+    {
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $fileA = $sourceDirectory . DIRECTORY_SEPARATOR . 'a.heic';
+        $fileB = $sourceDirectory . DIRECTORY_SEPARATOR . 'b.jpg';
+
+        $this->createSyntheticJpeg($fileA, color: '#808080');
+        $this->createSyntheticJpeg($fileB, color: '#8c8c8c');
+
+        $target = $targetDirectory . DIRECTORY_SEPARATOR . 'target.jpg';
+
+        $stub = new StubPerceptualHashCalculator()
+            ->withHash($fileA, 'abcdef0123456789')
+            ->withHash($fileB, 'abcdef01234567ff');
+
+        $service = $this->createHashSubGroupingServiceWithStub($stub);
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate
+            ->addFile(new SplFileInfo($fileA))
+            ->addFile(new SplFileInfo($fileB))
+            ->setTarget(new SplFileInfo($target));
+
+        $renameA = new Rename(new SplFileInfo($fileA), new SplFileInfo($target));
+        $renameB = new Rename(new SplFileInfo($fileB), new SplFileInfo($target));
+        $fileDuplicate->addRename($renameA);
+        $fileDuplicate->addRename($renameB);
+
+        $captureDateTime = new DateTimeImmutable('2025-11-15 20:26:50.647000');
+        $metadataMap     = [
+            $fileA => new TemporalMetadata($captureDateTime, null),
+            $fileB => new TemporalMetadata($captureDateTime, null),
+        ];
+
+        $result = $service->apply(
+            $fileDuplicate,
+            $renameA,
+            null,
+            [],
+            $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
+            $metadataMap,
+        );
+
+        self::assertNull($result, 'Metadata-matched HEIC/JPG backup pairs should stay in one sub-group.');
     }
 
     /**

@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service;
 
 use Closure;
+use DateTimeInterface;
 use Imagick;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\HashComputationException;
@@ -34,6 +35,7 @@ use function array_keys;
 use function basename;
 use function count;
 use function microtime;
+use function min;
 use function spl_object_id;
 use function sprintf;
 use function strtolower;
@@ -677,6 +679,24 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
                     );
                 }
 
+                if (
+                    !$shouldMerge
+                    && $allowExactFormatBackupWindow
+                    && $result->isEditedVariant()
+                ) {
+                    $fileA = $representativeByHash[$hashes[$indexA]];
+                    $fileB = $representativeByHash[$hashes[$indexB]];
+
+                    $shouldMerge = $this->shouldMergeSimpleFormatBackup(
+                        $fileA,
+                        $fileB,
+                        $temporalMetadataMap[$fileA->getPathname()] ?? null,
+                        $temporalMetadataMap[$fileB->getPathname()] ?? null,
+                        $result,
+                        $stageBImageCache,
+                    );
+                }
+
                 if ($shouldMerge) {
                     $rootA = $this->findRoot($parent, $indexA);
                     $rootB = $this->findRoot($parent, $indexB);
@@ -846,6 +866,83 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
         $this->debugMergeDecision($fileA, $fileB, $similarity, $diff, $merge, $reason, $elapsed);
 
         return $merge;
+    }
+
+    /**
+     * Merges simple HEIC/JPG backup pairs that CI image libraries may classify
+     * as edited variants although their local pixel difference is still codec noise.
+     *
+     * @param SplFileInfo                 $fileA      First file to compare.
+     * @param SplFileInfo                 $fileB      Second file to compare.
+     * @param TemporalMetadata|null       $metadataA  Metadata for the first file.
+     * @param TemporalMetadata|null       $metadataB  Metadata for the second file.
+     * @param SimilarityResult            $similarity The pre-calculated similarity.
+     * @param array<string, Imagick|null> $imageCache Shared image cache for efficiency.
+     */
+    private function shouldMergeSimpleFormatBackup(
+        SplFileInfo $fileA,
+        SplFileInfo $fileB,
+        ?TemporalMetadata $metadataA,
+        ?TemporalMetadata $metadataB,
+        SimilarityResult $similarity,
+        array &$imageCache,
+    ): bool {
+        if (!$this->isStillFormatBackupPair($fileA, $fileB)) {
+            return false;
+        }
+
+        if (!$this->hasMatchingCaptureTimestamp($metadataA, $metadataB)) {
+            return false;
+        }
+
+        $start   = microtime(true);
+        $diff    = $this->analyzeLocalDifferenceCached($fileA, $fileB, $imageCache);
+        $elapsed = microtime(true) - $start;
+
+        if (!$diff->success) {
+            $this->debugMergeDecision($fileA, $fileB, $similarity, $diff, false, 'format-backup analysis failed', $elapsed);
+
+            return false;
+        }
+
+        if ($diff->chromaDifference > self::MAX_CHROMA_DIFFERENCE) {
+            $reason = sprintf('format-backup chroma %.4f > %.4f', $diff->chromaDifference, self::MAX_CHROMA_DIFFERENCE);
+
+            $this->debugMergeDecision($fileA, $fileB, $similarity, $diff, false, $reason, $elapsed);
+
+            return false;
+        }
+
+        $effectiveMergeThreshold = min(self::SAFE_MERGE_RMSE_EXACT_FORMAT_BACKUP, $this->maxMergeRmse);
+        $merge                   = $diff->rmse <= $effectiveMergeThreshold;
+        $reason                  = $merge
+            ? sprintf('format-backup rmse %.4f <= %.4f', $diff->rmse, $effectiveMergeThreshold)
+            : sprintf('format-backup rmse %.4f > %.4f', $diff->rmse, $effectiveMergeThreshold);
+
+        $this->debugMergeDecision($fileA, $fileB, $similarity, $diff, $merge, $reason, $elapsed);
+
+        return $merge;
+    }
+
+    private function isStillFormatBackupPair(SplFileInfo $fileA, SplFileInfo $fileB): bool
+    {
+        if (!$this->mediaTypeClassifier->isLivePhotoStill($fileA) || !$this->mediaTypeClassifier->isLivePhotoStill($fileB)) {
+            return false;
+        }
+
+        return strtolower($fileA->getExtension()) !== strtolower($fileB->getExtension());
+    }
+
+    private function hasMatchingCaptureTimestamp(?TemporalMetadata $metadataA, ?TemporalMetadata $metadataB): bool
+    {
+        $dateA = $metadataA?->getCaptureDateTime();
+        $dateB = $metadataB?->getCaptureDateTime();
+
+        if ((!$dateA instanceof DateTimeInterface) || (!$dateB instanceof DateTimeInterface)) {
+            return false;
+        }
+
+        return $dateA->format('Y-m-d H:i:s.u') === $dateB->format('Y-m-d H:i:s.u');
     }
 
     /**
