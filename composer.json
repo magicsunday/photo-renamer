@@ -104,7 +104,7 @@
             "@php -d pcov.enabled=1 .build/bin/phpunit --configuration phpunit.xml --coverage-html .build/coverage --coverage-clover .build/coverage/clover.xml"
         ],
         "ci:test:php:cpd": [
-            "npx --prefix .build jscpd --config .jscpd.json"
+            "npx --prefix .build jscpd --config .jscpd.json --skip-comments --no-tips"
         ],
         "ci:test:php:audit": [
             "composer audit --format=plain"
@@ -122,7 +122,10 @@
             "@ci:test:php:cpd"
         ],
         "post-update-cmd": [
-            "npm install --prefix .build jscpd"
+            "npm install --prefix .build jscpd@^5.0.11"
+        ],
+        "post-install-cmd": [
+            "npm install --prefix .build jscpd@^5.0.11"
         ]
     }
 }

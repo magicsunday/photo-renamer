@@ -44,7 +44,7 @@ jobs:
               run: |
                   composer validate
                   composer install --prefer-dist --no-ansi --no-interaction --no-progress --no-scripts
-                  npm install --prefix .build jscpd
+                  npm install --prefix .build jscpd@^5.0.11
 
             - name: Lint
               if: ${{ always() && steps.install.conclusion == 'success' }}
