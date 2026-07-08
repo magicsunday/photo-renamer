@@ -58,6 +58,14 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
     private const float SAFE_MERGE_RMSE_EXACT = 0.04;
 
     /**
+     * RMSE threshold for simple two-file dHash==0 format backups.
+     *
+     * This wider window is intentionally not used for Live Photo/edit groups,
+     * where an edited asset can also retain identical dHash structure.
+     */
+    private const float SAFE_MERGE_RMSE_EXACT_FORMAT_BACKUP = 0.06;
+
+    /**
      * RMSE threshold for dHash 1–2 (near-identical gradient structure).
      * Codec noise can flip 1–2 gradient bits in the 9×8 dHash grid due to
      * quantization differences between HEIC and JPG encoders.
@@ -208,7 +216,11 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
         // Uses multi-signal scoring (dHash, wHash, HF-energy, color histogram,
         // video duration) to determine if files with different content hashes
         // are visually identical (format conversions, re-imports).
-        $hashGroups = $this->mergePerceptuallySimilarGroups($hashGroups, $temporalMetadataMap);
+        $hashGroups = $this->mergePerceptuallySimilarGroups(
+            $hashGroups,
+            $temporalMetadataMap,
+            $companionRename === null,
+        );
 
         if (count($hashGroups) <= 1) {
             return null;
@@ -589,19 +601,25 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
      * Uses multi-signal scoring (dHash, wHash, HF-energy, color, duration) with
      * Stage B blob analysis for near-identical pairs.
      *
-     * @param array<string, list<Rename>>          $hashGroups
-     * @param array<string, TemporalMetadata|null> $temporalMetadataMap
+     * @param array<string, list<Rename>>          $hashGroups             Hash groups keyed by content hash.
+     * @param array<string, TemporalMetadata|null> $temporalMetadataMap    Temporal metadata keyed by source pathname.
+     * @param bool                                 $allowFormatBackupMerge Whether simple format-backup tolerance is allowed.
      *
      * @return array<string, list<Rename>>
      */
-    private function mergePerceptuallySimilarGroups(array $hashGroups, array $temporalMetadataMap): array
-    {
+    private function mergePerceptuallySimilarGroups(
+        array $hashGroups,
+        array $temporalMetadataMap,
+        bool $allowFormatBackupMerge,
+    ): array {
         $hashes = array_keys($hashGroups);
         $count  = count($hashes);
 
         if ($count <= 1) {
             return $hashGroups;
         }
+
+        $allowExactFormatBackupWindow = $allowFormatBackupMerge && ($count === 2);
 
         // Pick one representative file per hash group and resolve video duration.
         /** @var array<string, SplFileInfo> $representativeByHash */
@@ -655,6 +673,7 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
                         $representativeByHash[$hashes[$indexB]],
                         $result,
                         $stageBImageCache,
+                        $allowExactFormatBackupWindow,
                     );
                 }
 
@@ -763,10 +782,11 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
      * Uses adaptive RMSE thresholds based on dHash distance to distinguish between
      * negligible compression noise and actual image content differences.
      *
-     * @param SplFileInfo                 $fileA      First file to compare.
-     * @param SplFileInfo                 $fileB      Second file to compare.
-     * @param SimilarityResult            $similarity The pre-calculated similarity.
-     * @param array<string, Imagick|null> $imageCache Shared image cache for efficiency.
+     * @param SplFileInfo                 $fileA                        First file to compare.
+     * @param SplFileInfo                 $fileB                        Second file to compare.
+     * @param SimilarityResult            $similarity                   The pre-calculated similarity.
+     * @param array<string, Imagick|null> $imageCache                   Shared image cache for efficiency.
+     * @param bool                        $allowExactFormatBackupWindow Whether simple format-backup tolerance is allowed.
      *
      * @return bool True if the files should be merged.
      */
@@ -775,6 +795,7 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
         SplFileInfo $fileB,
         SimilarityResult $similarity,
         array &$imageCache,
+        bool $allowExactFormatBackupWindow,
     ): bool {
         if (!$similarity->isDuplicateLikely()) {
             return false;
@@ -809,9 +830,10 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
 
         // dHash-adaptive RMSE threshold: fewer gradient flips → more likely codec noise → more permissive.
         $safeRmse = match (true) {
-            $similarity->dhashDistance === 0 => self::SAFE_MERGE_RMSE_EXACT,
-            $similarity->dhashDistance <= 2  => self::SAFE_MERGE_RMSE_NEAR,
-            default                          => self::SAFE_MERGE_RMSE_CHANGED,
+            $similarity->dhashDistance === 0 && $allowExactFormatBackupWindow => self::SAFE_MERGE_RMSE_EXACT_FORMAT_BACKUP,
+            $similarity->dhashDistance === 0                                  => self::SAFE_MERGE_RMSE_EXACT,
+            $similarity->dhashDistance <= 2                                   => self::SAFE_MERGE_RMSE_NEAR,
+            default                                                           => self::SAFE_MERGE_RMSE_CHANGED,
         };
 
         // When the user sets --merge-threshold below the safe threshold, respect their stricter setting.

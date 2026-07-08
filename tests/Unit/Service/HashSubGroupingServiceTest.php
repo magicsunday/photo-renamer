@@ -597,6 +597,99 @@ final class HashSubGroupingServiceTest extends TestCase
     }
 
     /**
+     * Verifies that dHash-identical format backups stay merged when decoder noise
+     * produces RMSE slightly above the old internal exact-match safe zone.
+     */
+    #[Test]
+    public function applyMergesDhashExactFormatNoiseWithinDefaultThreshold(): void
+    {
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $fileA = $sourceDirectory . DIRECTORY_SEPARATOR . 'a.jpg';
+        $fileB = $sourceDirectory . DIRECTORY_SEPARATOR . 'b.jpg';
+
+        $this->createSyntheticJpeg($fileA, color: '#808080');
+        $this->createSyntheticJpeg($fileB, color: '#8c8c8c');
+
+        $target = $targetDirectory . DIRECTORY_SEPARATOR . 'target.jpg';
+
+        $stub = new StubPerceptualHashCalculator()
+            ->withHash($fileA, 'abcdef0123456789')
+            ->withHash($fileB, 'abcdef0123456789');
+
+        $service = $this->createHashSubGroupingServiceWithStub($stub);
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate
+            ->addFile(new SplFileInfo($fileA))
+            ->addFile(new SplFileInfo($fileB))
+            ->setTarget(new SplFileInfo($target));
+
+        $renameA = new Rename(new SplFileInfo($fileA), new SplFileInfo($target));
+        $renameB = new Rename(new SplFileInfo($fileB), new SplFileInfo($target));
+        $fileDuplicate->addRename($renameA);
+        $fileDuplicate->addRename($renameB);
+
+        $result = $service->apply(
+            $fileDuplicate,
+            $renameA,
+            null,
+            [],
+            $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
+        );
+
+        self::assertNull($result, 'dHash-identical format noise should merge under the default threshold.');
+    }
+
+    /**
+     * Verifies that an explicit stricter merge threshold still overrides the
+     * dHash-exact safe zone.
+     */
+    #[Test]
+    public function applyKeepsDhashExactFormatNoiseSeparateWhenUserThresholdIsStricter(): void
+    {
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $fileA = $sourceDirectory . DIRECTORY_SEPARATOR . 'a.jpg';
+        $fileB = $sourceDirectory . DIRECTORY_SEPARATOR . 'b.jpg';
+
+        $this->createSyntheticJpeg($fileA, color: '#808080');
+        $this->createSyntheticJpeg($fileB, color: '#8c8c8c');
+
+        $target = $targetDirectory . DIRECTORY_SEPARATOR . 'target.jpg';
+
+        $stub = new StubPerceptualHashCalculator()
+            ->withHash($fileA, 'abcdef0123456789')
+            ->withHash($fileB, 'abcdef0123456789');
+
+        $service = $this->createHashSubGroupingServiceWithStub($stub);
+        $service->setMaxMergeRmse(0.04);
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate
+            ->addFile(new SplFileInfo($fileA))
+            ->addFile(new SplFileInfo($fileB))
+            ->setTarget(new SplFileInfo($target));
+
+        $renameA = new Rename(new SplFileInfo($fileA), new SplFileInfo($target));
+        $renameB = new Rename(new SplFileInfo($fileB), new SplFileInfo($target));
+        $fileDuplicate->addRename($renameA);
+        $fileDuplicate->addRename($renameB);
+
+        $result = $service->apply(
+            $fileDuplicate,
+            $renameA,
+            null,
+            [],
+            $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
+        );
+
+        self::assertIsArray($result, 'A stricter user threshold must keep the files in separate sub-groups.');
+    }
+
+    /**
      * Verifies that perceptual merges remain safe when the lexicographically
      * smallest content hash is not the initial union-find root.
      *
