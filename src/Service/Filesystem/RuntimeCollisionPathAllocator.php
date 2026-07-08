@@ -18,12 +18,10 @@ use RuntimeException;
 use function dirname;
 use function pathinfo;
 use function sprintf;
-use function strlen;
-use function substr;
 
 use const DIRECTORY_SEPARATOR;
-use const PATHINFO_BASENAME;
 use const PATHINFO_EXTENSION;
+use const PATHINFO_FILENAME;
 
 /**
  * Allocates safe fallback paths when a runtime rename target is already occupied.
@@ -56,11 +54,7 @@ final readonly class RuntimeCollisionPathAllocator
     {
         $ext      = pathinfo($targetPath, PATHINFO_EXTENSION);
         $dir      = dirname($targetPath);
-        $basename = pathinfo($targetPath, PATHINFO_BASENAME);
-
-        if ($ext !== '') {
-            $basename = substr($basename, 0, -(strlen($ext) + 1));
-        }
+        $basename = pathinfo($targetPath, PATHINFO_FILENAME);
 
         $basename = FileHelper::stripDuplicateSuffix($basename);
 
