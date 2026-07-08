@@ -12,11 +12,9 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
 use Closure;
-use DateTimeImmutable;
 use Imagick;
 use ImagickPixel;
 use MagicSunday\Renamer\Helper\FileHelper;
-use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\Collection\FileList;
 use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
@@ -649,7 +647,7 @@ final class HashSubGroupingServiceTest extends TestCase
      * perceptual pre-classifier downgrades them to edited variants.
      */
     #[Test]
-    public function applyMergesSimpleFormatBackupEditedVariantWhenMetadataMatches(): void
+    public function applyMergesSimpleFormatBackupEditedVariantWithoutMetadata(): void
     {
         $sourceDirectory = $this->createTempDirectory();
         $targetDirectory = $this->createTempDirectory();
@@ -679,22 +677,15 @@ final class HashSubGroupingServiceTest extends TestCase
         $fileDuplicate->addRename($renameA);
         $fileDuplicate->addRename($renameB);
 
-        $captureDateTime = new DateTimeImmutable('2025-11-15 20:26:50.647000');
-        $metadataMap     = [
-            $fileA => new TemporalMetadata($captureDateTime, null),
-            $fileB => new TemporalMetadata($captureDateTime, null),
-        ];
-
         $result = $service->apply(
             $fileDuplicate,
             $renameA,
             null,
             [],
             $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
-            $metadataMap,
         );
 
-        self::assertNull($result, 'Metadata-matched HEIC/JPG backup pairs should stay in one sub-group.');
+        self::assertNull($result, 'HEIC/JPG backup pairs with the same target basename should stay in one sub-group.');
     }
 
     /**

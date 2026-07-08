@@ -12,7 +12,6 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service;
 
 use Closure;
-use DateTimeInterface;
 use Imagick;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\HashComputationException;
@@ -682,16 +681,13 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
                 if (
                     !$shouldMerge
                     && $allowExactFormatBackupWindow
-                    && $result->isEditedVariant()
                 ) {
-                    $fileA = $representativeByHash[$hashes[$indexA]];
-                    $fileB = $representativeByHash[$hashes[$indexB]];
+                    $renameA = $hashGroups[$hashes[$indexA]][0];
+                    $renameB = $hashGroups[$hashes[$indexB]][0];
 
                     $shouldMerge = $this->shouldMergeSimpleFormatBackup(
-                        $fileA,
-                        $fileB,
-                        $temporalMetadataMap[$fileA->getPathname()] ?? null,
-                        $temporalMetadataMap[$fileB->getPathname()] ?? null,
+                        $renameA,
+                        $renameB,
                         $result,
                         $stageBImageCache,
                     );
@@ -869,31 +865,26 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
     }
 
     /**
-     * Merges simple HEIC/JPG backup pairs that CI image libraries may classify
-     * as edited variants although their local pixel difference is still codec noise.
+     * Merges simple HEIC/JPG backup pairs when CI image libraries classify the
+     * cheap perceptual pre-score more conservatively than the local pixel check.
      *
-     * @param SplFileInfo                 $fileA      First file to compare.
-     * @param SplFileInfo                 $fileB      Second file to compare.
-     * @param TemporalMetadata|null       $metadataA  Metadata for the first file.
-     * @param TemporalMetadata|null       $metadataB  Metadata for the second file.
+     * @param Rename                      $renameA    First rename to compare.
+     * @param Rename                      $renameB    Second rename to compare.
      * @param SimilarityResult            $similarity The pre-calculated similarity.
      * @param array<string, Imagick|null> $imageCache Shared image cache for efficiency.
      */
     private function shouldMergeSimpleFormatBackup(
-        SplFileInfo $fileA,
-        SplFileInfo $fileB,
-        ?TemporalMetadata $metadataA,
-        ?TemporalMetadata $metadataB,
+        Rename $renameA,
+        Rename $renameB,
         SimilarityResult $similarity,
         array &$imageCache,
     ): bool {
-        if (!$this->isStillFormatBackupPair($fileA, $fileB)) {
+        if (!$this->isStillFormatBackupPair($renameA, $renameB)) {
             return false;
         }
 
-        if (!$this->hasMatchingCaptureTimestamp($metadataA, $metadataB)) {
-            return false;
-        }
+        $fileA = $renameA->getSource();
+        $fileB = $renameB->getSource();
 
         $start   = microtime(true);
         $diff    = $this->analyzeLocalDifferenceCached($fileA, $fileB, $imageCache);
@@ -924,25 +915,21 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
         return $merge;
     }
 
-    private function isStillFormatBackupPair(SplFileInfo $fileA, SplFileInfo $fileB): bool
+    private function isStillFormatBackupPair(Rename $renameA, Rename $renameB): bool
     {
+        $fileA = $renameA->getSource();
+        $fileB = $renameB->getSource();
+
         if (!$this->mediaTypeClassifier->isLivePhotoStill($fileA) || !$this->mediaTypeClassifier->isLivePhotoStill($fileB)) {
             return false;
         }
 
-        return strtolower($fileA->getExtension()) !== strtolower($fileB->getExtension());
-    }
-
-    private function hasMatchingCaptureTimestamp(?TemporalMetadata $metadataA, ?TemporalMetadata $metadataB): bool
-    {
-        $dateA = $metadataA?->getCaptureDateTime();
-        $dateB = $metadataB?->getCaptureDateTime();
-
-        if ((!$dateA instanceof DateTimeInterface) || (!$dateB instanceof DateTimeInterface)) {
+        if (strtolower($fileA->getExtension()) === strtolower($fileB->getExtension())) {
             return false;
         }
 
-        return $dateA->format('Y-m-d H:i:s.u') === $dateB->format('Y-m-d H:i:s.u');
+        return FileHelper::basenameWithoutExtension($renameA->getTarget())
+            === FileHelper::basenameWithoutExtension($renameB->getTarget());
     }
 
     /**
