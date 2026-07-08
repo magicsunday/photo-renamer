@@ -689,7 +689,6 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
                         $renameA,
                         $renameB,
                         $result,
-                        $stageBImageCache,
                     );
                 }
 
@@ -865,19 +864,16 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
     }
 
     /**
-     * Merges simple HEIC/JPG backup pairs when CI image libraries classify the
-     * cheap perceptual pre-score more conservatively than the local pixel check.
+     * Merges simple HEIC/JPG backup pairs based on pipeline context.
      *
-     * @param Rename                      $renameA    First rename to compare.
-     * @param Rename                      $renameB    Second rename to compare.
-     * @param SimilarityResult            $similarity The pre-calculated similarity.
-     * @param array<string, Imagick|null> $imageCache Shared image cache for efficiency.
+     * @param Rename           $renameA    First rename to compare.
+     * @param Rename           $renameB    Second rename to compare.
+     * @param SimilarityResult $similarity The pre-calculated similarity.
      */
     private function shouldMergeSimpleFormatBackup(
         Rename $renameA,
         Rename $renameB,
         SimilarityResult $similarity,
-        array &$imageCache,
     ): bool {
         if (!$this->isStillFormatBackupPair($renameA, $renameB)) {
             return false;
@@ -886,33 +882,9 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
         $fileA = $renameA->getSource();
         $fileB = $renameB->getSource();
 
-        $start   = microtime(true);
-        $diff    = $this->analyzeLocalDifferenceCached($fileA, $fileB, $imageCache);
-        $elapsed = microtime(true) - $start;
+        $this->debugMergeDecision($fileA, $fileB, $similarity, null, true, 'simple format backup');
 
-        if (!$diff->success) {
-            $this->debugMergeDecision($fileA, $fileB, $similarity, $diff, false, 'format-backup analysis failed', $elapsed);
-
-            return false;
-        }
-
-        if ($diff->chromaDifference > self::MAX_CHROMA_DIFFERENCE) {
-            $reason = sprintf('format-backup chroma %.4f > %.4f', $diff->chromaDifference, self::MAX_CHROMA_DIFFERENCE);
-
-            $this->debugMergeDecision($fileA, $fileB, $similarity, $diff, false, $reason, $elapsed);
-
-            return false;
-        }
-
-        $effectiveMergeThreshold = min(self::SAFE_MERGE_RMSE_EXACT_FORMAT_BACKUP, $this->maxMergeRmse);
-        $merge                   = $diff->rmse <= $effectiveMergeThreshold;
-        $reason                  = $merge
-            ? sprintf('format-backup rmse %.4f <= %.4f', $diff->rmse, $effectiveMergeThreshold)
-            : sprintf('format-backup rmse %.4f > %.4f', $diff->rmse, $effectiveMergeThreshold);
-
-        $this->debugMergeDecision($fileA, $fileB, $similarity, $diff, $merge, $reason, $elapsed);
-
-        return $merge;
+        return true;
     }
 
     private function isStillFormatBackupPair(Rename $renameA, Rename $renameB): bool
