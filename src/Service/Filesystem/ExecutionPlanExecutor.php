@@ -81,10 +81,12 @@ final readonly class ExecutionPlanExecutor
                         $dryRun,
                     );
 
-                    ++$executedMoves;
+                    if (!$dryRun) {
+                        ++$executedMoves;
 
-                    if ($actualTarget !== $item->targetPath) {
-                        ++$runtimeFallbacks;
+                        if ($actualTarget !== $item->targetPath) {
+                            ++$runtimeFallbacks;
+                        }
                     }
                 } catch (RuntimeException $exception) {
                     $occupiedPaths[$item->sourcePath] = true;

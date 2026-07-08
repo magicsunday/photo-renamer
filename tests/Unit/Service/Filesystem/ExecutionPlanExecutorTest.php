@@ -204,7 +204,7 @@ final class ExecutionPlanExecutorTest extends TestCase
 
         self::assertFileExists($sourceFile);
         self::assertFileDoesNotExist($targetFile);
-        self::assertSame(1, $result->executedMoves);
+        self::assertSame(0, $result->executedMoves);
         self::assertSame(0, $result->runtimeErrors);
     }
 
