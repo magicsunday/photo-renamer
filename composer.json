@@ -54,7 +54,7 @@
     },
     "require-dev": {
         "friendsofphp/php-cs-fixer": "^3.85",
-        "infection/infection": "^0.32",
+        "infection/infection": "^0.33",
         "overtrue/phplint": "^9.0",
         "phpat/phpat": "^0.12.4",
         "phpdocumentor/reflection-docblock": "^6.0",
