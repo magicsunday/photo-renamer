@@ -163,21 +163,15 @@ final readonly class RenameOutputRenderer
                     warningReason: $tagResolution->warningReason,
                 );
 
-                // Append info line showing which file this is a duplicate of
                 if (($tagResolution->tag === OutputEntryTag::Duplicate) && !$isNoOp) {
-                    $outputEntries[] = OutputEntry::info(
-                        sortKey: $rename->getSource()->getPathname(),
-                        sourcePath: $sourcePath,
-                        reason: sprintf(
-                            'Duplicate of %s',
-                            $this->resolveDuplicateReferenceTargetPath(
-                                $targetPath,
-                                $canonicalTargetPath,
-                                $referenceTargetsByExt,
-                                $sourceBaseDirectory,
-                            ),
-                        ),
-                        tag: OutputEntryTag::Duplicate,
+                    $this->appendDuplicateReferenceEntry(
+                        $outputEntries,
+                        $rename->getSource()->getPathname(),
+                        $sourcePath,
+                        $targetPath,
+                        $canonicalTargetPath,
+                        $referenceTargetsByExt,
+                        $sourceBaseDirectory,
                     );
                 }
             }
@@ -185,11 +179,7 @@ final readonly class RenameOutputRenderer
 
         $skippedAppendResult = $this->appendSkippedFileEntries($outputEntries, $result, $sourceBaseDirectory);
 
-        usort($outputEntries, static function (OutputEntry $entryA, OutputEntry $entryB): int {
-            $cmp = $entryA->sortKey <=> $entryB->sortKey;
-
-            return $cmp !== 0 ? $cmp : ($entryA->type->sortOrder() <=> $entryB->type->sortOrder());
-        });
+        $this->sortOutputEntries($outputEntries);
 
         return new OutputEntryBuildResult(
             $outputEntries,
@@ -410,21 +400,15 @@ final readonly class RenameOutputRenderer
                     warningReason: $tagResolution->warningReason,
                 );
 
-                // Append info line showing which file this is a duplicate of
                 if (($tagResolution->tag === OutputEntryTag::Duplicate) && !$item->isNoOp && ($canonicalTargetPath !== null)) {
-                    $outputEntries[] = OutputEntry::info(
-                        sortKey: $item->sourcePath,
-                        sourcePath: $sourcePath,
-                        reason: sprintf(
-                            'Duplicate of %s',
-                            $this->resolveDuplicateReferenceTargetPath(
-                                $item->targetPath,
-                                $canonicalTargetPath,
-                                $referenceTargetsByExt,
-                                $sourceBaseDirectory,
-                            ),
-                        ),
-                        tag: OutputEntryTag::Duplicate,
+                    $this->appendDuplicateReferenceEntry(
+                        $outputEntries,
+                        $item->sourcePath,
+                        $sourcePath,
+                        $item->targetPath,
+                        $canonicalTargetPath,
+                        $referenceTargetsByExt,
+                        $sourceBaseDirectory,
                     );
                 }
             }
@@ -432,11 +416,7 @@ final readonly class RenameOutputRenderer
 
         $skippedAppendResult = $this->appendSkippedFileEntries($outputEntries, $result, $sourceBaseDirectory);
 
-        usort($outputEntries, static function (OutputEntry $entryA, OutputEntry $entryB): int {
-            $cmp = $entryA->sortKey <=> $entryB->sortKey;
-
-            return $cmp !== 0 ? $cmp : ($entryA->type->sortOrder() <=> $entryB->type->sortOrder());
-        });
+        $this->sortOutputEntries($outputEntries);
 
         return new OutputEntryBuildResult(
             $outputEntries,
@@ -664,6 +644,51 @@ final readonly class RenameOutputRenderer
         }
 
         return new SkippedFileAppendResult($skippedCount, $errorCount);
+    }
+
+    /**
+     * Appends an explanatory info row for a duplicate target.
+     *
+     * @param list<OutputEntry>     $outputEntries         Output entries array modified by reference
+     * @param array<string, string> $referenceTargetsByExt First non-duplicate target path per extension
+     */
+    private function appendDuplicateReferenceEntry(
+        array &$outputEntries,
+        string $sortKey,
+        string $sourcePath,
+        string $duplicateTargetPath,
+        string $canonicalTargetPath,
+        array $referenceTargetsByExt,
+        ?string $sourceBaseDirectory,
+    ): void {
+        $outputEntries[] = OutputEntry::info(
+            sortKey: $sortKey,
+            sourcePath: $sourcePath,
+            reason: sprintf(
+                'Duplicate of %s',
+                $this->resolveDuplicateReferenceTargetPath(
+                    $duplicateTargetPath,
+                    $canonicalTargetPath,
+                    $referenceTargetsByExt,
+                    $sourceBaseDirectory,
+                ),
+            ),
+            tag: OutputEntryTag::Duplicate,
+        );
+    }
+
+    /**
+     * Sorts output entries by source path and entry type.
+     *
+     * @param list<OutputEntry> $outputEntries Output entries array modified by reference
+     */
+    private function sortOutputEntries(array &$outputEntries): void
+    {
+        usort($outputEntries, static function (OutputEntry $entryA, OutputEntry $entryB): int {
+            $cmp = $entryA->sortKey <=> $entryB->sortKey;
+
+            return $cmp !== 0 ? $cmp : ($entryA->type->sortOrder() <=> $entryB->type->sortOrder());
+        });
     }
 
     /**

@@ -22,6 +22,7 @@ use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Model\SkippedFile;
 use MagicSunday\Renamer\Model\TargetFileResult;
+use MagicSunday\Renamer\Service\Filesystem\SortedFileIteratorCollector;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetectorInterface;
 use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
@@ -36,10 +37,6 @@ use SplFileInfo;
 use function assert;
 use function count;
 use function strtolower;
-use function substr_count;
-use function usort;
-
-use const DIRECTORY_SEPARATOR;
 
 /**
  * Central orchestrator of the rename pipeline's grouping and suffix-assignment phases.
@@ -286,12 +283,12 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
     ): FileDuplicateCollection {
         $this->sourceDirectory = $sourceDirectory;
 
-        $files                      = $this->collectAndSortFiles($iterator);
+        $files                      = SortedFileIteratorCollector::collectAndSortFiles($iterator);
         $this->lastScannedFileCount = count($files);
 
         $this->buildDiskIndex($files);
 
-        $this->startProgressBar(count($files));
+        $this->progressReporter->startProgress(count($files));
 
         $fileDuplicateCollection = new FileDuplicateCollection();
         /**
@@ -523,7 +520,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
         /** @var list<LegacyLivePhotoPair> $livePhotoPairs */
         $livePhotoPairs = [];
 
-        $this->startProgressBar($fileDuplicateCollection->count());
+        $this->progressReporter->startProgress($fileDuplicateCollection->count());
 
         /** @var FileDuplicate $fileDuplicate */
         foreach ($fileDuplicateCollection as $fileDuplicate) {
@@ -728,51 +725,6 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
             $this->ambiguousTimezoneFiles,
             $this->fallbackDateFiles,
         );
-    }
-
-    /**
-     * Starts a progress indicator tailored to the current workload.
-     *
-     * Domain services depend on the narrow reporting boundary rather than
-     * constructing console progress bars directly.
-     *
-     * @param int $max Maximum number of steps the progress indicator should represent
-     */
-    private function startProgressBar(int $max): void
-    {
-        $this->progressReporter->startProgress($max);
-    }
-
-    /**
-     * Collects all files from the iterator and sorts them so that parent directories
-     * appear before subdirectories, with ties broken by pathname.
-     *
-     * @template TInner of RecursiveIterator
-     *
-     * @param RecursiveIteratorIterator<TInner> $iterator iterator yielding candidate files
-     *
-     * @return list<SplFileInfo> sorted file list
-     */
-    private function collectAndSortFiles(RecursiveIteratorIterator $iterator): array
-    {
-        /** @var list<SplFileInfo> $files */
-        $files = [];
-
-        /** @var SplFileInfo $fileInfo */
-        foreach ($iterator as $fileInfo) {
-            $files[] = $fileInfo;
-        }
-
-        usort($files, static function (SplFileInfo $fileA, SplFileInfo $fileB): int {
-            $depthA = substr_count($fileA->getPath(), DIRECTORY_SEPARATOR);
-            $depthB = substr_count($fileB->getPath(), DIRECTORY_SEPARATOR);
-
-            return ($depthA !== $depthB)
-                ? $depthA <=> $depthB
-                : $fileA->getPathname() <=> $fileB->getPathname();
-        });
-
-        return $files;
     }
 
     /**

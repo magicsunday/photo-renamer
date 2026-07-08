@@ -34,6 +34,8 @@ use function is_string;
  */
 final readonly class MetadataCacheEntry
 {
+    use MetadataSignalAccessorsTrait;
+
     /**
      * @param int                    $mtime                       File modification timestamp used for staleness checks.
      * @param int                    $size                        File size in bytes used for staleness checks.
@@ -210,78 +212,6 @@ final readonly class MetadataCacheEntry
     public function isFallback(): bool
     {
         return $this->isFallback;
-    }
-
-    /**
-     * Returns whether the cached timestamp remains timezone-ambiguous.
-     */
-    public function isAmbiguousTimezone(): bool
-    {
-        return $this->isAmbiguousTimezone;
-    }
-
-    /**
-     * Returns the cached Live Photo video index when present.
-     */
-    public function getLivePhotoVideoIndex(): ?int
-    {
-        return $this->livePhotoVideoIndex;
-    }
-
-    /**
-     * Returns the cached camera manufacturer string.
-     */
-    public function getCameraMake(): ?string
-    {
-        return $this->cameraMake;
-    }
-
-    /**
-     * Returns the cached camera model string.
-     */
-    public function getCameraModel(): ?string
-    {
-        return $this->cameraModel;
-    }
-
-    /**
-     * Returns the cached software/provenance string.
-     */
-    public function getSoftware(): ?string
-    {
-        return $this->software;
-    }
-
-    /**
-     * Returns the cached latitude when present.
-     */
-    public function getLatitude(): ?float
-    {
-        return $this->latitude;
-    }
-
-    /**
-     * Returns the cached longitude when present.
-     */
-    public function getLongitude(): ?float
-    {
-        return $this->longitude;
-    }
-
-    /**
-     * Returns the cached video duration in seconds.
-     */
-    public function getVideoDurationSeconds(): ?float
-    {
-        return $this->videoDurationSeconds;
-    }
-
-    /**
-     * Returns whether the file carried the QuickTime Live Photo marker.
-     */
-    public function hasQuickTimeLivePhotoMarker(): bool
-    {
-        return $this->hasQuickTimeLivePhotoMarker;
     }
 
     /**

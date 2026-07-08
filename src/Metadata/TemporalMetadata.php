@@ -32,6 +32,8 @@ use function trim;
  */
 final readonly class TemporalMetadata
 {
+    use MetadataSignalAccessorsTrait;
+
     /**
      * @param DateTimeInterface|null $captureDateTime             Date and time the photo/video was captured, with
      *                                                            potential microsecond precision from EXIF SubSecTime
@@ -118,107 +120,6 @@ final readonly class TemporalMetadata
     public function isFallbackDateTime(): bool
     {
         return $this->isFallbackDateTime;
-    }
-
-    /**
-     * Returns whether the timezone is ambiguous.
-     *
-     * A timezone is ambiguous when the file modification time was altered
-     * so we cannot determine if the QuickTime timestamp is UTC or local time.
-     * These files should be flagged as warnings.
-     *
-     * @return bool True if the timezone is ambiguous.
-     */
-    public function isAmbiguousTimezone(): bool
-    {
-        return $this->isAmbiguousTimezone;
-    }
-
-    /**
-     * Returns the Apple still-side Live Photo index from maker notes.
-     * This index is typically used to identify the representative frame
-     * within the video stream.
-     *
-     * @return int|null Still-side index, or null when not present
-     */
-    public function getLivePhotoVideoIndex(): ?int
-    {
-        return $this->livePhotoVideoIndex;
-    }
-
-    /**
-     * Returns the camera manufacturer (e.g. "Apple", "Canon").
-     * Values are normalized to lowercase and trimmed.
-     *
-     * @return string|null Normalized camera make, or null when absent
-     */
-    public function getCameraMake(): ?string
-    {
-        return $this->cameraMake;
-    }
-
-    /**
-     * Returns the camera model (e.g. "iPhone 15 Pro", "EOS R6").
-     * Values are normalized to lowercase and trimmed.
-     *
-     * @return string|null Normalized camera model, or null when absent
-     */
-    public function getCameraModel(): ?string
-    {
-        return $this->cameraModel;
-    }
-
-    /**
-     * Returns the device software or firmware version string.
-     * Values are normalized to lowercase and trimmed.
-     *
-     * @return string|null Normalized software string, or null when absent
-     */
-    public function getSoftware(): ?string
-    {
-        return $this->software;
-    }
-
-    /**
-     * Returns the signed GPS latitude in decimal degrees.
-     * Positive values are North, negative values are South.
-     *
-     * @return float|null GPS latitude, or null when absent
-     */
-    public function getLatitude(): ?float
-    {
-        return $this->latitude;
-    }
-
-    /**
-     * Returns the signed GPS longitude in decimal degrees.
-     * Positive values are East, negative values are West.
-     *
-     * @return float|null GPS longitude, or null when absent
-     */
-    public function getLongitude(): ?float
-    {
-        return $this->longitude;
-    }
-
-    /**
-     * Returns the video duration in seconds.
-     * Only available for MOV/MP4 assets.
-     *
-     * @return float|null Duration in seconds, or null when absent
-     */
-    public function getVideoDurationSeconds(): ?float
-    {
-        return $this->videoDurationSeconds;
-    }
-
-    /**
-     * Returns true when the QuickTime container exposes Live Photo marker
-     * keys such as "still-image-time" or "live-photo-info".
-     */
-    public function hasQuickTimeLivePhotoMarker(): bool
-    {
-        return $this->hasQuickTimeLivePhotoMarker;
     }
 
     /**

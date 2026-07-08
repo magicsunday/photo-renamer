@@ -21,6 +21,7 @@ use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Model\TargetFileResult;
+use MagicSunday\Renamer\Service\Filesystem\SortedFileIteratorCollector;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetectorInterface;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingServiceInterface;
 use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
@@ -37,10 +38,6 @@ use SplFileInfo;
 use function array_keys;
 use function assert;
 use function count;
-use function substr_count;
-use function usort;
-
-use const DIRECTORY_SEPARATOR;
 
 /**
  * Collects files from a directory iterator, extracts metadata using the rename
@@ -101,7 +98,7 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
         $state = new CaptureGroupBuildState();
 
         // Step 1: Collect and sort files by directory depth then pathname
-        $files = $this->collectAndSortFiles($iterator);
+        $files = SortedFileIteratorCollector::collectAndSortFiles($iterator);
 
         // Step 2: Build disk index in PipelineContext
         foreach ($files as $file) {
@@ -114,7 +111,7 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
 
         // Step 4: Show progress bar
         $this->progressReporter->text('<fg=cyan>Scanning files</>');
-        $this->startProgressBar(count($files));
+        $this->progressReporter->startProgress(count($files));
 
         $collection = new AssetGroupCollection();
 
@@ -215,48 +212,6 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
         }
 
         return $collection;
-    }
-
-    /**
-     * Collects all files from the iterator and sorts them so that parent directories
-     * appear before subdirectories, with ties broken by pathname.
-     *
-     * @template TInner of RecursiveIterator
-     *
-     * @param RecursiveIteratorIterator<TInner> $iterator Iterator yielding candidate files
-     *
-     * @return list<SplFileInfo> Sorted file list
-     */
-    private function collectAndSortFiles(RecursiveIteratorIterator $iterator): array
-    {
-        /** @var list<SplFileInfo> $files */
-        $files = [];
-
-        /** @var SplFileInfo $fileInfo */
-        foreach ($iterator as $fileInfo) {
-            $files[] = $fileInfo;
-        }
-
-        usort($files, static function (SplFileInfo $fileA, SplFileInfo $fileB): int {
-            $depthA = substr_count($fileA->getPath(), DIRECTORY_SEPARATOR);
-            $depthB = substr_count($fileB->getPath(), DIRECTORY_SEPARATOR);
-
-            return ($depthA !== $depthB)
-                ? $depthA <=> $depthB
-                : $fileA->getPathname() <=> $fileB->getPathname();
-        });
-
-        return $files;
-    }
-
-    /**
-     * Starts a progress indicator for file processing.
-     *
-     * @param int $max Total number of files to process
-     */
-    private function startProgressBar(int $max): void
-    {
-        $this->progressReporter->startProgress($max);
     }
 
     /**
@@ -390,7 +345,7 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
         $this->progressReporter->section('<fg=cyan>Pairing Live Photos</>');
 
         $fileCount = $context->getScannedFileCount();
-        $this->startProgressBar($fileCount);
+        $this->progressReporter->startProgress($fileCount);
 
         // Build the content identifier resolver callback
         $contentIdentifierResolver = null;

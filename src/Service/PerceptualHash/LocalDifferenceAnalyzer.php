@@ -385,13 +385,14 @@ final class LocalDifferenceAnalyzer
                     continue;
                 }
 
-                // Keep pixel only if it has at least one 4-connected neighbor
-                $hasNeighbor = (($x > 0) && ($mask[$pixelIndex - 1] === 1))
-                    || (($x < $width - 1) && ($mask[$pixelIndex + 1] === 1))
-                    || (($y > 0) && ($mask[$pixelIndex - $width] === 1))
-                    || (($y < $height - 1) && ($mask[$pixelIndex + $width] === 1));
-
-                $result[$pixelIndex] = $hasNeighbor ? 1 : 0;
+                $result[$pixelIndex] = $this->hasFourConnectedNeighbor(
+                    $mask,
+                    $width,
+                    $height,
+                    $x,
+                    $y,
+                    $pixelIndex,
+                ) ? 1 : 0;
             }
         }
 
@@ -425,17 +426,37 @@ final class LocalDifferenceAnalyzer
                     continue;
                 }
 
-                // Set pixel if any 4-connected neighbor is set
-                $hasNeighbor = (($x > 0) && ($mask[$pixelIndex - 1] === 1))
-                    || (($x < $width - 1) && ($mask[$pixelIndex + 1] === 1))
-                    || (($y > 0) && ($mask[$pixelIndex - $width] === 1))
-                    || (($y < $height - 1) && ($mask[$pixelIndex + $width] === 1));
-
-                $result[$pixelIndex] = $hasNeighbor ? 1 : 0;
+                $result[$pixelIndex] = $this->hasFourConnectedNeighbor(
+                    $mask,
+                    $width,
+                    $height,
+                    $x,
+                    $y,
+                    $pixelIndex,
+                ) ? 1 : 0;
             }
         }
 
         return $result;
+    }
+
+    /**
+     * Checks whether a pixel has a set four-connected neighbor.
+     *
+     * @param array<int, int> $mask Binary mask where 1 marks a set pixel.
+     */
+    private function hasFourConnectedNeighbor(
+        array $mask,
+        int $width,
+        int $height,
+        int $x,
+        int $y,
+        int $pixelIndex,
+    ): bool {
+        return (($x > 0) && ($mask[$pixelIndex - 1] === 1))
+            || (($x < $width - 1) && ($mask[$pixelIndex + 1] === 1))
+            || (($y > 0) && ($mask[$pixelIndex - $width] === 1))
+            || (($y < $height - 1) && ($mask[$pixelIndex + $width] === 1));
     }
 
     /**
