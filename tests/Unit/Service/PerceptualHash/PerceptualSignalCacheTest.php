@@ -276,6 +276,18 @@ final class PerceptualSignalCacheTest extends TestCase
     }
 
     /**
+     * Verifies that non-container callers can still construct the cache without
+     * passing a filesystem collaborator explicitly.
+     */
+    #[Test]
+    public function constructionWithoutFilesystemUsesDefaultFilesystem(): void
+    {
+        $cache = new PerceptualSignalCache($this->cacheFile);
+
+        self::assertNull($cache->get(new SplFileInfo('/any/file.jpg')));
+    }
+
+    /**
      * Creates the cache under test with an explicit Symfony Filesystem dependency.
      *
      * The production cache no longer instantiates its own filesystem collaborator.

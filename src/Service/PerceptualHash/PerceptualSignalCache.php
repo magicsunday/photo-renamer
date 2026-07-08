@@ -60,14 +60,20 @@ final class PerceptualSignalCache
     private bool $dirty = false;
 
     /**
+     * Symfony Filesystem component for disk operations.
+     */
+    private readonly Filesystem $filesystem;
+
+    /**
      * @param string     $cacheFile  The full path to the JSON cache file. The file
      *                               does not need to exist yet; it will be created on flush().
      * @param Filesystem $filesystem Symfony Filesystem component for disk operations.
      */
     public function __construct(
         private readonly string $cacheFile,
-        private readonly Filesystem $filesystem,
+        ?Filesystem $filesystem = null,
     ) {
+        $this->filesystem = $filesystem ?? new Filesystem();
         $this->load();
     }
 

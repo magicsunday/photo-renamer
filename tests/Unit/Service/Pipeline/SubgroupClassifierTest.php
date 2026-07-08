@@ -255,7 +255,6 @@ final class SubgroupClassifierTest extends TestCase
 
         $item2 = new AssetItem(
             new SplFileInfo('/photos/IMG_0001.mov'),
-            metadata: null,
             contentIdentifier: 'abc-123',
         );
 

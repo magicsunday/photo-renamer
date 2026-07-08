@@ -75,14 +75,12 @@ final class DateDriftCalculator
      * @param DateTimeInterface $expectedDateTime Reference date.
      * @param DateTimeInterface $actualDateTime   Compared date.
      *
-     * @return int|null Absolute drift in days, or null if PHP cannot provide a day count.
+     * @return int Absolute drift in days.
      */
     public static function calculateDateDriftInDays(
         DateTimeInterface $expectedDateTime,
         DateTimeInterface $actualDateTime,
-    ): ?int {
-        $days = $expectedDateTime->diff($actualDateTime)->days;
-
-        return $days !== false ? $days : null;
+    ): int {
+        return $expectedDateTime->diff($actualDateTime)->days;
     }
 }

@@ -124,7 +124,7 @@ final class OutputSkipReasonDeciderTest extends TestCase
             ),
         );
 
-        self::assertSame(OutputSkipReason::AmbiguousTimezone, $decision->reason);
+        self::assertSame(OutputSkipReason::Warning, $decision->reason);
         self::assertSame('Ambiguous timezone: custom warning', $formatter->format($decision));
     }
 

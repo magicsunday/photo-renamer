@@ -44,7 +44,16 @@ final readonly class OutputSkipReasonDecider
             ? $rules
             : iterator_to_array($rules, false);
 
-        usort($rules, static fn (OutputSkipReasonRuleInterface $left, OutputSkipReasonRuleInterface $right): int => $right->priority() <=> $left->priority());
+        usort(
+            $rules,
+            static function (OutputSkipReasonRuleInterface $left, OutputSkipReasonRuleInterface $right): int {
+                $priorityComparison = $right->priority() <=> $left->priority();
+
+                return $priorityComparison !== 0
+                    ? $priorityComparison
+                    : $left::class <=> $right::class;
+            }
+        );
 
         $this->rules = $rules;
     }

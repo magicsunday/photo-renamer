@@ -101,7 +101,7 @@ final class LivePhotoPairingServiceTest extends TestCase
             fileDuplicateCollection: $duplicateCollection,
             contentIdentifierResolver: static fn (SplFileInfo $file): ?string => match ($file->getPathname()) {
                 $photo->getPathname(), $video->getPathname() => 'content-id',
-                default => null,
+                default                                      => null,
             },
         );
 
@@ -147,7 +147,7 @@ final class LivePhotoPairingServiceTest extends TestCase
             fileDuplicateCollection: $duplicateCollection,
             contentIdentifierResolver: static fn (SplFileInfo $file): ?string => match ($file->getPathname()) {
                 $photo->getPathname(), $video->getPathname() => 'content-id',
-                default => null,
+                default                                      => null,
             },
         );
 

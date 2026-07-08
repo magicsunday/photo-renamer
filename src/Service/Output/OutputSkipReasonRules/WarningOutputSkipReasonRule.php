@@ -50,10 +50,10 @@ final readonly class WarningOutputSkipReasonRule implements OutputSkipReasonRule
     /**
      * @param OutputEntry $entry Warning entry carrying optional warning text
      *
-     * @return OutputSkipReasonDecision Semantic ambiguous-timezone decision
+     * @return OutputSkipReasonDecision Semantic warning decision
      */
     public function decide(OutputEntry $entry): OutputSkipReasonDecision
     {
-        return OutputSkipReasonDecision::ambiguousTimezone($entry->warningReason);
+        return OutputSkipReasonDecision::warning($entry->warningReason);
     }
 }

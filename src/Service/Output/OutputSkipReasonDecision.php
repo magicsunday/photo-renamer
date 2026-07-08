@@ -69,6 +69,18 @@ final readonly class OutputSkipReasonDecision
     }
 
     /**
+     * Creates a decision for generic warning output.
+     *
+     * @param string|null $message Optional warning text already present on the entry
+     *
+     * @return self Decision describing a warning skip
+     */
+    public static function warning(?string $message): self
+    {
+        return new self(OutputSkipReason::Warning, $message);
+    }
+
+    /**
      * Creates a decision for fallback-date output.
      *
      * @return self Decision describing a fallback date skip

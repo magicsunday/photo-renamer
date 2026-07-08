@@ -36,6 +36,7 @@ final readonly class SkipReasonFormatter
             OutputSkipReason::CandidateConflict     => 'Conflicting Live Photo content ID across groups',
             OutputSkipReason::CrossGroupVideoReview => $decision->message ?? 'Cross-group video review required',
             OutputSkipReason::AmbiguousTimezone     => $decision->message ?? 'Ambiguous timezone: QuickTime UTC without offset — use --timezone or rename:write-date --reason=timezone',
+            OutputSkipReason::Warning               => $decision->message ?? 'Warning',
             OutputSkipReason::FallbackDate          => 'Fallback date: DateTime (0x0132) used instead of DateTimeOriginal',
             OutputSkipReason::GenericSkipped        => $decision->message ?? 'Skipped',
         };

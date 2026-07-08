@@ -43,12 +43,12 @@ final readonly class DateDriftAnalyzer
      * @param DateTimeInterface $expectedDateTime The reference date, usually derived from the filename
      * @param DateTimeInterface $actualDateTime   The metadata-derived date to compare against
      *
-     * @return int|null Absolute drift in days, or null if PHP cannot provide a day count
+     * @return int Absolute drift in days
      */
     public function calculateDateDriftInDays(
         DateTimeInterface $expectedDateTime,
         DateTimeInterface $actualDateTime,
-    ): ?int {
+    ): int {
         return DateDriftCalculator::calculateDateDriftInDays($expectedDateTime, $actualDateTime);
     }
 

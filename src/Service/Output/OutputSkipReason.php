@@ -40,6 +40,11 @@ enum OutputSkipReason
     case AmbiguousTimezone;
 
     /**
+     * Generic warning that already carries an operator-facing message.
+     */
+    case Warning;
+
+    /**
      * A fallback metadata field supplied the date instead of the primary field.
      */
     case FallbackDate;

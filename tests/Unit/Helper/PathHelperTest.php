@@ -184,6 +184,10 @@ final class PathHelperTest extends TestCase
                 'path'     => 'F:/Photos/test.jpg',
                 'expected' => 'file:///F:/Photos/test.jpg',
             ],
+            'windows unc path' => [
+                'path'     => '\\\\server\\share\\test file.jpg',
+                'expected' => 'file://server/share/test%20file.jpg',
+            ],
         ];
     }
 

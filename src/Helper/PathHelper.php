@@ -117,6 +117,10 @@ final class PathHelper
             return 'file:///' . $encoded;
         }
 
+        if (str_starts_with($encoded, '//')) {
+            return 'file:' . $encoded;
+        }
+
         return 'file://' . $encoded;
     }
 

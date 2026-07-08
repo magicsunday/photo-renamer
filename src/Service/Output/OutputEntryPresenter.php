@@ -76,8 +76,9 @@ final readonly class OutputEntryPresenter
         $lastRenderedSortKey = null;
 
         foreach ($outputEntries as $entry) {
-            $padding    = str_repeat(' ', max(0, $maxFilenameLength - mb_strlen($entry->sourcePath)));
-            $linkedPath = PathHelper::linkifyPath($entry->sourcePath, $entry->sourcePath, $sourceBaseDirectory, $linkConfig, 'yellow');
+            $relativePath = PathHelper::relativizePath($entry->sourcePath, $sourceBaseDirectory);
+            $padding      = str_repeat(' ', max(0, $maxFilenameLength - mb_strlen($entry->sourcePath)));
+            $linkedPath   = PathHelper::linkifyPath($entry->sourcePath, $relativePath, $sourceBaseDirectory, $linkConfig, 'yellow');
 
             if ($entry->isInfo()) {
                 if (!$this->isTagVisible($entry->tag, $showFilter)) {

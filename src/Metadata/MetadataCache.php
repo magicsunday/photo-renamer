@@ -47,14 +47,20 @@ final class MetadataCache
     private bool $dirty = false;
 
     /**
+     * Symfony Filesystem component for disk operations.
+     */
+    private readonly Filesystem $filesystem;
+
+    /**
      * @param string     $cacheFile  Absolute path to the JSON cache file on disk. The file
      *                               does not need to exist yet; it will be created on flush().
      * @param Filesystem $filesystem Symfony Filesystem component for disk operations.
      */
     public function __construct(
         private readonly string $cacheFile,
-        private readonly Filesystem $filesystem,
+        ?Filesystem $filesystem = null,
     ) {
+        $this->filesystem = $filesystem ?? new Filesystem();
         $this->load();
     }
 

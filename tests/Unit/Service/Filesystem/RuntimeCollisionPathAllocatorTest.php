@@ -111,4 +111,25 @@ final class RuntimeCollisionPathAllocatorTest extends TestCase
             $result,
         );
     }
+
+    /**
+     * Verifies that extensionless targets do not receive a trailing dot when a
+     * runtime duplicate fallback is allocated.
+     */
+    #[Test]
+    public function findAvailableDuplicatePathOmitsTrailingDotForExtensionlessTargets(): void
+    {
+        $allocator  = new RuntimeCollisionPathAllocator();
+        $targetPath = '/tmp/dir/photo';
+
+        /** @var array<string, true> $occupiedPaths */
+        $occupiedPaths = [
+            $targetPath => true,
+        ];
+
+        self::assertSame(
+            '/tmp/dir/photo' . Constants::DUPLICATE_IDENTIFIER . '001',
+            $allocator->findAvailableDuplicatePath($targetPath, $occupiedPaths),
+        );
+    }
 }

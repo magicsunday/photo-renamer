@@ -81,20 +81,16 @@ final readonly class ExecutionPlanExecutor
                         $dryRun,
                     );
 
-                    if (!$dryRun) {
-                        ++$executedMoves;
+                    ++$executedMoves;
 
-                        if ($actualTarget !== $item->targetPath) {
-                            ++$runtimeFallbacks;
-                        }
+                    if ($actualTarget !== $item->targetPath) {
+                        ++$runtimeFallbacks;
                     }
                 } catch (RuntimeException $exception) {
                     $occupiedPaths[$item->sourcePath] = true;
                     $this->progressReporter->error(sprintf('Failed to rename %s: %s', $item->sourcePath, $exception->getMessage()));
 
-                    if (!$dryRun) {
-                        ++$runtimeErrors;
-                    }
+                    ++$runtimeErrors;
                 }
             }
         }

@@ -246,6 +246,18 @@ final class MetadataCacheTest extends TestCase
     }
 
     /**
+     * Verifies that non-container callers can still construct the cache without
+     * passing a filesystem collaborator explicitly.
+     */
+    #[Test]
+    public function constructionWithoutFilesystemUsesDefaultFilesystem(): void
+    {
+        $cache = new MetadataCache($this->cacheFile);
+
+        self::assertNull($cache->get(new SplFileInfo('/any/file.jpg')));
+    }
+
+    /**
      * Verifies that null captureDateTime and null contentId are stored and
      * retrieved correctly.
      */

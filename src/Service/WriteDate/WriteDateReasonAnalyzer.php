@@ -79,7 +79,7 @@ final readonly class WriteDateReasonAnalyzer
         if ($maxDateDrift > 0) {
             $drift = $this->dateDriftAnalyzer->calculateDateDriftInDays($filenameDateTime, $captureDateTime);
 
-            if (($drift !== null) && ($drift > $maxDateDrift)) {
+            if ($drift > $maxDateDrift) {
                 return new WriteDateReasonDecision(
                     WriteDateReasonCatalog::DRIFT,
                     sprintf(WriteDateReasonCatalog::LABELS[WriteDateReasonCatalog::DRIFT], $drift),

@@ -119,7 +119,6 @@ final class CompanionDetectorTest extends TestCase
 
         $mov = new AssetItem(
             new SplFileInfo('/photos/IMG_0001.mov'),
-            contentIdentifier: null,
         );
 
         $group = new AssetGroup('group-1');
@@ -148,12 +147,10 @@ final class CompanionDetectorTest extends TestCase
 
         $mov1 = new AssetItem(
             new SplFileInfo('/photos/IMG_0001.mov'),
-            contentIdentifier: null,
         );
 
         $mov2 = new AssetItem(
             new SplFileInfo('/other/IMG_0001.mp4'),
-            contentIdentifier: null,
         );
 
         $group = new AssetGroup('group-1');
@@ -207,12 +204,10 @@ final class CompanionDetectorTest extends TestCase
 
         $heic = new AssetItem(
             new SplFileInfo('/photos/IMG_0001.heic'),
-            contentIdentifier: null,
         );
 
         $mov = new AssetItem(
             new SplFileInfo('/photos/IMG_0001.mov'),
-            contentIdentifier: null,
         );
 
         $group = new AssetGroup('group-1');

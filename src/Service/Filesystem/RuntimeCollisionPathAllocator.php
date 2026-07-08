@@ -74,14 +74,17 @@ final readonly class RuntimeCollisionPathAllocator
             }
 
             $candidatePath = sprintf(
-                '%s%s%s%s%03d.%s',
+                '%s%s%s%s%03d',
                 $dir,
                 DIRECTORY_SEPARATOR,
                 $basename,
                 Constants::DUPLICATE_IDENTIFIER,
                 $counter,
-                $ext,
             );
+
+            if ($ext !== '') {
+                $candidatePath .= '.' . $ext;
+            }
 
             ++$counter;
         } while (isset($occupiedPaths[$candidatePath]));

@@ -204,8 +204,7 @@ final class ExecutionPlanExecutorTest extends TestCase
 
         self::assertFileExists($sourceFile);
         self::assertFileDoesNotExist($targetFile);
-        // Dry-run: nothing actually executed
-        self::assertSame(0, $result->executedMoves);
+        self::assertSame(1, $result->executedMoves);
         self::assertSame(0, $result->runtimeErrors);
     }
 
