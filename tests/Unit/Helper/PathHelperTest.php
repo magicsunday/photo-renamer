@@ -243,6 +243,16 @@ final class PathHelperTest extends TestCase
                 'base'     => '/srv/photos/',
                 'expected' => 'test.jpg',
             ],
+            'windows drive path strips base' => [
+                'pathname' => 'C:\\Photos\\2024\\test.jpg',
+                'base'     => 'C:\\Photos',
+                'expected' => '2024/test.jpg',
+            ],
+            'windows drive mismatch returns pathname' => [
+                'pathname' => 'D:\\Photos\\test.jpg',
+                'base'     => 'C:\\Photos',
+                'expected' => 'D:\\Photos\\test.jpg',
+            ],
         ];
     }
 }

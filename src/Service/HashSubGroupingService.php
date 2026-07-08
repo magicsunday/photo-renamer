@@ -219,7 +219,7 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
         $hashGroups = $this->mergePerceptuallySimilarGroups(
             $hashGroups,
             $temporalMetadataMap,
-            $companionRename === null,
+            !$companionRename instanceof Rename,
         );
 
         if (count($hashGroups) <= 1) {

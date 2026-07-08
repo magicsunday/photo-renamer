@@ -19,7 +19,10 @@ use function is_string;
 use function preg_quote;
 use function preg_replace;
 use function sprintf;
+use function str_replace;
+use function strrpos;
 use function strtolower;
+use function substr;
 
 /**
  * Shared file-related utility methods used across the rename pipeline.
@@ -57,13 +60,16 @@ final class FileHelper
      */
     public static function basenameWithoutExtension(SplFileInfo $file): string
     {
-        $extension = $file->getExtension();
+        $pathname          = str_replace('\\', '/', $file->getPathname());
+        $separatorPosition = strrpos($pathname, '/');
+        $portableBasename  = $separatorPosition === false ? $pathname : substr($pathname, $separatorPosition + 1);
+        $extensionPosition = strrpos($portableBasename, '.');
 
-        if ($extension === '') {
-            return $file->getBasename();
+        if (($extensionPosition === false) || ($extensionPosition === 0)) {
+            return $portableBasename;
         }
 
-        return $file->getBasename('.' . $extension);
+        return substr($portableBasename, 0, $extensionPosition);
     }
 
     /**

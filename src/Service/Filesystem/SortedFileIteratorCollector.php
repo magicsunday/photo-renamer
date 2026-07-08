@@ -15,10 +15,9 @@ use RecursiveIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
 
+use function str_replace;
 use function substr_count;
 use function usort;
-
-use const DIRECTORY_SEPARATOR;
 
 /**
  * Collects and sorts files yielded by recursive iterators.
@@ -49,8 +48,8 @@ final class SortedFileIteratorCollector
         }
 
         usort($files, static function (SplFileInfo $fileA, SplFileInfo $fileB): int {
-            $depthA = substr_count($fileA->getPath(), DIRECTORY_SEPARATOR);
-            $depthB = substr_count($fileB->getPath(), DIRECTORY_SEPARATOR);
+            $depthA = self::pathDepth($fileA);
+            $depthB = self::pathDepth($fileB);
 
             return ($depthA !== $depthB)
                 ? $depthA <=> $depthB
@@ -58,5 +57,13 @@ final class SortedFileIteratorCollector
         });
 
         return $files;
+    }
+
+    /**
+     * Counts path separators in a platform-neutral pathname string.
+     */
+    private static function pathDepth(SplFileInfo $file): int
+    {
+        return substr_count(str_replace('\\', '/', $file->getPathname()), '/');
     }
 }

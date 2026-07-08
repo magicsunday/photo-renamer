@@ -224,6 +224,30 @@ final class DedupOriginalMatcherTest extends TestCase
     }
 
     /**
+     * Verifies that Windows-style path separators participate in depth ranking
+     * even when tests run on a Unix host.
+     */
+    #[Test]
+    public function matchPrefersShallowerWindowsPathOnTie(): void
+    {
+        $duplicatePath = 'C:\\Photos\\backup\\2025-11-15_20-26-50-647-duplicate-001.jpg';
+        $rootPath      = 'C:\\Photos\\2025-11-15_20-26-50-647.jpg';
+        $deepPath      = 'C:\\Photos\\a\\b\\2025-11-15_20-26-50-647.jpg';
+
+        $matcher = $this->createMatcher();
+        $index   = $matcher->createIndex([
+            new SplFileInfo($duplicatePath),
+            new SplFileInfo($deepPath),
+            new SplFileInfo($rootPath),
+        ]);
+
+        $match = $matcher->match(new SplFileInfo($duplicatePath), $index);
+
+        self::assertInstanceOf(SplFileInfo::class, $match);
+        self::assertSame($rootPath, $match->getPathname());
+    }
+
+    /**
      * Creates the matcher under test with the production media classifier.
      *
      * @return DedupOriginalMatcher Fully configured matcher

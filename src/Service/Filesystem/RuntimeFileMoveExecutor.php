@@ -85,7 +85,7 @@ final readonly class RuntimeFileMoveExecutor
             ));
         }
 
-        if (!$dryRun) {
+        if (!$dryRun && ($sourcePath !== $targetPath)) {
             $sourceFileInfo = new SplFileInfo($sourcePath);
 
             if (!$sourceFileInfo->isFile()) {

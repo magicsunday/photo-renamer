@@ -18,12 +18,11 @@ use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use SplFileInfo;
 
 use function str_contains;
+use function str_replace;
 use function strcmp;
 use function strlen;
 use function strtolower;
 use function substr_count;
-
-use const DIRECTORY_SEPARATOR;
 
 /**
  * Matches duplicate-suffixed files to actionable originals for `rename:dedup`.
@@ -150,8 +149,7 @@ final readonly class DedupOriginalMatcher
             return $rankComparison;
         }
 
-        $depthComparison = substr_count($candidateA->getPathname(), DIRECTORY_SEPARATOR)
-            <=> substr_count($candidateB->getPathname(), DIRECTORY_SEPARATOR);
+        $depthComparison = $this->pathDepth($candidateA) <=> $this->pathDepth($candidateB);
 
         if ($depthComparison !== 0) {
             return $depthComparison;
@@ -238,5 +236,13 @@ final readonly class DedupOriginalMatcher
     private function normalizeExtension(SplFileInfo $file): string
     {
         return FileHelper::normalizeExtension($file->getExtension());
+    }
+
+    /**
+     * Counts path separators in a platform-neutral pathname string.
+     */
+    private function pathDepth(SplFileInfo $file): int
+    {
+        return substr_count(str_replace('\\', '/', $file->getPathname()), '/');
     }
 }

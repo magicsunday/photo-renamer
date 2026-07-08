@@ -31,8 +31,6 @@ use function str_starts_with;
 use function strlen;
 use function substr;
 
-use const DIRECTORY_SEPARATOR;
-
 /**
  * Provides purely path-oriented transformations for display, command argument
  * normalization, and terminal hyperlink generation.
@@ -56,20 +54,21 @@ final class PathHelper
             return $pathname;
         }
 
-        $normalizedBase = rtrim($baseDirectory, DIRECTORY_SEPARATOR);
+        $normalizedPath = self::normalizePathSeparators($pathname);
+        $normalizedBase = rtrim(self::normalizePathSeparators($baseDirectory), '/');
 
         if ($normalizedBase === '') {
             return $pathname;
         }
 
-        if (!str_starts_with($normalizedBase, DIRECTORY_SEPARATOR)) {
+        if (!self::isAbsolutePath($normalizedBase)) {
             return $pathname;
         }
 
-        $prefix = $normalizedBase . DIRECTORY_SEPARATOR;
+        $prefix = $normalizedBase . '/';
 
-        if (str_starts_with($pathname, $prefix)) {
-            return substr($pathname, strlen($prefix));
+        if (str_starts_with($normalizedPath, $prefix)) {
+            return substr($normalizedPath, strlen($prefix));
         }
 
         return $pathname;
@@ -173,5 +172,22 @@ final class PathHelper
         }
 
         return sprintf('<href=%s>%s</>', $url, $displayPath);
+    }
+
+    /**
+     * Normalizes path separators without resolving the path on disk.
+     */
+    private static function normalizePathSeparators(string $pathname): string
+    {
+        return str_replace('\\', '/', $pathname);
+    }
+
+    /**
+     * Checks Unix, UNC, and Windows drive absolute paths after separator normalization.
+     */
+    private static function isAbsolutePath(string $pathname): bool
+    {
+        return str_starts_with($pathname, '/')
+            || (preg_match('/^[A-Za-z]:\//', $pathname) === 1);
     }
 }
