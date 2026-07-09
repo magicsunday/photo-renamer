@@ -36,6 +36,7 @@ use Symfony\Component\Filesystem\Filesystem;
 use function getcwd;
 use function ltrim;
 use function rtrim;
+use function str_replace;
 
 /**
  * Verifies the AbstractRenameCommand base class, which provides the shared
@@ -359,7 +360,9 @@ final class AbstractRenameCommandTest extends TestCase
         $fileSystemService
             ->expects(self::once())
             ->method('createFileIterator')
-            ->with($expectedSource)
+            ->with(self::callback(
+                static fn (string $sourceDirectory): bool => self::assertNormalizedPathEquals($expectedSource, $sourceDirectory)
+            ))
             ->willReturn($iteratorOne);
 
         $duplicateDetectionService
@@ -369,7 +372,9 @@ final class AbstractRenameCommandTest extends TestCase
                 self::identicalTo($iteratorOne),
                 self::identicalTo($renameStrategy),
                 self::identicalTo($duplicateIdentifierStrategy),
-                $expectedSource,
+                self::callback(
+                    static fn (string $sourceDirectory): bool => self::assertNormalizedPathEquals($expectedSource, $sourceDirectory)
+                ),
             )
             ->willReturn($fileDuplicateCollection);
 
@@ -378,7 +383,9 @@ final class AbstractRenameCommandTest extends TestCase
             ->method('createDuplicateFilenames')
             ->with(
                 self::identicalTo($fileDuplicateCollection),
-                $expectedSource,
+                self::callback(
+                    static fn (string $sourceDirectory): bool => self::assertNormalizedPathEquals($expectedSource, $sourceDirectory)
+                ),
                 false,
                 false,
             )
@@ -434,7 +441,9 @@ final class AbstractRenameCommandTest extends TestCase
         $fileSystemService
             ->expects(self::once())
             ->method('createFileIterator')
-            ->with($expectedSource)
+            ->with(self::callback(
+                static fn (string $sourceDirectory): bool => self::assertNormalizedPathEquals($expectedSource, $sourceDirectory)
+            ))
             ->willReturn($iterator);
 
         $duplicateDetectionService
@@ -444,7 +453,9 @@ final class AbstractRenameCommandTest extends TestCase
                 self::identicalTo($iterator),
                 self::identicalTo($renameStrategy),
                 self::identicalTo($duplicateIdentifierStrategy),
-                $expectedSource,
+                self::callback(
+                    static fn (string $sourceDirectory): bool => self::assertNormalizedPathEquals($expectedSource, $sourceDirectory)
+                ),
             )
             ->willReturn($fileDuplicateCollection);
 
@@ -453,7 +464,9 @@ final class AbstractRenameCommandTest extends TestCase
             ->method('createDuplicateFilenames')
             ->with(
                 self::identicalTo($fileDuplicateCollection),
-                $expectedSource,
+                self::callback(
+                    static fn (string $sourceDirectory): bool => self::assertNormalizedPathEquals($expectedSource, $sourceDirectory)
+                ),
                 false,
                 false,
             )
@@ -465,7 +478,7 @@ final class AbstractRenameCommandTest extends TestCase
             ->with(
                 self::identicalTo($fileDuplicateCollection),
                 self::callback(static function (RenameOptions $options) use ($expectedSource): bool {
-                    self::assertSame($expectedSource, $options->sourceBaseDirectory);
+                    self::assertNormalizedPathEquals($expectedSource, $options->sourceBaseDirectory ?? '');
 
                     return true;
                 }),
@@ -532,6 +545,21 @@ final class AbstractRenameCommandTest extends TestCase
         }
 
         return $trimmedWorkingDirectory . '/' . ltrim($relativePath, '/');
+    }
+
+    private static function assertNormalizedPathEquals(string $expectedPath, string $actualPath): bool
+    {
+        self::assertSame(
+            self::normalizePathForAssertion($expectedPath),
+            self::normalizePathForAssertion($actualPath),
+        );
+
+        return true;
+    }
+
+    private static function normalizePathForAssertion(string $path): string
+    {
+        return str_replace('\\', '/', $path);
     }
 
     private function createPipelineCommand(
