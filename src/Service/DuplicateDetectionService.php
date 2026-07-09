@@ -11,7 +11,6 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service;
 
-use Deprecated;
 use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Helper\FileHelper;
@@ -271,10 +270,6 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      * @return FileDuplicateCollection Collection of identified duplicate groups.
      */
     #[Override]
-    #[Deprecated(message: <<<'TXT'
-    Use CaptureGroupBuilder::build() for the AssetGroup pipeline.
-                 Retained for commands other than rename:exif.
-    TXT)]
     public function groupFilesByDuplicateIdentifier(
         RecursiveIteratorIterator $iterator,
         RenameStrategyInterface $renameStrategy,
@@ -493,10 +488,6 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      * @return FileDuplicateCollection Updated collection with assigned renames.
      */
     #[Override]
-    #[Deprecated(message: <<<'TXT'
-    Use RoleAssigner::assign() + TargetNameResolver::resolve() + CollisionResolver::resolve()
-                 for the AssetGroup pipeline. Retained for commands other than rename:exif.
-    TXT)]
     public function createDuplicateFilenames(
         FileDuplicateCollection $fileDuplicateCollection,
         string $sourceDirectory,

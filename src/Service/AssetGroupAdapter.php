@@ -29,9 +29,9 @@ use function array_merge;
  * Strictly transitional — no domain logic beyond mapping. Will be removed once
  * FileSystemService is refactored to consume AssetGroupCollection directly.
  *
- * @deprecated Retained only for differential tests during migration.
- *             Production execution uses ExecutionPlanBuilder + FileSystemService::executePlan().
- *             Will be removed once differential tests are no longer needed.
+ * Retained only for differential tests during migration. Production execution
+ * uses ExecutionPlanBuilder + FileSystemService::executePlan(). This adapter can
+ * be removed once differential tests are no longer needed.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
