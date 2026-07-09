@@ -34,12 +34,11 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\Process\ExecutableFinder;
 
 use function array_map;
 use function dirname;
-use function exec;
 use function explode;
-use function function_exists;
 use function is_file;
 use function is_string;
 use function mb_strlen;
@@ -88,15 +87,7 @@ final class WriteDateCommand extends Command
         private readonly WriteDateReportFormatter $writeDateReportFormatter,
         ?Closure $exiftoolAvailabilityCheck = null,
     ) {
-        $this->exiftoolAvailabilityCheck = $exiftoolAvailabilityCheck ?? static function (): bool {
-            if (!function_exists('exec')) {
-                return false;
-            }
-
-            exec('which exiftool', $output, $exitCode);
-
-            return $exitCode === 0;
-        };
+        $this->exiftoolAvailabilityCheck = $exiftoolAvailabilityCheck ?? (static fn (): bool => new ExecutableFinder()->find('exiftool') !== null);
 
         parent::__construct();
     }

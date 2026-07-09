@@ -207,6 +207,10 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
     #[Override]
     protected function createFileIterator(): RecursiveIteratorIterator
     {
+        if ($this->isSingleFile) {
+            return parent::createFileIterator();
+        }
+
         $fileExtensionRegex = '/\.(' . implode('|', array_map(
             static fn (string $ext): string => $ext === 'jpg' ? 'jpe?g' : preg_quote($ext, '/'),
             array_unique(array_filter(

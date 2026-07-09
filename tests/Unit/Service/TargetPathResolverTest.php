@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Test\Unit\Service;
 
 use MagicSunday\Renamer\Service\TargetPathResolver;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -89,5 +90,44 @@ final class TargetPathResolverTest extends TestCase
             $source,
             'nested/2019-09-28.jpg',
         );
+    }
+
+    /**
+     * Verifies that generated filenames cannot collapse to directory aliases or
+     * empty names. These values can be produced by user-supplied regex
+     * replacements and must fail before any filesystem mutation is attempted.
+     */
+    #[Test]
+    #[DataProvider('invalidTargetFilenameProvider')]
+    public function resolveRejectsInvalidTargetFilename(string $targetFilename): void
+    {
+        $resolver = new TargetPathResolver();
+        $source   = new SplFileInfo(
+            DIRECTORY_SEPARATOR . 'tmp'
+            . DIRECTORY_SEPARATOR . 'Fotos'
+            . DIRECTORY_SEPARATOR . 'IMG_0001.jpg',
+        );
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage(sprintf('Target filename "%s" must be a valid filename', $targetFilename));
+
+        $resolver->resolve(
+            DIRECTORY_SEPARATOR . 'tmp' . DIRECTORY_SEPARATOR . 'Fotos',
+            $source,
+            $targetFilename,
+        );
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function invalidTargetFilenameProvider(): iterable
+    {
+        yield 'empty' => [''];
+        yield 'whitespace' => ['   '];
+        yield 'leading whitespace' => [' photo.jpg'];
+        yield 'trailing whitespace' => ['photo.jpg '];
+        yield 'current directory alias' => ['.'];
+        yield 'parent directory alias' => ['..'];
     }
 }
