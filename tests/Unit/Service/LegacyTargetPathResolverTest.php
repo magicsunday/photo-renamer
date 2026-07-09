@@ -15,6 +15,7 @@ use MagicSunday\Renamer\Service\LegacyTargetPathResolver;
 use MagicSunday\Renamer\Service\TargetPathResolver;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use SplFileInfo;
@@ -33,6 +34,7 @@ use const DIRECTORY_SEPARATOR;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(LegacyTargetPathResolver::class)]
+#[UsesClass(TargetPathResolver::class)]
 final class LegacyTargetPathResolverTest extends TestCase
 {
     /**

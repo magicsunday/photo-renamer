@@ -13,6 +13,9 @@ namespace MagicSunday\Renamer\Test\Unit\Service\Verify;
 
 use DateTimeImmutable;
 use DateTimeInterface;
+use MagicSunday\Renamer\Helper\DateDriftCalculator;
+use MagicSunday\Renamer\Helper\FilenameDateParser;
+use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Service\DateDriftAnalyzer;
@@ -55,6 +58,9 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(LivePhotoContentIdObservation::class)]
 #[UsesClass(ExifMetadataProvider::class)]
 #[UsesClass(TemporalMetadata::class)]
+#[UsesClass(DateDriftCalculator::class)]
+#[UsesClass(FilenameDateParser::class)]
+#[UsesClass(PathHelper::class)]
 #[UsesClass(DateDriftAnalyzer::class)]
 #[UsesClass(MediaTypeClassifier::class)]
 final class MetadataIssueScannerTest extends TestCase

@@ -60,6 +60,7 @@ use function implode;
 #[UsesClass(VideoDuplicateCandidate::class)]
 #[UsesClass(MediaCompatibilityPolicy::class)]
 #[UsesClass(MediaTypeClassifier::class)]
+#[UsesClass(ConsoleProgressReporter::class)]
 #[UsesClass(DurationBucketedVideoCandidate::class)]
 #[UsesClass(CrossGroupVideoComparisonPlan::class)]
 #[UsesClass(CrossGroupVideoMergeDecision::class)]

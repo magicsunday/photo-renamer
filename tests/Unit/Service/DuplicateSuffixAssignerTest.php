@@ -12,9 +12,11 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
 use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Service\DuplicateSuffixAssigner;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use SplFileInfo;
@@ -36,6 +38,7 @@ use const DIRECTORY_SEPARATOR;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(DuplicateSuffixAssigner::class)]
+#[UsesClass(FileHelper::class)]
 final class DuplicateSuffixAssignerTest extends TestCase
 {
     /**

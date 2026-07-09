@@ -12,11 +12,13 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
 use MagicSunday\Renamer\Exception\TargetFilenameException;
+use MagicSunday\Renamer\Model\TargetFileResult;
 use MagicSunday\Renamer\Service\TargetFileResolver;
 use MagicSunday\Renamer\Service\TargetPathResolver;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use SplFileInfo;
@@ -35,6 +37,8 @@ use const DIRECTORY_SEPARATOR;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(TargetFileResolver::class)]
+#[UsesClass(TargetFileResult::class)]
+#[UsesClass(TargetPathResolver::class)]
 final class TargetFileResolverTest extends TestCase
 {
     /**

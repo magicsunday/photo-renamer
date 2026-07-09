@@ -12,6 +12,8 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
+use MagicSunday\Renamer\Model\Collection\FileList;
+use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\SkippedFile;
 use MagicSunday\Renamer\Model\TargetFileResult;
@@ -39,7 +41,9 @@ use SplFileInfo;
 #[CoversClass(LegacyContentIdentifierCoordinator::class)]
 #[UsesClass(ContentIdentifierCacheEntry::class)]
 #[UsesClass(FileDuplicateCollection::class)]
+#[UsesClass(FileList::class)]
 #[UsesClass(FileDuplicate::class)]
+#[UsesClass(RenameList::class)]
 #[UsesClass(SkippedFile::class)]
 #[UsesClass(TargetFileResult::class)]
 final class LegacyContentIdentifierCoordinatorTest extends TestCase

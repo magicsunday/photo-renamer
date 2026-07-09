@@ -16,6 +16,9 @@ use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\PathHelper;
+use MagicSunday\Renamer\Metadata\MetadataQualityFlagResolver;
+use MagicSunday\Renamer\Metadata\MetadataQualityFlags;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\Collection\FileList;
@@ -29,10 +32,47 @@ use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
 use MagicSunday\Renamer\Model\SkippedFile;
 use MagicSunday\Renamer\Model\TargetFileResult;
+use MagicSunday\Renamer\Service\ContentIdentifierCacheEntry;
+use MagicSunday\Renamer\Service\DuplicateCanonicalRenameSelector;
+use MagicSunday\Renamer\Service\DuplicateCanonicalSelection;
 use MagicSunday\Renamer\Service\DuplicateDetectionService;
+use MagicSunday\Renamer\Service\DuplicateSuffixAssigner;
+use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
+use MagicSunday\Renamer\Service\Filesystem\FileCollector;
+use MagicSunday\Renamer\Service\Filesystem\LegacyRenameExecutor;
+use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
+use MagicSunday\Renamer\Service\Filesystem\SortedFileIteratorCollector;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
+use MagicSunday\Renamer\Service\LegacyContentIdentifierCoordinator;
+use MagicSunday\Renamer\Service\LegacyDuplicateTargetCandidateFactory;
+use MagicSunday\Renamer\Service\LegacyLivePhotoCompanionDetector;
+use MagicSunday\Renamer\Service\LegacyLivePhotoDuplicateCoordination;
+use MagicSunday\Renamer\Service\LegacyLivePhotoDuplicateCoordinator;
+use MagicSunday\Renamer\Service\LegacyLivePhotoPair;
+use MagicSunday\Renamer\Service\LegacyLivePhotoQualityFlagPropagator;
+use MagicSunday\Renamer\Service\LegacyLivePhotoTargetPromoter;
+use MagicSunday\Renamer\Service\LegacyTargetFileResolver;
+use MagicSunday\Renamer\Service\LegacyTargetOccupancyChecker;
+use MagicSunday\Renamer\Service\LegacyTargetPathResolver;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
+use MagicSunday\Renamer\Service\Output\DiffHighlighter;
+use MagicSunday\Renamer\Service\Output\OutputCounters;
+use MagicSunday\Renamer\Service\Output\OutputEntryBuildResult;
+use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
+use MagicSunday\Renamer\Service\Output\OutputEntryTagResolution;
+use MagicSunday\Renamer\Service\Output\OutputSkipFlags;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\CandidateOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\DefaultOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\FallbackOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\ReviewOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\WarningOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSummaryRowBuilder;
+use MagicSunday\Renamer\Service\Output\PathPrefixSplit;
+use MagicSunday\Renamer\Service\Output\RenameSummaryCounters;
+use MagicSunday\Renamer\Service\Output\SkippedFileAppendResult;
+use MagicSunday\Renamer\Service\Output\SummaryRow;
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
 use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzer;
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityResult;
@@ -40,6 +80,8 @@ use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Service\SafeHashCalculatorInterface;
+use MagicSunday\Renamer\Service\TargetFileResolver;
+use MagicSunday\Renamer\Service\TargetPathResolver;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\LivePhotoAwareRenameStrategyInterface;
@@ -77,6 +119,9 @@ use function sprintf;
 use const DIRECTORY_SEPARATOR;
 
 #[CoversClass(DuplicateDetectionService::class)]
+#[UsesClass(DuplicateCanonicalRenameSelector::class)]
+#[UsesClass(DuplicateCanonicalSelection::class)]
+#[UsesClass(DuplicateSuffixAssigner::class)]
 #[CoversClass(HashSubGroupingService::class)]
 #[CoversClass(FileDuplicateCollection::class)]
 #[CoversClass(FileDuplicate::class)]
@@ -84,6 +129,10 @@ use const DIRECTORY_SEPARATOR;
 #[CoversClass(Rename::class)]
 #[CoversClass(TargetBasenameStrategy::class)]
 #[UsesClass(FileHelper::class)]
+#[UsesClass(PathHelper::class)]
+#[UsesClass(ContentIdentifierCacheEntry::class)]
+#[UsesClass(MetadataQualityFlagResolver::class)]
+#[UsesClass(MetadataQualityFlags::class)]
 /**
  * Verifies the DuplicateDetectionService, the core orchestrator that groups
  * source files by duplicate identifier, applies hash sub-grouping, and assigns
@@ -110,11 +159,47 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(SkippedFile::class)]
 #[UsesClass(TargetFileResult::class)]
 #[UsesClass(FileSystemService::class)]
+#[UsesClass(ExecutionPlanExecutor::class)]
+#[UsesClass(FileCollector::class)]
+#[UsesClass(LegacyRenameExecutor::class)]
+#[UsesClass(RuntimeFileMoveExecutor::class)]
+#[UsesClass(SortedFileIteratorCollector::class)]
 #[UsesClass(ImagickImageLoader::class)]
+#[UsesClass(LegacyContentIdentifierCoordinator::class)]
+#[UsesClass(LegacyDuplicateTargetCandidateFactory::class)]
+#[UsesClass(LegacyLivePhotoCompanionDetector::class)]
+#[UsesClass(LegacyLivePhotoDuplicateCoordination::class)]
+#[UsesClass(LegacyLivePhotoDuplicateCoordinator::class)]
+#[UsesClass(LegacyLivePhotoPair::class)]
+#[UsesClass(LegacyLivePhotoQualityFlagPropagator::class)]
+#[UsesClass(LegacyLivePhotoTargetPromoter::class)]
+#[UsesClass(LegacyTargetFileResolver::class)]
+#[UsesClass(LegacyTargetOccupancyChecker::class)]
+#[UsesClass(LegacyTargetPathResolver::class)]
 #[UsesClass(MediaTypeClassifier::class)]
+#[UsesClass(DiffHighlighter::class)]
+#[UsesClass(OutputCounters::class)]
+#[UsesClass(OutputEntryBuildResult::class)]
+#[UsesClass(OutputEntryPresenter::class)]
+#[UsesClass(OutputEntryTagResolution::class)]
+#[UsesClass(OutputSkipFlags::class)]
+#[UsesClass(OutputSkipReasonDecider::class)]
+#[UsesClass(CandidateOutputSkipReasonRule::class)]
+#[UsesClass(DefaultOutputSkipReasonRule::class)]
+#[UsesClass(FallbackOutputSkipReasonRule::class)]
+#[UsesClass(ReviewOutputSkipReasonRule::class)]
+#[UsesClass(WarningOutputSkipReasonRule::class)]
+#[UsesClass(OutputSummaryRowBuilder::class)]
+#[UsesClass(PathPrefixSplit::class)]
+#[UsesClass(RenameSummaryCounters::class)]
 #[UsesClass(RenameOutputRenderer::class)]
+#[UsesClass(SkippedFileAppendResult::class)]
+#[UsesClass(SummaryRow::class)]
+#[UsesClass(ConsoleProgressReporter::class)]
 #[UsesClass(SafeHashCalculator::class)]
 #[UsesClass(SimilarityResult::class)]
+#[UsesClass(TargetFileResolver::class)]
+#[UsesClass(TargetPathResolver::class)]
 final class DuplicateDetectionServiceTest extends TestCase
 {
     use WorkspaceTrait;

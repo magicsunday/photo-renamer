@@ -14,6 +14,7 @@ namespace MagicSunday\Renamer\Test\Unit\Service\Pipeline;
 use DateTimeImmutable;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
+use MagicSunday\Renamer\Model\AssetItem;
 use MagicSunday\Renamer\Service\Pipeline\CaptureAssetCandidateExtractor;
 use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuildState;
 use MagicSunday\Renamer\Strategy\RenameStrategy\LivePhotoAwareRenameStrategyInterface;
@@ -35,6 +36,7 @@ use SplFileInfo;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(CaptureAssetCandidateExtractor::class)]
+#[UsesClass(AssetItem::class)]
 #[UsesClass(CaptureGroupBuildState::class)]
 #[UsesClass(TemporalMetadata::class)]
 final class CaptureAssetCandidateExtractorTest extends TestCase

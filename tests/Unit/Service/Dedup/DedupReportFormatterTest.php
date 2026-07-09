@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service\Dedup;
 
+use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Service\Dedup\DedupReportFormatter;
 use MagicSunday\Renamer\Service\Output\SummaryRow;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -30,6 +31,7 @@ use PHPUnit\Framework\TestCase;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(DedupReportFormatter::class)]
+#[UsesClass(FileHelper::class)]
 #[UsesClass(SummaryRow::class)]
 final class DedupReportFormatterTest extends TestCase
 {

@@ -11,6 +11,10 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
+use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Model\Collection\AbstractCollection;
+use MagicSunday\Renamer\Model\Collection\FileList;
+use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Service\LegacyLivePhotoCompanionDetector;
@@ -20,6 +24,7 @@ use MagicSunday\Renamer\Service\LegacyLivePhotoPair;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
 
@@ -39,6 +44,15 @@ use const DIRECTORY_SEPARATOR;
  */
 #[CoversClass(LegacyLivePhotoDuplicateCoordinator::class)]
 #[CoversClass(LegacyLivePhotoDuplicateCoordination::class)]
+#[UsesClass(FileHelper::class)]
+#[UsesClass(AbstractCollection::class)]
+#[UsesClass(FileList::class)]
+#[UsesClass(RenameList::class)]
+#[UsesClass(FileDuplicate::class)]
+#[UsesClass(Rename::class)]
+#[UsesClass(LegacyLivePhotoCompanionDetector::class)]
+#[UsesClass(LegacyLivePhotoPair::class)]
+#[UsesClass(MediaTypeClassifier::class)]
 final class LegacyLivePhotoDuplicateCoordinatorTest extends TestCase
 {
     /**

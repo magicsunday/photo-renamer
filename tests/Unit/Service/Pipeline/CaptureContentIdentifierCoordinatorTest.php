@@ -17,6 +17,7 @@ use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\PipelineContext;
+use MagicSunday\Renamer\Model\SkippedFile;
 use MagicSunday\Renamer\Model\TargetFileResult;
 use MagicSunday\Renamer\Service\ContentIdentifierCacheEntry;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
@@ -45,6 +46,7 @@ use SplFileInfo;
 #[UsesClass(AssetGroupCollection::class)]
 #[UsesClass(AssetGroup::class)]
 #[UsesClass(AssetItem::class)]
+#[UsesClass(SkippedFile::class)]
 #[UsesClass(TargetFileResult::class)]
 #[UsesClass(PipelineContext::class)]
 #[UsesClass(TemporalMetadata::class)]

@@ -57,6 +57,7 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(ExecutionResult::class)]
 #[UsesClass(Constants::class)]
 #[UsesClass(FileHelper::class)]
+#[UsesClass(ConsoleProgressReporter::class)]
 #[UsesClass(RuntimeCollisionPathAllocator::class)]
 #[UsesClass(RuntimeFileMoveExecutor::class)]
 final class ExecutionPlanExecutorTest extends TestCase

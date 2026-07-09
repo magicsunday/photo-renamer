@@ -36,6 +36,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(OutputDecisionLogRenderer::class)]
+#[UsesClass(AssetGroup::class)]
 #[UsesClass(AssetGroupCollection::class)]
 #[UsesClass(ExecutionPlan::class)]
 #[UsesClass(ExecutionGroup::class)]

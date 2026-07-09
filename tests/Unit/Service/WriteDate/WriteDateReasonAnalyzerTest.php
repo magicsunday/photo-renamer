@@ -12,12 +12,14 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service\WriteDate;
 
 use DateTimeImmutable;
+use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Service\DateDriftAnalyzer;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateReasonAnalyzer;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateReasonCatalog;
+use MagicSunday\Renamer\Service\WriteDate\WriteDateReasonDecision;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -48,8 +50,10 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(WriteDateReasonCatalog::class)]
 #[UsesClass(ExifMetadataProvider::class)]
 #[UsesClass(TemporalMetadata::class)]
+#[UsesClass(DateDriftCalculator::class)]
 #[UsesClass(DateDriftAnalyzer::class)]
 #[UsesClass(MediaTypeClassifier::class)]
+#[UsesClass(WriteDateReasonDecision::class)]
 final class WriteDateReasonAnalyzerTest extends TestCase
 {
     use WorkspaceTrait;

@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service\Filesystem;
 
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
+use MagicSunday\Renamer\Regex\RegexMatchResult;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
@@ -32,6 +33,8 @@ use const DIRECTORY_SEPARATOR;
 
 #[CoversClass(FileCollector::class)]
 #[UsesClass(RecursiveRegexFileFilterIterator::class)]
+#[UsesClass(RegexMatchResult::class)]
+#[UsesClass(SafeRegex::class)]
 /**
  * Verifies the dedicated filesystem collector extracted from FileSystemService.
  *

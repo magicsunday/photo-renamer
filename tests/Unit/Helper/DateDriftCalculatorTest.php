@@ -13,8 +13,10 @@ namespace MagicSunday\Renamer\Test\Unit\Helper;
 
 use DateTimeImmutable;
 use MagicSunday\Renamer\Helper\DateDriftCalculator;
+use MagicSunday\Renamer\Helper\FilenameDateParser;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -22,6 +24,7 @@ use PHPUnit\Framework\TestCase;
  * semantics for output warnings and metadata validation flows.
  */
 #[CoversClass(DateDriftCalculator::class)]
+#[UsesClass(FilenameDateParser::class)]
 final class DateDriftCalculatorTest extends TestCase
 {
     /**

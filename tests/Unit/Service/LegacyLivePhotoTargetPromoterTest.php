@@ -11,11 +11,15 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
+use MagicSunday\Renamer\Model\Collection\AbstractCollection;
+use MagicSunday\Renamer\Model\Collection\FileList;
+use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Service\LegacyLivePhotoTargetPromoter;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
 
@@ -33,6 +37,11 @@ use const DIRECTORY_SEPARATOR;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(LegacyLivePhotoTargetPromoter::class)]
+#[UsesClass(AbstractCollection::class)]
+#[UsesClass(FileList::class)]
+#[UsesClass(RenameList::class)]
+#[UsesClass(FileDuplicate::class)]
+#[UsesClass(MediaTypeClassifier::class)]
 final class LegacyLivePhotoTargetPromoterTest extends TestCase
 {
     /**

@@ -25,6 +25,7 @@ use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Service\HashSubGroupingServiceInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
+use MagicSunday\Renamer\Service\Pipeline\ExistingCompanionVideoCandidate;
 use MagicSunday\Renamer\Service\Pipeline\OrphanLivePhotoVideoReconciler;
 use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifier;
 use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifierInterface;
@@ -56,6 +57,9 @@ use SplFileInfo;
 #[UsesClass(RenameList::class)]
 #[UsesClass(TemporalMetadata::class)]
 #[UsesClass(MediaTypeClassifier::class)]
+#[UsesClass(ExistingCompanionVideoCandidate::class)]
+#[UsesClass(OrphanLivePhotoVideoReconciler::class)]
+#[UsesClass(NullProgressReporter::class)]
 final class SubgroupClassifierTest extends TestCase
 {
     private HashSubGroupingServiceInterface&MockObject $hashSubGroupingService;

@@ -11,6 +11,10 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
+use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Model\Collection\AbstractCollection;
+use MagicSunday\Renamer\Model\Collection\FileList;
+use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Service\DuplicateCanonicalRenameSelector;
@@ -35,9 +39,13 @@ use const DIRECTORY_SEPARATOR;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(DuplicateCanonicalRenameSelector::class)]
+#[UsesClass(AbstractCollection::class)]
 #[UsesClass(DuplicateCanonicalSelection::class)]
+#[UsesClass(FileHelper::class)]
 #[UsesClass(FileDuplicate::class)]
+#[UsesClass(FileList::class)]
 #[UsesClass(Rename::class)]
+#[UsesClass(RenameList::class)]
 final class DuplicateCanonicalRenameSelectorTest extends TestCase
 {
     /**

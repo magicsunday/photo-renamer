@@ -12,7 +12,10 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
 use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\FilenameDateParser;
+use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\Collection\FileList;
 use MagicSunday\Renamer\Model\Collection\RenameList;
@@ -36,6 +39,8 @@ use MagicSunday\Renamer\Service\Output\OutputCounters;
 use MagicSunday\Renamer\Service\Output\OutputDecisionLogRenderer;
 use MagicSunday\Renamer\Service\Output\OutputEntryBuildResult;
 use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
+use MagicSunday\Renamer\Service\Output\OutputEntryTagResolution;
+use MagicSunday\Renamer\Service\Output\OutputSkipFlags;
 use MagicSunday\Renamer\Service\Output\OutputSkipReason;
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecision;
@@ -47,6 +52,7 @@ use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\WarningOutputSkipRe
 use MagicSunday\Renamer\Service\Output\OutputSummaryRowBuilder;
 use MagicSunday\Renamer\Service\Output\PathPrefixSplit;
 use MagicSunday\Renamer\Service\Output\RenameSummaryCounters;
+use MagicSunday\Renamer\Service\Output\SkippedFileAppendResult;
 use MagicSunday\Renamer\Service\Output\SkipReasonFormatter;
 use MagicSunday\Renamer\Service\Output\SummaryRow;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
@@ -84,7 +90,10 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 #[UsesClass(ExecutionItem::class)]
 #[UsesClass(ExecutionPlan::class)]
 #[UsesClass(ExecutionPreview::class)]
+#[UsesClass(DateDriftCalculator::class)]
 #[UsesClass(FileHelper::class)]
+#[UsesClass(FilenameDateParser::class)]
+#[UsesClass(PathHelper::class)]
 #[UsesClass(FileList::class)]
 #[UsesClass(RenameList::class)]
 #[UsesClass(DiffHighlighter::class)]
@@ -93,10 +102,12 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 #[UsesClass(OutputDecisionLogRenderer::class)]
 #[UsesClass(OutputEntryBuildResult::class)]
 #[UsesClass(OutputEntryPresenter::class)]
+#[UsesClass(OutputEntryTagResolution::class)]
 #[UsesClass(PathPrefixSplit::class)]
 #[UsesClass(OutputSkipReason::class)]
 #[UsesClass(OutputSkipReasonDecider::class)]
 #[UsesClass(OutputSkipReasonDecision::class)]
+#[UsesClass(OutputSkipFlags::class)]
 #[UsesClass(CandidateOutputSkipReasonRule::class)]
 #[UsesClass(DefaultOutputSkipReasonRule::class)]
 #[UsesClass(FallbackOutputSkipReasonRule::class)]
@@ -105,6 +116,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 #[UsesClass(OutputSummaryRowBuilder::class)]
 #[UsesClass(RenameSummaryCounters::class)]
 #[UsesClass(SkipReasonFormatter::class)]
+#[UsesClass(SkippedFileAppendResult::class)]
 #[UsesClass(SummaryRow::class)]
 final class RenameOutputRendererTest extends TestCase
 {

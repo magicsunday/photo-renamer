@@ -14,23 +14,45 @@ namespace MagicSunday\Renamer\Test\Unit\Command;
 use DateTimeImmutable;
 use DateTimeZone;
 use MagicSunday\Renamer\Command\WriteDateCommand;
+use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\FilenameDateParser;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
+use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\MetadataCache;
+use MagicSunday\Renamer\Metadata\MetadataCacheEntry;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\LinkConfig;
 use MagicSunday\Renamer\Regex\RegexMatchResult;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\DateDriftAnalyzer;
 use MagicSunday\Renamer\Service\ExiftoolWriter;
+use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
+use MagicSunday\Renamer\Service\Filesystem\FileCollector;
+use MagicSunday\Renamer\Service\Filesystem\LegacyRenameExecutor;
+use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
+use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\CandidateOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\DefaultOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\FallbackOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\ReviewOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\WarningOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\SummaryRow;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
+use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
+use MagicSunday\Renamer\Service\WriteDate\TimezoneRewritePlan;
 use MagicSunday\Renamer\Service\WriteDate\TimezoneRewritePlanner;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateCandidateAnalyzer;
+use MagicSunday\Renamer\Service\WriteDate\WriteDatePendingWrite;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateReasonAnalyzer;
+use MagicSunday\Renamer\Service\WriteDate\WriteDateReasonCatalog;
+use MagicSunday\Renamer\Service\WriteDate\WriteDateReasonDecision;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateReportFormatter;
+use MagicSunday\Renamer\Service\WriteDate\WriteDateScanResult;
 use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
@@ -61,7 +83,10 @@ use const DIRECTORY_SEPARATOR;
  */
 #[CoversClass(WriteDateCommand::class)]
 #[UsesClass(RecursiveRegexFileFilterIterator::class)]
+#[UsesClass(DateDriftCalculator::class)]
 #[UsesClass(FileHelper::class)]
+#[UsesClass(FilenameDateParser::class)]
+#[UsesClass(PathHelper::class)]
 #[UsesClass(ExifMetadataProvider::class)]
 #[UsesClass(TemporalMetadata::class)]
 #[UsesClass(LinkConfig::class)]
@@ -71,7 +96,30 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(FileSystemService::class)]
 #[UsesClass(MediaTypeClassifier::class)]
 #[UsesClass(MetadataCache::class)]
+#[UsesClass(MetadataCacheEntry::class)]
 #[UsesClass(RenameOutputRenderer::class)]
+#[UsesClass(ExecutionPlanExecutor::class)]
+#[UsesClass(FileCollector::class)]
+#[UsesClass(LegacyRenameExecutor::class)]
+#[UsesClass(RuntimeFileMoveExecutor::class)]
+#[UsesClass(OutputEntryPresenter::class)]
+#[UsesClass(OutputSkipReasonDecider::class)]
+#[UsesClass(CandidateOutputSkipReasonRule::class)]
+#[UsesClass(DefaultOutputSkipReasonRule::class)]
+#[UsesClass(FallbackOutputSkipReasonRule::class)]
+#[UsesClass(ReviewOutputSkipReasonRule::class)]
+#[UsesClass(WarningOutputSkipReasonRule::class)]
+#[UsesClass(ConsoleProgressReporter::class)]
+#[UsesClass(SummaryRow::class)]
+#[UsesClass(TimezoneRewritePlan::class)]
+#[UsesClass(TimezoneRewritePlanner::class)]
+#[UsesClass(WriteDateCandidateAnalyzer::class)]
+#[UsesClass(WriteDatePendingWrite::class)]
+#[UsesClass(WriteDateReasonAnalyzer::class)]
+#[UsesClass(WriteDateReasonCatalog::class)]
+#[UsesClass(WriteDateReasonDecision::class)]
+#[UsesClass(WriteDateReportFormatter::class)]
+#[UsesClass(WriteDateScanResult::class)]
 final class WriteDateCommandTest extends TestCase
 {
     use WorkspaceTrait;

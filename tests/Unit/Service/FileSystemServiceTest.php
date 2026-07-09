@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
 use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\Collection\FileList;
@@ -33,6 +34,10 @@ use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\Output\DiffHighlighter;
 use MagicSunday\Renamer\Service\Output\DiffTokenState;
 use MagicSunday\Renamer\Service\Output\OutputCounters;
+use MagicSunday\Renamer\Service\Output\OutputEntryBuildResult;
+use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
+use MagicSunday\Renamer\Service\Output\OutputEntryTagResolution;
+use MagicSunday\Renamer\Service\Output\OutputSkipFlags;
 use MagicSunday\Renamer\Service\Output\OutputSkipReason;
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecision;
@@ -41,9 +46,14 @@ use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\DefaultOutputSkipRe
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\FallbackOutputSkipReasonRule;
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\ReviewOutputSkipReasonRule;
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\WarningOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSummaryRowBuilder;
 use MagicSunday\Renamer\Service\Output\PathPrefixSplit;
+use MagicSunday\Renamer\Service\Output\RenameSummaryCounters;
+use MagicSunday\Renamer\Service\Output\SkippedFileAppendResult;
 use MagicSunday\Renamer\Service\Output\SkipReasonFormatter;
+use MagicSunday\Renamer\Service\Output\SummaryRow;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
+use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
@@ -90,6 +100,7 @@ use const DIRECTORY_SEPARATOR;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[UsesClass(PathHelper::class)]
+#[UsesClass(FileHelper::class)]
 #[UsesClass(ExecutionPlanExecutor::class)]
 #[UsesClass(FileCollector::class)]
 #[UsesClass(LegacyRenameExecutor::class)]
@@ -104,6 +115,10 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(DiffHighlighter::class)]
 #[UsesClass(DiffTokenState::class)]
 #[UsesClass(OutputCounters::class)]
+#[UsesClass(OutputEntryBuildResult::class)]
+#[UsesClass(OutputEntryPresenter::class)]
+#[UsesClass(OutputEntryTagResolution::class)]
+#[UsesClass(OutputSkipFlags::class)]
 #[UsesClass(PathPrefixSplit::class)]
 #[UsesClass(OutputSkipReason::class)]
 #[UsesClass(OutputSkipReasonDecider::class)]
@@ -113,7 +128,12 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(FallbackOutputSkipReasonRule::class)]
 #[UsesClass(ReviewOutputSkipReasonRule::class)]
 #[UsesClass(WarningOutputSkipReasonRule::class)]
+#[UsesClass(OutputSummaryRowBuilder::class)]
+#[UsesClass(RenameSummaryCounters::class)]
 #[UsesClass(SkipReasonFormatter::class)]
+#[UsesClass(SkippedFileAppendResult::class)]
+#[UsesClass(SummaryRow::class)]
+#[UsesClass(ConsoleProgressReporter::class)]
 final class FileSystemServiceTest extends TestCase
 {
     use WorkspaceTrait;

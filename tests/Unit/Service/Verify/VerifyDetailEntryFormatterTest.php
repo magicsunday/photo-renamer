@@ -13,6 +13,8 @@ namespace MagicSunday\Renamer\Test\Unit\Service\Verify;
 
 use DateTimeImmutable;
 use DateTimeZone;
+use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\FilenameDateParser;
 use MagicSunday\Renamer\Service\Verify\VerifyCategoryCatalog;
 use MagicSunday\Renamer\Service\Verify\VerifyDetailEntryFormatter;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
@@ -39,6 +41,8 @@ use const DIRECTORY_SEPARATOR;
  */
 #[CoversClass(VerifyDetailEntryFormatter::class)]
 #[UsesClass(VerifyCategoryCatalog::class)]
+#[UsesClass(FileHelper::class)]
+#[UsesClass(FilenameDateParser::class)]
 final class VerifyDetailEntryFormatterTest extends TestCase
 {
     use WorkspaceTrait;

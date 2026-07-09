@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service\Dedup;
 
+use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Service\Dedup\DedupOriginalMatcher;
 use MagicSunday\Renamer\Service\Dedup\OriginalCandidateIndex;
 use MagicSunday\Renamer\Service\FormatPriorityResolver;
@@ -40,6 +41,7 @@ use const DIRECTORY_SEPARATOR;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(DedupOriginalMatcher::class)]
+#[UsesClass(FileHelper::class)]
 #[UsesClass(OriginalCandidateIndex::class)]
 #[UsesClass(MediaTypeClassifier::class)]
 #[UsesClass(MediaCompatibilityPolicy::class)]

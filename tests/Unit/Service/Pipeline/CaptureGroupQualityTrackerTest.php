@@ -11,12 +11,15 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service\Pipeline;
 
+use MagicSunday\Renamer\Metadata\MetadataQualityFlagResolver;
+use MagicSunday\Renamer\Metadata\MetadataQualityFlags;
 use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Service\Pipeline\CaptureGroupQualityTracker;
 use MagicSunday\Renamer\Strategy\RenameStrategy\MetadataAwareRenameStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
 
@@ -32,6 +35,9 @@ use SplFileInfo;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(CaptureGroupQualityTracker::class)]
+#[UsesClass(MetadataQualityFlagResolver::class)]
+#[UsesClass(MetadataQualityFlags::class)]
+#[UsesClass(PipelineContext::class)]
 final class CaptureGroupQualityTrackerTest extends TestCase
 {
     /**

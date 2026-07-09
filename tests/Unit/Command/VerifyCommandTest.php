@@ -15,21 +15,42 @@ use DateTimeImmutable;
 use DateTimeZone;
 use MagicSunday\Renamer\Command\VerifyCommand;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
+use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\FilenameDateParser;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
+use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\MetadataCache;
+use MagicSunday\Renamer\Metadata\MetadataCacheEntry;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Regex\RegexMatchResult;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\DateDriftAnalyzer;
+use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
+use MagicSunday\Renamer\Service\Filesystem\FileCollector;
+use MagicSunday\Renamer\Service\Filesystem\LegacyRenameExecutor;
+use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
+use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\CandidateOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\DefaultOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\FallbackOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\ReviewOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\WarningOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\SummaryRow;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
+use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use MagicSunday\Renamer\Service\Verify\LivePhotoCompletenessAnalyzer;
+use MagicSunday\Renamer\Service\Verify\LivePhotoContentIdMap;
+use MagicSunday\Renamer\Service\Verify\LivePhotoContentIdObservation;
 use MagicSunday\Renamer\Service\Verify\MetadataIssueScanner;
+use MagicSunday\Renamer\Service\Verify\VerifyCategorySection;
 use MagicSunday\Renamer\Service\Verify\VerifyDetailEntryFormatter;
 use MagicSunday\Renamer\Service\Verify\VerifyReportFormatter;
+use MagicSunday\Renamer\Service\Verify\VerifyScanResult;
 use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
@@ -60,7 +81,10 @@ use const DIRECTORY_SEPARATOR;
  */
 #[CoversClass(VerifyCommand::class)]
 #[UsesClass(RecursiveRegexFileFilterIterator::class)]
+#[UsesClass(DateDriftCalculator::class)]
 #[UsesClass(FileHelper::class)]
+#[UsesClass(FilenameDateParser::class)]
+#[UsesClass(PathHelper::class)]
 #[UsesClass(ExifMetadataProvider::class)]
 #[UsesClass(TemporalMetadata::class)]
 #[UsesClass(RegexMatchResult::class)]
@@ -69,7 +93,29 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(FileSystemService::class)]
 #[UsesClass(MediaTypeClassifier::class)]
 #[UsesClass(MetadataCache::class)]
+#[UsesClass(MetadataCacheEntry::class)]
 #[UsesClass(RenameOutputRenderer::class)]
+#[UsesClass(ExecutionPlanExecutor::class)]
+#[UsesClass(FileCollector::class)]
+#[UsesClass(LegacyRenameExecutor::class)]
+#[UsesClass(RuntimeFileMoveExecutor::class)]
+#[UsesClass(OutputEntryPresenter::class)]
+#[UsesClass(OutputSkipReasonDecider::class)]
+#[UsesClass(CandidateOutputSkipReasonRule::class)]
+#[UsesClass(DefaultOutputSkipReasonRule::class)]
+#[UsesClass(FallbackOutputSkipReasonRule::class)]
+#[UsesClass(ReviewOutputSkipReasonRule::class)]
+#[UsesClass(WarningOutputSkipReasonRule::class)]
+#[UsesClass(ConsoleProgressReporter::class)]
+#[UsesClass(SummaryRow::class)]
+#[UsesClass(LivePhotoCompletenessAnalyzer::class)]
+#[UsesClass(LivePhotoContentIdMap::class)]
+#[UsesClass(LivePhotoContentIdObservation::class)]
+#[UsesClass(MetadataIssueScanner::class)]
+#[UsesClass(VerifyCategorySection::class)]
+#[UsesClass(VerifyDetailEntryFormatter::class)]
+#[UsesClass(VerifyReportFormatter::class)]
+#[UsesClass(VerifyScanResult::class)]
 final class VerifyCommandTest extends TestCase
 {
     use WorkspaceTrait;

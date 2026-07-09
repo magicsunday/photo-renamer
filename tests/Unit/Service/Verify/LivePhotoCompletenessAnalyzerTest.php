@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service\Verify;
 
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Service\Verify\LivePhotoCompletenessAnalyzer;
 use MagicSunday\Renamer\Service\Verify\LivePhotoContentIdMap;
 use MagicSunday\Renamer\Service\Verify\LivePhotoContentIdObservation;
@@ -36,6 +37,7 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(LivePhotoContentIdMap::class)]
 #[UsesClass(LivePhotoContentIdObservation::class)]
 #[UsesClass(FileHelper::class)]
+#[UsesClass(PathHelper::class)]
 final class LivePhotoCompletenessAnalyzerTest extends TestCase
 {
     /**

@@ -11,16 +11,26 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service\Output;
 
+use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\PathHelper;
+use MagicSunday\Renamer\Model\LinkConfig;
 use MagicSunday\Renamer\Model\OutputEntry;
 use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Service\Output\DiffHighlighter;
 use MagicSunday\Renamer\Service\Output\OutputCounters;
 use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecision;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\CandidateOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\DefaultOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\FallbackOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\ReviewOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\WarningOutputSkipReasonRule;
 use MagicSunday\Renamer\Service\Output\SkipReasonFormatter;
 use MagicSunday\Renamer\Test\Fixtures\OutputSkipReasonRuleFactory;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
@@ -40,6 +50,19 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  */
 #[CoversClass(OutputEntryPresenter::class)]
 #[CoversClass(OutputCounters::class)]
+#[UsesClass(FileHelper::class)]
+#[UsesClass(PathHelper::class)]
+#[UsesClass(LinkConfig::class)]
+#[UsesClass(OutputEntry::class)]
+#[UsesClass(OutputEntryTag::class)]
+#[UsesClass(OutputSkipReasonDecider::class)]
+#[UsesClass(OutputSkipReasonDecision::class)]
+#[UsesClass(CandidateOutputSkipReasonRule::class)]
+#[UsesClass(DefaultOutputSkipReasonRule::class)]
+#[UsesClass(FallbackOutputSkipReasonRule::class)]
+#[UsesClass(ReviewOutputSkipReasonRule::class)]
+#[UsesClass(WarningOutputSkipReasonRule::class)]
+#[UsesClass(SkipReasonFormatter::class)]
 final class OutputEntryPresenterTest extends TestCase
 {
     /**

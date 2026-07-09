@@ -12,7 +12,9 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
 use DateTimeImmutable;
+use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\FilenameDateParser;
 use MagicSunday\Renamer\Service\DateDriftAnalyzer;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -29,7 +31,9 @@ use SplFileInfo;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(DateDriftAnalyzer::class)]
+#[UsesClass(DateDriftCalculator::class)]
 #[UsesClass(FileHelper::class)]
+#[UsesClass(FilenameDateParser::class)]
 final class DateDriftAnalyzerTest extends TestCase
 {
     /**

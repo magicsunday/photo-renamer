@@ -14,6 +14,8 @@ namespace MagicSunday\Renamer\Test\Unit\Service\Pipeline;
 use DateTimeImmutable;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\AssetGroup;
+use MagicSunday\Renamer\Model\AssetItem;
+use MagicSunday\Renamer\Model\Collection\AbstractCollection;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Service\ContentIdentifierCacheEntry;
 use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuildState;
@@ -40,6 +42,10 @@ use SplFileInfo;
 #[UsesClass(CaptureGroupBuildState::class)]
 #[UsesClass(ContentIdentifierCacheEntry::class)]
 #[UsesClass(AssetGroup::class)]
+#[UsesClass(AssetItem::class)]
+#[UsesClass(AbstractCollection::class)]
+#[UsesClass(AssetGroupCollection::class)]
+#[UsesClass(TemporalMetadata::class)]
 final class PendingLivePhotoVideoResolverTest extends TestCase
 {
     /**

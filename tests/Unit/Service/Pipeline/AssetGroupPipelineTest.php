@@ -17,10 +17,12 @@ use MagicSunday\Renamer\Service\Pipeline\AssetGroupPipeline;
 use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuilderInterface;
 use MagicSunday\Renamer\Service\Pipeline\CollisionResolverInterface;
 use MagicSunday\Renamer\Service\Pipeline\CrossGroupVideoDuplicateReconcilerInterface;
+use MagicSunday\Renamer\Service\Pipeline\ExifRenamePipelineResult;
 use MagicSunday\Renamer\Service\Pipeline\RoleAssignerInterface;
 use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifierInterface;
 use MagicSunday\Renamer\Service\Pipeline\TargetNameResolverInterface;
 use MagicSunday\Renamer\Service\RenamePlanValidator;
+use MagicSunday\Renamer\Service\ValidationResult;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -46,6 +48,9 @@ use SplFileInfo;
 #[CoversClass(AssetGroupPipeline::class)]
 #[UsesClass(AssetGroupCollection::class)]
 #[UsesClass(PipelineContext::class)]
+#[UsesClass(ExifRenamePipelineResult::class)]
+#[UsesClass(RenamePlanValidator::class)]
+#[UsesClass(ValidationResult::class)]
 final class AssetGroupPipelineTest extends TestCase
 {
     /**

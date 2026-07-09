@@ -11,12 +11,14 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service\Pipeline;
 
+use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
 use MagicSunday\Renamer\Model\ItemRole;
 use MagicSunday\Renamer\Service\Pipeline\ExistingSubgroupNamePreserver;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
 
@@ -32,6 +34,9 @@ use SplFileInfo;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(ExistingSubgroupNamePreserver::class)]
+#[UsesClass(FileHelper::class)]
+#[UsesClass(AssetGroup::class)]
+#[UsesClass(AssetItem::class)]
 final class ExistingSubgroupNamePreserverTest extends TestCase
 {
     /**

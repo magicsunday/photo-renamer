@@ -17,8 +17,10 @@ use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\ItemRole;
+use MagicSunday\Renamer\Service\Pipeline\ExistingSubgroupNamePreserver;
 use MagicSunday\Renamer\Service\Pipeline\FlatGroupNameResolver;
 use MagicSunday\Renamer\Service\Pipeline\SubgroupNameResolver;
+use MagicSunday\Renamer\Service\Pipeline\SubgroupPresenceDetector;
 use MagicSunday\Renamer\Service\Pipeline\TargetNameResolver;
 use MagicSunday\Renamer\Test\Fixtures\TargetNameResolverFactory;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -51,9 +53,10 @@ use SplFileInfo;
 #[UsesClass(AssetGroupCollection::class)]
 #[UsesClass(FileHelper::class)]
 #[UsesClass(Constants::class)]
+#[UsesClass(ExistingSubgroupNamePreserver::class)]
 #[UsesClass(FlatGroupNameResolver::class)]
 #[UsesClass(SubgroupNameResolver::class)]
-#[UsesClass(TargetNameResolverFactory::class)]
+#[UsesClass(SubgroupPresenceDetector::class)]
 final class TargetNameResolverTest extends TestCase
 {
     /**

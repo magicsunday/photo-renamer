@@ -14,16 +14,30 @@ namespace MagicSunday\Renamer\Test\Unit\Command;
 use MagicSunday\Renamer\Command\DedupCommand;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
+use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Regex\RegexMatchResult;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\Dedup\DedupOriginalMatcher;
 use MagicSunday\Renamer\Service\Dedup\DedupReportFormatter;
 use MagicSunday\Renamer\Service\Dedup\OriginalCandidateIndex;
+use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
+use MagicSunday\Renamer\Service\Filesystem\FileCollector;
+use MagicSunday\Renamer\Service\Filesystem\LegacyRenameExecutor;
+use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\FormatPriorityResolver;
 use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
+use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\CandidateOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\DefaultOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\FallbackOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\ReviewOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\WarningOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\SummaryRow;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
+use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
@@ -64,9 +78,24 @@ use const PHP_EOL;
 #[UsesClass(MediaTypeClassifier::class)]
 #[UsesClass(MediaCompatibilityPolicy::class)]
 #[UsesClass(DedupOriginalMatcher::class)]
+#[UsesClass(DedupReportFormatter::class)]
 #[UsesClass(OriginalCandidateIndex::class)]
 #[UsesClass(FormatPriorityResolver::class)]
 #[UsesClass(RenameOutputRenderer::class)]
+#[UsesClass(PathHelper::class)]
+#[UsesClass(ExecutionPlanExecutor::class)]
+#[UsesClass(FileCollector::class)]
+#[UsesClass(LegacyRenameExecutor::class)]
+#[UsesClass(RuntimeFileMoveExecutor::class)]
+#[UsesClass(OutputEntryPresenter::class)]
+#[UsesClass(OutputSkipReasonDecider::class)]
+#[UsesClass(CandidateOutputSkipReasonRule::class)]
+#[UsesClass(DefaultOutputSkipReasonRule::class)]
+#[UsesClass(FallbackOutputSkipReasonRule::class)]
+#[UsesClass(ReviewOutputSkipReasonRule::class)]
+#[UsesClass(WarningOutputSkipReasonRule::class)]
+#[UsesClass(SummaryRow::class)]
+#[UsesClass(ConsoleProgressReporter::class)]
 final class DedupCommandTest extends TestCase
 {
     use WorkspaceTrait;

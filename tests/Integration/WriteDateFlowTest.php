@@ -18,11 +18,18 @@ use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
+use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\FilenameDateParser;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
+use MagicSunday\Renamer\Helper\PathHelper;
+use MagicSunday\Renamer\Metadata\CaptureTimestampExtraction;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\MetadataCache;
+use MagicSunday\Renamer\Metadata\MetadataCacheEntry;
 use MagicSunday\Renamer\Metadata\MetadataExtractor;
+use MagicSunday\Renamer\Metadata\MetadataQualityFlagResolver;
+use MagicSunday\Renamer\Metadata\MetadataQualityFlags;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
@@ -48,14 +55,30 @@ use MagicSunday\Renamer\Model\SkippedFile;
 use MagicSunday\Renamer\Model\TargetFileResult;
 use MagicSunday\Renamer\Regex\RegexMatchResult;
 use MagicSunday\Renamer\Regex\SafeRegex;
+use MagicSunday\Renamer\Service\CanonicalScore;
 use MagicSunday\Renamer\Service\CanonicalScorer;
+use MagicSunday\Renamer\Service\ContentIdentifierCacheEntry;
 use MagicSunday\Renamer\Service\DateDriftAnalyzer;
 use MagicSunday\Renamer\Service\DuplicateDetectionService;
 use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilder;
 use MagicSunday\Renamer\Service\ExiftoolWriter;
+use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
+use MagicSunday\Renamer\Service\Filesystem\FileCollector;
+use MagicSunday\Renamer\Service\Filesystem\LegacyRenameExecutor;
+use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
+use MagicSunday\Renamer\Service\Filesystem\SortedFileIteratorCollector;
 use MagicSunday\Renamer\Service\FileSystemService;
+use MagicSunday\Renamer\Service\FormatPriorityResolver;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
+use MagicSunday\Renamer\Service\LegacyContentIdentifierCoordinator;
+use MagicSunday\Renamer\Service\LegacyDuplicateTargetCandidateFactory;
+use MagicSunday\Renamer\Service\LegacyLivePhotoCompanionDetector;
+use MagicSunday\Renamer\Service\LegacyLivePhotoDuplicateCoordinator;
+use MagicSunday\Renamer\Service\LegacyLivePhotoTargetPromoter;
+use MagicSunday\Renamer\Service\LegacyTargetFileResolver;
+use MagicSunday\Renamer\Service\LegacyTargetPathResolver;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoBasenameTargetMap;
+use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictAsset;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetector;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoContentIdentifierTarget;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoContentIdentifierTargetMap;
@@ -64,6 +87,26 @@ use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingCollection;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingService;
 use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
+use MagicSunday\Renamer\Service\Output\DiffHighlighter;
+use MagicSunday\Renamer\Service\Output\OutputCounters;
+use MagicSunday\Renamer\Service\Output\OutputDecisionLogRenderer;
+use MagicSunday\Renamer\Service\Output\OutputEntryBuildResult;
+use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
+use MagicSunday\Renamer\Service\Output\OutputEntryTagResolution;
+use MagicSunday\Renamer\Service\Output\OutputSkipFlags;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecision;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\CandidateOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\DefaultOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\FallbackOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\ReviewOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\WarningOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSummaryRowBuilder;
+use MagicSunday\Renamer\Service\Output\PathPrefixSplit;
+use MagicSunday\Renamer\Service\Output\RenameSummaryCounters;
+use MagicSunday\Renamer\Service\Output\SkippedFileAppendResult;
+use MagicSunday\Renamer\Service\Output\SkipReasonFormatter;
+use MagicSunday\Renamer\Service\Output\SummaryRow;
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
 use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzer;
 use MagicSunday\Renamer\Service\PerceptualHash\LocalDiffResult;
@@ -72,25 +115,38 @@ use MagicSunday\Renamer\Service\PerceptualHash\PerceptualSignalCache;
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityClassification;
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityResult;
 use MagicSunday\Renamer\Service\Pipeline\AssetGroupPipeline;
+use MagicSunday\Renamer\Service\Pipeline\CaptureAssetCandidateExtractor;
+use MagicSunday\Renamer\Service\Pipeline\CaptureContentIdentifierCoordinator;
 use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuilder;
 use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuildState;
+use MagicSunday\Renamer\Service\Pipeline\CaptureGroupQualityTracker;
 use MagicSunday\Renamer\Service\Pipeline\CollisionResolver;
 use MagicSunday\Renamer\Service\Pipeline\CompanionDetector;
 use MagicSunday\Renamer\Service\Pipeline\ExifRenamePipelineResult;
+use MagicSunday\Renamer\Service\Pipeline\FlatGroupNameResolver;
 use MagicSunday\Renamer\Service\Pipeline\OrphanLivePhotoVideoReconciler;
+use MagicSunday\Renamer\Service\Pipeline\PendingLivePhotoVideoResolver;
 use MagicSunday\Renamer\Service\Pipeline\PipelineReviewMapper;
 use MagicSunday\Renamer\Service\Pipeline\RoleAssigner;
 use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifier;
+use MagicSunday\Renamer\Service\Pipeline\SubgroupPresenceDetector;
 use MagicSunday\Renamer\Service\Pipeline\TargetNameResolver;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\RenamePlanValidator;
 use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
+use MagicSunday\Renamer\Service\TargetFileResolver;
+use MagicSunday\Renamer\Service\TargetPathResolver;
 use MagicSunday\Renamer\Service\ValidationResult;
+use MagicSunday\Renamer\Service\WriteDate\TimezoneRewritePlan;
 use MagicSunday\Renamer\Service\WriteDate\TimezoneRewritePlanner;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateCandidateAnalyzer;
+use MagicSunday\Renamer\Service\WriteDate\WriteDatePendingWrite;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateReasonAnalyzer;
+use MagicSunday\Renamer\Service\WriteDate\WriteDateReasonCatalog;
+use MagicSunday\Renamer\Service\WriteDate\WriteDateReasonDecision;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateReportFormatter;
+use MagicSunday\Renamer\Service\WriteDate\WriteDateScanResult;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use MagicSunday\Renamer\Test\Fixtures\CaptureGroupBuilderFactory;
@@ -139,9 +195,16 @@ use function copy;
 #[UsesClass(ExifMetadataReadException::class)]
 #[UsesClass(HashComputationException::class)]
 #[UsesClass(TargetFilenameException::class)]
+#[UsesClass(DateDriftCalculator::class)]
 #[UsesClass(FileHelper::class)]
+#[UsesClass(FilenameDateParser::class)]
+#[UsesClass(PathHelper::class)]
+#[UsesClass(CaptureTimestampExtraction::class)]
 #[UsesClass(ExifMetadataProvider::class)]
+#[UsesClass(MetadataCacheEntry::class)]
 #[UsesClass(MetadataExtractor::class)]
+#[UsesClass(MetadataQualityFlagResolver::class)]
+#[UsesClass(MetadataQualityFlags::class)]
 #[UsesClass(TemporalMetadata::class)]
 #[UsesClass(AbstractCollection::class)]
 #[UsesClass(FileDuplicateCollection::class)]
@@ -157,18 +220,56 @@ use function copy;
 #[UsesClass(TargetFileResult::class)]
 #[UsesClass(RegexMatchResult::class)]
 #[UsesClass(SafeRegex::class)]
+#[UsesClass(CanonicalScore::class)]
+#[UsesClass(ContentIdentifierCacheEntry::class)]
+#[UsesClass(DateDriftAnalyzer::class)]
 #[UsesClass(DuplicateDetectionService::class)]
 #[UsesClass(ExiftoolWriter::class)]
+#[UsesClass(ExecutionPlanExecutor::class)]
+#[UsesClass(FileCollector::class)]
+#[UsesClass(LegacyRenameExecutor::class)]
+#[UsesClass(RuntimeFileMoveExecutor::class)]
+#[UsesClass(SortedFileIteratorCollector::class)]
 #[UsesClass(FileSystemService::class)]
+#[UsesClass(FormatPriorityResolver::class)]
 #[UsesClass(HashSubGroupingService::class)]
+#[UsesClass(LegacyContentIdentifierCoordinator::class)]
+#[UsesClass(LegacyDuplicateTargetCandidateFactory::class)]
+#[UsesClass(LegacyLivePhotoCompanionDetector::class)]
+#[UsesClass(LegacyLivePhotoDuplicateCoordinator::class)]
+#[UsesClass(LegacyLivePhotoTargetPromoter::class)]
+#[UsesClass(LegacyTargetFileResolver::class)]
+#[UsesClass(LegacyTargetPathResolver::class)]
 #[UsesClass(LivePhotoBasenameTargetMap::class)]
+#[UsesClass(LivePhotoConflictAsset::class)]
 #[UsesClass(LivePhotoPairingService::class)]
 #[UsesClass(LivePhotoConflictDetector::class)]
 #[UsesClass(LivePhotoContentIdentifierTarget::class)]
 #[UsesClass(LivePhotoContentIdentifierTargetMap::class)]
 #[UsesClass(LivePhotoExistingFilePathnameIndex::class)]
 #[UsesClass(LivePhotoPairingCollection::class)]
+#[UsesClass(MediaCompatibilityPolicy::class)]
 #[UsesClass(MediaTypeClassifier::class)]
+#[UsesClass(DiffHighlighter::class)]
+#[UsesClass(OutputCounters::class)]
+#[UsesClass(OutputDecisionLogRenderer::class)]
+#[UsesClass(OutputEntryBuildResult::class)]
+#[UsesClass(OutputEntryPresenter::class)]
+#[UsesClass(OutputEntryTagResolution::class)]
+#[UsesClass(OutputSkipFlags::class)]
+#[UsesClass(OutputSkipReasonDecider::class)]
+#[UsesClass(OutputSkipReasonDecision::class)]
+#[UsesClass(CandidateOutputSkipReasonRule::class)]
+#[UsesClass(DefaultOutputSkipReasonRule::class)]
+#[UsesClass(FallbackOutputSkipReasonRule::class)]
+#[UsesClass(ReviewOutputSkipReasonRule::class)]
+#[UsesClass(WarningOutputSkipReasonRule::class)]
+#[UsesClass(OutputSummaryRowBuilder::class)]
+#[UsesClass(PathPrefixSplit::class)]
+#[UsesClass(RenameSummaryCounters::class)]
+#[UsesClass(SkipReasonFormatter::class)]
+#[UsesClass(SkippedFileAppendResult::class)]
+#[UsesClass(SummaryRow::class)]
 #[UsesClass(MetadataCache::class)]
 #[UsesClass(ImagickImageLoader::class)]
 #[UsesClass(LocalDifferenceAnalyzer::class)]
@@ -179,21 +280,41 @@ use function copy;
 #[UsesClass(SimilarityResult::class)]
 #[UsesClass(ExecutionPlanBuilder::class)]
 #[UsesClass(CanonicalScorer::class)]
+#[UsesClass(CaptureAssetCandidateExtractor::class)]
+#[UsesClass(CaptureContentIdentifierCoordinator::class)]
 #[UsesClass(CaptureGroupBuilder::class)]
 #[UsesClass(CaptureGroupBuildState::class)]
+#[UsesClass(CaptureGroupQualityTracker::class)]
 #[UsesClass(AssetGroupPipeline::class)]
 #[UsesClass(ExifRenamePipelineResult::class)]
 #[UsesClass(CollisionResolver::class)]
 #[UsesClass(CompanionDetector::class)]
+#[UsesClass(FlatGroupNameResolver::class)]
+#[UsesClass(OrphanLivePhotoVideoReconciler::class)]
+#[UsesClass(PendingLivePhotoVideoResolver::class)]
+#[UsesClass(PipelineReviewMapper::class)]
 #[UsesClass(RoleAssigner::class)]
 #[UsesClass(SubgroupClassifier::class)]
+#[UsesClass(SubgroupPresenceDetector::class)]
 #[UsesClass(TargetNameResolver::class)]
 #[UsesClass(RenamePlanValidator::class)]
 #[UsesClass(RenameOutputRenderer::class)]
+#[UsesClass(ConsoleProgressReporter::class)]
 #[UsesClass(SafeHashCalculator::class)]
+#[UsesClass(TargetFileResolver::class)]
+#[UsesClass(TargetPathResolver::class)]
 #[UsesClass(TargetBasenameStrategy::class)]
 #[UsesClass(ExifDateFilenameStrategy::class)]
 #[UsesClass(Constants::class)]
+#[UsesClass(TimezoneRewritePlan::class)]
+#[UsesClass(TimezoneRewritePlanner::class)]
+#[UsesClass(WriteDateCandidateAnalyzer::class)]
+#[UsesClass(WriteDatePendingWrite::class)]
+#[UsesClass(WriteDateReasonAnalyzer::class)]
+#[UsesClass(WriteDateReasonCatalog::class)]
+#[UsesClass(WriteDateReasonDecision::class)]
+#[UsesClass(WriteDateReportFormatter::class)]
+#[UsesClass(WriteDateScanResult::class)]
 final class WriteDateFlowTest extends TestCase
 {
     use ConsoleOutputParserTrait;

@@ -13,15 +13,19 @@ namespace MagicSunday\Renamer\Test\Unit\Service\WriteDate;
 
 use DateTimeImmutable;
 use DateTimeZone;
+use MagicSunday\Renamer\Helper\DateDriftCalculator;
+use MagicSunday\Renamer\Helper\FilenameDateParser;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Service\DateDriftAnalyzer;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
+use MagicSunday\Renamer\Service\WriteDate\TimezoneRewritePlan;
 use MagicSunday\Renamer\Service\WriteDate\TimezoneRewritePlanner;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateCandidateAnalyzer;
 use MagicSunday\Renamer\Service\WriteDate\WriteDatePendingWrite;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateReasonAnalyzer;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateReasonCatalog;
+use MagicSunday\Renamer\Service\WriteDate\WriteDateReasonDecision;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateScanResult;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
@@ -56,7 +60,12 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(TimezoneRewritePlanner::class)]
 #[UsesClass(ExifMetadataProvider::class)]
 #[UsesClass(TemporalMetadata::class)]
+#[UsesClass(DateDriftCalculator::class)]
+#[UsesClass(FilenameDateParser::class)]
+#[UsesClass(DateDriftAnalyzer::class)]
 #[UsesClass(MediaTypeClassifier::class)]
+#[UsesClass(TimezoneRewritePlan::class)]
+#[UsesClass(WriteDateReasonDecision::class)]
 final class WriteDateCandidateAnalyzerTest extends TestCase
 {
     use WorkspaceTrait;

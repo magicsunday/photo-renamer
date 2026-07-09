@@ -56,9 +56,11 @@ use function implode;
 #[UsesClass(AssetGroupCollection::class)]
 #[UsesClass(TemporalMetadata::class)]
 #[UsesClass(MediaTypeClassifier::class)]
+#[UsesClass(SimilarityResult::class)]
 #[UsesClass(ExistingCompanionVideoCandidate::class)]
 #[UsesClass(OrphanVideoCandidate::class)]
 #[UsesClass(OrphanVideoBestMatch::class)]
+#[UsesClass(ConsoleProgressReporter::class)]
 final class OrphanLivePhotoVideoReconcilerTest extends TestCase
 {
     private PerceptualHashCalculatorInterface&MockObject $perceptualHashCalculator;

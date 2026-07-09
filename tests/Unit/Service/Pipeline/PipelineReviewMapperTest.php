@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service\Pipeline;
 
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Model\OutputEntry;
 use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\Pipeline\VideoDuplicateCandidate;
@@ -38,6 +39,7 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(OutputEntry::class)]
 #[UsesClass(OutputEntryTag::class)]
 #[UsesClass(FileHelper::class)]
+#[UsesClass(PathHelper::class)]
 final class PipelineReviewMapperTest extends TestCase
 {
     /**
