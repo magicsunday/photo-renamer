@@ -161,9 +161,10 @@ trait ConfiguresMetadataProvider
                 : sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'renamer-cache';
         }
 
-        $projectRoot = realpath(dirname(__DIR__, 3));
+        $projectRootPath = dirname(__DIR__, 3);
+        $projectRoot     = realpath($projectRootPath);
 
-        return ($projectRoot !== false ? $projectRoot : dirname(__DIR__, 3))
+        return ($projectRoot !== false ? $projectRoot : $projectRootPath)
             . DIRECTORY_SEPARATOR . '.build'
             . DIRECTORY_SEPARATOR . 'cache';
     }
