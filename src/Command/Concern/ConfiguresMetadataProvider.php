@@ -12,28 +12,34 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Command\Concern;
 
 use DateTimeZone;
-use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
-use MagicSunday\Renamer\Service\MetadataCache;
+use MagicSunday\Renamer\Metadata\MetadataCache;
+use MagicSunday\Renamer\Service\FormatPriorityResolver;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualSignalCache;
 use Phar;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Filesystem\Filesystem;
 
-use function array_map;
-use function explode;
 use function getenv;
 use function in_array;
 use function is_string;
 use function sys_get_temp_dir;
-use function trim;
 
 use const DIRECTORY_SEPARATOR;
 
 /**
- * Shared configuration logic for commands that use the ExifMetadataProvider:
- * timezone resolution (--timezone > TIMEZONE env > no conversion) and persistent
- * metadata cache setup (CACHE_DIR env > .build/cache default).
+ * Trait providing shared configuration logic for commands using EXIF metadata.
+ *
+ * This trait centralizes the setup of the `ExifMetadataProvider`, including:
+ * - Timezone resolution for video files (CLI option > ENV > default).
+ * - Persistent metadata cache management (ENV > project default > PHAR fallback).
+ * - Configuration of perceptual signal caches for duplicate detection.
+ * - Resolution of various thresholds (date drift, merge similarity).
+ *
+ * It ensures a consistent configuration across different rename and verification
+ * commands.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -42,10 +48,24 @@ use const DIRECTORY_SEPARATOR;
 trait ConfiguresMetadataProvider
 {
     /**
-     * Configures the default timezone on the EXIF metadata provider for converting
-     * UTC timestamps from video files without explicit timezone metadata.
+     * Provides the command-facing filesystem boundary used by metadata-related
+     * cache helpers in this concern.
      *
-     * Resolution order: --timezone CLI option > TIMEZONE env var > no conversion.
+     * Commands using this trait already own the runtime command boundary, so
+     * the trait must not instantiate its own Filesystem silently.
+     */
+    abstract protected function getCommandFilesystem(): Filesystem;
+
+    /**
+     * Configures the default timezone on the EXIF metadata provider.
+     *
+     * This is essential for correctly converting UTC timestamps from QuickTime
+     * video files (MOV, MP4, M4V) when they don't contain explicit timezone
+     * metadata, ensuring they match the local time of accompanying photos.
+     *
+     * @param ExifMetadataProvider $provider The provider to configure.
+     * @param InputInterface       $input    The console input used to resolve
+     *                                       the --timezone option.
      */
     protected function configureProviderTimezone(ExifMetadataProvider $provider, InputInterface $input): void
     {
@@ -57,10 +77,13 @@ trait ConfiguresMetadataProvider
     }
 
     /**
-     * Resolves the configured timezone from --timezone option or TIMEZONE env var.
-     * Returns null when no valid timezone is configured.
+     * Resolves the configured timezone from the --timezone option or the
+     * TIMEZONE environment variable.
      *
-     * Resolution order: --timezone CLI option > TIMEZONE env var > null.
+     * @param InputInterface $input The console input to check for CLI options.
+     *
+     * @return DateTimeZone|null The resolved timezone, or null if no valid
+     *                           timezone was configured.
      */
     protected function resolveTimezone(InputInterface $input): ?DateTimeZone
     {
@@ -78,13 +101,19 @@ trait ConfiguresMetadataProvider
     }
 
     /**
-     * Configures the persistent metadata cache on the EXIF metadata provider.
-     * The cache directory is resolved from the CACHE_DIR env var, defaulting to
-     * .build/cache relative to the project root.
+     * Configures and initializes the persistent metadata cache.
+     *
+     * This speeds up subsequent runs by storing extracted EXIF/QuickTime
+     * metadata in a JSON file, avoiding expensive re-extraction with exiftool.
+     *
+     * @param ExifMetadataProvider $provider The provider to which the cache
+     *                                       should be attached.
+     *
+     * @return MetadataCache The initialized cache instance.
      */
     protected function configureProviderCache(ExifMetadataProvider $provider): MetadataCache
     {
-        $cache = new MetadataCache($this->resolveCacheDir() . '/metadata-cache.json');
+        $cache = new MetadataCache($this->resolveCacheDir() . '/metadata-cache.json', $this->getCommandFilesystem());
 
         $provider->setCache($cache);
 
@@ -92,17 +121,26 @@ trait ConfiguresMetadataProvider
     }
 
     /**
-     * Creates a persistent perceptual signal cache for hash computation results.
+     * Creates and returns a persistent cache for perceptual similarity signals.
+     *
+     * This cache stores computed dHash, wHash, and HF-energy values to avoid
+     * expensive re-computation during perceptual duplicate detection.
+     *
+     * @return PerceptualSignalCache The initialized signal cache.
      */
     protected function createPerceptualSignalCache(): PerceptualSignalCache
     {
-        return new PerceptualSignalCache($this->resolveCacheDir() . '/perceptual-signal-cache.json');
+        return new PerceptualSignalCache($this->resolveCacheDir() . '/perceptual-signal-cache.json', $this->getCommandFilesystem());
     }
 
     /**
-     * Resolves the cache directory from the CACHE_DIR env var, defaulting to
-     * .build/cache relative to the project root. When running as a PHAR binary,
-     * falls back to ~/.cache/renamer since the PHAR filesystem is read-only.
+     * Resolves the absolute path to the cache directory.
+     *
+     * The method determines the directory based on environment variables,
+     * whether the application is running as a PHAR archive (which is read-only),
+     * or the default project structure.
+     *
+     * @return string The resolved absolute path to the cache directory.
      */
     private function resolveCacheDir(): string
     {
@@ -127,20 +165,29 @@ trait ConfiguresMetadataProvider
     /**
      * Resolves and validates the source directory path from the input argument.
      *
-     * @return string|null Absolute source directory path, or null if invalid
+     * @param InputInterface $input The console input carrying the argument.
+     *
+     * @return string|null Absolute source directory path, or null if the
+     *                     directory is invalid or does not exist.
      */
     protected function resolveSourceDirectory(InputInterface $input): ?string
     {
         /** @var string|null $directory */
         $directory = $input->getArgument('source-directory');
 
-        return FileHelper::resolveDirectory($directory);
+        return PathHelper::resolveDirectory($directory);
     }
 
     /**
-     * Resolves the max date drift threshold from input option or env var.
+     * Resolves the maximum allowed date drift threshold in days.
      *
-     * @param int $default Default drift in days when neither option nor env var is set
+     * This threshold determines how much the capture date of a file may differ
+     * from the date indicated by its filename before a warning is issued.
+     *
+     * @param InputInterface $input   The console input carrying the option.
+     * @param int            $default The default threshold if nothing else is set.
+     *
+     * @return int The resolved threshold in days.
      */
     protected function resolveMaxDateDrift(InputInterface $input, int $default = 7): int
     {
@@ -156,11 +203,17 @@ trait ConfiguresMetadataProvider
     }
 
     /**
-     * Resolves the merge threshold from --merge-threshold option or MERGE_THRESHOLD env var.
+     * Resolves the merge threshold for perceptual duplicate detection.
      *
-     * @param float $default Default threshold (fraction 0.0–1.0) when neither option nor env var is set
+     * The threshold represents the maximum allowed Root Mean Square Error (RMSE)
+     * between two images to consider them visually identical.
+     *
+     * @param InputInterface $input   The console input carrying the option.
+     * @param float          $default The default threshold if nothing else is set.
+     *
+     * @return float The resolved threshold as a fraction between 0.0 and 1.0.
      */
-    protected function resolveMergeThreshold(InputInterface $input, float $default = 0.05): float
+    protected function resolveMergeThreshold(InputInterface $input, float $default = 0.06): float
     {
         $option = $input->getOption('merge-threshold');
 
@@ -174,18 +227,15 @@ trait ConfiguresMetadataProvider
     }
 
     /**
-     * Resolves the format priority list from CANONICAL_FORMAT_PRIORITY env var.
+     * Resolves the list of preferred file formats for canonical selection.
      *
-     * @return list<string>
+     * This priority list determines which file extension (e.g., HEIC over JPEG)
+     * should be favored when selecting the primary 'canonical' file of a group.
+     *
+     * @return list<string> The list of file extensions in descending priority.
      */
     protected function resolveFormatPriority(): array
     {
-        $envValue = FileHelper::env('CANONICAL_FORMAT_PRIORITY');
-
-        if (is_string($envValue) && ($envValue !== '')) {
-            return array_map(trim(...), explode(',', $envValue));
-        }
-
-        return Constants::DEFAULT_FORMAT_PRIORITY;
+        return FormatPriorityResolver::resolve();
     }
 }

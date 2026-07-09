@@ -40,19 +40,19 @@ use function array_merge;
 final readonly class AssetGroupAdapter
 {
     /**
-     * Converts an AssetGroupCollection to a FileDuplicateCollection
-     * for the existing FileSystemService execution phase.
+     * Converts an AssetGroupCollection to a FileDuplicateCollection for the existing
+     * FileSystemService execution phase.
      *
-     * For each group:
-     * 1. Creates a FileDuplicate
-     * 2. Sets the target from the canonical's proposedName (if available)
-     * 3. Orders items: Canonical -> Companions -> Duplicates -> Ambiguous
-     * 4. For each item: addFile() + addRename() if proposedName is set
-     * 5. Prefixes the key with LIVE_PHOTO_IDENTIFIER_PREFIX when the group has companions
+     * This method acts as a mapping engine between the new domain model (AssetGroup)
+     * and the legacy execution model (FileDuplicate). It ensures that groups
+     * identified as Live Photos receive a special prefix in their collection key,
+     * which is essential for consistent UI rendering in the console output.
      *
-     * @param AssetGroupCollection $groups Source asset groups to convert
+     * @param AssetGroupCollection $groups The source asset groups containing the classified
+     *                                     and ranked files to be converted.
      *
-     * @return FileDuplicateCollection Mapped collection for FileSystemService
+     * @return FileDuplicateCollection A mapped collection compatible with the legacy
+     *                                 FileSystemService.
      */
     public function toFileDuplicateCollection(AssetGroupCollection $groups): FileDuplicateCollection
     {
@@ -69,11 +69,18 @@ final readonly class AssetGroupAdapter
     }
 
     /**
-     * Converts a single AssetGroup to a FileDuplicate instance.
+     * Converts a single AssetGroup to a FileDuplicate instance, establishing
+     * the primary target and populating the internal file and rename lists.
      *
-     * @param AssetGroup $group The asset group to convert
+     * The method prioritizes the canonical item's proposed name as the global
+     * target path for the whole group. If no proposed name exists, it falls back
+     * to the current physical file path of the canonical item.
      *
-     * @return FileDuplicate The resulting file duplicate group
+     * @param AssetGroup $group The specific asset group to be transformed into
+     *                          the legacy model.
+     *
+     * @return FileDuplicate A populated FileDuplicate object representing the group's
+     *                       planned file operations.
      */
     private function convertGroup(AssetGroup $group): FileDuplicate
     {
@@ -109,11 +116,17 @@ final readonly class AssetGroupAdapter
 
     /**
      * Orders items by role: Canonical -> Companions -> Duplicates -> Ambiguous.
-     * FileSystemService and RenameOutputRenderer expect the canonical's Rename first.
      *
-     * @param AssetGroup $group The group whose items to order
+     * This specific order is critical because both FileSystemService and
+     * RenameOutputRenderer expect the canonical item's Rename entry to be the
+     * first in the list for proper identification and reporting of the primary
+     * file operation.
      *
-     * @return list<AssetItem> Items sorted by role priority
+     * @param AssetGroup $group The group whose items should be sorted according
+     *                          to their role priority.
+     *
+     * @return list<AssetItem> A sorted list of AssetItems, starting with the
+     *                         canonical item.
      */
     private function orderItems(AssetGroup $group): array
     {
@@ -132,13 +145,16 @@ final readonly class AssetGroupAdapter
     }
 
     /**
-     * Resolves the collection key, prefixing with the Live Photo identifier
-     * when the group contains Companion-role items.
+     * Resolves the collection key, applying the Live Photo prefix if necessary.
      *
-     * @param string     $key   Original group key
-     * @param AssetGroup $group The group to inspect for companions
+     * This ensures that Live Photo groups are easily identifiable in later
+     * processing stages (like rendering) by inspecting the key's prefix.
      *
-     * @return string The resolved collection key
+     * @param string     $key   The original group key (usually a timestamp).
+     * @param AssetGroup $group The group to check for the presence of companions
+     *                          (which triggers the Live Photo prefix).
+     *
+     * @return string The final collection key, possibly prefixed.
      */
     private function resolveKey(string $key, AssetGroup $group): string
     {

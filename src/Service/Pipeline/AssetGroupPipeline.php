@@ -32,12 +32,13 @@ use RecursiveIteratorIterator;
 final readonly class AssetGroupPipeline
 {
     /**
-     * @param CaptureGroupBuilderInterface $captureGroupBuilder Build capture groups from file iterator
-     * @param SubgroupClassifierInterface  $subgroupClassifier  Classify items into content-identity clusters
-     * @param RoleAssignerInterface        $roleAssigner        Assign Canonical/Duplicate/Companion roles
-     * @param TargetNameResolverInterface  $targetNameResolver  Compute proposed target names
-     * @param CollisionResolverInterface   $collisionResolver   Deduplicate proposed names against disk index
-     * @param RenamePlanValidator          $renamePlanValidator Validate the rename plan for conflicts
+     * @param CaptureGroupBuilderInterface                     $captureGroupBuilder                Build capture groups from file iterator
+     * @param SubgroupClassifierInterface                      $subgroupClassifier                 Classify items into content-identity clusters
+     * @param RoleAssignerInterface                            $roleAssigner                       Assign Canonical/Duplicate/Companion roles
+     * @param TargetNameResolverInterface                      $targetNameResolver                 Compute proposed target names
+     * @param CollisionResolverInterface                       $collisionResolver                  Deduplicate proposed names against disk index
+     * @param RenamePlanValidator                              $renamePlanValidator                Validate the rename plan for conflicts
+     * @param CrossGroupVideoDuplicateReconcilerInterface|null $crossGroupVideoDuplicateReconciler Reconciles exact-content videos across groups before subgroup classification
      */
     public function __construct(
         private CaptureGroupBuilderInterface $captureGroupBuilder,
@@ -46,6 +47,7 @@ final readonly class AssetGroupPipeline
         private TargetNameResolverInterface $targetNameResolver,
         private CollisionResolverInterface $collisionResolver,
         private RenamePlanValidator $renamePlanValidator,
+        private ?CrossGroupVideoDuplicateReconcilerInterface $crossGroupVideoDuplicateReconciler = null,
     ) {
     }
 
@@ -82,6 +84,8 @@ final readonly class AssetGroupPipeline
             $duplicateIdentifierStrategy,
             $context,
         );
+
+        $this->crossGroupVideoDuplicateReconciler?->reconcile($groups, $context);
 
         // Step 2: Classify subgroups
         $this->subgroupClassifier->classify($groups);

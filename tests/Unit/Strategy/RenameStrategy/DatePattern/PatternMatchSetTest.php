@@ -37,28 +37,25 @@ use PHPUnit\Framework\TestCase;
 final class PatternMatchSetTest extends TestCase
 {
     /**
-     * Verifies that fromPattern() parses a regex-like template and returns the
-     * bare placeholders (e.g. "Y") in order of appearance.
-     *
-     * Correct ordering is critical because the capture groups in the compiled regex
-     * are positional -- group 1 maps to the first placeholder, group 2 to the second,
-     * and so on. A reordering or omission would assign wrong date values.
+     * Verifies that placeholders are correctly extracted from a pattern.
+     * The order is crucial here, as the capture groups of the subsequent
+     * regex are mapped positionally to these placeholders.
      */
     #[Test]
     public function itExtractsPlaceholders(): void
     {
-        $set = PatternMatchSet::fromPattern('/^{Y}-{m}-{d}$/');
+        $set = PatternMatchSet::fromPattern('/^{Y}-{m}-{d}$/', new SafeRegex());
 
         self::assertSame(['Y', 'm', 'd'], $set->placeholders());
     }
 
     /**
-     * Verifies that a single placeholder is correctly extracted.
+     * Verifies the correct extraction of a single placeholder.
      */
     #[Test]
     public function itExtractsSinglePlaceholder(): void
     {
-        $set = PatternMatchSet::fromPattern('/^{H}$/');
+        $set = PatternMatchSet::fromPattern('/^{H}$/', new SafeRegex());
 
         self::assertSame(['H'], $set->placeholders());
     }

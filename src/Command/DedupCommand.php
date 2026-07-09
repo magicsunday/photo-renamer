@@ -13,9 +13,13 @@ namespace MagicSunday\Renamer\Command;
 
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\PathHelper;
+use MagicSunday\Renamer\Service\Dedup\DedupOriginalMatcher;
+use MagicSunday\Renamer\Service\Dedup\DedupReportFormatter;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use Override;
+use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -27,13 +31,12 @@ use Symfony\Component\Filesystem\Filesystem;
 
 use function array_filter;
 use function count;
+use function dirname;
 use function is_file;
 use function is_string;
 use function realpath;
 use function sprintf;
 use function str_contains;
-use function strtolower;
-use function substr_count;
 
 use const DIRECTORY_SEPARATOR;
 
@@ -49,13 +52,20 @@ use const DIRECTORY_SEPARATOR;
 final class DedupCommand extends Command
 {
     /**
-     * @param FileSystemServiceInterface $fileSystemService Provides file iteration
-     * @param RenameOutputRenderer       $renderer          Shared output rendering utilities
+     * Constructor.
+     *
+     * @param FileSystemServiceInterface $fileSystemService    Service to handle file system operations like iteration
+     * @param DedupOriginalMatcher       $dedupOriginalMatcher Service that resolves actionable originals for duplicate files
+     * @param DedupReportFormatter       $dedupReportFormatter Formatter for dedup overviews, action blocks, and footer rows
+     * @param RenameOutputRenderer       $renderer             Service to render output in a consistent format
+     * @param Filesystem                 $filesystem           Symfony Filesystem component for file operations
      */
     public function __construct(
         private readonly FileSystemServiceInterface $fileSystemService,
+        private readonly DedupOriginalMatcher $dedupOriginalMatcher,
+        private readonly DedupReportFormatter $dedupReportFormatter,
         private readonly RenameOutputRenderer $renderer,
-        private readonly Filesystem $filesystem = new Filesystem(),
+        private readonly Filesystem $filesystem,
     ) {
         parent::__construct();
     }
@@ -96,7 +106,19 @@ final class DedupCommand extends Command
     }
 
     /**
-     * Executes the dedup command: scans for duplicate files and moves or deletes them.
+     * Executes the dedup command.
+     *
+     * Scans for files containing the duplicate suffix in their name and
+     * either moves them to a target directory or deletes them based on
+     * the provided options.
+     *
+     * @param InputInterface  $input  The input interface.
+     * @param OutputInterface $output The output interface.
+     *
+     * @return int The exit code (0 for success, non-zero for failure).
+     *
+     * @throws RuntimeException If the source directory does not exist or target
+     *                          directory cannot be created.
      */
     #[Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -135,25 +157,9 @@ final class DedupCommand extends Command
         $progressBar?->setFormat(Constants::PROGRESS_BAR_FORMAT);
         $progressBar?->start();
 
-        // Build index of non-duplicate files for cross-directory original lookup.
-        /** @var array<string, string> $originalIndex basename.ext => pathname */
-        $originalIndex = [];
+        $originalIndex = $this->dedupOriginalMatcher->createIndex($files);
 
-        foreach ($files as $file) {
-            $basename = FileHelper::basenameWithoutExtension($file);
-
-            if (!str_contains($basename, Constants::DUPLICATE_IDENTIFIER)) {
-                $key   = $basename . '.' . strtolower($file->getExtension());
-                $depth = substr_count($file->getPathname(), DIRECTORY_SEPARATOR);
-
-                // Prefer the shallowest path (closest to source root) as the original.
-                if (!isset($originalIndex[$key]) || $depth < substr_count($originalIndex[$key], DIRECTORY_SEPARATOR)) {
-                    $originalIndex[$key] = $file->getPathname();
-                }
-            }
-        }
-
-        /** @var list<array{file: SplFileInfo, originalExists: bool, relativePath: string}> $duplicates */
+        /** @var list<array{file: SplFileInfo, original: SplFileInfo|null, relativePath: string}> $duplicates */
         $duplicates = [];
 
         foreach ($files as $file) {
@@ -165,14 +171,12 @@ final class DedupCommand extends Command
                 continue;
             }
 
-            $originalBasename = FileHelper::stripDuplicateSuffix($basename);
-            $key              = $originalBasename . '.' . strtolower($file->getExtension());
-            $relativePath     = FileHelper::relativizePath($file->getPathname(), $sourceDirectory);
+            $relativePath = PathHelper::relativizePath($file->getPathname(), $sourceDirectory);
 
             $duplicates[] = [
-                'file'           => $file,
-                'originalExists' => isset($originalIndex[$key]),
-                'relativePath'   => $relativePath,
+                'file'         => $file,
+                'original'     => $this->dedupOriginalMatcher->match($file, $originalIndex),
+                'relativePath' => $relativePath,
             ];
         }
 
@@ -181,24 +185,26 @@ final class DedupCommand extends Command
 
         // Post-scan summary
         $action          = $delete ? 'delete' : 'move';
-        $actionableCount = count(array_filter($duplicates, static fn (array $e): bool => $e['originalExists']));
-        $orphanCount     = count($duplicates) - $actionableCount;
+        $actionableCount = count(array_filter(
+            $duplicates,
+            static fn (array $duplicateEntry): bool => $duplicateEntry['original'] instanceof SplFileInfo,
+        ));
+        $orphanCount = count($duplicates) - $actionableCount;
 
-        if ($duplicates !== []) {
-            $io->text(sprintf(
-                '<fg=cyan>Found %d duplicate file(s) (%d actionable, %d orphaned).</>',
-                count($duplicates),
-                $actionableCount,
-                $orphanCount,
-            ));
+        $overviewLines = $this->dedupReportFormatter->formatOverviewLines(
+            count($duplicates),
+            $actionableCount,
+            $orphanCount,
+            $delete,
+            $files !== [],
+        );
 
-            if ($actionableCount > 0) {
-                $io->text(sprintf('  Action: <fg=yellow>%s</> duplicates whose original still exists.', $action));
+        if ($overviewLines !== []) {
+            if (($duplicates === []) && ($files !== [])) {
+                $io->newLine();
             }
 
-            $io->newLine();
-        } elseif ($files !== []) {
-            $io->text('<fg=green>No duplicate files found — nothing to do.</>');
+            $io->text($overviewLines);
             $io->newLine();
         }
 
@@ -217,7 +223,7 @@ final class DedupCommand extends Command
             $file         = $entry['file'];
             $relativePath = $entry['relativePath'];
 
-            if (!$entry['originalExists']) {
+            if (!$entry['original'] instanceof SplFileInfo) {
                 ++$orphanedCount;
 
                 $io->text(sprintf(
@@ -233,28 +239,36 @@ final class DedupCommand extends Command
 
             if ($dryRun) {
                 if ($delete) {
-                    $io->text(sprintf(
-                        '<fg=cyan>[D]</> %s <fg=cyan>→</> Would delete',
+                    $this->renderIndentedAction(
+                        $io,
+                        'cyan',
                         $relativePath,
-                    ));
+                        'Would delete',
+                    );
                 } else {
                     $targetRelativePath = $target . DIRECTORY_SEPARATOR . $relativePath;
 
-                    $io->text(sprintf(
-                        '<fg=cyan>[D]</> %s <fg=cyan>→</> Would move to %s',
+                    $this->renderIndentedAction(
+                        $io,
+                        'cyan',
                         $relativePath,
-                        $targetRelativePath,
-                    ));
+                        sprintf(
+                            'Would move to %s',
+                            $targetRelativePath,
+                        ),
+                    );
                 }
             } elseif ($delete) {
                 $this->filesystem->remove($file->getPathname());
 
-                $io->text(sprintf(
-                    '<fg=green>[D]</> %s (deleted)',
+                $this->renderIndentedAction(
+                    $io,
+                    'green',
                     $relativePath,
-                ));
+                    'Deleted',
+                );
             } else {
-                $relativeDir = FileHelper::relativizePath($file->getPath(), $sourceDirectory);
+                $relativeDir = PathHelper::relativizePath($file->getPath(), $sourceDirectory);
 
                 // When the file is at the root of the source directory, relativizePath
                 // returns the absolute path unchanged. In that case use the target
@@ -272,11 +286,12 @@ final class DedupCommand extends Command
 
                 $targetRelativePath = $target . DIRECTORY_SEPARATOR . $relativePath;
 
-                $io->text(sprintf(
-                    '<fg=green>[D]</> %s <fg=cyan>→</> %s',
+                $this->renderIndentedAction(
+                    $io,
+                    'green',
                     $relativePath,
                     $targetRelativePath,
-                ));
+                );
             }
         }
 
@@ -288,7 +303,36 @@ final class DedupCommand extends Command
     }
 
     /**
-     * Renders the summary table with dedup statistics.
+     * Renders one duplicate action as a two-line block for better readability.
+     *
+     * Long relative paths stay on the first line, while the actual action is
+     * indented on the second line so lists of dedup operations remain easy to scan.
+     *
+     * @param SymfonyStyle $io           The SymfonyStyle IO instance for output.
+     * @param string       $tagColor     Console color name used for the `[D]` tag.
+     * @param string       $relativePath Duplicate file path relative to the source root.
+     * @param string       $actionText   Action description shown after the arrow.
+     */
+    private function renderIndentedAction(
+        SymfonyStyle $io,
+        string $tagColor,
+        string $relativePath,
+        string $actionText,
+    ): void {
+        $io->text($this->dedupReportFormatter->formatIndentedAction($tagColor, $relativePath, $actionText));
+    }
+
+    /**
+     * Renders a final summary of the de-duplication operation.
+     *
+     * Displays the total number of files scanned, duplicates found,
+     * orphaned files identified, and the amount of disk space that can be reclaimed.
+     *
+     * @param SymfonyStyle $io               The SymfonyStyle IO instance for output.
+     * @param int          $scannedFiles     Total number of files scanned.
+     * @param int          $duplicatesFound  Number of duplicate files identified.
+     * @param int          $orphanedCount    Number of files that could not be processed.
+     * @param int          $spaceReclaimable Total size of duplicate files in bytes.
      */
     private function renderSummary(
         SymfonyStyle $io,
@@ -297,18 +341,9 @@ final class DedupCommand extends Command
         int $orphanedCount,
         int $spaceReclaimable,
     ): void {
-        /** @var list<array{string, string}> $rows */
-        $rows = [
-            ['Scanned files', (string) $scannedFiles],
-            ['Duplicates found', (string) $duplicatesFound],
-        ];
-
-        if ($orphanedCount > 0) {
-            $rows[] = ['Orphaned (skipped)', (string) $orphanedCount];
-        }
-
-        $rows[] = ['Space reclaimable', FileHelper::formatSize($spaceReclaimable)];
-
-        $this->renderer->renderSummarySection($rows, $io);
+        $this->renderer->renderSummarySection(
+            $this->dedupReportFormatter->formatSummaryRows($scannedFiles, $duplicatesFound, $orphanedCount, $spaceReclaimable),
+            $io,
+        );
     }
 }

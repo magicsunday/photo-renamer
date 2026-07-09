@@ -20,29 +20,34 @@ use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\MetadataExtractor;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
+use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\AssetGroupAdapter;
 use MagicSunday\Renamer\Service\CanonicalScorer;
 use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilder;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetector;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingService;
+use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
 use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzer;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator;
 use MagicSunday\Renamer\Service\Pipeline\AssetGroupPipeline;
-use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuilder;
 use MagicSunday\Renamer\Service\Pipeline\CollisionResolver;
 use MagicSunday\Renamer\Service\Pipeline\CompanionDetector;
 use MagicSunday\Renamer\Service\Pipeline\ExifRenamePipelineResult;
+use MagicSunday\Renamer\Service\Pipeline\OrphanLivePhotoVideoReconciler;
 use MagicSunday\Renamer\Service\Pipeline\RoleAssigner;
 use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifier;
-use MagicSunday\Renamer\Service\Pipeline\TargetNameResolver;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\RenamePlanValidator;
+use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
+use MagicSunday\Renamer\Test\Fixtures\CaptureGroupBuilderFactory;
+use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
+use MagicSunday\Renamer\Test\Fixtures\TargetNameResolverFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -96,9 +101,14 @@ final class ExecutionPathDifferentialTest extends TestCase
     }
 
     /**
-     * Run both execution paths on the same pipeline result and compare output entries.
+     * Executes both the legacy and the new execution paths on the same set of
+     * assets and verifies that they produce identical output entries.
      *
-     * @param string $scenarioDir Fixture directory name relative to tests/Fixtures/Images
+     * This test is critical for ensuring that the migration from the
+     * `FileDuplicateCollection` based rendering to the `ExecutionPlan` based
+     * rendering does not change the behavior or naming of any files.
+     *
+     * @param string $scenarioDir The subdirectory name within the test images fixture.
      */
     #[Test]
     #[DataProvider('parityScenarioProvider')]
@@ -133,12 +143,12 @@ final class ExecutionPathDifferentialTest extends TestCase
 
             $sourceBaseDirectory = rtrim($targetDir, DIRECTORY_SEPARATOR);
 
-            [$oldEntries] = $renderer->buildOutputEntries(
+            $oldEntries = $renderer->buildOutputEntries(
                 $fileDuplicateCollection,
                 $options,
                 $result,
                 $sourceBaseDirectory,
-            );
+            )->entries;
 
             // NEW path: ExecutionPlanBuilder -> buildOutputEntriesFromPlan
             $builder       = new ExecutionPlanBuilder();
@@ -147,13 +157,13 @@ final class ExecutionPathDifferentialTest extends TestCase
                 $pipelineResult->context,
             );
 
-            $newRenderer  = $this->createRenderer();
-            [$newEntries] = $newRenderer->buildOutputEntriesFromPlan(
+            $newRenderer = $this->createRenderer();
+            $newEntries  = $newRenderer->buildOutputEntriesFromPlan(
                 $executionPlan,
                 $options,
                 $result,
                 $sourceBaseDirectory,
-            );
+            )->entries;
 
             // Compare entry count
             self::assertCount(
@@ -231,9 +241,14 @@ final class ExecutionPathDifferentialTest extends TestCase
     }
 
     /**
-     * Runs the full AssetGroupPipeline and returns its result.
+     * Executes the full AssetGroupPipeline for a specific workspace and returns the result.
      *
-     * @param string $workspace Absolute path to the fixture workspace
+     * This method bootstraps all required services (metadata extraction, perceptual hashing,
+     * subgrouping, etc.) to mirror the real application logic.
+     *
+     * @param string $workspace Absolute path to the temporary test workspace
+     *
+     * @return ExifRenamePipelineResult The result of the pipeline execution
      */
     private function runPipeline(string $workspace): ExifRenamePipelineResult
     {
@@ -245,12 +260,13 @@ final class ExecutionPathDifferentialTest extends TestCase
 
         $mediaTypeClassifier = new MediaTypeClassifier();
         $imageLoader         = new ImagickImageLoader($mediaTypeClassifier);
+        $progressReporter    = new ConsoleProgressReporter($io);
 
         $perceptualHashCalculator = new PerceptualHashCalculator($imageLoader);
 
         $hashSubGroupingService = new HashSubGroupingService(
             new SafeHashCalculator(),
-            $io,
+            $progressReporter,
             $mediaTypeClassifier,
             $perceptualHashCalculator,
             new LocalDifferenceAnalyzer(),
@@ -263,23 +279,29 @@ final class ExecutionPathDifferentialTest extends TestCase
         $duplicateIdentifierStrategy = new TargetBasenameStrategy();
 
         // Build pipeline services
-        $captureGroupBuilder = new CaptureGroupBuilder(
-            $io,
+        $captureGroupBuilder = CaptureGroupBuilderFactory::create(
+            $progressReporter,
             $mediaTypeClassifier,
             $livePhotoConflictDetector,
             new LivePhotoPairingService(),
         );
 
-        $subgroupClassifier = new SubgroupClassifier($hashSubGroupingService, $mediaTypeClassifier, $io);
+        $subgroupClassifier = new SubgroupClassifier(
+            $hashSubGroupingService,
+            $mediaTypeClassifier,
+            new OrphanLivePhotoVideoReconciler($mediaTypeClassifier, $perceptualHashCalculator, $progressReporter),
+            $progressReporter,
+        );
 
         $canonicalScorer = new CanonicalScorer();
         $canonicalScorer->setFormatPriority([]);
         $canonicalScorer->setSourceDirectory($workspace);
 
-        $companionDetector = new CompanionDetector($mediaTypeClassifier);
-        $roleAssigner      = new RoleAssigner($canonicalScorer, $companionDetector);
+        $mediaCompatibilityPolicy = new MediaCompatibilityPolicy($mediaTypeClassifier);
+        $companionDetector        = new CompanionDetector($mediaCompatibilityPolicy);
+        $roleAssigner             = new RoleAssigner($canonicalScorer, $companionDetector, $mediaCompatibilityPolicy);
 
-        $targetNameResolver = new TargetNameResolver();
+        $targetNameResolver = TargetNameResolverFactory::create();
         $collisionResolver  = new CollisionResolver();
 
         $renamePlanValidator = new RenamePlanValidator();
@@ -320,7 +342,7 @@ final class ExecutionPathDifferentialTest extends TestCase
      */
     private function createRenderer(): RenameOutputRenderer
     {
-        return new RenameOutputRenderer($this->createSilentIo());
+        return OutputRendererFactory::create($this->createSilentIo());
     }
 
     /**
@@ -344,6 +366,7 @@ final class ExecutionPathDifferentialTest extends TestCase
                 FilesystemIterator::SKIP_DOTS,
             ),
             $fileExtensionRegex,
+            new SafeRegex(),
         );
 
         return new RecursiveIteratorIterator(

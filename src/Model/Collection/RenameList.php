@@ -30,7 +30,9 @@ use function array_values;
 final class RenameList extends AbstractCollection
 {
     /**
-     * @param Rename[] $array Initial rename operations to populate the list
+     * @param Rename[] $array Initial list of rename operations.
+     *                        These are appended to the collection using
+     *                        sequential integer keys.
      */
     public function __construct(array $array = [])
     {
@@ -41,12 +43,25 @@ final class RenameList extends AbstractCollection
         }
     }
 
+    /**
+     * Retrieves a rename operation by its index.
+     *
+     * @param int|string $key The numeric index (cast to int).
+     *
+     * @return Rename|null The rename operation if found, or null otherwise.
+     */
     #[Override]
     public function get(int|string $key): ?Rename
     {
         return parent::get((int) $key);
     }
 
+    /**
+     * Stores a rename operation at the specified index.
+     *
+     * @param int|string $key   The numeric index (cast to int).
+     * @param Rename     $value The rename operation to store.
+     */
     #[Override]
     public function set(int|string $key, object $value): void
     {
@@ -55,9 +70,10 @@ final class RenameList extends AbstractCollection
 
     /**
      * Re-numbers all keys to a contiguous zero-based integer sequence.
-     * Call after filter() to eliminate gaps left by removed elements.
+     * Call after manual removals or filter operations to eliminate gaps
+     * left by removed elements, ensuring consistent iteration behavior.
      *
-     * @return RenameList Fluent interface
+     * @return RenameList Returns the collection itself for chaining.
      */
     public function reindex(): self
     {

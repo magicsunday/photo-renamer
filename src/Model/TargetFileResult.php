@@ -62,7 +62,7 @@ final readonly class TargetFileResult
     }
 
     /**
-     * Returns the computed target file, or null when skipped/errored.
+     * @return SplFileInfo|null The computed target file, or null when skipped/errored.
      */
     public function getTargetFile(): ?SplFileInfo
     {
@@ -70,7 +70,7 @@ final readonly class TargetFileResult
     }
 
     /**
-     * Returns the human-readable skip reason, or null on success.
+     * @return string|null The human-readable skip reason, or null on success.
      */
     public function getSkipReason(): ?string
     {
@@ -78,7 +78,7 @@ final readonly class TargetFileResult
     }
 
     /**
-     * Returns whether the file was skipped (no target produced).
+     * @return bool Whether the file was skipped (no target produced).
      */
     public function isSkipped(): bool
     {
@@ -86,7 +86,7 @@ final readonly class TargetFileResult
     }
 
     /**
-     * Returns whether the skip was caused by a metadata read error.
+     * @return bool Whether the skip was caused by a metadata read error.
      */
     public function isError(): bool
     {

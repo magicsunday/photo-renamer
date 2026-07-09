@@ -23,6 +23,11 @@ namespace MagicSunday\Renamer\Model\Execution;
  */
 final readonly class ExecutionResult
 {
+    /**
+     * @param int $executedMoves    Total number of files successfully moved or renamed.
+     * @param int $runtimeFallbacks Number of files renamed via collision fallback (with suffix).
+     * @param int $runtimeErrors    Number of file operations that failed during execution.
+     */
     public function __construct(
         public int $executedMoves = 0,
         public int $runtimeFallbacks = 0,

@@ -21,13 +21,13 @@ namespace MagicSunday\Renamer\Model;
  */
 enum OutputEntryType: string
 {
-    /** A file rename operation (move, skip, or no-op). */
+    /** A file operation candidate (move, skipped move, or no-op). */
     case Rename = 'rename';
 
-    /** A file skipped during scanning (no metadata, error). */
+    /** A file excluded during the initial scan phase (no metadata, read error). */
     case Skip = 'skip';
 
-    /** An informational notice (e.g. cross-directory companion). */
+    /** An informational notice (e.g. "Duplicate of..."). */
     case Info = 'info';
 
     /**

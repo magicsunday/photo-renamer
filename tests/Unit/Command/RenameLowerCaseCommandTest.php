@@ -15,8 +15,10 @@ use MagicSunday\Renamer\Command\RenameLowerCaseCommand;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\Collection\AbstractCollection;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
+use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
+use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetPathnameStrategy;
@@ -30,6 +32,7 @@ use RecursiveArrayIterator;
 use RecursiveIteratorIterator;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
+use Symfony\Component\Filesystem\Filesystem;
 
 use function mkdir;
 use function rmdir;
@@ -49,6 +52,7 @@ use function uniqid;
 #[UsesClass(FileHelper::class)]
 #[UsesClass(AbstractCollection::class)]
 #[UsesClass(RenameOptions::class)]
+#[UsesClass(OutputEntryTag::class)]
 #[UsesClass(RenameResult::class)]
 final class RenameLowerCaseCommandTest extends TestCase
 {
@@ -61,6 +65,10 @@ final class RenameLowerCaseCommandTest extends TestCase
         $command = new RenameLowerCaseCommand(
             self::createStub(FileSystemServiceInterface::class),
             self::createStub(DuplicateDetectionServiceInterface::class),
+            new SafeRegex(),
+            new Filesystem(),
+            new LowerCaseFilenameStrategy(),
+            new TargetPathnameStrategy(),
         );
 
         self::assertSame('rename:lower', $command->getName());
@@ -130,7 +138,14 @@ final class RenameLowerCaseCommandTest extends TestCase
                     }),
                 );
 
-            $command = new RenameLowerCaseCommand($fileSystemService, $duplicateDetectionService);
+            $command = new RenameLowerCaseCommand(
+                $fileSystemService,
+                $duplicateDetectionService,
+                new SafeRegex(),
+                new Filesystem(),
+                new LowerCaseFilenameStrategy(),
+                new TargetPathnameStrategy(),
+            );
 
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([

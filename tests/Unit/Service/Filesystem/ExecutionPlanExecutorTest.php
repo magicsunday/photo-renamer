@@ -9,7 +9,7 @@
 
 declare(strict_types=1);
 
-namespace MagicSunday\Renamer\Test\Unit\Service;
+namespace MagicSunday\Renamer\Test\Unit\Service\Filesystem;
 
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Helper\FileHelper;
@@ -18,8 +18,10 @@ use MagicSunday\Renamer\Model\Execution\ExecutionItem;
 use MagicSunday\Renamer\Model\Execution\ExecutionItemType;
 use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
 use MagicSunday\Renamer\Model\Execution\ExecutionResult;
-use MagicSunday\Renamer\Service\FileSystemService;
-use MagicSunday\Renamer\Service\RenameOutputRenderer;
+use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
+use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
+use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
+use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -28,6 +30,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Filesystem\Filesystem;
 
 use function file_get_contents;
 use function file_put_contents;
@@ -39,14 +42,14 @@ use function uniqid;
 use const DIRECTORY_SEPARATOR;
 
 /**
- * Verifies the ExecutionPlan-based execution path in FileSystemService.
+ * Verifies the dedicated runtime executor for the ExecutionPlan path.
  * Uses real temp directories to exercise actual filesystem I/O.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-#[CoversClass(FileSystemService::class)]
+#[CoversClass(ExecutionPlanExecutor::class)]
 #[UsesClass(ExecutionPlan::class)]
 #[UsesClass(ExecutionGroup::class)]
 #[UsesClass(ExecutionItem::class)]
@@ -54,8 +57,10 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(ExecutionResult::class)]
 #[UsesClass(Constants::class)]
 #[UsesClass(FileHelper::class)]
-#[UsesClass(RenameOutputRenderer::class)]
-final class FileSystemServiceExecutePlanTest extends TestCase
+#[UsesClass(ConsoleProgressReporter::class)]
+#[UsesClass(RuntimeCollisionPathAllocator::class)]
+#[UsesClass(RuntimeFileMoveExecutor::class)]
+final class ExecutionPlanExecutorTest extends TestCase
 {
     use WorkspaceTrait;
 
@@ -83,7 +88,7 @@ final class FileSystemServiceExecutePlanTest extends TestCase
     #[Test]
     public function executePlanMovesFileWhenRenameRequired(): void
     {
-        $service = $this->createService();
+        $executor = $this->createExecutor();
 
         $sourceDir = $this->workspace . DIRECTORY_SEPARATOR . 'source-move';
         $targetDir = $this->workspace . DIRECTORY_SEPARATOR . 'target-move';
@@ -111,7 +116,7 @@ final class FileSystemServiceExecutePlanTest extends TestCase
             ),
         ]);
 
-        $result = $service->executePlan($plan);
+        $result = $executor->executePlan($plan);
 
         self::assertFileDoesNotExist($sourceFile);
         self::assertFileExists($targetFile);
@@ -127,7 +132,7 @@ final class FileSystemServiceExecutePlanTest extends TestCase
     #[Test]
     public function executePlanSkipsNoOpItems(): void
     {
-        $service = $this->createService();
+        $executor = $this->createExecutor();
 
         $directory = $this->workspace . DIRECTORY_SEPARATOR . 'noop';
         mkdir($directory);
@@ -153,7 +158,7 @@ final class FileSystemServiceExecutePlanTest extends TestCase
             ),
         ]);
 
-        $result = $service->executePlan($plan);
+        $result = $executor->executePlan($plan);
 
         self::assertFileExists($file);
         self::assertSame('noop-content', file_get_contents($file));
@@ -168,7 +173,7 @@ final class FileSystemServiceExecutePlanTest extends TestCase
     #[Test]
     public function executePlanDryRunDoesNotMoveFiles(): void
     {
-        $service = $this->createService();
+        $executor = $this->createExecutor();
 
         $sourceDir = $this->workspace . DIRECTORY_SEPARATOR . 'source-dry';
         $targetDir = $this->workspace . DIRECTORY_SEPARATOR . 'target-dry';
@@ -196,11 +201,10 @@ final class FileSystemServiceExecutePlanTest extends TestCase
             ),
         ]);
 
-        $result = $service->executePlan($plan, dryRun: true);
+        $result = $executor->executePlan($plan, dryRun: true);
 
         self::assertFileExists($sourceFile);
         self::assertFileDoesNotExist($targetFile);
-        // Dry-run: nothing actually executed
         self::assertSame(0, $result->executedMoves);
         self::assertSame(0, $result->runtimeErrors);
     }
@@ -212,7 +216,7 @@ final class FileSystemServiceExecutePlanTest extends TestCase
     #[Test]
     public function executePlanHandlesRuntimeCollision(): void
     {
-        $service = $this->createService();
+        $executor = $this->createExecutor();
 
         $sourceDir = $this->workspace . DIRECTORY_SEPARATOR . 'source-collision';
         $targetDir = $this->workspace . DIRECTORY_SEPARATOR . 'target-collision';
@@ -256,7 +260,7 @@ final class FileSystemServiceExecutePlanTest extends TestCase
             ),
         ]);
 
-        $result = $service->executePlan($plan);
+        $result = $executor->executePlan($plan);
 
         // File A should land at the shared target
         self::assertFileDoesNotExist($sourceA);
@@ -282,7 +286,7 @@ final class FileSystemServiceExecutePlanTest extends TestCase
     #[Test]
     public function executePlanCountsDuplicateTargets(): void
     {
-        $service = $this->createService();
+        $executor = $this->createExecutor();
 
         $sourceDir = $this->workspace . DIRECTORY_SEPARATOR . 'source-dup-count';
         $targetDir = $this->workspace . DIRECTORY_SEPARATOR . 'target-dup-count';
@@ -312,7 +316,7 @@ final class FileSystemServiceExecutePlanTest extends TestCase
             ),
         ]);
 
-        $result = $service->executePlan($plan);
+        $result = $executor->executePlan($plan);
 
         self::assertSame(1, $result->executedMoves);
         self::assertSame(0, $result->runtimeErrors);
@@ -325,7 +329,7 @@ final class FileSystemServiceExecutePlanTest extends TestCase
     #[Test]
     public function executePlanReturnsCorrectCounters(): void
     {
-        $service = $this->createService();
+        $executor = $this->createExecutor();
 
         $sourceDir = $this->workspace . DIRECTORY_SEPARATOR . 'source-counters';
         $targetDir = $this->workspace . DIRECTORY_SEPARATOR . 'target-counters';
@@ -377,7 +381,7 @@ final class FileSystemServiceExecutePlanTest extends TestCase
             ),
         ]);
 
-        $result = $service->executePlan($plan);
+        $result = $executor->executePlan($plan);
 
         // Only 2 executable items (no-op is not executable)
         self::assertSame(2, $result->executedMoves);
@@ -391,11 +395,11 @@ final class FileSystemServiceExecutePlanTest extends TestCase
     #[Test]
     public function executePlanWithEmptyPlan(): void
     {
-        $service = $this->createService();
+        $executor = $this->createExecutor();
 
         $plan = new ExecutionPlan([]);
 
-        $result = $service->executePlan($plan);
+        $result = $executor->executePlan($plan);
 
         self::assertSame(0, $result->executedMoves);
         self::assertSame(0, $result->runtimeFallbacks);
@@ -409,7 +413,7 @@ final class FileSystemServiceExecutePlanTest extends TestCase
     #[Test]
     public function executePlanSkipsNonExecutableItems(): void
     {
-        $service = $this->createService();
+        $executor = $this->createExecutor();
 
         $sourceDir = $this->workspace . DIRECTORY_SEPARATOR . 'source-nonexec';
         mkdir($sourceDir);
@@ -438,7 +442,7 @@ final class FileSystemServiceExecutePlanTest extends TestCase
             ),
         ]);
 
-        $result = $service->executePlan($plan);
+        $result = $executor->executePlan($plan);
 
         self::assertFileExists($sourceFile);
         self::assertFileDoesNotExist($targetFile);
@@ -454,7 +458,7 @@ final class FileSystemServiceExecutePlanTest extends TestCase
     #[Test]
     public function executePlanSkipsAllNonExecutableItems(): void
     {
-        $service = $this->createService();
+        $executor = $this->createExecutor();
 
         $sourceDir = $this->workspace . DIRECTORY_SEPARATOR . 'source-skipcount';
         mkdir($sourceDir);
@@ -493,7 +497,7 @@ final class FileSystemServiceExecutePlanTest extends TestCase
             ),
         ]);
 
-        $result = $service->executePlan($plan);
+        $result = $executor->executePlan($plan);
 
         self::assertSame(0, $result->executedMoves);
         self::assertSame(0, $result->runtimeFallbacks);
@@ -510,9 +514,9 @@ final class FileSystemServiceExecutePlanTest extends TestCase
     #[Test]
     public function executePlanLogsWarningOnRuntimeCollisionFallback(): void
     {
-        $output  = new BufferedOutput();
-        $io      = new SymfonyStyle(new ArrayInput([]), $output);
-        $service = new FileSystemService($io, new RenameOutputRenderer($io));
+        $output   = new BufferedOutput();
+        $io       = new SymfonyStyle(new ArrayInput([]), $output);
+        $executor = $this->createExecutor($io);
 
         $sourceDir = $this->workspace . DIRECTORY_SEPARATOR . 'source-warn';
         $targetDir = $this->workspace . DIRECTORY_SEPARATOR . 'target-warn';
@@ -556,20 +560,22 @@ final class FileSystemServiceExecutePlanTest extends TestCase
             ),
         ]);
 
-        $service->executePlan($plan);
+        $executor->executePlan($plan);
 
         $outputText = $output->fetch();
 
         self::assertStringContainsString('Runtime collision fallback', $outputText);
     }
 
-    private function createService(): FileSystemService
+    private function createExecutor(?SymfonyStyle $io = null): ExecutionPlanExecutor
     {
-        $output = new BufferedOutput();
-        $io     = new SymfonyStyle(new ArrayInput([]), $output);
+        $io ??= new SymfonyStyle(new ArrayInput([]), new BufferedOutput());
+        $runtimeFileMoveExecutor = new RuntimeFileMoveExecutor(
+            new ConsoleProgressReporter($io),
+            new Filesystem(),
+            new RuntimeCollisionPathAllocator(),
+        );
 
-        $renderer = new RenameOutputRenderer($io);
-
-        return new FileSystemService($io, $renderer);
+        return new ExecutionPlanExecutor(new ConsoleProgressReporter($io), $runtimeFileMoveExecutor);
     }
 }

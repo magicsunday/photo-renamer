@@ -48,6 +48,11 @@ use function unlink;
  */
 final readonly class ImagickImageLoader
 {
+    /**
+     * @param string $ffmpegBinary      Path to the ffmpeg binary used for frame extraction.
+     * @param string $ffprobeBinary     Path to the ffprobe binary used for duration probing.
+     * @param float  $posterFrameSecond The default second at which to extract a poster frame (0.1 to 2.0).
+     */
     public function __construct(
         private MediaTypeClassifierInterface $mediaTypeClassifier,
         private string $ffmpegBinary = 'ffmpeg',
@@ -62,6 +67,17 @@ final readonly class ImagickImageLoader
         }
     }
 
+    /**
+     * Loads a file, normalizes it, and returns an Imagick instance.
+     *
+     * If the file is a video, it extracts multiple frames and stitches them
+     * into a single composite image to capture a representative sample.
+     *
+     * @param SplFileInfo $file          The file to load.
+     * @param int|null    $maxResolution Optional hint for the JPEG decoder to speed up loading.
+     *
+     * @return Imagick|null The normalized image or null on failure.
+     */
     public function loadNormalized(SplFileInfo $file, ?int $maxResolution = null): ?Imagick
     {
         if (!extension_loaded('imagick') || !$file->isFile()) {
@@ -77,6 +93,14 @@ final readonly class ImagickImageLoader
 
     /**
      * Loads an image file and applies the full normalization pipeline.
+     *
+     * The pipeline ensures consistent pixel values across different formats and color spaces.
+     * It handles EXIF orientation, strips metadata, converts to sRGB, and flattens layers.
+     *
+     * @param string   $path          Path to the image file.
+     * @param int|null $maxResolution Optional hint for the JPEG decoder (e.g., 256 for 256x256).
+     *
+     * @return Imagick|null The normalized image or null on failure.
      */
     private function loadAndNormalize(string $path, ?int $maxResolution = null): ?Imagick
     {
@@ -177,6 +201,14 @@ final readonly class ImagickImageLoader
 
     /**
      * Extracts and normalizes a single frame at the given seek time.
+     *
+     * Uses ffmpeg to seek to the specific time and extract one frame as a temporary JPG,
+     * which is then loaded and normalized via the standard pipeline.
+     *
+     * @param SplFileInfo $file     The video file.
+     * @param float       $seekTime The time in seconds to seek to.
+     *
+     * @return Imagick|null The extracted frame or null on failure.
      */
     private function extractSingleFrame(SplFileInfo $file, float $seekTime): ?Imagick
     {
@@ -230,9 +262,14 @@ final readonly class ImagickImageLoader
 
     /**
      * Stitches multiple frames horizontally into a single composite image.
-     * Each frame is resized to 128px square for consistent hash input.
      *
-     * @param list<Imagick> $frames
+     * Each frame is resized to 128x128 pixels. This combined image allows
+     * perceptual hashing to consider content from multiple points in the video,
+     * making the hash more robust against slight duration differences or trims.
+     *
+     * @param list<Imagick> $frames List of Imagick instances to stitch.
+     *
+     * @return Imagick|null The composite image or null on failure.
      */
     private function stitchFrames(array $frames): ?Imagick
     {
@@ -263,6 +300,17 @@ final readonly class ImagickImageLoader
         }
     }
 
+    /**
+     * Determines the optimal seek time for the initial poster frame.
+     *
+     * Respects the configured `$posterFrameSecond` but ensures it does not
+     * exceed the actual video duration.
+     *
+     * @param SplFileInfo $file     The video file.
+     * @param float|null  $duration Pre-probed duration or null to probe now.
+     *
+     * @return float The validated seek time in seconds.
+     */
     private function resolveSeekTime(SplFileInfo $file, ?float $duration = null): float
     {
         $targetTime = max(0.0, min(2.0, $this->posterFrameSecond));
@@ -280,11 +328,23 @@ final readonly class ImagickImageLoader
         return $targetTime;
     }
 
+    /**
+     * Checks if the given file is classified as a video.
+     *
+     * @param SplFileInfo $file The file to check.
+     *
+     * @return bool True if it's a video, false otherwise.
+     */
     private function isVideo(SplFileInfo $file): bool
     {
         return $this->mediaTypeClassifier->isVideo($file);
     }
 
+    /**
+     * Safely deletes a temporary file if it exists.
+     *
+     * @param string|null $path The path to the file to delete.
+     */
     private function cleanup(?string $path): void
     {
         if (is_string($path) && ($path !== '') && is_file($path)) {
@@ -294,6 +354,13 @@ final readonly class ImagickImageLoader
 
     /**
      * Probes the video duration via ffprobe.
+     *
+     * Executes ffprobe to extract the duration of the first video stream.
+     * This is used to determine frame extraction points for video comparison.
+     *
+     * @param SplFileInfo $file The video file to probe.
+     *
+     * @return float|null The duration in seconds or null on failure.
      */
     private function probeVideoDuration(SplFileInfo $file): ?float
     {

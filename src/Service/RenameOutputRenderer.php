@@ -12,7 +12,9 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service;
 
 use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\Execution\ExecutionItem;
@@ -20,39 +22,49 @@ use MagicSunday\Renamer\Model\Execution\ExecutionItemType;
 use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
 use MagicSunday\Renamer\Model\Execution\ExecutionPreview;
 use MagicSunday\Renamer\Model\FileDuplicate;
-use MagicSunday\Renamer\Model\LinkConfig;
 use MagicSunday\Renamer\Model\OutputEntry;
 use MagicSunday\Renamer\Model\OutputEntryTag;
+use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
+use MagicSunday\Renamer\Service\Output\DiffHighlighter;
+use MagicSunday\Renamer\Service\Output\OutputCounters;
+use MagicSunday\Renamer\Service\Output\OutputDecisionLogRenderer;
+use MagicSunday\Renamer\Service\Output\OutputEntryBuildResult;
+use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
+use MagicSunday\Renamer\Service\Output\OutputEntryTagResolution;
+use MagicSunday\Renamer\Service\Output\OutputSkipFlags;
+use MagicSunday\Renamer\Service\Output\OutputSummaryRowBuilder;
+use MagicSunday\Renamer\Service\Output\RenameSummaryCounters;
+use MagicSunday\Renamer\Service\Output\SkippedFileAppendResult;
+use MagicSunday\Renamer\Service\Output\SummaryRow;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function count;
-use function in_array;
 use function is_string;
-use function max;
-use function mb_str_split;
-use function mb_stripos;
-use function mb_strlen;
-use function mb_strtolower;
-use function mb_substr;
-use function preg_match;
-use function preg_match_all;
+use function pathinfo;
 use function sprintf;
 use function str_contains;
-use function str_repeat;
 use function str_starts_with;
 use function strlen;
-use function strrpos;
-use function substr;
 use function ucfirst;
 use function usort;
 
+use const PATHINFO_EXTENSION;
+
 /**
- * Handles all console output rendering for the rename phase: building the
- * merged output entry list, rendering the summary statistics table, and
- * providing display-related query helpers. Extracted from {@see FileSystemService}
- * to separate rendering concerns from file I/O operations.
+ * Handles all console output rendering for the rename phase.
+ *
+ * This class centralizes all display logic, including:
+ * - Building merged and sorted output entry lists from rename operations.
+ * - Rendering summary statistics tables with aligned columns.
+ * - Managing different output tags (Canonical, Duplicate, Warning, etc.).
+ * - Highlighting differences between source and target filenames for readability.
+ * - Providing display-related query helpers (e.g., counting Live Photo groups).
+ *
+ * It was extracted from {@see FileSystemService} to strictly separate rendering
+ * concerns from physical file I/O operations, making the display logic more
+ * testable and maintainable.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -61,36 +73,56 @@ use function usort;
 final readonly class RenameOutputRenderer
 {
     /**
-     * @param SymfonyStyle $io Console IO for status output
+     * @param SymfonyStyle              $io                  Symfony Style IO for consistent console output formatting
+     * @param OutputDecisionLogRenderer $decisionLogRenderer Decision-log renderer for canonical and companion reasoning
+     * @param OutputEntryPresenter      $entryPresenter      Presenter that turns semantic entries into console lines
+     * @param OutputSummaryRowBuilder   $summaryRowBuilder   Summary-row builder for command footer tables
+     * @param DiffHighlighter           $diffHighlighter     Filename diff highlighter shared with entry rendering
      */
-    public function __construct(private SymfonyStyle $io)
-    {
+    public function __construct(
+        private SymfonyStyle $io,
+        private OutputDecisionLogRenderer $decisionLogRenderer,
+        private OutputEntryPresenter $entryPresenter,
+        private OutputSummaryRowBuilder $summaryRowBuilder,
+        private DiffHighlighter $diffHighlighter,
+    ) {
     }
 
     /**
      * Builds a merged, path-sorted list of all output entries from rename operations
      * and skipped files for display during the rename phase.
      *
-     * @param FileDuplicateCollection $fileDuplicateCollection Collection of file duplicates
-     * @param RenameOptions           $options                 Options controlling the rename operation
-     * @param RenameResult            $result                  Pipeline-computed results (scanned files, collisions, skips)
-     * @param string|null             $sourceBaseDirectory     Normalized base directory for path relativization
+     * This method processes the result of the rename operation and prepares a list
+     * of {@see OutputEntry} objects. It handles the identification of duplicate
+     * targets, no-op operations (where source equals target), and canonical entries.
+     * The final list is sorted by source pathname to provide a predictable and
+     * clean overview in the console.
      *
-     * @return array{list<OutputEntry>, int, int} Tuple of [entries, skippedCount, errorCount]
+     * @param FileDuplicateCollection $fileDuplicateCollection The collection of identified duplicates
+     *                                                         and their planned rename operations.
+     * @param RenameOptions           $options                 Configuration options controlling the rename
+     *                                                         behavior (e.g., whether to list all files).
+     * @param RenameResult            $result                  The global result object containing metadata
+     *                                                         quality flags, collisions, and error states.
+     * @param string|null             $sourceBaseDirectory     The normalized base directory used to relativize
+     *                                                         absolute paths for cleaner display.
+     *
+     * @return OutputEntryBuildResult Typed result containing the projected entries plus skipped/error counters.
      */
     public function buildOutputEntries(
         FileDuplicateCollection $fileDuplicateCollection,
         RenameOptions $options,
         RenameResult $result,
         ?string $sourceBaseDirectory,
-    ): array {
+    ): OutputEntryBuildResult {
         /** @var list<OutputEntry> $outputEntries */
         $outputEntries = [];
 
         /** @var FileDuplicate $fileDuplicate */
         foreach ($fileDuplicateCollection as $fileDuplicate) {
-            $canonicalTargetPath = $fileDuplicate->getTarget()->getPathname();
-            $canonicalBasename   = FileHelper::basenameWithoutExtension($fileDuplicate->getTarget());
+            $canonicalTargetPath   = $fileDuplicate->getTarget()->getPathname();
+            $canonicalBasename     = FileHelper::basenameWithoutExtension($fileDuplicate->getTarget());
+            $referenceTargetsByExt = $this->buildReferenceTargetsByExtension($fileDuplicate->getRenames());
 
             foreach ($fileDuplicate->getRenames() as $rename) {
                 $renameBasename = FileHelper::basenameWithoutExtension($rename->getTarget());
@@ -104,8 +136,8 @@ final readonly class RenameOutputRenderer
                 $isCanonicalEntry = ($renameBasename === $canonicalBasename)
                     && ($isNoOp || ($options->listAll && ($rename->getSource()->getPathname() === $canonicalTargetPath)));
 
-                $sourcePath = FileHelper::relativizePath($rename->getSource()->getPathname(), $sourceBaseDirectory);
-                $targetPath = FileHelper::relativizePath($rename->getTarget()->getPathname(), $sourceBaseDirectory);
+                $sourcePath = PathHelper::relativizePath($rename->getSource()->getPathname(), $sourceBaseDirectory);
+                $targetPath = PathHelper::relativizePath($rename->getTarget()->getPathname(), $sourceBaseDirectory);
 
                 $sourcePathname = $rename->getSource()->getPathname();
 
@@ -117,45 +149,72 @@ final readonly class RenameOutputRenderer
                     $result,
                 );
 
-                [$tag, $warningReason]                 = $this->applyDateDriftCheck($tag, null, $sourcePath, $targetPath, $options);
-                [$shouldSkip, $shouldPerformOperation] = $this->computeSkipFlags($tag, $isNoOp);
+                $tagResolution = $this->applyDateDriftCheck($tag, null, $sourcePath, $targetPath, $options);
+                $skipFlags     = $this->computeSkipFlags($tagResolution->tag, $isNoOp);
 
                 $outputEntries[] = OutputEntry::rename(
                     sortKey: $rename->getSource()->getPathname(),
                     sourcePath: $sourcePath,
                     targetPath: $targetPath,
-                    tag: $tag,
+                    tag: $tagResolution->tag,
                     isDuplicateTarget: $isDuplicateTarget,
-                    shouldSkip: $shouldSkip,
-                    shouldPerformOperation: $shouldPerformOperation,
-                    warningReason: $warningReason,
+                    shouldSkip: $skipFlags->shouldSkip,
+                    shouldPerformOperation: $skipFlags->shouldPerformOperation,
+                    warningReason: $tagResolution->warningReason,
                 );
+
+                if (($tagResolution->tag === OutputEntryTag::Duplicate) && !$isNoOp) {
+                    $this->appendDuplicateReferenceEntry(
+                        $outputEntries,
+                        $rename->getSource()->getPathname(),
+                        $sourcePath,
+                        $targetPath,
+                        $canonicalTargetPath,
+                        $referenceTargetsByExt,
+                        $sourceBaseDirectory,
+                    );
+                }
             }
         }
 
-        [$skippedCount, $errorCount] = $this->appendSkippedFileEntries($outputEntries, $result, $sourceBaseDirectory);
+        $skippedAppendResult = $this->appendSkippedFileEntries($outputEntries, $result, $sourceBaseDirectory);
 
-        usort($outputEntries, static function (OutputEntry $a, OutputEntry $b): int {
-            $cmp = $a->sortKey <=> $b->sortKey;
+        $this->sortOutputEntries($outputEntries);
 
-            return $cmp !== 0 ? $cmp : ($a->type->sortOrder() <=> $b->type->sortOrder());
-        });
-
-        return [$outputEntries, $skippedCount, $errorCount];
+        return new OutputEntryBuildResult(
+            $outputEntries,
+            $skippedAppendResult->skippedCount,
+            $skippedAppendResult->errorCount,
+        );
     }
 
     /**
      * Resolves the output entry tag for a file based on its metadata quality,
      * duplicate status, and canonical position.
      *
-     * Priority chain (top to bottom): [C] > [W] > [F] > [D] > [O] > [R].
-     * Exception: [O] wins for no-ops (!$isNoOp guard on [W], [F], [D]).
+     * The tag represents the status of the file in the rename process and determines
+     * the prefix (e.g., [O], [D], [W]) shown in the console output.
      *
-     * @param string       $sourcePathname    Absolute path of the source file
-     * @param bool         $isDuplicateTarget Whether the file is a duplicate (has -duplicate- suffix)
-     * @param bool         $isNoOp            Whether source and target paths are identical
-     * @param bool         $isCanonicalEntry  Whether the file is the canonical entry in its group
-     * @param RenameResult $result            Result carrying quality flags
+     * Priority chain (top to bottom):
+     * 1. [C] Candidate: Live Photo identifier conflict (requires manual resolution).
+     * 2. [W] Warning: Ambiguous timezone data.
+     * 3. [F] Fallback: Date extracted from secondary metadata fields.
+     * 4. [D] Duplicate: File identified as a duplicate (contains identifier suffix).
+     * 5. [O] Original: The canonical entry of a group or a file where no rename is needed.
+     * 6. [R] Rename: A standard rename operation.
+     *
+     * Note: [O] wins for no-ops (source === target) to signal that no physical
+     * file operation will be performed.
+     *
+     * @param string       $sourcePathname    The absolute path of the source file.
+     * @param bool         $isDuplicateTarget True if the target filename indicates a duplicate
+     *                                        (contains the duplicate identifier).
+     * @param bool         $isNoOp            True if the source and target paths are identical.
+     * @param bool         $isCanonicalEntry  True if this file is the primary/canonical item
+     *                                        within its asset group.
+     * @param RenameResult $result            The global result object carrying metadata flags.
+     *
+     * @return OutputEntryTag The resolved tag determining the entry's display status.
      */
     private function resolveEntryTag(
         string $sourcePathname,
@@ -190,8 +249,13 @@ final readonly class RenameOutputRenderer
     /**
      * Renders an aligned two-column table of label/value pairs.
      *
-     * @param list<array{string, string}> $rows Label/value pairs to display
-     * @param SymfonyStyle|null           $io   Console IO to render to (defaults to constructor-injected IO)
+     * This method calculates the maximum width of both columns to ensure perfect
+     * alignment in the console output. It is primarily used for the summary
+     * statistics at the end of a command.
+     *
+     * @param list<SummaryRow>  $rows The list of summary rows to display.
+     * @param SymfonyStyle|null $io   Optional console IO. If null, the instance's
+     *                                default IO is used.
      */
     public function renderAlignedTable(array $rows, ?SymfonyStyle $io = null): void
     {
@@ -201,25 +265,28 @@ final readonly class RenameOutputRenderer
         $maxValueLength = 0;
 
         foreach ($rows as $row) {
-            $maxLabelLength = max($maxLabelLength, strlen($row[0]));
-            $maxValueLength = max($maxValueLength, strlen($row[1]));
+            $maxLabelLength = max($maxLabelLength, strlen($row->label));
+            $maxValueLength = max($maxValueLength, strlen($row->value));
         }
 
         foreach ($rows as $row) {
             $io->text(sprintf(
                 ' %-' . $maxLabelLength . 's  %' . $maxValueLength . 's',
-                $row[0],
-                $row[1],
+                $row->label,
+                $row->value,
             ));
         }
     }
 
     /**
-     * Renders a summary section with header, aligned table and trailing newline.
-     * Shared by all commands for consistent summary output.
+     * Renders a summary section with a header, an aligned table, and a trailing newline.
      *
-     * @param list<array{string, string}> $rows Label/value pairs to display
-     * @param SymfonyStyle|null           $io   Console IO to render to (defaults to constructor-injected IO)
+     * This provides a consistent visual style for summary reports across all
+     * available commands.
+     *
+     * @param list<SummaryRow>  $rows The list of summary rows to display in the table.
+     * @param SymfonyStyle|null $io   Optional console IO. If null, the instance's
+     *                                default IO is used.
      */
     public function renderSummarySection(array $rows, ?SymfonyStyle $io = null): void
     {
@@ -236,47 +303,13 @@ final readonly class RenameOutputRenderer
     /**
      * Renders the summary table with file counts and statistics.
      *
-     * @param array<string, int> $counters
+     * @param RenameSummaryCounters $counters Summary counters for the footer table
      */
-    public function renderSummary(array $counters, bool $dryRun): void
+    public function renderSummary(RenameSummaryCounters $counters, bool $dryRun): void
     {
         $this->io->newLine();
 
-        $rows = [
-            ['Scanned files', (string) $counters['scannedFiles']],
-        ];
-
-        if ($counters['skippedCount'] > 0) {
-            $rows[] = ['Skipped (no metadata)', (string) $counters['skippedCount']];
-        }
-
-        if ($counters['errorCount'] > 0) {
-            $rows[] = ['Skipped (read errors)', (string) $counters['errorCount']];
-        }
-
-        if ($counters['plannedMoves'] > 0) {
-            $rows[] = ['Planned moves', (string) $counters['plannedMoves']];
-        }
-
-        if ($counters['plannedSkips'] > 0) {
-            $rows[] = ['Planned skips', (string) $counters['plannedSkips']];
-        }
-
-        if ($counters['livePhotoGroups'] > 0) {
-            $rows[] = ['Live Photo groups', (string) $counters['livePhotoGroups']];
-        }
-
-        if ($counters['duplicateCount'] > 0) {
-            $rows[] = ['Duplicates found', (string) $counters['duplicateCount']];
-        }
-
-        if ($counters['namingCollisions'] > 0) {
-            $rows[] = ['Naming collisions', (string) $counters['namingCollisions']];
-        }
-
-        $rows[] = [$dryRun ? 'Files to process' : 'Files processed', (string) $counters['fileCount']];
-
-        $this->renderSummarySection($rows);
+        $this->renderSummarySection($this->summaryRowBuilder->build($counters, $dryRun));
     }
 
     /**
@@ -288,31 +321,7 @@ final readonly class RenameOutputRenderer
     public function renderDecisionLog(
         AssetGroupCollection $groups,
     ): void {
-        $hasAnyLog = false;
-
-        foreach ($groups as $group) {
-            $log = $group->getDecisionLog();
-
-            if ($log === []) {
-                continue;
-            }
-
-            if (!$hasAnyLog) {
-                $this->io->newLine();
-                $this->io->text('<fg=cyan>Decision Log</>');
-                $hasAnyLog = true;
-            }
-
-            $this->io->text(sprintf('  <fg=yellow>%s</>:', $group->groupKey));
-
-            foreach ($log as $entry) {
-                $this->io->text('    ' . $entry);
-            }
-        }
-
-        if ($hasAnyLog) {
-            $this->io->newLine();
-        }
+        $this->decisionLogRenderer->renderAssetGroupDecisionLog($groups, $this->io);
     }
 
     // ---------------------------------------------------------------
@@ -330,55 +339,90 @@ final readonly class RenameOutputRenderer
      * @param RenameResult  $result              Scan/analysis summary data (skipped files)
      * @param string|null   $sourceBaseDirectory Base directory for relative path display
      *
-     * @return array{list<OutputEntry>, int, int} Tuple of [entries, skippedCount, errorCount]
+     * @return OutputEntryBuildResult Typed result containing the projected entries plus skipped/error counters.
      */
     public function buildOutputEntriesFromPlan(
         ExecutionPlan $plan,
         RenameOptions $options,
         RenameResult $result,
         ?string $sourceBaseDirectory = null,
-    ): array {
+    ): OutputEntryBuildResult {
         /** @var list<OutputEntry> $outputEntries */
         $outputEntries = [];
 
         foreach ($plan->groups as $group) {
+            $canonicalTargetPath   = null;
+            $referenceTargetsByExt = [];
+
             foreach ($group->items as $item) {
-                $sourcePath = FileHelper::relativizePath($item->sourcePath, $sourceBaseDirectory);
-                $targetPath = FileHelper::relativizePath($item->targetPath, $sourceBaseDirectory);
+                if (($item->type === ExecutionItemType::Canonical) && ($canonicalTargetPath === null)) {
+                    $canonicalTargetPath = $item->targetPath;
+                }
+
+                if ($item->isDuplicateTarget) {
+                    continue;
+                }
+
+                $normalizedExtension = FileHelper::normalizeExtension(
+                    pathinfo($item->targetPath, PATHINFO_EXTENSION),
+                );
+
+                if ($normalizedExtension === '') {
+                    continue;
+                }
+
+                $referenceTargetsByExt[$normalizedExtension] ??= $item->targetPath;
+            }
+
+            foreach ($group->items as $item) {
+                $sourcePath = PathHelper::relativizePath($item->sourcePath, $sourceBaseDirectory);
+                $targetPath = PathHelper::relativizePath($item->targetPath, $sourceBaseDirectory);
 
                 $tag = $this->resolveItemTag($item);
 
-                [$tag, $warningReason] = $this->applyDateDriftCheck($tag, $item->warningReason ?? $item->executionBlockReason, $sourcePath, $targetPath, $options);
-
-                // Use isExecutable from the ExecutionItem to determine skip status.
-                // Date drift (applied above) can also trigger a skip via the tag.
-                $shouldSkip = (!$item->isExecutable && !$item->isNoOp)
-                    || ($tag === OutputEntryTag::Warning)
-                    || ($tag === OutputEntryTag::Candidate);
-                $shouldPerformOperation = !$shouldSkip && !$item->isNoOp;
+                $tagResolution = $this->applyDateDriftCheck(
+                    $tag,
+                    $item->warningReason ?? $item->executionBlockReason,
+                    $sourcePath,
+                    $targetPath,
+                    $options,
+                );
+                $skipFlags = $this->computeSkipFlags($tagResolution->tag, $item->isNoOp, $item->isExecutable);
 
                 $outputEntries[] = OutputEntry::rename(
                     sortKey: $item->sourcePath,
                     sourcePath: $sourcePath,
                     targetPath: $targetPath,
-                    tag: $tag,
+                    tag: $tagResolution->tag,
                     isDuplicateTarget: $item->isDuplicateTarget,
-                    shouldSkip: $shouldSkip,
-                    shouldPerformOperation: $shouldPerformOperation,
-                    warningReason: $warningReason,
+                    shouldSkip: $skipFlags->shouldSkip,
+                    shouldPerformOperation: $skipFlags->shouldPerformOperation,
+                    warningReason: $tagResolution->warningReason,
                 );
+
+                if (($tagResolution->tag === OutputEntryTag::Duplicate) && !$item->isNoOp && ($canonicalTargetPath !== null)) {
+                    $this->appendDuplicateReferenceEntry(
+                        $outputEntries,
+                        $item->sourcePath,
+                        $sourcePath,
+                        $item->targetPath,
+                        $canonicalTargetPath,
+                        $referenceTargetsByExt,
+                        $sourceBaseDirectory,
+                    );
+                }
             }
         }
 
-        [$skippedCount, $errorCount] = $this->appendSkippedFileEntries($outputEntries, $result, $sourceBaseDirectory);
+        $skippedAppendResult = $this->appendSkippedFileEntries($outputEntries, $result, $sourceBaseDirectory);
 
-        usort($outputEntries, static function (OutputEntry $a, OutputEntry $b): int {
-            $cmp = $a->sortKey <=> $b->sortKey;
+        $this->sortOutputEntries($outputEntries);
 
-            return $cmp !== 0 ? $cmp : ($a->type->sortOrder() <=> $b->type->sortOrder());
-        });
-
-        return [$outputEntries, $skippedCount, $errorCount];
+        return new OutputEntryBuildResult(
+            $outputEntries,
+            $skippedAppendResult->skippedCount,
+            $skippedAppendResult->errorCount,
+        );
     }
 
     /**
@@ -401,19 +445,19 @@ final readonly class RenameOutputRenderer
         ?array $showFilter = null,
         ?RenameResult $result = null,
     ): ExecutionPreview {
-        [$outputEntries] = $this->buildOutputEntriesFromPlan(
+        $buildResult = $this->buildOutputEntriesFromPlan(
             $plan,
             $options,
             $result ?? new RenameResult(),
             $sourceBaseDirectory,
         );
 
-        $counters = $this->renderEntryLines($outputEntries, $sourceBaseDirectory, $showFilter);
+        $counters = $this->renderEntryLines($buildResult->entries, $sourceBaseDirectory, $showFilter);
 
         return new ExecutionPreview(
-            plannedMoves: $counters['plannedMoves'],
-            plannedSkips: $counters['plannedSkips'],
-            duplicateCount: $counters['duplicateCount'],
+            plannedMoves: $counters->plannedMoves,
+            plannedSkips: $counters->plannedSkips,
+            duplicateCount: $counters->duplicateCount,
         );
     }
 
@@ -444,17 +488,18 @@ final readonly class RenameOutputRenderer
             }
         }
 
-        $this->renderSummary([
-            'scannedFiles'     => $result->scannedFiles,
-            'skippedCount'     => $skippedCount,
-            'errorCount'       => $errorCount,
-            'livePhotoGroups'  => $plan->livePhotoGroupCount(),
-            'namingCollisions' => $result->namingCollisions,
-            'fileCount'        => $preview->plannedMoves,
-            'duplicateCount'   => $preview->duplicateCount,
-            'plannedMoves'     => $preview->plannedMoves,
-            'plannedSkips'     => $preview->plannedSkips,
-        ], $dryRun);
+        $this->renderSummary(new RenameSummaryCounters(
+            scannedFiles: $result->scannedFiles,
+            skippedCount: $skippedCount,
+            errorCount: $errorCount,
+            livePhotoGroups: $plan->livePhotoGroupCount(),
+            namingCollisions: $result->namingCollisions,
+            fileCount: $preview->plannedMoves,
+            duplicateCount: $preview->duplicateCount,
+            plannedMoves: $preview->plannedMoves,
+            plannedSkips: $preview->plannedSkips,
+            crossGroupVideoReviewCount: $result->crossGroupVideoReviewCount,
+        ), $dryRun);
     }
 
     /**
@@ -477,29 +522,7 @@ final readonly class RenameOutputRenderer
      */
     public function renderDecisionLogFromPlan(ExecutionPlan $plan): void
     {
-        $hasAnyLog = false;
-
-        foreach ($plan->groups as $group) {
-            if ($group->decisionLog === []) {
-                continue;
-            }
-
-            if (!$hasAnyLog) {
-                $this->io->newLine();
-                $this->io->text('<fg=cyan>Decision Log</>');
-                $hasAnyLog = true;
-            }
-
-            $this->io->text(sprintf('  <fg=yellow>%s</>:', $group->groupKey));
-
-            foreach ($group->decisionLog as $entry) {
-                $this->io->text('    ' . $entry);
-            }
-        }
-
-        if ($hasAnyLog) {
-            $this->io->newLine();
-        }
+        $this->decisionLogRenderer->renderExecutionPlanDecisionLog($plan, $this->io);
     }
 
     /**
@@ -512,7 +535,7 @@ final readonly class RenameOutputRenderer
      * @param string         $targetPath    Relative target path for date extraction
      * @param RenameOptions  $options       Command options (maxDateDrift)
      *
-     * @return array{OutputEntryTag, string|null} Adjusted [tag, warningReason]
+     * @return OutputEntryTagResolution Adjusted tag and warning reason
      */
     private function applyDateDriftCheck(
         OutputEntryTag $tag,
@@ -520,7 +543,7 @@ final readonly class RenameOutputRenderer
         string $sourcePath,
         string $targetPath,
         RenameOptions $options,
-    ): array {
+    ): OutputEntryTagResolution {
         if (($tag === OutputEntryTag::Warning) && ($warningReason === null)) {
             $warningReason = 'Ambiguous timezone: QuickTime UTC without offset — use --timezone or rename:write-date --reason=timezone';
         }
@@ -530,7 +553,7 @@ final readonly class RenameOutputRenderer
             && ($options->maxDateDrift !== null)
             && ($options->maxDateDrift > 0)
         ) {
-            $driftDays = FileHelper::computeDateDrift($sourcePath, $targetPath);
+            $driftDays = DateDriftCalculator::computeDateDrift($sourcePath, $targetPath);
 
             if (($driftDays !== null) && ($driftDays > $options->maxDateDrift)) {
                 $tag           = OutputEntryTag::Warning;
@@ -542,7 +565,7 @@ final readonly class RenameOutputRenderer
             }
         }
 
-        return [$tag, $warningReason];
+        return new OutputEntryTagResolution($tag, $warningReason);
     }
 
     /**
@@ -550,21 +573,24 @@ final readonly class RenameOutputRenderer
      * the resolved tag. [W] (ambiguous timezone) and [C] (LP conflict)
      * items are always skipped.
      *
-     * @param OutputEntryTag $tag    The resolved output entry tag
-     * @param bool           $isNoOp Whether source === target (no rename needed)
+     * @param OutputEntryTag $tag          The resolved output entry tag
+     * @param bool           $isNoOp       Whether source === target (no rename needed)
+     * @param bool           $isExecutable Whether the entry remains executable after validation
      *
-     * @return array{bool, bool} [shouldSkip, shouldPerformOperation]
+     * @return OutputSkipFlags Immutable skip and execution flags
      */
     private function computeSkipFlags(
         OutputEntryTag $tag,
         bool $isNoOp,
-    ): array {
-        $shouldSkip = ($tag === OutputEntryTag::Candidate)
+        bool $isExecutable = true,
+    ): OutputSkipFlags {
+        $shouldSkip = (!$isExecutable && !$isNoOp)
+            || ($tag === OutputEntryTag::Candidate)
             || ($tag === OutputEntryTag::Warning);
 
         $shouldPerformOperation = ($shouldSkip === false) && (!$isNoOp);
 
-        return [$shouldSkip, $shouldPerformOperation];
+        return new OutputSkipFlags($shouldSkip, $shouldPerformOperation);
     }
 
     /**
@@ -575,20 +601,13 @@ final readonly class RenameOutputRenderer
      * @param RenameResult      $result              Result carrying skipped files
      * @param string|null       $sourceBaseDirectory Base directory for path relativization
      *
-     * @return array{int, int} [skippedCount, errorCount]
-     */
-    /**
-     * @param list<OutputEntry> $outputEntries       Entries to append to (by reference)
-     * @param RenameResult      $result              Pipeline results with skipped files and notices
-     * @param string|null       $sourceBaseDirectory Base directory for relative paths
-     *
-     * @return array{int, int} [skippedCount, errorCount]
+     * @return SkippedFileAppendResult Immutable skipped/error counters after projection
      */
     private function appendSkippedFileEntries(
         array &$outputEntries,
         RenameResult $result,
         ?string $sourceBaseDirectory,
-    ): array {
+    ): SkippedFileAppendResult {
         $skippedCount = 0;
         $errorCount   = 0;
 
@@ -601,24 +620,75 @@ final readonly class RenameOutputRenderer
 
             $outputEntries[] = OutputEntry::skip(
                 sortKey: $skippedFile->getFile()->getPathname(),
-                sourcePath: FileHelper::relativizePath($skippedFile->getFile()->getPathname(), $sourceBaseDirectory),
+                sourcePath: PathHelper::relativizePath($skippedFile->getFile()->getPathname(), $sourceBaseDirectory),
                 reason: ucfirst($skippedFile->getReason()),
                 tag: $skippedFile->isError() ? OutputEntryTag::Error : OutputEntryTag::Skipped,
             );
         }
 
         foreach ($result->crossDirectoryCompanions as [$canonicalPath, $companionPath]) {
+            $relativeCanonicalPath = PathHelper::relativizePath($canonicalPath, $sourceBaseDirectory);
+
             $outputEntries[] = OutputEntry::info(
                 sortKey: $companionPath,
-                sourcePath: FileHelper::relativizePath($companionPath, $sourceBaseDirectory),
+                sourcePath: PathHelper::relativizePath($companionPath, $sourceBaseDirectory),
                 reason: sprintf(
-                    'Live Photo pair across directories: ↔ %s',
-                    FileHelper::relativizePath($canonicalPath, $sourceBaseDirectory),
+                    'Live Photo pair across directories: <fg=cyan>%s</>',
+                    $relativeCanonicalPath,
                 ),
             );
         }
 
-        return [$skippedCount, $errorCount];
+        foreach ($result->reviewEntries as $reviewEntry) {
+            $outputEntries[] = $reviewEntry;
+        }
+
+        return new SkippedFileAppendResult($skippedCount, $errorCount);
+    }
+
+    /**
+     * Appends an explanatory info row for a duplicate target.
+     *
+     * @param list<OutputEntry>     $outputEntries         Output entries array modified by reference
+     * @param array<string, string> $referenceTargetsByExt First non-duplicate target path per extension
+     */
+    private function appendDuplicateReferenceEntry(
+        array &$outputEntries,
+        string $sortKey,
+        string $sourcePath,
+        string $duplicateTargetPath,
+        string $canonicalTargetPath,
+        array $referenceTargetsByExt,
+        ?string $sourceBaseDirectory,
+    ): void {
+        $outputEntries[] = OutputEntry::info(
+            sortKey: $sortKey,
+            sourcePath: $sourcePath,
+            reason: sprintf(
+                'Duplicate of %s',
+                $this->resolveDuplicateReferenceTargetPath(
+                    $duplicateTargetPath,
+                    $canonicalTargetPath,
+                    $referenceTargetsByExt,
+                    $sourceBaseDirectory,
+                ),
+            ),
+            tag: OutputEntryTag::Duplicate,
+        );
+    }
+
+    /**
+     * Sorts output entries by source path and entry type.
+     *
+     * @param list<OutputEntry> $outputEntries Output entries array modified by reference
+     */
+    private function sortOutputEntries(array &$outputEntries): void
+    {
+        usort($outputEntries, static function (OutputEntry $entryA, OutputEntry $entryB): int {
+            $cmp = $entryA->sortKey <=> $entryB->sortKey;
+
+            return $cmp !== 0 ? $cmp : ($entryA->type->sortOrder() <=> $entryB->type->sortOrder());
+        });
     }
 
     /**
@@ -629,105 +699,19 @@ final readonly class RenameOutputRenderer
      * @param string|null       $sourceBaseDirectory Base directory for linkified paths
      * @param list<string>|null $showFilter          Tag filter (null = show all)
      *
-     * @return array{fileCount: int, duplicateCount: int, plannedMoves: int, plannedSkips: int}
+     * @return OutputCounters Immutable render counters shared with legacy execution
      */
     public function renderEntryLines(
         array $outputEntries,
         ?string $sourceBaseDirectory = null,
         ?array $showFilter = null,
-    ): array {
-        // Compute max path length only over visible entries so padding is tight
-        $maxFilenameLength = 0;
-
-        foreach ($outputEntries as $entry) {
-            if (!$this->isTagVisible($entry->tag, $showFilter)) {
-                continue;
-            }
-
-            $maxFilenameLength = max($maxFilenameLength, mb_strlen($entry->sourcePath));
-        }
-
-        $linkConfig = LinkConfig::fromEnv();
-
-        $fileCount      = 0;
-        $duplicateCount = 0;
-        $plannedMoves   = 0;
-        $plannedSkips   = 0;
-
-        foreach ($outputEntries as $entry) {
-            $padding    = str_repeat(' ', max(0, $maxFilenameLength - mb_strlen($entry->sourcePath)));
-            $linkedPath = FileHelper::linkifyPath($entry->sourcePath, $entry->sourcePath, $sourceBaseDirectory, $linkConfig, 'yellow');
-
-            if ($entry->isInfo()) {
-                // Render as continuation line under the previous entry (no tag, no filename)
-                $this->io->text(sprintf(
-                    '     <fg=cyan>→</> <fg=%s>%s</>',
-                    $entry->tag->color(),
-                    $entry->reason ?? '',
-                ));
-
-                continue;
-            }
-
-            if ($entry->isSkip()) {
-                if ($this->isTagVisible($entry->tag, $showFilter)) {
-                    $this->io->text(sprintf(
-                        ' %s %s' . $padding . ' <fg=cyan>→</> <fg=%s>%s</>',
-                        $entry->tag->formattedTag(),
-                        $linkedPath,
-                        $entry->tag->color(),
-                        $entry->reason ?? '',
-                    ));
-                }
-
-                continue;
-            }
-
-            // Rename entry
-            if ($this->isTagVisible($entry->tag, $showFilter)) {
-                if ($entry->shouldSkip) {
-                    $skipReason = match ($entry->tag) {
-                        OutputEntryTag::Candidate => 'Conflicting Live Photo content ID across groups',
-                        OutputEntryTag::Warning   => $entry->warningReason ?? 'Ambiguous timezone: QuickTime UTC without offset — use --timezone or rename:write-date --reason=timezone',
-                        OutputEntryTag::Fallback  => 'Fallback date: DateTime (0x0132) used instead of DateTimeOriginal',
-                        default                   => 'Skipped',
-                    };
-
-                    $this->io->text(sprintf(
-                        ' %s %s' . $padding . ' <fg=cyan>→</> <fg=%s>%s</>',
-                        $entry->tag->formattedTag(),
-                        $linkedPath,
-                        $entry->tag->color(),
-                        $skipReason,
-                    ));
-                } else {
-                    $this->io->text(sprintf(
-                        ' %s %s' . $padding . ' <fg=cyan>→</> %s',
-                        $entry->tag->formattedTag(),
-                        $linkedPath,
-                        $this->highlightDiff($entry->sourcePath, $entry->targetPath ?? '', 'green'),
-                    ));
-                }
-            }
-
-            if ($entry->isDuplicateTarget) {
-                ++$duplicateCount;
-            }
-
-            if ($entry->shouldSkip) {
-                ++$plannedSkips;
-            } elseif ($entry->shouldPerformOperation) {
-                ++$plannedMoves;
-                ++$fileCount;
-            }
-        }
-
-        return [
-            'fileCount'      => $fileCount,
-            'duplicateCount' => $duplicateCount,
-            'plannedMoves'   => $plannedMoves,
-            'plannedSkips'   => $plannedSkips,
-        ];
+    ): OutputCounters {
+        return $this->entryPresenter->render(
+            $outputEntries,
+            $this->io,
+            $sourceBaseDirectory,
+            $showFilter,
+        );
     }
 
     /**
@@ -770,16 +754,65 @@ final readonly class RenameOutputRenderer
     }
 
     /**
-     * Checks whether a tag should be displayed given the current show filter.
+     * Builds the first non-duplicate target path per extension for a duplicate group.
      *
-     * @param OutputEntryTag    $tag        The tag to check
-     * @param list<string>|null $showFilter Tag letters to display (null = show all)
+     * This lets duplicate MOV explanations point at the matching non-duplicate MOV
+     * target instead of always falling back to the canonical still target.
      *
-     * @return bool True when the tag should be rendered
+     * @param iterable<Rename> $renames Planned renames inside one duplicate group
+     *
+     * @return array<string, string> First non-duplicate target path per normalized extension
      */
-    private function isTagVisible(OutputEntryTag $tag, ?array $showFilter): bool
+    private function buildReferenceTargetsByExtension(iterable $renames): array
     {
-        return ($showFilter === null) || in_array($tag->letter(), $showFilter, true);
+        $referenceTargetsByExt = [];
+
+        foreach ($renames as $rename) {
+            $renameBasename = FileHelper::basenameWithoutExtension($rename->getTarget());
+
+            if (str_contains($renameBasename, Constants::DUPLICATE_IDENTIFIER)) {
+                continue;
+            }
+
+            $normalizedExtension = FileHelper::normalizeExtension(
+                pathinfo($rename->getTarget()->getPathname(), PATHINFO_EXTENSION),
+            );
+
+            if ($normalizedExtension === '') {
+                continue;
+            }
+
+            $referenceTargetsByExt[$normalizedExtension] ??= $rename->getTarget()->getPathname();
+        }
+
+        return $referenceTargetsByExt;
+    }
+
+    /**
+     * Resolves the explanatory target used in "Duplicate of ..." info lines.
+     *
+     * The method prefers a non-duplicate target with the same extension and only
+     * falls back to the canonical target when no extension-specific reference exists.
+     *
+     * @param string                $duplicateTargetPath   Duplicate target path being explained
+     * @param string                $canonicalTargetPath   Canonical group target path
+     * @param array<string, string> $referenceTargetsByExt First non-duplicate target path per extension
+     * @param string|null           $sourceBaseDirectory   Base directory for relative display
+     *
+     * @return string Relative explanatory target path for CLI output
+     */
+    private function resolveDuplicateReferenceTargetPath(
+        string $duplicateTargetPath,
+        string $canonicalTargetPath,
+        array $referenceTargetsByExt,
+        ?string $sourceBaseDirectory,
+    ): string {
+        $normalizedExtension = FileHelper::normalizeExtension(
+            pathinfo($duplicateTargetPath, PATHINFO_EXTENSION),
+        );
+        $duplicateReferenceTargetPath = $referenceTargetsByExt[$normalizedExtension] ?? $canonicalTargetPath;
+
+        return PathHelper::relativizePath($duplicateReferenceTargetPath, $sourceBaseDirectory);
     }
 
     /**
@@ -820,11 +853,13 @@ final readonly class RenameOutputRenderer
     }
 
     /**
-     * Counts the total number of rename operations across all groups in the collection.
+     * Calculates the total number of rename operations planned in the collection.
      *
-     * @param FileDuplicateCollection $fileDuplicateCollection Collection to inspect
+     * Used for summary statistics to show how many individual file movements are expected.
      *
-     * @return int Total number of individual rename operations
+     * @param FileDuplicateCollection $fileDuplicateCollection Collection to count operations in
+     *
+     * @return int Total number of renames
      */
     public function countTotalOperations(FileDuplicateCollection $fileDuplicateCollection): int
     {
@@ -837,232 +872,21 @@ final readonly class RenameOutputRenderer
         return $totalOperations;
     }
 
+    /**
+     * Highlights the differences between source and target paths using color-coded output.
+     *
+     * It splits the path into directory and filename to avoid highlighting common parent
+     * directories. If the directory differs, the entire path is highlighted.
+     * Uses a sequential token matching algorithm for robust highlighting.
+     *
+     * @param string $source    The original path
+     * @param string $target    The new path to highlight
+     * @param string $baseColor The base color for unchanged parts (e.g., 'gray' or 'white')
+     *
+     * @return string ANSI-highlighted target path
+     */
     public function highlightDiff(string $source, string $target, string $baseColor): string
     {
-        if ($source === $target) {
-            return sprintf('<fg=%s>%s</>', $baseColor, $target);
-        }
-
-        [$sourcePrefix, $sourceFilename] = $this->splitPathPrefix($source);
-        [$targetPrefix, $targetFilename] = $this->splitPathPrefix($target);
-
-        // Wenn sich schon der Verzeichnisteil unterscheidet, den kompletten Target-Pfad
-        // per sequenziellem Token-Matching rendern.
-        if ($sourcePrefix !== $targetPrefix) {
-            return $this->highlightSequentialTokenDiff($source, $target, $baseColor);
-        }
-
-        return sprintf('<fg=%s>%s</>', $baseColor, $targetPrefix)
-            . $this->highlightSequentialTokenDiff($sourceFilename, $targetFilename, $baseColor);
-    }
-
-    /**
-     * Splits a path into directory prefix and filename.
-     *
-     * The prefix includes the trailing slash or backslash when present.
-     *
-     * @return array{string, string}
-     */
-    private function splitPathPrefix(string $path): array
-    {
-        $slashPos     = strrpos($path, '/');
-        $backslashPos = strrpos($path, '\\');
-
-        $lastSlashPos = max(
-            $slashPos === false ? -1 : $slashPos,
-            $backslashPos === false ? -1 : $backslashPos,
-        );
-
-        if ($lastSlashPos < 0) {
-            return ['', $path];
-        }
-
-        return [
-            substr($path, 0, $lastSlashPos + 1),
-            substr($path, $lastSlashPos + 1),
-        ];
-    }
-
-    /**
-     * Highlights a target string by matching its tokens sequentially against
-     * the source string from left to right.
-     *
-     * This works better for rename previews than a character-based diff because
-     * it respects the known target structure and avoids accidental LCS matches.
-     */
-    private function highlightSequentialTokenDiff(string $source, string $target, string $baseColor): string
-    {
-        $tokens = $this->tokenizeForSequentialDiff($target);
-        $flags  = $this->matchTargetTokensSequentially($source, $tokens);
-
-        return $this->renderHighlightedTokens($tokens, $flags, $baseColor);
-    }
-
-    /**
-     * Tokenizes a string into alphanumeric runs and separator runs.
-     *
-     * Examples:
-     * - "2015-07-31_06-42-43-000.avi"
-     *   => ["2015", "-", "07", "-", "31", "_", "06", "-", "42", "-", "43", "-", "000", ".", "avi"]
-     *
-     * @return list<string>
-     */
-    private function tokenizeForSequentialDiff(string $value): array
-    {
-        preg_match_all('/[[:alnum:]]+|[^[:alnum:]]/u', $value, $matches);
-
-        /** @var list<string> $tokens */
-        $tokens = $matches[0];
-
-        return $tokens;
-    }
-
-    /**
-     * @param list<string> $tokens
-     *
-     * @return list<string> one of: same, case-changed, changed
-     */
-    private function matchTargetTokensSequentially(string $source, array $tokens): array
-    {
-        $states      = [];
-        $sourceChars = mb_str_split($source);
-        $sourceLen   = count($sourceChars);
-        $offset      = 0;
-
-        foreach ($tokens as $token) {
-            if ($this->isSeparatorToken($token)) {
-                $matched = $this->matchSeparatorNearOffset($sourceChars, $sourceLen, $token, $offset);
-
-                $states[] = $matched ? 'same' : 'changed';
-
-                if ($matched) {
-                    $offset += mb_strlen($token);
-                }
-
-                continue;
-            }
-
-            $position = $this->findTokenPosition($source, $token, $offset);
-
-            if ($position === null) {
-                $states[] = 'changed';
-
-                continue;
-            }
-
-            $sourceToken = mb_substr($source, $position, mb_strlen($token));
-
-            if ($sourceToken === $token) {
-                $states[] = 'same';
-            } elseif (mb_strtolower($sourceToken) === mb_strtolower($token)) {
-                $states[] = 'case-changed';
-            } else {
-                $states[] = 'changed';
-            }
-
-            $offset = $position + mb_strlen($token);
-        }
-
-        return $states;
-    }
-
-    /**
-     * Finds an alphanumeric token in the source string starting at the given offset.
-     *
-     * Matching is case-insensitive for pure alphabetic or alphanumeric words such
-     * as file extensions ("avi" vs "AVI", "mp4" vs "MP4").
-     *
-     * @return int|null Character offset or null when not found
-     */
-    private function findTokenPosition(string $source, string $token, int $offset): ?int
-    {
-        $position = mb_stripos($source, $token, $offset);
-
-        if ($position === false) {
-            return null;
-        }
-
-        return $position;
-    }
-
-    /**
-     * Separator tokens are matched strictly near the current offset.
-     *
-     * We allow a very small lookahead window so separators that are still locally
-     * aligned can match, but we do not scan arbitrarily far ahead because that
-     * causes misleading matches.
-     *
-     * @param list<string> $sourceChars
-     */
-    private function matchSeparatorNearOffset(array $sourceChars, int $sourceLen, string $token, int $offset): bool
-    {
-        $tokenChars = mb_str_split($token);
-        $tokenLen   = count($tokenChars);
-
-        for ($lookahead = 0; $lookahead <= 1; ++$lookahead) {
-            $matched = true;
-
-            for ($i = 0; $i < $tokenLen; ++$i) {
-                $sourceIndex = $offset + $lookahead + $i;
-
-                if (($sourceIndex >= $sourceLen) || ($sourceChars[$sourceIndex] !== $tokenChars[$i])) {
-                    $matched = false;
-
-                    break;
-                }
-            }
-
-            if ($matched) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Returns true when the token contains only non-alphanumeric characters.
-     */
-    private function isSeparatorToken(string $token): bool
-    {
-        return preg_match('/^[^[:alnum:]]+$/u', $token) === 1;
-    }
-
-    /**
-     * @param list<string> $tokens
-     * @param list<string> $states
-     */
-    private function renderHighlightedTokens(array $tokens, array $states, string $baseColor): string
-    {
-        $result       = '';
-        $buffer       = '';
-        $currentState = null;
-
-        foreach ($tokens as $index => $token) {
-            $state = $states[$index];
-
-            if (($currentState !== null) && ($state !== $currentState) && ($buffer !== '')) {
-                $result .= $this->formatDiffSegment($buffer, $currentState, $baseColor);
-                $buffer = '';
-            }
-
-            $buffer .= $token;
-            $currentState = $state;
-        }
-
-        if (($buffer !== '') && ($currentState !== null)) {
-            $result .= $this->formatDiffSegment($buffer, $currentState, $baseColor);
-        }
-
-        return $result;
-    }
-
-    private function formatDiffSegment(string $value, string $state, string $baseColor): string
-    {
-        return match ($state) {
-            'same'         => sprintf('<fg=%s>%s</>', $baseColor, $value),
-            'case-changed' => sprintf('<fg=bright-%s;options=bold>%s</>', $baseColor, $value),
-            default        => sprintf('<fg=bright-%s;options=bold>%s</>', $baseColor, $value),
-        };
+        return $this->diffHighlighter->highlightDiff($source, $target, $baseColor);
     }
 }

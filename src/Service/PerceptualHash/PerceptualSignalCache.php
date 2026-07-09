@@ -50,23 +50,42 @@ final class PerceptualSignalCache
      *     whash: string|null,
      *     hf: float|null,
      *     hist: list<float>|null
-     * }>
+     * }> A map of file pathnames to their respective cached perceptual signals.
      */
     private array $entries = [];
 
+    /**
+     * Whether the cache has been modified since last load/flush.
+     */
     private bool $dirty = false;
 
+    /**
+     * Symfony Filesystem component for disk operations.
+     */
+    private readonly Filesystem $filesystem;
+
+    /**
+     * @param string     $cacheFile  The full path to the JSON cache file. The file
+     *                               does not need to exist yet; it will be created on flush().
+     * @param Filesystem $filesystem Symfony Filesystem component for disk operations.
+     */
     public function __construct(
         private readonly string $cacheFile,
-        private readonly Filesystem $filesystem = new Filesystem(),
+        ?Filesystem $filesystem = null,
     ) {
+        $this->filesystem = $filesystem ?? new Filesystem();
         $this->load();
     }
 
     /**
-     * Returns cached signals for the file, or null on cache miss.
+     * Returns cached signals for the given file, or null on cache miss.
      *
-     * @return array{dhash: string|null, whash: string|null, hf: float|null, hist: list<float>|null}|null
+     * Invalidation occurs automatically if the file's modification time (mtime)
+     * or size has changed since the cache entry was created.
+     *
+     * @param SplFileInfo $file The file to retrieve signals for.
+     *
+     * @return array{dhash: string|null, whash: string|null, hf: float|null, hist: list<float>|null}|null The cached signals or null.
      */
     public function get(SplFileInfo $file): ?array
     {
@@ -96,7 +115,11 @@ final class PerceptualSignalCache
     /**
      * Stores perceptual signals for the file in the cache.
      *
-     * @param array{dhash: string|null, whash: string|null, hf: float|null, hist: list<float>|null} $signals
+     * The cache entry includes the file's current mtime and size for future
+     * validation. Setting a value marks the cache as "dirty", requiring a flush.
+     *
+     * @param SplFileInfo                                                                           $file    The file these signals belong to.
+     * @param array{dhash: string|null, whash: string|null, hf: float|null, hist: list<float>|null} $signals The computed signals.
      */
     public function set(SplFileInfo $file, array $signals): void
     {
@@ -114,6 +137,9 @@ final class PerceptualSignalCache
 
     /**
      * Persists the cache to disk if any entries were added or invalidated.
+     *
+     * Uses atomic file dump to ensure the JSON cache remains consistent
+     * even if the process is interrupted.
      */
     public function flush(): void
     {
@@ -132,6 +158,12 @@ final class PerceptualSignalCache
         $this->dirty = false;
     }
 
+    /**
+     * Loads the cache from the JSON file on disk.
+     *
+     * If the cache version on disk does not match the current CACHE_VERSION,
+     * the existing cache is discarded to ensure signal compatibility.
+     */
     private function load(): void
     {
         if (!$this->filesystem->exists($this->cacheFile)) {

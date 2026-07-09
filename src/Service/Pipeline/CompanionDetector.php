@@ -15,7 +15,7 @@ use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
-use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
+use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use Override;
 
 use function count;
@@ -39,10 +39,10 @@ use function usort;
 final readonly class CompanionDetector implements CompanionDetectorInterface
 {
     /**
-     * @param MediaTypeClassifierInterface $mediaTypeClassifier Classifies files as still or video
+     * @param MediaCompatibilityPolicy $mediaCompatibilityPolicy Shared still/video compatibility rules
      */
     public function __construct(
-        private MediaTypeClassifierInterface $mediaTypeClassifier,
+        private MediaCompatibilityPolicy $mediaCompatibilityPolicy,
     ) {
     }
 
@@ -52,21 +52,19 @@ final readonly class CompanionDetector implements CompanionDetectorInterface
      * @param AssetGroup $group     Group containing candidate companion items
      * @param AssetItem  $canonical Canonical item whose companions are sought
      *
-     * @return array<string, true> Pathnames of detected companion items
+     * @return CompanionPathSet Pathnames of detected companion items
      */
     #[Override]
-    public function detect(AssetGroup $group, AssetItem $canonical): array
+    public function detect(AssetGroup $group, AssetItem $canonical): CompanionPathSet
     {
         // Safety: canonical must have a content identifier for any companion detection
         if ($canonical->contentIdentifier === null) {
-            return [];
+            return new CompanionPathSet();
         }
 
-        $canonicalIsStill  = $this->mediaTypeClassifier->isLivePhotoStill($canonical->file);
         $canonicalBasename = FileHelper::basenameWithoutExtension($canonical->file);
 
-        /** @var array<string, true> $companions */
-        $companions = [];
+        $companions = new CompanionPathSet();
 
         // Phase 1: Content-ID matching (highest priority)
         // Collect candidates grouped by media type, then select the best per type.
@@ -79,14 +77,14 @@ final readonly class CompanionDetector implements CompanionDetectorInterface
             }
 
             // Only different media types can be companions
-            $itemIsStill = $this->mediaTypeClassifier->isLivePhotoStill($item->file);
-
-            if ($canonicalIsStill === $itemIsStill) {
+            if (!$this->mediaCompatibilityPolicy->areDifferentMediaFamilies($canonical->file, $item->file)) {
                 continue;
             }
 
             if ($item->contentIdentifier === $canonical->contentIdentifier) {
-                $mediaType                           = $itemIsStill ? 'still' : 'video';
+                $mediaType = $this->mediaCompatibilityPolicy->isStillImage($item->file)
+                    ? 'still'
+                    : 'video';
                 $candidatesByMediaType[$mediaType][] = $item;
             }
         }
@@ -94,15 +92,15 @@ final readonly class CompanionDetector implements CompanionDetectorInterface
         // Select best candidate per media type
         foreach ($candidatesByMediaType as $candidates) {
             if (count($candidates) === 1) {
-                $companions[$candidates[0]->file->getPathname()] = true;
+                $companions->add($candidates[0]->file->getPathname());
             } else {
-                $winner                                   = $this->selectBestCandidate($candidates, $canonical);
-                $companions[$winner->file->getPathname()] = true;
+                $winner = $this->selectBestCandidate($candidates, $canonical);
+                $companions->add($winner->file->getPathname());
             }
         }
 
         // Phase 2: Basename fallback (only when no content-ID companions found)
-        if ($companions === []) {
+        if ($companions->isEmpty()) {
             /** @var list<AssetItem> $fallbackCandidates */
             $fallbackCandidates = [];
 
@@ -111,9 +109,7 @@ final readonly class CompanionDetector implements CompanionDetectorInterface
                     continue;
                 }
 
-                $itemIsStill = $this->mediaTypeClassifier->isLivePhotoStill($item->file);
-
-                if ($canonicalIsStill === $itemIsStill) {
+                if (!$this->mediaCompatibilityPolicy->areDifferentMediaFamilies($canonical->file, $item->file)) {
                     continue;
                 }
 
@@ -143,10 +139,10 @@ final readonly class CompanionDetector implements CompanionDetectorInterface
                         ),
                     );
 
-                    return [];
+                    return new CompanionPathSet();
                 }
 
-                $companions[$candidate->file->getPathname()] = true;
+                $companions->add($candidate->file->getPathname());
             }
         }
 
@@ -219,11 +215,11 @@ final readonly class CompanionDetector implements CompanionDetectorInterface
     /**
      * Stable tie-breaker comparison: clusterRank (lower wins), then shorter pathname, then lexicographic.
      */
-    private function compareTieBreaker(AssetItem $a, AssetItem $b): int
+    private function compareTieBreaker(AssetItem $itemA, AssetItem $itemB): int
     {
         // clusterRank: lower wins (null sorts after non-null)
-        $aRank = $a->clusterRank;
-        $bRank = $b->clusterRank;
+        $aRank = $itemA->clusterRank;
+        $bRank = $itemB->clusterRank;
 
         if ($aRank !== null && $bRank !== null) {
             if ($aRank !== $bRank) {
@@ -236,8 +232,8 @@ final readonly class CompanionDetector implements CompanionDetectorInterface
         }
 
         // Shorter pathname wins
-        $aPath  = $a->file->getPathname();
-        $bPath  = $b->file->getPathname();
+        $aPath  = $itemA->file->getPathname();
+        $bPath  = $itemB->file->getPathname();
         $lenCmp = strlen($aPath) <=> strlen($bPath);
 
         if ($lenCmp !== 0) {

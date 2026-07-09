@@ -48,6 +48,12 @@ CI pipeline order: phplint → php-cs-fixer (dry-run) → rector (dry-run) → p
 - In compound conditions (`&&`/`||`), parenthesize `instanceof`/comparison operands: `if (($x instanceof Foo) && ($y === null))`
 - `self` in PHP return types, full class name in `@return` PHPDoc
 - No `mixed` type, no `empty()`, no nested ternaries
+- **Documentation (DocBlocks):**
+    - Every class and method MUST have a DocBlock.
+    - **Classes:** Describe the specific purpose, high-level responsibility, and architecture. Explain *why* certain design choices were made (e.g., immutability, transitional mapping).
+    - **Methods:** Describe *what* they do and *why* they do it that way. Document all parameters (`@param`) with meaningful descriptions and specify return values (`@return`). Explain any critical implementation details or side effects.
+    - **Tests:** Every test method must be analyzed and described in detail (what is specifically tested under which conditions). Avoid generic "tests X" descriptions. Explain the business or technical requirement the test verifies.
+    - **Enums & Constants:** Document the meaning and use cases of each case or constant. Provide context on how they influence the application's behavior.
 
 ## PHPStan
 
@@ -83,7 +89,7 @@ KISS, SOLID, DRY, YAGNI, GRASP, Law of Demeter, SoC, CoC — in that order of pr
 | `rename:exif` | Rename by EXIF date (primary command) |
 | `rename:hash` | Group duplicates by content hash |
 | `rename:pattern` | Regex-based renaming |
-| `rename:date-pattern` | Extract date from filename patterns |
+| `rename:date` | Extract date from filename patterns |
 | `rename:lower` | Lowercase filenames |
 | `rename:verify` | Read-only metadata quality analysis |
 | `rename:write-date` | Fix metadata timestamps via exiftool (`--reason=nodata,fallback,timezone,drift`) |
@@ -101,7 +107,7 @@ Canonical selection uses format-dominant weighted scoring. Subgroup classificati
 
 ### Legacy Execution Path
 
-Commands other than `rename:exif` (`rename:hash`, `rename:pattern`, `rename:date-pattern`, `rename:lower`) use the legacy execution path via `AbstractRenameCommand`:
+Commands other than `rename:exif` (`rename:hash`, `rename:pattern`, `rename:date`, `rename:lower`) use the legacy execution path via `AbstractRenameCommand`:
 
 ```
 DuplicateDetectionService → FileDuplicateCollection → FileSystemService.renameFiles()

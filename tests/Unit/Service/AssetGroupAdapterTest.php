@@ -49,8 +49,11 @@ use SplFileInfo;
 final class AssetGroupAdapterTest extends TestCase
 {
     /**
-     * Canonical HEIC + duplicate JPG produces a FileDuplicate with
-     * the canonical's proposed name as target and two rename entries.
+     * Verifies that a canonical HEIC file and its duplicate JPG are correctly
+     * converted. The resulting {@see FileDuplicate} must use the canonical's
+     * proposed name as the target path and contain both files in its rename list.
+     * This ensures that duplicates are correctly associated with their originals
+     * even across different formats.
      */
     #[Test]
     public function convertsCanonicalWithDuplicates(): void
@@ -88,8 +91,10 @@ final class AssetGroupAdapterTest extends TestCase
     }
 
     /**
-     * Canonical HEIC + companion MOV both receive rename entries
-     * derived from their respective proposed names.
+     * Verifies that Live Photo pairs (HEIC + MOV) are both included in the
+     * rename operations. Both files must receive rename entries derived from
+     * their respective proposed names to ensure they stay together and
+     * share the same base name in the target directory.
      */
     #[Test]
     public function convertsGroupWithCompanion(): void
@@ -132,8 +137,10 @@ final class AssetGroupAdapterTest extends TestCase
     }
 
     /**
-     * A group containing a Companion-role item gets a key prefixed
-     * with the Live Photo identifier prefix.
+     * Verifies that groups containing at least one {@see ItemRole::Companion}
+     * (Live Photo video) receive a special prefix in their collection key.
+     * This prefix is required by the {@see RenameOutputRenderer} to correctly
+     * identify and format Live Photo groups in the console output.
      */
     #[Test]
     public function livePhotoGroupGetsPrefixedKey(): void
@@ -167,7 +174,9 @@ final class AssetGroupAdapterTest extends TestCase
     }
 
     /**
-     * A group without any Companion-role item keeps its plain group key.
+     * Verifies that standard asset groups without companions keep their
+     * original group key (e.g., the timestamp). No prefix should be added
+     * if the group consists only of a canonical item and its duplicates.
      */
     #[Test]
     public function nonLivePhotoGroupKeepsPlainKey(): void
@@ -199,8 +208,10 @@ final class AssetGroupAdapterTest extends TestCase
     }
 
     /**
-     * The first rename in the resulting FileDuplicate must belong
-     * to the canonical item, regardless of insertion order in the group.
+     * Verifies that the canonical item is always placed first in the
+     * {@see FileDuplicate} list, even if it was added to the {@see AssetGroup}
+     * after its duplicates. This ordering is critical for the legacy
+     * {@see FileSystemService} to correctly identify the primary file of a group.
      */
     #[Test]
     public function canonicalRenameIsFirst(): void
@@ -239,8 +250,12 @@ final class AssetGroupAdapterTest extends TestCase
     }
 
     /**
-     * An item without a proposed name still has its file added
-     * to the FileDuplicate but does not produce a rename entry.
+     * Verifies that an item without a proposed name is still included in the
+     * group's file list but does not generate a rename operation.
+     *
+     * This occurs when an item is identified as a duplicate but no rename is
+     * planned for it (e.g., in a specific dry-run or when the rename strategy
+     * skips certain items).
      */
     #[Test]
     public function itemsWithoutProposedNameSkipRename(): void
@@ -274,9 +289,12 @@ final class AssetGroupAdapterTest extends TestCase
     }
 
     /**
-     * When a canonical item has no proposedName (e.g. TargetNameResolver was skipped),
-     * the FileDuplicate target falls back to the canonical's current file path instead
-     * of remaining as an empty SplFileInfo.
+     * Verifies that when a canonical item lacks a proposed name, the resulting
+     * FileDuplicate's target path defaults to the item's current physical path.
+     *
+     * This ensures the legacy execution layer always has a valid target object
+     * to work with, even if the renaming strategy was skipped or didn't
+     * produce a new name.
      */
     #[Test]
     public function canonicalWithoutProposedNameUsesCurrentPath(): void
@@ -302,7 +320,11 @@ final class AssetGroupAdapterTest extends TestCase
     }
 
     /**
-     * An empty AssetGroupCollection produces an empty FileDuplicateCollection.
+     * Verifies that an empty collection of asset groups results in an empty
+     * collection of file duplicates.
+     *
+     * This confirms the adapter handles the edge case of no input files
+     * gracefully without errors.
      */
     #[Test]
     public function emptyCollectionReturnsEmptyCollection(): void

@@ -78,6 +78,10 @@ final class DatePatternFilenameStrategyTest extends TestCase
         $strategy->generateFilename($file);
     }
 
+    /**
+     * Verifies that the strategy extracts date components from a filename
+     * and reformats them according to the replacement template.
+     */
     #[Test]
     public function generateFilenameProcessesDatePattern(): void
     {
@@ -87,6 +91,10 @@ final class DatePatternFilenameStrategyTest extends TestCase
         self::assertSame('2024-03-15.jpg', $strategy->generateFilename($file));
     }
 
+    /**
+     * Verifies that the strategy correctly handles filenames that already contain
+     * a duplicate identifier suffix by removing it before processing.
+     */
     #[Test]
     public function generateFilenameRemovesDuplicateIdentifier(): void
     {
@@ -96,6 +104,10 @@ final class DatePatternFilenameStrategyTest extends TestCase
         self::assertSame('2024-03-15.jpg', $strategy->generateFilename($file));
     }
 
+    /**
+     * Verifies the expansion of two-digit years into four-digit years.
+     * Years < 70 are assumed to be in the 2000s, while >= 70 are in the 1900s.
+     */
     #[Test]
     public function generateFilenameConvertsTwoDigitYear(): void
     {
@@ -110,6 +122,9 @@ final class DatePatternFilenameStrategyTest extends TestCase
         self::assertSame('1999.jpg', $strategy->generateFilename(new SplFileInfo('photo_991231.jpg')));
     }
 
+    /**
+     * Verifies that the strategy can reorder date components (e.g., from DD-MM-YYYY to YYYY-MM-DD).
+     */
     #[Test]
     public function generateFilenameReordersDateComponents(): void
     {
@@ -126,6 +141,9 @@ final class DatePatternFilenameStrategyTest extends TestCase
         self::assertSame('2024-03-15.txt', $strategy->generateFilename($file));
     }
 
+    /**
+     * Verifies that the strategy works correctly for files without an extension.
+     */
     #[Test]
     public function generateFilenameHandlesFilesWithoutExtension(): void
     {
@@ -135,6 +153,9 @@ final class DatePatternFilenameStrategyTest extends TestCase
         self::assertSame('2024-03-15', $strategy->generateFilename($file));
     }
 
+    /**
+     * Verifies the extraction and reformatting of a complete date-time string.
+     */
     #[Test]
     public function generateFilenameWithFullDateTime(): void
     {
@@ -147,6 +168,9 @@ final class DatePatternFilenameStrategyTest extends TestCase
         self::assertSame('2024-03-15_14-30-22.mp4', $strategy->generateFilename($file));
     }
 
+    /**
+     * Verifies that filenames that do not match the regex pattern are returned unchanged.
+     */
     #[Test]
     public function generateFilenameReturnsOriginalForNonMatchingFile(): void
     {
@@ -156,6 +180,9 @@ final class DatePatternFilenameStrategyTest extends TestCase
         self::assertSame('random-file.jpg', $strategy->generateFilename(new SplFileInfo('random-file.jpg')));
     }
 
+    /**
+     * Verifies that additional filename parts (suffixes) are preserved while reformatting the date part.
+     */
     #[Test]
     public function generateFilenameWithTrailingSuffix(): void
     {
@@ -177,7 +204,7 @@ final class DatePatternFilenameStrategyTest extends TestCase
         return new DatePatternFilenameStrategy(
             $regex,
             $replacement,
-            PatternMatchSet::fromPattern($replacement),
+            PatternMatchSet::fromPattern($replacement, new SafeRegex()),
             new SafeRegex(),
         );
     }
@@ -191,7 +218,7 @@ final class DatePatternFilenameStrategyTest extends TestCase
         return new DatePatternFilenameStrategy(
             $regex,
             $replacement,
-            PatternMatchSet::fromPattern($sourcePattern),
+            PatternMatchSet::fromPattern($sourcePattern, new SafeRegex()),
             new SafeRegex(),
         );
     }

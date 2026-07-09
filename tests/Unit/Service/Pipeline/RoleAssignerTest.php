@@ -17,7 +17,10 @@ use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\ItemRole;
 use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Service\CanonicalScorerInterface;
+use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
+use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\Pipeline\CompanionDetectorInterface;
+use MagicSunday\Renamer\Service\Pipeline\CompanionPathSet;
 use MagicSunday\Renamer\Service\Pipeline\RoleAssigner;
 use MagicSunday\Renamer\Service\Pipeline\RoleAssignerInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -40,6 +43,9 @@ use SplFileInfo;
 #[UsesClass(AssetItem::class)]
 #[UsesClass(AssetGroupCollection::class)]
 #[UsesClass(PipelineContext::class)]
+#[UsesClass(MediaTypeClassifier::class)]
+#[UsesClass(MediaCompatibilityPolicy::class)]
+#[UsesClass(CompanionPathSet::class)]
 final class RoleAssignerTest extends TestCase
 {
     /**
@@ -106,7 +112,7 @@ final class RoleAssignerTest extends TestCase
         $companionDetector = $this->createMock(CompanionDetectorInterface::class);
         $companionDetector->expects(self::once())
             ->method('detect')
-            ->willReturn([]);
+            ->willReturn(new CompanionPathSet());
 
         $assigner = $this->createAssigner($scorer, $companionDetector);
 
@@ -129,8 +135,8 @@ final class RoleAssignerTest extends TestCase
     }
 
     /**
-     * A MOV companion detected by CompanionDetector should receive
-     * the Companion role.
+     * Verifies that companions are correctly identified and assigned the
+     * appropriate role.
      */
     #[Test]
     public function companionDetectedAndRoleAssigned(): void
@@ -157,7 +163,7 @@ final class RoleAssignerTest extends TestCase
         $companionDetector = $this->createMock(CompanionDetectorInterface::class);
         $companionDetector->expects(self::once())
             ->method('detect')
-            ->willReturn(['/photos/IMG_0001.mov' => true]);
+            ->willReturn($this->createCompanionPathSet('/photos/IMG_0001.mov'));
 
         $assigner = $this->createAssigner($scorer, $companionDetector);
 
@@ -175,8 +181,8 @@ final class RoleAssignerTest extends TestCase
     }
 
     /**
-     * In a 3-item group: 1 canonical, 1 companion, 1 remaining item.
-     * The remaining item should become a Duplicate.
+     * Ensures that items that are neither main nor companion files receive
+     * the role "Duplicate".
      */
     #[Test]
     public function nonCanonicalNonCompanionBecomesDuplicate(): void
@@ -220,7 +226,7 @@ final class RoleAssignerTest extends TestCase
         $companionDetector = $this->createMock(CompanionDetectorInterface::class);
         $companionDetector->expects(self::once())
             ->method('detect')
-            ->willReturn(['/photos/IMG_0001.mov' => true]);
+            ->willReturn($this->createCompanionPathSet('/photos/IMG_0001.mov'));
 
         $assigner = $this->createAssigner($scorer, $companionDetector);
 
@@ -246,7 +252,8 @@ final class RoleAssignerTest extends TestCase
     }
 
     /**
-     * The decision log should contain a canonical choice entry.
+     * Verifies that the canonical choice is documented in the asset group's
+     * decision log.
      */
     #[Test]
     public function decisionLogDocumentsCanonicalChoice(): void
@@ -264,7 +271,7 @@ final class RoleAssignerTest extends TestCase
         $scorer = $this->createScorerMock($heic, $scoredHeic, $jpg, $scoredJpg);
 
         $companionDetector = self::createStub(CompanionDetectorInterface::class);
-        $companionDetector->method('detect')->willReturn([]);
+        $companionDetector->method('detect')->willReturn(new CompanionPathSet());
 
         $assigner = $this->createAssigner($scorer, $companionDetector);
 
@@ -284,7 +291,8 @@ final class RoleAssignerTest extends TestCase
     }
 
     /**
-     * The decision log should contain an entry for each detected companion.
+     * Checks if the assignment of a companion file is correctly documented
+     * in the decision log.
      */
     #[Test]
     public function decisionLogDocumentsCompanion(): void
@@ -310,7 +318,7 @@ final class RoleAssignerTest extends TestCase
 
         $companionDetector = self::createStub(CompanionDetectorInterface::class);
         $companionDetector->method('detect')
-            ->willReturn(['/photos/IMG_0001.mov' => true]);
+            ->willReturn($this->createCompanionPathSet('/photos/IMG_0001.mov'));
 
         $assigner = $this->createAssigner($scorer, $companionDetector);
 
@@ -330,8 +338,9 @@ final class RoleAssignerTest extends TestCase
     }
 
     /**
-     * When the canonical still has a fallback date flag, its companion
-     * should inherit that flag in the PipelineContext.
+     * Ensures that quality flags (e.g., fallback date) are transferred from
+     * the main file to the companion file to guarantee consistency during
+     * renaming.
      */
     #[Test]
     public function qualityFlagsPropagateFromStillToCompanion(): void
@@ -357,7 +366,7 @@ final class RoleAssignerTest extends TestCase
 
         $companionDetector = self::createStub(CompanionDetectorInterface::class);
         $companionDetector->method('detect')
-            ->willReturn(['/photos/IMG_0001.mov' => true]);
+            ->willReturn($this->createCompanionPathSet('/photos/IMG_0001.mov'));
 
         $assigner = $this->createAssigner($scorer, $companionDetector);
 
@@ -379,8 +388,8 @@ final class RoleAssignerTest extends TestCase
     }
 
     /**
-     * When the canonical is a video (MOV), the fallback date flag must NOT
-     * propagate to companions; the ambiguous timezone flag still must propagate.
+     * Verifies that fallback date information from video main files is NOT
+     * transferred to still images (special case of consistency rules).
      */
     #[Test]
     public function videoCanonicalDoesNotPropagateFallbackDateToCompanion(): void
@@ -407,7 +416,7 @@ final class RoleAssignerTest extends TestCase
 
         $companionDetector = self::createStub(CompanionDetectorInterface::class);
         $companionDetector->method('detect')
-            ->willReturn(['/photos/IMG_0001.heic' => true]);
+            ->willReturn($this->createCompanionPathSet('/photos/IMG_0001.heic'));
 
         $assigner = $this->createAssigner($scorer, $companionDetector);
 
@@ -476,7 +485,7 @@ final class RoleAssignerTest extends TestCase
         $scorer = $this->createScorerMock($heic, $scoredHeic, $jpg, $scoredJpg);
 
         $companionDetector = self::createStub(CompanionDetectorInterface::class);
-        $companionDetector->method('detect')->willReturn([]);
+        $companionDetector->method('detect')->willReturn(new CompanionPathSet());
 
         $assigner = $this->createAssigner($scorer, $companionDetector);
 
@@ -501,7 +510,11 @@ final class RoleAssignerTest extends TestCase
         CanonicalScorerInterface $scorer,
         CompanionDetectorInterface $companionDetector,
     ): RoleAssignerInterface {
-        return new RoleAssigner($scorer, $companionDetector);
+        return new RoleAssigner(
+            $scorer,
+            $companionDetector,
+            new MediaCompatibilityPolicy(new MediaTypeClassifier()),
+        );
     }
 
     /**
@@ -528,5 +541,21 @@ final class RoleAssignerTest extends TestCase
             ->willReturn($scored1);
 
         return $scorer;
+    }
+
+    /**
+     * Creates a detected companion set for the given pathnames.
+     *
+     * @param string ...$paths Absolute companion pathnames to add to the set
+     */
+    private function createCompanionPathSet(string ...$paths): CompanionPathSet
+    {
+        $set = new CompanionPathSet();
+
+        foreach ($paths as $path) {
+            $set->add($path);
+        }
+
+        return $set;
     }
 }

@@ -29,6 +29,7 @@ use RecursiveIteratorIterator;
 use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Filesystem\Filesystem;
 
 use function is_string;
 
@@ -46,21 +47,28 @@ final class RenameByDatePatternCommand extends AbstractRenameCommand
 {
     private ?RenameStrategyInterface $renameStrategy = null;
 
-    private ?DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy = null;
-
-    public function __construct(
-        FileSystemServiceInterface $fileSystemService,
-        DuplicateDetectionServiceInterface $duplicateDetectionService,
-        private readonly SafeRegex $safeRegex,
-    ) {
-        parent::__construct($fileSystemService, $duplicateDetectionService);
-    }
-
     private ?string $patternRegex = null;
 
     private ?PatternMatchSet $patternMatchSet = null;
 
     private string $replacement = '';
+
+    /**
+     * @param FileSystemServiceInterface         $fileSystemService           Service to handle file system operations
+     * @param DuplicateDetectionServiceInterface $duplicateDetectionService   Service to handle grouping and duplicate resolution
+     * @param SafeRegex                          $safeRegex                   Safe regex wrapper used by the shared legacy file iterator path
+     * @param Filesystem                         $filesystem                  Command-facing filesystem boundary reused by metadata-cache helpers
+     * @param TargetPathnameStrategy             $duplicateIdentifierStrategy Fixed target-path grouping strategy for this command
+     */
+    public function __construct(
+        FileSystemServiceInterface $fileSystemService,
+        DuplicateDetectionServiceInterface $duplicateDetectionService,
+        SafeRegex $safeRegex,
+        Filesystem $filesystem,
+        private readonly TargetPathnameStrategy $duplicateIdentifierStrategy,
+    ) {
+        parent::__construct($fileSystemService, $duplicateDetectionService, $safeRegex, $filesystem);
+    }
 
     /**
      * Configures the current command.
@@ -89,6 +97,14 @@ final class RenameByDatePatternCommand extends AbstractRenameCommand
             );
     }
 
+    /**
+     * Executes the command logic.
+     *
+     * Initializes the pattern regex and replacement template from CLI options
+     * before delegating to the parent rename pipeline.
+     *
+     * @return int The exit code (0 for success, non-zero for failure).
+     */
     #[Override]
     protected function executeCommand(): int
     {
@@ -109,15 +125,19 @@ final class RenameByDatePatternCommand extends AbstractRenameCommand
         }
 
         $this->patternRegex = DatePlaceholderExpressionMap::default()
-            ->replacePlaceholders($patternOption);
+            ->replacePlaceholders($patternOption, $this->safeRegex);
 
-        $this->patternMatchSet = PatternMatchSet::fromPattern($patternOption);
+        $this->patternMatchSet = PatternMatchSet::fromPattern($patternOption, $this->safeRegex);
         $this->replacement     = $replacementOption;
 
         return parent::executeCommand();
     }
 
     /**
+     * Creates the file iterator.
+     *
+     * Uses a regex filter based on the date-placeholder pattern to select files.
+     *
      * @return RecursiveIteratorIterator<RecursiveIterator<string, SplFileInfo>>
      */
     #[Override]
@@ -135,11 +155,20 @@ final class RenameByDatePatternCommand extends AbstractRenameCommand
                         $this->sourceDirectory,
                         FilesystemIterator::SKIP_DOTS
                     ),
-                    $this->patternRegex
+                    $this->patternRegex,
+                    $this->safeRegex,
                 )
             );
     }
 
+    /**
+     * Returns the target filename strategy.
+     *
+     * Uses the DatePatternFilenameStrategy to extract date components
+     * from filenames and reformat them.
+     *
+     * @return RenameStrategyInterface The rename strategy
+     */
     #[Override]
     protected function getTargetFilenameStrategy(): RenameStrategyInterface
     {
@@ -155,9 +184,16 @@ final class RenameByDatePatternCommand extends AbstractRenameCommand
         );
     }
 
+    /**
+     * Returns the duplicate identifier strategy.
+     *
+     * Uses the TargetPathnameStrategy to group files by their full target path.
+     *
+     * @return DuplicateIdentifierStrategyInterface The duplicate identifier strategy
+     */
     #[Override]
     protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
     {
-        return $this->duplicateIdentifierStrategy ??= new TargetPathnameStrategy();
+        return $this->duplicateIdentifierStrategy;
     }
 }

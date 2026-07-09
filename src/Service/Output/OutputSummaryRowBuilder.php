@@ -1,0 +1,83 @@
+<?php
+
+/**
+ * This file is part of the package magicsunday/photo-renamer.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE file that was distributed with this source code.
+ */
+
+declare(strict_types=1);
+
+namespace MagicSunday\Renamer\Service\Output;
+
+/**
+ * Projects output counters into the operator-facing summary rows rendered at
+ * the end of rename and preview flows.
+ *
+ * The builder keeps the policy of "which counters become visible summary rows"
+ * separate from the console rendering itself. That lets the renderer focus on
+ * layout while this collaborator owns the conditional row selection and the
+ * dry-run specific label switch.
+ *
+ * @author  Rico Sonntag <mail@ricosonntag.de>
+ * @license https://opensource.org/licenses/MIT
+ * @link    https://github.com/magicsunday/photo-renamer/
+ */
+final class OutputSummaryRowBuilder
+{
+    /**
+     * Builds the ordered summary rows for the given counters.
+     *
+     * Optional rows are included only when their counters are non-zero so the
+     * summary stays compact. The final row switches between "Files processed"
+     * and "Files to process" based on dry-run mode.
+     *
+     * @param RenameSummaryCounters $counters Runtime or preview counters for the summary footer.
+     * @param bool                  $dryRun   Whether the command is currently simulating changes.
+     *
+     * @return list<SummaryRow> Ordered summary rows ready for aligned rendering.
+     */
+    public function build(RenameSummaryCounters $counters, bool $dryRun): array
+    {
+        $rows = [
+            new SummaryRow('Scanned files', (string) $counters->scannedFiles),
+        ];
+
+        if ($counters->skippedCount > 0) {
+            $rows[] = new SummaryRow('Skipped (no metadata)', (string) $counters->skippedCount);
+        }
+
+        if ($counters->errorCount > 0) {
+            $rows[] = new SummaryRow('Skipped (read errors)', (string) $counters->errorCount);
+        }
+
+        if ($counters->plannedMoves > 0) {
+            $rows[] = new SummaryRow('Planned moves', (string) $counters->plannedMoves);
+        }
+
+        if ($counters->plannedSkips > 0) {
+            $rows[] = new SummaryRow('Planned skips', (string) $counters->plannedSkips);
+        }
+
+        if ($counters->livePhotoGroups > 0) {
+            $rows[] = new SummaryRow('Live Photo groups', (string) $counters->livePhotoGroups);
+        }
+
+        if ($counters->duplicateCount > 0) {
+            $rows[] = new SummaryRow('Duplicates found', (string) $counters->duplicateCount);
+        }
+
+        if ($counters->namingCollisions > 0) {
+            $rows[] = new SummaryRow('Naming collisions', (string) $counters->namingCollisions);
+        }
+
+        if ($counters->crossGroupVideoReviewCount > 0) {
+            $rows[] = new SummaryRow('Cross-group video review', (string) $counters->crossGroupVideoReviewCount);
+        }
+
+        $rows[] = new SummaryRow($dryRun ? 'Files to process' : 'Files processed', (string) $counters->fileCount);
+
+        return $rows;
+    }
+}

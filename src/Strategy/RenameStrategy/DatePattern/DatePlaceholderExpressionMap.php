@@ -57,7 +57,7 @@ final readonly class DatePlaceholderExpressionMap
      *
      * @return string PCRE-compatible regex with capture groups in place of tokens
      */
-    public function replacePlaceholders(string $pattern, SafeRegex $safeRegex = new SafeRegex()): string
+    public function replacePlaceholders(string $pattern, SafeRegex $safeRegex): string
     {
         return $safeRegex->replaceCallback(
             '/{(\\w+)}/',

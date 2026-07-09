@@ -14,6 +14,7 @@ namespace MagicSunday\Renamer\Test\Unit\Service;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
+use MagicSunday\Renamer\Service\CanonicalScore;
 use MagicSunday\Renamer\Service\CanonicalScorer;
 use MagicSunday\Renamer\Service\CanonicalScorerInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -29,7 +30,7 @@ use SplFileInfo;
  * Format priority is the dominant signal — a preferred format (HEIC) always beats
  * a correctly-named lower-priority format (JPG).
  *
- * Note: assertGreaterThan($a, $b) asserts $b > $a (PHPUnit convention: expected, actual).
+ * Note: assertGreaterThan($lowerScore, $higherScore) asserts $higherScore > $lowerScore (PHPUnit convention: expected, actual).
  * Higher priorityScore = more likely to be selected as canonical. The assertions below
  * are correct — the item expected to win canonical selection has the higher score.
  *
@@ -38,6 +39,7 @@ use SplFileInfo;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(CanonicalScorer::class)]
+#[UsesClass(CanonicalScore::class)]
 #[UsesClass(AssetGroup::class)]
 #[UsesClass(AssetItem::class)]
 #[UsesClass(FileHelper::class)]
@@ -224,6 +226,28 @@ final class CanonicalScorerTest extends TestCase
 
         // Format score: (2-0)*10000 = 20000, plus root 50 + tie-break
         self::assertGreaterThan(10000, $items[0]->priorityScore);
+    }
+
+    /**
+     * JPEG aliases must map to the same canonical format tier as JPG so the scorer
+     * does not accidentally drop the format bonus for otherwise equivalent files.
+     */
+    #[Test]
+    public function jpegAliasUsesTheSameFormatPriorityAsJpg(): void
+    {
+        $scorer = new CanonicalScorer();
+        $scorer->setFormatPriority(['heic', 'jpg']);
+        $scorer->setSourceDirectory('/photos');
+
+        $group = new AssetGroup('2024-08-31_14-22-08-123');
+        $group->addItem(new AssetItem(new SplFileInfo('/photos/IMG_0001.jpeg')));
+        $group->addItem(new AssetItem(new SplFileInfo('/photos/IMG_0002.jpg')));
+
+        $scorer->scoreItems($group);
+
+        $items = $group->getItems();
+
+        self::assertSame($items[0]->priorityScore, $items[1]->priorityScore);
     }
 
     /**

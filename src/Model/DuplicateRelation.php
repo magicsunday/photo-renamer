@@ -12,8 +12,12 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Model;
 
 /**
- * Describes how a non-canonical file relates to its canonical counterpart.
- * Informational only — used for the decision log, no branching logic depends on it.
+ * Describes the relationship between a non-canonical file and its canonical counterpart.
+ *
+ * This enumeration provides a classification for duplicates based on how they
+ * differ from the primary 'canonical' file. These classifications are used
+ * primarily for the decision log to provide transparency on why a certain file
+ * was marked as a duplicate.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -22,22 +26,25 @@ namespace MagicSunday\Renamer\Model;
 enum DuplicateRelation: string
 {
     /**
-     * Byte-identical copy of the canonical file.
+     * The file is a byte-identical copy of the canonical file (same content hash).
      */
     case Exact = 'exact';
 
     /**
-     * Same logical asset (e.g. same content identifier) but not byte-identical.
+     * The file represents the same logical asset (e.g., sharing the same Apple
+     * Content Identifier) but is not byte-identical (e.g., different metadata).
      */
     case SameAsset = 'same-asset';
 
     /**
-     * Re-encoded or format-converted variant of the canonical.
+     * The file is a re-encoded or format-converted variant of the canonical
+     * file (e.g., HEIC converted to JPEG) that remains visually identical.
      */
     case Transcoded = 'transcoded';
 
     /**
-     * Likely the same asset based on heuristic (date, basename) but not confirmed.
+     * The file is likely the same asset based on heuristics (matching capture
+     * date and similar basename) but has no definitive content-based proof.
      */
     case Probable = 'probable';
 }

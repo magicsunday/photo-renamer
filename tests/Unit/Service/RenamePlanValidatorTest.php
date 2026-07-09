@@ -44,6 +44,10 @@ final class RenamePlanValidatorTest extends TestCase
         $this->validator = new RenamePlanValidator();
     }
 
+    /**
+     * Ensures that a valid rename plan (no conflicts) passes validation
+     * without errors.
+     */
     #[Test]
     public function validPlanPassesValidation(): void
     {
@@ -65,6 +69,10 @@ final class RenamePlanValidatorTest extends TestCase
         self::assertSame([], $result->circularSwaps);
     }
 
+    /**
+     * Verifies that duplicate target names are reliably detected and reported
+     * as errors.
+     */
     #[Test]
     public function detectsDuplicateTargets(): void
     {
@@ -117,6 +125,10 @@ final class RenamePlanValidatorTest extends TestCase
         self::assertContains('/photos/photo.jpg', $result->caseConflicts[0]);
     }
 
+    /**
+     * Verifies the detection of circular dependencies (e.g., A -> B, B -> A)
+     * which could lead to data loss if executed directly.
+     */
     #[Test]
     public function detectsTwoCycleCircularSwaps(): void
     {
@@ -146,6 +158,10 @@ final class RenamePlanValidatorTest extends TestCase
         self::assertContains('/photos/B.jpg', $swap);
     }
 
+    /**
+     * Ensures that complex circular chains (A -> B -> C -> A) are
+     * correctly identified.
+     */
     #[Test]
     public function detectsThreeCycleCircularSwaps(): void
     {
@@ -182,6 +198,10 @@ final class RenamePlanValidatorTest extends TestCase
         self::assertContains('/photos/C.jpg', $cycle);
     }
 
+    /**
+     * Verifies that simple chains (A -> B -> C) without a closed cycle
+     * are NOT classified as circular, as they can be resolved sequentially.
+     */
     #[Test]
     public function chainWithoutCycleIsNotCircular(): void
     {

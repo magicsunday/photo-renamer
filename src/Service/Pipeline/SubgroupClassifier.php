@@ -11,7 +11,6 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Pipeline;
 
-use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\AssetGroup;
@@ -21,9 +20,9 @@ use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Service\HashSubGroupingServiceInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
+use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use Override;
 use SplFileInfo;
-use Symfony\Component\Console\Style\SymfonyStyle;
 use Throwable;
 
 use function sprintf;
@@ -46,13 +45,15 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
 {
     /**
      * @param HashSubGroupingServiceInterface $hashSubGroupingService Existing hash-based sub-grouping service
-     * @param MediaTypeClassifierInterface    $mediaTypeClassifier    Classifies files as still or video
-     * @param SymfonyStyle                    $io                     Console output for progress feedback
+     * @param MediaTypeClassifierInterface    $mediaTypeClassifier    Classifies files as Live Photo stills or videos for companion bridging
+     * @param OrphanLivePhotoVideoReconciler  $orphanVideoReconciler  Specialized pre-pass for orphan MOV reconciliation
+     * @param ProgressReporterInterface       $progressReporter       Narrow reporting boundary for progress headings and diagnostics
      */
     public function __construct(
         private HashSubGroupingServiceInterface $hashSubGroupingService,
         private MediaTypeClassifierInterface $mediaTypeClassifier,
-        private SymfonyStyle $io,
+        private OrphanLivePhotoVideoReconciler $orphanVideoReconciler,
+        private ProgressReporterInterface $progressReporter,
     ) {
     }
 
@@ -67,6 +68,8 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
     public function classify(
         AssetGroupCollection $groups,
     ): void {
+        $this->orphanVideoReconciler->reconcile($groups);
+
         $groupsToClassify = 0;
 
         foreach ($groups as $group) {
@@ -81,12 +84,8 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
             return;
         }
 
-        $this->io->newLine();
-        $this->io->text('<fg=cyan>Classifying subgroups</>');
-
-        $progressBar = $this->io->createProgressBar($groupsToClassify);
-        $progressBar->setFormat(Constants::PROGRESS_BAR_FORMAT);
-        $progressBar->start();
+        $this->progressReporter->section('<fg=cyan>Classifying subgroups</>');
+        $this->progressReporter->startProgress($groupsToClassify);
 
         foreach ($groups as $group) {
             if ($group->itemCount() <= 1) {
@@ -99,11 +98,10 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
                 $this->hashSubGroupingService->clearCache();
             }
 
-            $progressBar->advance();
+            $this->progressReporter->advance();
         }
 
-        $progressBar->finish();
-        $this->io->newLine();
+        $this->progressReporter->finish();
     }
 
     /**
@@ -176,7 +174,7 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
 
             $targetPathnameResolver = (static fn (SplFileInfo $source, string $targetFilename): string => $source->getPath() . DIRECTORY_SEPARATOR . $targetFilename);
 
-            $applied = $this->hashSubGroupingService->apply(
+            $clusterMap = $this->hashSubGroupingService->apply(
                 $fileDuplicate,
                 $canonicalRename,
                 $companionRename,
@@ -185,45 +183,57 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
                 $temporalMetaMap,
             );
 
-            if (!$applied) {
+            if ($clusterMap === null) {
                 // Single hash group or single file — no subgrouping needed
                 $group->markClassificationSucceeded();
 
                 return;
             }
 
-            // Collect all clusterId and clusterRank assignments in a temporary map before
-            // applying any. This ensures atomicity: if the mapping step throws, no items
-            // are modified.
-            /** @var array<string, array{clusterId: string, clusterRank: int}> $clusterIdAssignments */
+            // Assign clusterIds directly from hash-based cluster membership (Regel 1:
+            // cluster formation is filename-free). The cluster map keys are source
+            // pathnames, values are merged hash group root keys.
+            /**
+             * Temporary map for cluster assignments, ensuring atomic updates to the
+             * items in the AssetGroup only after all items have been successfully
+             * categorized.
+             *
+             * @var array<string, array{clusterId: string, clusterRank: int}>
+             */
             $clusterIdAssignments = [];
 
-            /** @var array<string, int> $clusterRankCounters */
+            /**
+             * Counters for assigning stable numeric ranks within each detected cluster.
+             *
+             * @var array<string, int>
+             */
             $clusterRankCounters = [];
 
-            foreach ($fileDuplicate->getRenames() as $rename) {
-                $sourcePath = $rename->getSource()->getPathname();
-                $item       = $pathToItem[$sourcePath] ?? null;
+            foreach ($group->getItems() as $item) {
+                $sourcePath = $item->file->getPathname();
+                $clusterKey = $clusterMap[$sourcePath] ?? null;
 
-                if ($item === null) {
+                if ($clusterKey === null) {
                     continue;
                 }
 
-                $targetBasename = FileHelper::basenameWithoutExtension($rename->getTarget());
-                $clusterBase    = FileHelper::stripDuplicateSuffix($targetBasename);
-
-                $rank                              = $clusterRankCounters[$clusterBase] ?? 0;
-                $clusterRankCounters[$clusterBase] = $rank + 1;
+                $rank                             = $clusterRankCounters[$clusterKey] ?? 0;
+                $clusterRankCounters[$clusterKey] = $rank + 1;
 
                 $clusterIdAssignments[$sourcePath] = [
-                    'clusterId'   => $targetBasename,
+                    'clusterId'   => $clusterKey,
                     'clusterRank' => $rank,
                 ];
             }
 
             // All assignments computed successfully — apply them atomically
             foreach ($clusterIdAssignments as $sourcePath => $assignment) {
-                $item = $pathToItem[$sourcePath];
+                $item = $pathToItem[$sourcePath] ?? null;
+
+                if ($item === null) {
+                    continue;
+                }
+
                 $group->replaceItem(
                     $item,
                     $item->withClusterId($assignment['clusterId'])->withClusterRank($assignment['clusterRank']),

@@ -21,7 +21,6 @@ use function max;
 use function rtrim;
 use function sprintf;
 use function strlen;
-use function strtolower;
 
 use const DIRECTORY_SEPARATOR;
 
@@ -63,7 +62,7 @@ final class CanonicalScorer implements CanonicalScorerInterface
     private const int SCORE_TIE_BREAK_MAX = 20;
 
     /**
-     * Mapping of lowercase extension to its index in the format priority list.
+     * Mapping of normalized extension to its index in the format priority list.
      *
      * @var array<string, int>
      */
@@ -81,9 +80,9 @@ final class CanonicalScorer implements CanonicalScorerInterface
 
     /**
      * Sets the ordered format priority list, building an internal index
-     * mapping each lowercase extension to its rank.
+     * mapping each normalized extension to its rank.
      *
-     * @param list<string> $formatPriority Lowercase extensions ordered by descending preference
+     * @param list<string> $formatPriority Extensions ordered by descending preference
      */
     #[Override]
     public function setFormatPriority(array $formatPriority): void
@@ -91,7 +90,7 @@ final class CanonicalScorer implements CanonicalScorerInterface
         $this->formatIndex = [];
 
         foreach ($formatPriority as $index => $extension) {
-            $this->formatIndex[strtolower($extension)] = $index;
+            $this->formatIndex[FileHelper::normalizeExtension($extension)] = $index;
         }
 
         $this->formatCount = count($formatPriority);
@@ -118,9 +117,9 @@ final class CanonicalScorer implements CanonicalScorerInterface
     public function scoreItems(AssetGroup $group): void
     {
         foreach ($group->getItems() as $item) {
-            [$score, $reasoning] = $this->computeScore($item, $group);
+            $score = $this->computeScore($item, $group);
 
-            $group->replaceItem($item, $item->withScore($score, $reasoning));
+            $group->replaceItem($item, $item->withScore($score->totalScore, $score->reasoning));
         }
     }
 
@@ -147,16 +146,21 @@ final class CanonicalScorer implements CanonicalScorerInterface
 
     /**
      * Computes the total score and reasoning strings for a single item.
+     * Scoring favors preferred formats, already correctly named files,
+     * files in the root directory, and Live Photo assets.
      *
-     * @return array{int, list<string>}
+     * @param AssetItem  $item  Asset to score
+     * @param AssetGroup $group Parent group for context (e.g. groupKey for idempotency)
+     *
+     * @return CanonicalScore Explicit score object carrying total score and reasoning fragments
      */
-    private function computeScore(AssetItem $item, AssetGroup $group): array
+    private function computeScore(AssetItem $item, AssetGroup $group): CanonicalScore
     {
         $score     = 0;
         $reasoning = [];
 
         // Format priority
-        $extension   = strtolower($item->file->getExtension());
+        $extension   = FileHelper::normalizeExtension($item->file->getExtension());
         $formatScore = $this->computeFormatScore($extension);
 
         if ($formatScore > 0) {
@@ -191,12 +195,17 @@ final class CanonicalScorer implements CanonicalScorerInterface
             $reasoning[] = sprintf('tieBreak=%d', $tieBreak);
         }
 
-        return [$score, $reasoning];
+        return new CanonicalScore($score, $reasoning);
     }
 
     /**
-     * Returns the format priority score for a given lowercase extension.
+     * Returns the format priority score for a given normalized extension.
+     * Higher preference formats (e.g. HEIC over JPG) receive higher scores.
      * Unknown formats return 0.
+     *
+     * @param string $extension Normalized file extension without leading dot
+     *
+     * @return int Priority score (0 if unknown)
      */
     private function computeFormatScore(string $extension): int
     {

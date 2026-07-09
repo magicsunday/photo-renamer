@@ -31,6 +31,10 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(ExecutionItem::class)]
 final class ExecutionGroupTest extends TestCase
 {
+    /**
+     * Verifies that the constructor correctly initializes all public properties.
+     * The ExecutionGroup is a DTO representing a processed group in the execution plan.
+     */
     #[Test]
     public function constructorSetsFields(): void
     {
@@ -49,6 +53,9 @@ final class ExecutionGroupTest extends TestCase
         self::assertSame(['selected canonical by score'], $group->decisionLog);
     }
 
+    /**
+     * Verifies that itemCount() returns the total number of items within the group.
+     */
     #[Test]
     public function itemCountReturnsCorrectValue(): void
     {
@@ -67,6 +74,10 @@ final class ExecutionGroupTest extends TestCase
         self::assertSame(3, $group->itemCount());
     }
 
+    /**
+     * Verifies that items can be filtered by their ExecutionItemType (Canonical, Duplicate, Companion).
+     * This is used by the renderer to separate the primary file from its duplicates and sidecars.
+     */
     #[Test]
     public function getItemsByTypeFiltersCorrectly(): void
     {

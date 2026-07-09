@@ -34,31 +34,35 @@ interface FileSystemServiceInterface
     /**
      * Creates a file iterator for the given directory.
      *
-     * @param string                                      $directory         The directory to iterate
-     * @param RecursiveIterator<string, SplFileInfo>|null $recursiveIterator
+     * @param string                                      $directory         The directory to scan.
+     * @param RecursiveIterator<string, SplFileInfo>|null $recursiveIterator An optional pre-configured iterator.
      *
-     * @return RecursiveIteratorIterator<RecursiveIterator<string, SplFileInfo>> The file iterator
+     * @return RecursiveIteratorIterator<RecursiveIterator<string, SplFileInfo>> The file iterator.
      */
     public function createFileIterator(string $directory, ?RecursiveIterator $recursiveIterator = null): RecursiveIteratorIterator;
 
     /**
      * Collects all regular files from the given directory into a flat list.
      *
-     * @param string $directory Absolute directory path to scan
+     * @param string $directory The absolute directory path to scan.
      *
-     * @return list<SplFileInfo> All files found in the directory tree
+     * @return list<SplFileInfo> All files found in the directory tree.
      */
     public function collectFiles(string $directory): array;
 
     /**
-     * Renames all the files in the collection.
+     * Renames all files in the collection.
      *
-     * @param FileDuplicateCollection $fileDuplicateCollection Collection of file duplicates
-     * @param RenameOptions           $options                 Options controlling the rename operation
-     * @param RenameResult            $result                  Pipeline-computed results (scanned files, collisions, skips)
-     * @param list<string>|null       $showFilter              When set, only output entries matching these tags are shown
+     * This method handles the entire reporting and execution flow: it calculates
+     * output entries, renders them to the console, and then performs the actual
+     * file system operations.
      *
-     * @throws RuntimeException If a file could not be renamed
+     * @param FileDuplicateCollection $fileDuplicateCollection The collection of file duplicates.
+     * @param RenameOptions           $options                 Options controlling the rename operation.
+     * @param RenameResult            $result                  Pipeline-computed results (scanned files, collisions, skips).
+     * @param list<string>|null       $showFilter              When set, only output entries matching these tags are shown.
+     *
+     * @throws RuntimeException If a file could not be renamed.
      */
     public function renameFiles(
         FileDuplicateCollection $fileDuplicateCollection,
@@ -68,14 +72,15 @@ interface FileSystemServiceInterface
     ): void;
 
     /**
-     * Execute a runtime plan, performing the actual file rename operations.
+     * Executes a runtime plan, performing the actual file rename operations.
+     *
      * Builds an occupied-path index from the plan and uses runtime collision
-     * fallback as a safety layer.
+     * fallback as a safety layer to ensure no files are overwritten.
      *
-     * @param ExecutionPlan $plan   The runtime execution plan
-     * @param bool          $dryRun When true, simulate without touching filesystem
+     * @param ExecutionPlan $plan   The runtime execution plan.
+     * @param bool          $dryRun When true, simulate without touching the filesystem.
      *
-     * @return ExecutionResult Runtime execution counters (moves, fallbacks, errors)
+     * @return ExecutionResult Runtime execution counters (moves, fallbacks, errors).
      */
     public function executePlan(
         ExecutionPlan $plan,

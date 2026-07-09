@@ -26,6 +26,7 @@ use RecursiveIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
 use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Filesystem\Filesystem;
 
 use function is_string;
 
@@ -43,19 +44,26 @@ final class RenameByPatternCommand extends AbstractRenameCommand
 {
     private ?RenameStrategyInterface $renameStrategy = null;
 
-    private ?DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy = null;
-
-    public function __construct(
-        FileSystemServiceInterface $fileSystemService,
-        DuplicateDetectionServiceInterface $duplicateDetectionService,
-        private readonly SafeRegex $safeRegex,
-    ) {
-        parent::__construct($fileSystemService, $duplicateDetectionService);
-    }
-
     private string $pattern = '';
 
     private string $replacement = '';
+
+    /**
+     * @param FileSystemServiceInterface         $fileSystemService           Service to handle file system operations
+     * @param DuplicateDetectionServiceInterface $duplicateDetectionService   Service to handle grouping and duplicate resolution
+     * @param SafeRegex                          $safeRegex                   Safe regex wrapper used by the shared legacy file iterator path
+     * @param Filesystem                         $filesystem                  Command-facing filesystem boundary reused by metadata-cache helpers
+     * @param TargetPathnameStrategy             $duplicateIdentifierStrategy Fixed target-path grouping strategy for this command
+     */
+    public function __construct(
+        FileSystemServiceInterface $fileSystemService,
+        DuplicateDetectionServiceInterface $duplicateDetectionService,
+        SafeRegex $safeRegex,
+        Filesystem $filesystem,
+        private readonly TargetPathnameStrategy $duplicateIdentifierStrategy,
+    ) {
+        parent::__construct($fileSystemService, $duplicateDetectionService, $safeRegex, $filesystem);
+    }
 
     /**
      * Configures the current command.
@@ -84,6 +92,14 @@ final class RenameByPatternCommand extends AbstractRenameCommand
             );
     }
 
+    /**
+     * Executes the command logic.
+     *
+     * Validates the replacement and pattern options and initializes
+     * internal state before calling the parent execution.
+     *
+     * @return int The exit code
+     */
     #[Override]
     protected function executeCommand(): int
     {
@@ -108,6 +124,10 @@ final class RenameByPatternCommand extends AbstractRenameCommand
     }
 
     /**
+     * Creates the file iterator.
+     *
+     * Uses a regex filter based on the provided pattern to select files.
+     *
      * @return RecursiveIteratorIterator<RecursiveIterator<string, SplFileInfo>>
      */
     #[Override]
@@ -121,11 +141,19 @@ final class RenameByPatternCommand extends AbstractRenameCommand
                         $this->sourceDirectory,
                         FilesystemIterator::SKIP_DOTS
                     ),
-                    $this->pattern
+                    $this->pattern,
+                    $this->safeRegex,
                 )
             );
     }
 
+    /**
+     * Returns the target filename strategy.
+     *
+     * Uses the PatternFilenameStrategy to perform regex-based renames.
+     *
+     * @return RenameStrategyInterface The rename strategy
+     */
     #[Override]
     protected function getTargetFilenameStrategy(): RenameStrategyInterface
     {
@@ -136,9 +164,16 @@ final class RenameByPatternCommand extends AbstractRenameCommand
         );
     }
 
+    /**
+     * Returns the duplicate identifier strategy.
+     *
+     * Uses the TargetPathnameStrategy to group files by their full target path.
+     *
+     * @return DuplicateIdentifierStrategyInterface The duplicate identifier strategy
+     */
     #[Override]
     protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
     {
-        return $this->duplicateIdentifierStrategy ??= new TargetPathnameStrategy();
+        return $this->duplicateIdentifierStrategy;
     }
 }

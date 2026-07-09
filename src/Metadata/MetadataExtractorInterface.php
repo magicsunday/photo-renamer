@@ -26,13 +26,16 @@ use SplFileInfo;
 interface MetadataExtractorInterface
 {
     /**
-     * Extracts temporal metadata from the given file.
+     * Extracts all relevant temporal and device metadata from the given file.
      *
-     * @param SplFileInfo $file File to extract metadata from
+     * This includes capture date, Live Photo identifiers, camera details,
+     * and GPS coordinates.
      *
-     * @return TemporalMetadata|null Extracted metadata, or null when no relevant fields exist
+     * @param SplFileInfo $file The file to extract metadata from.
      *
-     * @throws ExifMetadataReadException When the file cannot be read
+     * @return TemporalMetadata|null The extracted metadata, or null if extraction fails.
+     *
+     * @throws ExifMetadataReadException When the file cannot be read.
      */
     public function extractTemporalMetadata(SplFileInfo $file): ?TemporalMetadata;
 }

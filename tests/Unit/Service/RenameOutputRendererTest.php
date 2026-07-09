@@ -12,7 +12,10 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
 use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\FilenameDateParser;
+use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\Collection\FileList;
 use MagicSunday\Renamer\Model\Collection\RenameList;
@@ -22,12 +25,38 @@ use MagicSunday\Renamer\Model\Execution\ExecutionItemType;
 use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
 use MagicSunday\Renamer\Model\Execution\ExecutionPreview;
 use MagicSunday\Renamer\Model\FileDuplicate;
+use MagicSunday\Renamer\Model\LinkConfig;
+use MagicSunday\Renamer\Model\OutputEntry;
 use MagicSunday\Renamer\Model\OutputEntryTag;
+use MagicSunday\Renamer\Model\OutputEntryType;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
 use MagicSunday\Renamer\Model\SkippedFile;
+use MagicSunday\Renamer\Service\Output\DiffHighlighter;
+use MagicSunday\Renamer\Service\Output\DiffTokenState;
+use MagicSunday\Renamer\Service\Output\OutputCounters;
+use MagicSunday\Renamer\Service\Output\OutputDecisionLogRenderer;
+use MagicSunday\Renamer\Service\Output\OutputEntryBuildResult;
+use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
+use MagicSunday\Renamer\Service\Output\OutputEntryTagResolution;
+use MagicSunday\Renamer\Service\Output\OutputSkipFlags;
+use MagicSunday\Renamer\Service\Output\OutputSkipReason;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecision;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\CandidateOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\DefaultOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\FallbackOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\ReviewOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\WarningOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSummaryRowBuilder;
+use MagicSunday\Renamer\Service\Output\PathPrefixSplit;
+use MagicSunday\Renamer\Service\Output\RenameSummaryCounters;
+use MagicSunday\Renamer\Service\Output\SkippedFileAppendResult;
+use MagicSunday\Renamer\Service\Output\SkipReasonFormatter;
+use MagicSunday\Renamer\Service\Output\SummaryRow;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
+use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
@@ -53,18 +82,51 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
+#[UsesClass(LinkConfig::class)]
+#[UsesClass(OutputEntry::class)]
+#[UsesClass(OutputEntryTag::class)]
+#[UsesClass(OutputEntryType::class)]
 #[UsesClass(ExecutionGroup::class)]
 #[UsesClass(ExecutionItem::class)]
 #[UsesClass(ExecutionPlan::class)]
 #[UsesClass(ExecutionPreview::class)]
+#[UsesClass(DateDriftCalculator::class)]
 #[UsesClass(FileHelper::class)]
+#[UsesClass(FilenameDateParser::class)]
+#[UsesClass(PathHelper::class)]
 #[UsesClass(FileList::class)]
 #[UsesClass(RenameList::class)]
+#[UsesClass(DiffHighlighter::class)]
+#[UsesClass(DiffTokenState::class)]
+#[UsesClass(OutputCounters::class)]
+#[UsesClass(OutputDecisionLogRenderer::class)]
+#[UsesClass(OutputEntryBuildResult::class)]
+#[UsesClass(OutputEntryPresenter::class)]
+#[UsesClass(OutputEntryTagResolution::class)]
+#[UsesClass(PathPrefixSplit::class)]
+#[UsesClass(OutputSkipReason::class)]
+#[UsesClass(OutputSkipReasonDecider::class)]
+#[UsesClass(OutputSkipReasonDecision::class)]
+#[UsesClass(OutputSkipFlags::class)]
+#[UsesClass(CandidateOutputSkipReasonRule::class)]
+#[UsesClass(DefaultOutputSkipReasonRule::class)]
+#[UsesClass(FallbackOutputSkipReasonRule::class)]
+#[UsesClass(ReviewOutputSkipReasonRule::class)]
+#[UsesClass(WarningOutputSkipReasonRule::class)]
+#[UsesClass(OutputSummaryRowBuilder::class)]
+#[UsesClass(RenameSummaryCounters::class)]
+#[UsesClass(SkipReasonFormatter::class)]
+#[UsesClass(SkippedFileAppendResult::class)]
+#[UsesClass(SummaryRow::class)]
 final class RenameOutputRendererTest extends TestCase
 {
     /**
-     * Verifies that buildOutputEntries returns rename entries sorted by source path
-     * and computes the correct max filename length.
+     * Verifies that buildOutputEntries returns rename entries sorted alphabetically
+     * by their source pathname.
+     *
+     * Stable sorting ensures consistent console output even if the underlying
+     * filesystem or hash-map iteration order varies. This test checks that a file
+     * starting with 'a-' appears before one starting with 'b-'.
      */
     #[Test]
     public function buildOutputEntriesReturnsSortedEntries(): void
@@ -86,12 +148,15 @@ final class RenameOutputRendererTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('test', $fileDuplicate);
 
-        [$entries, $skippedCount, $errorCount] = $renderer->buildOutputEntries(
+        $buildResult = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(),
             new RenameResult(),
             $sourceDir,
         );
+        $entries      = $buildResult->entries;
+        $skippedCount = $buildResult->skippedCount;
+        $errorCount   = $buildResult->errorCount;
 
         self::assertCount(2, $entries);
         // Entries should be sorted by source path: a-image before b-image
@@ -102,7 +167,12 @@ final class RenameOutputRendererTest extends TestCase
     }
 
     /**
-     * Verifies that buildOutputEntries tags duplicate targets with OutputEntryTag::Duplicate.
+     * Verifies that buildOutputEntries identifies and tags duplicate target paths.
+     *
+     * A duplicate target occurs when multiple source files (e.g., exact copies)
+     * would be renamed to the same destination filename. The renderer must mark
+     * subsequent files targeting the same path with OutputEntryTag::Duplicate
+     * to visually distinguish them from the primary file.
      */
     #[Test]
     public function buildOutputEntriesTagsDuplicateTargets(): void
@@ -122,21 +192,90 @@ final class RenameOutputRendererTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('test', $fileDuplicate);
 
-        [$entries] = $renderer->buildOutputEntries(
+        $entries = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(),
             new RenameResult(),
             $sourceDir,
-        );
+        )->entries;
 
-        self::assertCount(1, $entries);
+        self::assertCount(2, $entries);
         self::assertSame(OutputEntryTag::Duplicate, $entries[0]->tag);
         self::assertTrue($entries[0]->isDuplicateTarget);
+        self::assertTrue($entries[1]->isInfo());
+        self::assertStringContainsString('Duplicate of', $entries[1]->reason ?? '');
     }
 
     /**
-     * Verifies that buildOutputEntries tags heuristic Live Photo content-ID
-     * conflicts as review candidates and marks them as skipped.
+     * Verifies that legacy duplicate companion videos reference the matching
+     * non-duplicate video target instead of the canonical still target.
+     *
+     * The legacy rename path still renders duplicate info lines through
+     * buildOutputEntries(). When a Live Photo group contains a canonical still,
+     * a non-duplicate MOV companion, and a duplicate MOV target, the info line
+     * must point at the unsuffixed MOV target so the operator sees the correct
+     * media-equivalent reference.
+     */
+    #[Test]
+    public function legacyDuplicateCompanionUsesMatchingExtensionReferenceTarget(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $sourceDir = '/tmp/source';
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate->setTarget(new SplFileInfo($sourceDir . '/2025-01-01_10-00-00-000.jpg'));
+        $fileDuplicate->addRename(new Rename(
+            new SplFileInfo($sourceDir . '/still.jpg'),
+            new SplFileInfo($sourceDir . '/2025-01-01_10-00-00-000.jpg'),
+        ));
+        $fileDuplicate->addRename(new Rename(
+            new SplFileInfo($sourceDir . '/primary.mov'),
+            new SplFileInfo($sourceDir . '/2025-01-01_10-00-00-000.mov'),
+        ));
+        $fileDuplicate->addRename(new Rename(
+            new SplFileInfo($sourceDir . '/duplicate.mov'),
+            new SplFileInfo($sourceDir . '/2025-01-01_10-00-00-000' . Constants::DUPLICATE_IDENTIFIER . '001.mov'),
+        ));
+
+        $collection = new FileDuplicateCollection();
+        $collection->set('live-photo:cid-1', $fileDuplicate);
+
+        $entries = $renderer->buildOutputEntries(
+            $collection,
+            new RenameOptions(),
+            new RenameResult(),
+            $sourceDir,
+        )->entries;
+
+        self::assertCount(4, $entries);
+
+        $duplicateEntry = null;
+        $infoEntry      = null;
+
+        foreach ($entries as $entry) {
+            if (($entry->sourcePath === 'duplicate.mov') && ($entry->type === OutputEntryType::Rename)) {
+                $duplicateEntry = $entry;
+            }
+
+            if (($entry->sourcePath === 'duplicate.mov') && ($entry->type === OutputEntryType::Info)) {
+                $infoEntry = $entry;
+            }
+        }
+
+        self::assertNotNull($duplicateEntry);
+        self::assertNotNull($infoEntry);
+        self::assertSame(OutputEntryTag::Duplicate, $duplicateEntry->tag);
+        self::assertSame('Duplicate of 2025-01-01_10-00-00-000.mov', $infoEntry->reason);
+    }
+
+    /**
+     * Verifies that Live Photo content identifier conflicts are correctly identified
+     * and tagged as candidates for inspection.
+     *
+     * When a photo and video appear to be a pair but have mismatched content IDs,
+     * they are tagged as OutputEntryTag::Candidate. This test ensures the renderer
+     * detects this state from the RenameResult and assigns the appropriate tag.
      */
     #[Test]
     public function buildOutputEntriesTagsLivePhotoContentIdConflictsAsCandidates(): void
@@ -155,14 +294,14 @@ final class RenameOutputRendererTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('test', $fileDuplicate);
 
-        [$entries] = $renderer->buildOutputEntries(
+        $entries = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(),
             new RenameResult(
                 livePhotoConflictFiles: [$source => true],
             ),
             $sourceDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Candidate, $entries[0]->tag);
@@ -170,7 +309,12 @@ final class RenameOutputRendererTest extends TestCase
     }
 
     /**
-     * Verifies that buildOutputEntries includes skipped files with correct counts.
+     * Verifies that files skipped during the scanning or grouping phase are included
+     * in the output list with their specific skip reasons.
+     *
+     * Reporting skipped files is essential for transparency, allowing the user to
+     * understand why certain files in the directory were not processed (e.g. missing
+     * EXIF data or unmapped extension).
      */
     #[Test]
     public function buildOutputEntriesIncludesSkippedFiles(): void
@@ -188,12 +332,15 @@ final class RenameOutputRendererTest extends TestCase
             ],
         );
 
-        [$entries, $skippedCount, $errorCount] = $renderer->buildOutputEntries(
+        $buildResult = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(),
             $result,
             $sourceDir,
         );
+        $entries      = $buildResult->entries;
+        $skippedCount = $buildResult->skippedCount;
+        $errorCount   = $buildResult->errorCount;
 
         self::assertCount(2, $entries);
         self::assertSame(1, $skippedCount);
@@ -204,24 +351,114 @@ final class RenameOutputRendererTest extends TestCase
     }
 
     /**
-     * Verifies that renderSummary outputs the expected labels for all provided counters.
+     * Verifies that info-only notices respect the --show filter and do not leak into
+     * duplicate-only output as orphaned continuation lines.
+     *
+     * Cross-directory Live Photo notices are tagged as Info, not Duplicate. When the
+     * user requests only [D] entries, these notices must stay hidden.
+     */
+    #[Test]
+    public function renderEntryLinesHidesInfoEntriesWhenShowFilterExcludesThem(): void
+    {
+        [$renderer, $output] = $this->createRenderer();
+
+        $entries = [
+            OutputEntry::info(
+                sortKey: '/tmp/source/2019/companion.mov',
+                sourcePath: '2019/companion.mov',
+                reason: 'Live Photo pair across directories: <fg=cyan>2019/canonical.jpg</>',
+            ),
+        ];
+
+        $renderer->renderEntryLines($entries, '/tmp/source', ['D']);
+
+        self::assertSame('', $output->fetch());
+    }
+
+    /**
+     * Verifies that visible info entries render as a two-line block when their anchor
+     * entry is not visible in the current filter result.
+     *
+     * This keeps `--show=I` usable for standalone notices such as cross-directory
+     * Live Photo pair reports.
+     */
+    #[Test]
+    public function renderEntryLinesShowsTwoLineInfoBlockWithoutVisibleAnchor(): void
+    {
+        [$renderer, $output] = $this->createRenderer();
+
+        $entries = [
+            OutputEntry::info(
+                sortKey: '/tmp/source/2019/companion.mov',
+                sourcePath: '2019/companion.mov',
+                reason: 'Live Photo pair across directories: <fg=cyan>2019/canonical.jpg</>',
+            ),
+        ];
+
+        $renderer->renderEntryLines($entries, '/tmp/source', ['I']);
+
+        $buffer = $output->fetch();
+
+        self::assertStringContainsString('[I]', $buffer);
+        self::assertStringContainsString('2019/companion.mov', $buffer);
+        self::assertStringContainsString("\n      → ", $buffer);
+        self::assertStringContainsString('Live Photo pair across directories: 2019/canonical.jpg', $buffer);
+    }
+
+    /**
+     * Verifies that skipped warning entries also use the two-line block layout so
+     * long explanations do not continue on the same line as the source path.
+     */
+    #[Test]
+    public function renderEntryLinesShowsTwoLineWarningBlock(): void
+    {
+        [$renderer, $output] = $this->createRenderer();
+
+        $entries = [
+            OutputEntry::rename(
+                sortKey: '/tmp/source/2019/clip.mov',
+                sourcePath: '2019/clip.mov',
+                targetPath: '2019/clip.mov',
+                tag: OutputEntryTag::Warning,
+                shouldSkip: true,
+                warningReason: 'Ambiguous timezone: QuickTime UTC without offset — use --timezone or rename:write-date --reason=timezone',
+            ),
+        ];
+
+        $renderer->renderEntryLines($entries, '/tmp/source', ['W']);
+
+        $buffer = $output->fetch();
+
+        self::assertStringContainsString('[W]', $buffer);
+        self::assertStringContainsString('2019/clip.mov', $buffer);
+        self::assertStringContainsString("\n      → ", $buffer);
+        self::assertStringContainsString('Ambiguous timezone: QuickTime UTC without offset', $buffer);
+    }
+
+    /**
+     * Verifies that the summary table includes all non-zero operational counters
+     * like total renames, duplicates, and collisions.
+     *
+     * The summary provides a high-level overview of the work performed. This test
+     * ensures that when these events occur, they are formatted into the summary
+     * section of the console output.
      */
     #[Test]
     public function renderSummaryDisplaysAllNonZeroCounters(): void
     {
         [$renderer, $output] = $this->createRenderer();
 
-        $renderer->renderSummary([
-            'scannedFiles'     => 10,
-            'skippedCount'     => 2,
-            'errorCount'       => 1,
-            'livePhotoGroups'  => 3,
-            'namingCollisions' => 4,
-            'fileCount'        => 5,
-            'duplicateCount'   => 6,
-            'plannedMoves'     => 7,
-            'plannedSkips'     => 8,
-        ], false);
+        $renderer->renderSummary(new RenameSummaryCounters(
+            scannedFiles: 10,
+            skippedCount: 2,
+            errorCount: 1,
+            livePhotoGroups: 3,
+            namingCollisions: 4,
+            fileCount: 5,
+            duplicateCount: 6,
+            plannedMoves: 7,
+            plannedSkips: 8,
+        ), false);
 
         $buffer = $output->fetch();
 
@@ -246,17 +483,17 @@ final class RenameOutputRendererTest extends TestCase
     {
         [$renderer, $output] = $this->createRenderer();
 
-        $renderer->renderSummary([
-            'scannedFiles'     => 5,
-            'skippedCount'     => 0,
-            'errorCount'       => 0,
-            'livePhotoGroups'  => 0,
-            'namingCollisions' => 0,
-            'fileCount'        => 3,
-            'duplicateCount'   => 0,
-            'plannedMoves'     => 3,
-            'plannedSkips'     => 0,
-        ], true);
+        $renderer->renderSummary(new RenameSummaryCounters(
+            scannedFiles: 5,
+            skippedCount: 0,
+            errorCount: 0,
+            livePhotoGroups: 0,
+            namingCollisions: 0,
+            fileCount: 3,
+            duplicateCount: 0,
+            plannedMoves: 3,
+            plannedSkips: 0,
+        ), true);
 
         $buffer = $output->fetch();
 
@@ -272,17 +509,17 @@ final class RenameOutputRendererTest extends TestCase
     {
         [$renderer, $output] = $this->createRenderer();
 
-        $renderer->renderSummary([
-            'scannedFiles'     => 5,
-            'skippedCount'     => 0,
-            'errorCount'       => 0,
-            'livePhotoGroups'  => 0,
-            'namingCollisions' => 0,
-            'fileCount'        => 3,
-            'duplicateCount'   => 0,
-            'plannedMoves'     => 3,
-            'plannedSkips'     => 0,
-        ], false);
+        $renderer->renderSummary(new RenameSummaryCounters(
+            scannedFiles: 5,
+            skippedCount: 0,
+            errorCount: 0,
+            livePhotoGroups: 0,
+            namingCollisions: 0,
+            fileCount: 3,
+            duplicateCount: 0,
+            plannedMoves: 3,
+            plannedSkips: 0,
+        ), false);
 
         $buffer = $output->fetch();
 
@@ -388,12 +625,12 @@ final class RenameOutputRendererTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('test', $fileDuplicate);
 
-        [$entries] = $renderer->buildOutputEntries(
+        $entries = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(maxDateDrift: 30),
             new RenameResult(),
             $sourceDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Warning, $entries[0]->tag);
@@ -421,12 +658,12 @@ final class RenameOutputRendererTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('test', $fileDuplicate);
 
-        [$entries] = $renderer->buildOutputEntries(
+        $entries = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(maxDateDrift: 30),
             new RenameResult(),
             $sourceDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Rename, $entries[0]->tag);
@@ -454,12 +691,12 @@ final class RenameOutputRendererTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('test', $fileDuplicate);
 
-        [$entries] = $renderer->buildOutputEntries(
+        $entries = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(maxDateDrift: 30),
             new RenameResult(),
             $sourceDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Rename, $entries[0]->tag);
@@ -486,12 +723,12 @@ final class RenameOutputRendererTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('test', $fileDuplicate);
 
-        [$entries] = $renderer->buildOutputEntries(
+        $entries = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(maxDateDrift: 0),
             new RenameResult(),
             $sourceDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Rename, $entries[0]->tag);
@@ -519,12 +756,12 @@ final class RenameOutputRendererTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('test', $fileDuplicate);
 
-        [$entries] = $renderer->buildOutputEntries(
+        $entries = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(maxDateDrift: 30),
             new RenameResult(),
             $sourceDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Warning, $entries[0]->tag);
@@ -662,14 +899,14 @@ final class RenameOutputRendererTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('test', $fileDuplicate);
 
-        [$entries] = $renderer->buildOutputEntries(
+        $entries = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(),
             new RenameResult(
                 ambiguousTimezoneFiles: [$canonical => true, $duplicate => true],
             ),
             $sourceDir,
-        );
+        )->entries;
 
         self::assertCount(2, $entries);
         // Both should be [W], not [D]
@@ -699,12 +936,12 @@ final class RenameOutputRendererTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('test', $fileDuplicate);
 
-        [$entries] = $renderer->buildOutputEntries(
+        $entries = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(maxDateDrift: 7),
             new RenameResult(),
             $sourceDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Warning, $entries[0]->tag);
@@ -724,8 +961,8 @@ final class RenameOutputRendererTest extends TestCase
         [$renderer, $output] = $this->createRenderer();
 
         $rows = [
-            ['Short', '10'],
-            ['Much longer label', '200'],
+            new SummaryRow('Short', '10'),
+            new SummaryRow('Much longer label', '200'),
         ];
 
         $renderer->renderSummarySection($rows, new SymfonyStyle(new ArrayInput([]), $output));
@@ -757,14 +994,14 @@ final class RenameOutputRendererTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('test', $fileDuplicate);
 
-        [$entries] = $renderer->buildOutputEntries(
+        $entries = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(),
             new RenameResult(
                 fallbackDateFiles: [$source => true],
             ),
             $sourceDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Fallback, $entries[0]->tag);
@@ -791,14 +1028,14 @@ final class RenameOutputRendererTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('test', $fileDuplicate);
 
-        [$entries] = $renderer->buildOutputEntries(
+        $entries = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(),
             new RenameResult(
                 fallbackDateFiles: [$source => true],
             ),
             $sourceDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Fallback, $entries[0]->tag);
@@ -828,14 +1065,14 @@ final class RenameOutputRendererTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('test', $fileDuplicate);
 
-        [$entries] = $renderer->buildOutputEntries(
+        $entries = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(),
             new RenameResult(
                 fallbackDateFiles: [$duplicate => true],
             ),
             $sourceDir,
-        );
+        )->entries;
 
         self::assertCount(2, $entries);
 
@@ -864,14 +1101,14 @@ final class RenameOutputRendererTest extends TestCase
         $collection = new FileDuplicateCollection();
         $collection->set('test', $fileDuplicate);
 
-        [$entries] = $renderer->buildOutputEntries(
+        $entries = $renderer->buildOutputEntries(
             $collection,
             new RenameOptions(),
             new RenameResult(
                 ambiguousTimezoneFiles: [$source => true],
             ),
             $sourceDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Warning, $entries[0]->tag);
@@ -966,12 +1203,12 @@ final class RenameOutputRendererTest extends TestCase
             ]),
         ]);
 
-        [$entries] = $renderer->buildOutputEntriesFromPlan(
+        $entries = $renderer->buildOutputEntriesFromPlan(
             $plan,
             new RenameOptions(),
             new RenameResult(),
             $baseDir,
-        );
+        )->entries;
 
         // Sorted by source path: 2025-01-01 (noop), clip, conflict, dup, img, scan
         /** @var array<string, OutputEntryTag> $tagMap */
@@ -1031,15 +1268,18 @@ final class RenameOutputRendererTest extends TestCase
             ],
         );
 
-        [$entries, $skippedCount, $errorCount] = $renderer->buildOutputEntriesFromPlan(
+        $buildResult = $renderer->buildOutputEntriesFromPlan(
             $plan,
             new RenameOptions(),
             $result,
             $baseDir,
         );
+        $entries      = $buildResult->entries;
+        $skippedCount = $buildResult->skippedCount;
+        $errorCount   = $buildResult->errorCount;
 
-        // 2 items from plan + 2 skipped files = 4 entries
-        self::assertCount(4, $entries);
+        // 2 items from plan + 1 duplicate-info line + 2 skipped files = 5 entries
+        self::assertCount(5, $entries);
         self::assertSame(1, $skippedCount);
         self::assertSame(1, $errorCount);
     }
@@ -1159,12 +1399,12 @@ final class RenameOutputRendererTest extends TestCase
             ]),
         ]);
 
-        [$entries] = $renderer->buildOutputEntriesFromPlan(
+        $entries = $renderer->buildOutputEntriesFromPlan(
             $plan,
             new RenameOptions(),
             new RenameResult(),
             $baseDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Original, $entries[0]->tag);
@@ -1194,16 +1434,90 @@ final class RenameOutputRendererTest extends TestCase
             ]),
         ]);
 
-        [$entries] = $renderer->buildOutputEntriesFromPlan(
+        $entries = $renderer->buildOutputEntriesFromPlan(
             $plan,
             new RenameOptions(),
             new RenameResult(),
             $baseDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Duplicate, $entries[0]->tag);
         self::assertTrue($entries[0]->isDuplicateTarget);
+    }
+
+    /**
+     * Verifies that duplicate companion videos reference the matching non-duplicate
+     * video target, not the canonical still target, in the "Duplicate of ..." info line.
+     *
+     * Live Photo groups can contain a canonical still plus a non-duplicate companion
+     * MOV. When another MOV in the same group becomes a duplicate target, the operator
+     * expects the explanatory info line to point at the unsuffixed MOV target rather
+     * than at the canonical JPG/HEIC target of the group.
+     */
+    #[Test]
+    public function duplicateCompanionUsesMatchingExtensionReferenceTarget(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $baseDir = '/tmp/source';
+
+        $plan = new ExecutionPlan([
+            new ExecutionGroup('live-photo:cid-1', true, null, [
+                new ExecutionItem(
+                    $baseDir . '/still.jpg',
+                    $baseDir . '/2025-01-01_10-00-00-000.jpg',
+                    ExecutionItemType::Canonical,
+                    renameRequired: true,
+                    isNoOp: false,
+                    groupKey: 'live-photo:cid-1',
+                ),
+                new ExecutionItem(
+                    $baseDir . '/primary.mov',
+                    $baseDir . '/2025-01-01_10-00-00-000.mov',
+                    ExecutionItemType::Companion,
+                    renameRequired: true,
+                    isNoOp: false,
+                    groupKey: 'live-photo:cid-1',
+                ),
+                new ExecutionItem(
+                    $baseDir . '/duplicate.mov',
+                    $baseDir . '/2025-01-01_10-00-00-000' . Constants::DUPLICATE_IDENTIFIER . '001.mov',
+                    ExecutionItemType::Duplicate,
+                    renameRequired: true,
+                    isNoOp: false,
+                    groupKey: 'live-photo:cid-1',
+                    isDuplicateTarget: true,
+                ),
+            ]),
+        ]);
+
+        $entries = $renderer->buildOutputEntriesFromPlan(
+            $plan,
+            new RenameOptions(),
+            new RenameResult(),
+            $baseDir,
+        )->entries;
+
+        self::assertCount(4, $entries);
+
+        $duplicateEntry = null;
+        $infoEntry      = null;
+
+        foreach ($entries as $entry) {
+            if (($entry->sourcePath === 'duplicate.mov') && ($entry->type === OutputEntryType::Rename)) {
+                $duplicateEntry = $entry;
+            }
+
+            if (($entry->sourcePath === 'duplicate.mov') && ($entry->type === OutputEntryType::Info)) {
+                $infoEntry = $entry;
+            }
+        }
+
+        self::assertNotNull($duplicateEntry);
+        self::assertNotNull($infoEntry);
+        self::assertSame(OutputEntryTag::Duplicate, $duplicateEntry->tag);
+        self::assertSame('Duplicate of 2025-01-01_10-00-00-000.mov', $infoEntry->reason);
     }
 
     /**
@@ -1232,12 +1546,12 @@ final class RenameOutputRendererTest extends TestCase
             ]),
         ]);
 
-        [$entries] = $renderer->buildOutputEntriesFromPlan(
+        $entries = $renderer->buildOutputEntriesFromPlan(
             $plan,
             new RenameOptions(),
             new RenameResult(),
             $baseDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Fallback, $entries[0]->tag);
@@ -1269,16 +1583,85 @@ final class RenameOutputRendererTest extends TestCase
             ]),
         ]);
 
-        [$entries] = $renderer->buildOutputEntriesFromPlan(
+        $entries = $renderer->buildOutputEntriesFromPlan(
             $plan,
             new RenameOptions(),
             new RenameResult(),
             $baseDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Warning, $entries[0]->tag);
         self::assertTrue($entries[0]->shouldSkip);
+    }
+
+    /**
+     * Verifies that buildOutputEntriesFromPlan appends mapped review entries from
+     * RenameResult instead of requiring a separate renderer path for Feature Track A.
+     *
+     * The cross-group video review track deliberately reuses the central renderer.
+     * This test ensures the output boundary keeps those review entries visible with
+     * the dedicated Review tag.
+     */
+    #[Test]
+    public function buildOutputEntriesFromPlanAppendsReviewEntries(): void
+    {
+        [$renderer] = $this->createRenderer();
+
+        $baseDir = '/tmp/source';
+
+        $entries = $renderer->buildOutputEntriesFromPlan(
+            new ExecutionPlan([]),
+            new RenameOptions(),
+            new RenameResult(
+                reviewEntries: [
+                    OutputEntry::info(
+                        sortKey: $baseDir . '/clip.mov',
+                        sourcePath: 'clip.mov',
+                        reason: 'Cross-group video review: archive/clip.mov — video stream identical, audio differs',
+                        tag: OutputEntryTag::Review,
+                    ),
+                ],
+                crossGroupVideoReviewCount: 1,
+            ),
+            $baseDir,
+        )->entries;
+
+        self::assertCount(1, $entries);
+        self::assertTrue($entries[0]->isInfo());
+        self::assertSame(OutputEntryTag::Review, $entries[0]->tag);
+    }
+
+    /**
+     * Verifies that renderPlanSummary shows the dedicated cross-group video review
+     * counter instead of hiding these findings inside a generic summary bucket.
+     *
+     * The summary line keeps review-only video matches operationally visible even
+     * when the inline review entries scroll out of view in large runs.
+     */
+    #[Test]
+    public function renderPlanSummaryIncludesCrossGroupVideoReviewCount(): void
+    {
+        [$renderer, $output] = $this->createRenderer();
+
+        $renderer->renderPlanSummary(
+            new ExecutionPlan([]),
+            new RenameResult(
+                scannedFiles: 12,
+                crossGroupVideoReviewCount: 2,
+            ),
+            new ExecutionPreview(
+                plannedMoves: 0,
+                plannedSkips: 0,
+                duplicateCount: 0,
+            ),
+            true,
+        );
+
+        $buffer = $output->fetch();
+
+        self::assertStringContainsString('Cross-group video review', $buffer);
+        self::assertStringContainsString('2', $buffer);
     }
 
     /**
@@ -1351,12 +1734,12 @@ final class RenameOutputRendererTest extends TestCase
             ]),
         ]);
 
-        [$entries] = $renderer->buildOutputEntriesFromPlan(
+        $entries = $renderer->buildOutputEntriesFromPlan(
             $plan,
             new RenameOptions(maxDateDrift: 7),
             new RenameResult(),
             $baseDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Warning, $entries[0]->tag);
@@ -1390,12 +1773,12 @@ final class RenameOutputRendererTest extends TestCase
             ]),
         ]);
 
-        [$entries] = $renderer->buildOutputEntriesFromPlan(
+        $entries = $renderer->buildOutputEntriesFromPlan(
             $plan,
             new RenameOptions(),
             new RenameResult(),
             $baseDir,
-        );
+        )->entries;
 
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Skipped, $entries[0]->tag);
@@ -1409,6 +1792,6 @@ final class RenameOutputRendererTest extends TestCase
         $output = new BufferedOutput();
         $io     = new SymfonyStyle(new ArrayInput([]), $output);
 
-        return [new RenameOutputRenderer($io), $output];
+        return [OutputRendererFactory::create($io), $output];
     }
 }

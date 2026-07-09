@@ -7,6 +7,10 @@ services:
     _instanceof:
         Symfony\Component\Console\Command\Command:
             tags: ['command']
+        MagicSunday\Renamer\Service\Output\OutputSkipReasonRuleInterface:
+            tags: ['renamer.output_skip_reason_rule']
+
+    Symfony\Component\Filesystem\Filesystem: ~
 
     # Makes classes in src/ available to be used as services.
     # This creates a service per class whose id is the fully qualified class name.
@@ -23,10 +27,17 @@ services:
     MagicSunday\Renamer\Service\FileSystemServiceInterface:
         class: MagicSunday\Renamer\Service\FileSystemService
 
-    MagicSunday\Renamer\Service\HashSubGroupingServiceInterface:
-        class: MagicSunday\Renamer\Service\HashSubGroupingService
+    MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface:
+        class: MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter
         arguments:
             $io: '@Symfony\Component\Console\Style\SymfonyStyle'
+
+    MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider:
+        arguments:
+            $rules: !tagged_iterator renamer.output_skip_reason_rule
+
+    MagicSunday\Renamer\Service\HashSubGroupingServiceInterface:
+        class: MagicSunday\Renamer\Service\HashSubGroupingService
 
     MagicSunday\Renamer\Service\SafeHashCalculatorInterface:
         class: MagicSunday\Renamer\Service\SafeHashCalculator
@@ -42,8 +53,6 @@ services:
 
     MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface:
         class: MagicSunday\Renamer\Service\DuplicateDetectionService
-        arguments:
-            $io: '@Symfony\Component\Console\Style\SymfonyStyle'
 
     MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface:
         class: MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator
@@ -54,13 +63,15 @@ services:
 
     MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuilderInterface:
         class: MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuilder
-        arguments:
-            $io: '@Symfony\Component\Console\Style\SymfonyStyle'
+
+    MagicSunday\Renamer\Service\Pipeline\CrossGroupVideoDuplicateReconcilerInterface:
+        class: MagicSunday\Renamer\Service\Pipeline\CrossGroupVideoDuplicateReconciler
 
     MagicSunday\Renamer\Service\Pipeline\SubgroupClassifierInterface:
         class: MagicSunday\Renamer\Service\Pipeline\SubgroupClassifier
-        arguments:
-            $io: '@Symfony\Component\Console\Style\SymfonyStyle'
+
+    MagicSunday\Renamer\Service\Video\VideoStreamFingerprintMatcherInterface:
+        class: MagicSunday\Renamer\Service\Video\VideoStreamFingerprintMatcher
 
     MagicSunday\Renamer\Service\Pipeline\CompanionDetectorInterface:
         class: MagicSunday\Renamer\Service\Pipeline\CompanionDetector

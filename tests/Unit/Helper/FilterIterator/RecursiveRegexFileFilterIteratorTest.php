@@ -92,7 +92,7 @@ final class RecursiveRegexFileFilterIteratorTest extends TestCase
         $iterator->rewind(); // Position the inner iterator at the first element
 
         // @phpstan-ignore argument.type
-        return new RecursiveRegexFileFilterIterator($iterator, $regex);
+        return new RecursiveRegexFileFilterIterator($iterator, $regex, new SafeRegex());
     }
 
     /**
@@ -183,14 +183,16 @@ final class RecursiveRegexFileFilterIteratorTest extends TestCase
     }
 
     /**
-     * Tests the accept() method with various file types and patterns.
+     * Verifies the decision of the `accept()` method for various entry types.
+     * Ensures that directories are always accepted (to enable recursion),
+     * while files are only accepted if they match the regex pattern.
+     * Symbolic links are ignored.
      *
-     * This test validates that:
-     * - Directories are always accepted (for recursive traversal)
-     * - Files matching the regex pattern are accepted
-     * - Files not matching the pattern are rejected
-     * - The regex is case-sensitive (e.g., .txt vs .TXT)
-     * - The regex matches the end of the filename ($ anchor)
+     * @param bool        $isDir          Whether the stub should simulate a directory
+     * @param bool        $isFile         Whether the stub should simulate a file
+     * @param string|null $filename       The simulated filename
+     * @param bool        $expectedResult Expected result from accept()
+     * @param bool        $isLink         Whether the stub should simulate a symlink
      */
     #[Test]
     #[DataProvider('acceptTestDataProvider')]
@@ -231,12 +233,13 @@ final class RecursiveRegexFileFilterIteratorTest extends TestCase
     }
 
     /**
-     * Tests that getChildren() returns a filter iterator instance.
+     * Verifies that `getChildren()` returns a new iterator of the same type for directories.
+     * This is essential for recursive traversal of subdirectories while maintaining
+     * the filter rules (regex).
      *
-     * This test ensures that when traversing into subdirectories,
-     * the getChildren() method returns a new instance of the same
-     * filter iterator type, maintaining the filtering behavior
-     * throughout the recursive traversal.
+     * @param bool        $isDir    Whether the stub should be a directory
+     * @param bool        $isFile   Whether the stub should be a file
+     * @param string|null $filename The simulated filename
      */
     #[Test]
     #[DataProvider('getChildrenTestDataProvider')]
@@ -248,7 +251,8 @@ final class RecursiveRegexFileFilterIteratorTest extends TestCase
 
         $filterIterator = new RecursiveRegexFileFilterIterator(
             $innerIterator,
-            self::REGEX_TXT_FILES
+            self::REGEX_TXT_FILES,
+            new SafeRegex(),
         );
 
         // Act & Assert: Verify getChildren() returns correct type (no exception thrown)
@@ -258,10 +262,8 @@ final class RecursiveRegexFileFilterIteratorTest extends TestCase
     }
 
     /**
-     * Tests getChildren() method with an empty iterator.
-     *
-     * This test ensures the iterator handles empty directories gracefully
-     * and still returns the correct iterator type even when there are no children.
+     * Ensures that `getChildren()` returns a valid iterator even if the current
+     * directory has no children (files/subdirectories).
      */
     #[Test]
     public function getChildrenWithEmptyIterator(): void
@@ -271,7 +273,8 @@ final class RecursiveRegexFileFilterIteratorTest extends TestCase
 
         $filterIterator = new RecursiveRegexFileFilterIterator(
             $innerIterator,
-            self::REGEX_TXT_FILES
+            self::REGEX_TXT_FILES,
+            new SafeRegex(),
         );
 
         // Act & Assert: Verify getChildren() works with empty iterator (no exception thrown)
@@ -281,13 +284,10 @@ final class RecursiveRegexFileFilterIteratorTest extends TestCase
     }
 
     /**
-     * Test that the filter correctly iterates through mixed content.
-     *
-     * This integration test validates that the iterator correctly:
-     * - Filters files based on the regex pattern
-     * - Includes directories (for potential recursion)
-     * - Maintains the correct order of accepted items
-     * - Skips non-matching files during iteration
+     * Verifies complete iteration over a mixed directory structure.
+     * Ensures that only files matching the regex pattern end up in the result,
+     * while directories are traversed correctly but do not appear in the final
+     * file listing (as they are consumed in recursion).
      */
     #[Test]
     public function iterationWithMixedContent(): void
@@ -303,7 +303,7 @@ final class RecursiveRegexFileFilterIteratorTest extends TestCase
 
         $iterator = new RecursiveArrayIterator($files);
         // @phpstan-ignore argument.type
-        $filterIterator = new RecursiveRegexFileFilterIterator($iterator, self::REGEX_TXT_FILES);
+        $filterIterator = new RecursiveRegexFileFilterIterator($iterator, self::REGEX_TXT_FILES, new SafeRegex());
 
         // Act: Iterate through the filter and collect accepted items
         $acceptedItems = [];

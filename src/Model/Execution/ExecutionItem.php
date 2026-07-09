@@ -65,8 +65,12 @@ final readonly class ExecutionItem
 
     /**
      * Returns the source path relative to the given base directory.
+     * This is used for concise console output and reporting.
      *
      * @param string $baseDirectory Absolute base directory path (without trailing slash)
+     *                              which should be stripped from the path.
+     *
+     * @return string The relative path, or the original path if the base does not match.
      */
     public function relativeSourcePath(string $baseDirectory): string
     {
@@ -77,6 +81,9 @@ final readonly class ExecutionItem
      * Returns the target path relative to the given base directory.
      *
      * @param string $baseDirectory Absolute base directory path (without trailing slash)
+     *                              which should be stripped from the path.
+     *
+     * @return string The relative path, or the original path if the base does not match.
      */
     public function relativeTargetPath(string $baseDirectory): string
     {

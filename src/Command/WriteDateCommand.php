@@ -11,20 +11,21 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Command;
 
-use DateTimeImmutable;
-use DateTimeInterface;
-use DateTimeZone;
+use Closure;
 use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
+use MagicSunday\Renamer\Command\Concern\ResolvesSourcePath;
 use MagicSunday\Renamer\Constants;
-use MagicSunday\Renamer\Exception\ExifMetadataReadException;
-use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Model\LinkConfig;
 use MagicSunday\Renamer\Service\ExiftoolWriter;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
-use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
+use MagicSunday\Renamer\Service\WriteDate\WriteDateCandidateAnalyzer;
+use MagicSunday\Renamer\Service\WriteDate\WriteDatePendingWrite;
+use MagicSunday\Renamer\Service\WriteDate\WriteDateReportFormatter;
 use Override;
+use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -32,19 +33,16 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Filesystem\Filesystem;
 
 use function array_map;
-use function count;
 use function dirname;
 use function exec;
 use function explode;
 use function function_exists;
-use function in_array;
 use function is_file;
 use function is_string;
 use function mb_strlen;
-use function realpath;
-use function sprintf;
 use function str_repeat;
 use function strtolower;
 use function trim;
@@ -61,67 +59,34 @@ use function trim;
 final class WriteDateCommand extends Command
 {
     use ConfiguresMetadataProvider;
-
-    /**
-     * Reason key for files with no metadata date at all.
-     */
-    private const string REASON_NODATA = 'nodata';
-
-    /**
-     * Reason key for files using only ModifyDate (0x0132) as fallback.
-     */
-    private const string REASON_FALLBACK = 'fallback';
-
-    /**
-     * Reason key for QuickTime files with ambiguous UTC timestamps.
-     */
-    private const string REASON_TIMEZONE = 'timezone';
-
-    /**
-     * Reason key for files whose metadata date differs significantly from filename date.
-     */
-    private const string REASON_DRIFT = 'drift';
-
-    /**
-     * Extensions where exiftool cannot write date metadata reliably.
-     * AVI uses RIFF container — QuickTime atom writes silently fail.
-     */
-    private const array UNSUPPORTED_WRITE_EXTENSIONS = ['avi'];
-
-    /**
-     * Maps reason keys to human-readable labels for output.
-     *
-     * @var array<string, string>
-     */
-    private const array REASON_LABELS = [
-        self::REASON_NODATA   => 'no date in metadata',
-        self::REASON_FALLBACK => 'only ModifyDate (0x0132), no DateTimeOriginal',
-        self::REASON_TIMEZONE => 'QuickTime timestamp without timezone info',
-        self::REASON_DRIFT    => 'metadata date differs by %d days',
-    ];
+    use ResolvesSourcePath;
 
     /**
      * Callable that checks whether exiftool is available. Injectable for testing.
      *
-     * @var callable(): bool
+     * @var Closure(): bool
      */
-    private readonly mixed $exiftoolAvailabilityCheck;
+    private readonly Closure $exiftoolAvailabilityCheck;
 
     /**
-     * @param ExifMetadataProvider         $exifMetadataProvider      Metadata provider with caching
-     * @param MediaTypeClassifierInterface $mediaTypeClassifier       Classifies files as still or video
-     * @param FileSystemServiceInterface   $fileSystemService         Provides file iteration
-     * @param ExiftoolWriter               $exiftoolWriter            Writes metadata via exiftool
-     * @param RenameOutputRenderer         $renderer                  Shared output rendering utilities
-     * @param (callable(): bool)|null      $exiftoolAvailabilityCheck Overrides the default exiftool check (for testing)
+     * @param ExifMetadataProvider       $exifMetadataProvider       Metadata provider with caching
+     * @param FileSystemServiceInterface $fileSystemService          Provides file iteration
+     * @param ExiftoolWriter             $exiftoolWriter             Writes metadata via exiftool
+     * @param RenameOutputRenderer       $renderer                   Shared output rendering utilities
+     * @param Filesystem                 $filesystem                 Command-facing filesystem boundary reused by metadata-cache helpers
+     * @param WriteDateCandidateAnalyzer $writeDateCandidateAnalyzer Scans files and produces pending metadata writes
+     * @param WriteDateReportFormatter   $writeDateReportFormatter   Formats write-date summaries and per-file entries
+     * @param (Closure(): bool)|null     $exiftoolAvailabilityCheck  Overrides the default exiftool check (for testing)
      */
     public function __construct(
         private readonly ExifMetadataProvider $exifMetadataProvider,
-        private readonly MediaTypeClassifierInterface $mediaTypeClassifier,
         private readonly FileSystemServiceInterface $fileSystemService,
         private readonly ExiftoolWriter $exiftoolWriter,
         private readonly RenameOutputRenderer $renderer,
-        ?callable $exiftoolAvailabilityCheck = null,
+        private readonly Filesystem $filesystem,
+        private readonly WriteDateCandidateAnalyzer $writeDateCandidateAnalyzer,
+        private readonly WriteDateReportFormatter $writeDateReportFormatter,
+        ?Closure $exiftoolAvailabilityCheck = null,
     ) {
         $this->exiftoolAvailabilityCheck = $exiftoolAvailabilityCheck ?? static function (): bool {
             if (!function_exists('exec')) {
@@ -134,6 +99,14 @@ final class WriteDateCommand extends Command
         };
 
         parent::__construct();
+    }
+
+    /**
+     * Exposes the command-level filesystem boundary to shared metadata provider configuration.
+     */
+    protected function getCommandFilesystem(): Filesystem
+    {
+        return $this->filesystem;
     }
 
     /**
@@ -189,8 +162,15 @@ final class WriteDateCommand extends Command
     }
 
     /**
-     * Executes the write-date command: scans files, determines which need metadata
-     * correction, and writes dates via exiftool.
+     * Executes the date writing process: scans files, extracts capture dates
+     * from filenames, and writes them to EXIF/QuickTime tags using exiftool.
+     *
+     * @param InputInterface  $input  The input interface.
+     * @param OutputInterface $output The output interface.
+     *
+     * @return int The exit code (0 for success, non-zero for failure).
+     *
+     * @throws RuntimeException If the source does not exist or exiftool is missing.
      */
     #[Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -198,7 +178,7 @@ final class WriteDateCommand extends Command
         $io = new SymfonyStyle($input, $output);
         $io->title($this->getName() ?? '');
 
-        $source = $this->resolveSource($input);
+        $source = $this->resolveSourcePath($input);
 
         if ($source === null) {
             $io->error('Source path does not exist.');
@@ -242,146 +222,34 @@ final class WriteDateCommand extends Command
         $progressBar?->setFormat(Constants::PROGRESS_BAR_FORMAT);
         $progressBar?->start();
 
-        /** @var list<array{path: string, date: string, reasonKey: string, reason: string, isVideo: bool, dateTime: DateTimeImmutable, preserveCreateDate: bool}> $pendingWrites */
-        $pendingWrites = [];
-
-        foreach ($files as $file) {
-            ++$scannedFiles;
-            $progressBar?->advance();
-
-            $extension = strtolower($file->getExtension());
-
-            // Skip unsupported file types
-            if (!in_array($extension, Constants::SUPPORTED_MEDIA_EXTENSIONS, true)) {
-                continue;
-            }
-
-            // Skip extensions where exiftool cannot write metadata reliably
-            if (in_array($extension, self::UNSUPPORTED_WRITE_EXTENSIONS, true)) {
-                ++$unsupportedWrite;
-
-                continue;
-            }
-
-            // Extract date+time from filename
-            $filenameDateTime = FileHelper::extractDateTimeFromPath($file->getPathname());
-
-            if (!$filenameDateTime instanceof DateTimeImmutable) {
-                ++$noDateInName;
-
-                continue;
-            }
-
-            // Read current metadata
-            try {
-                $captureDateTime = $this->exifMetadataProvider->getCaptureDateTime($file);
-            } catch (ExifMetadataReadException) {
-                ++$readErrors;
-
-                continue;
-            }
-
-            $isVideo = !$this->mediaTypeClassifier->isLivePhotoStill($file);
-
-            // Determine if write is needed
-            $force = (bool) $input->getOption('force');
-
-            [$reasonKey, $reasonLabel] = $this->determineWriteReason(
-                $file,
-                $captureDateTime,
-                $filenameDateTime,
-                $maxDateDrift,
-                $force,
-            );
-
-            if ($reasonKey === null) {
-                ++$alreadyCorrect;
-
-                continue;
-            }
-
-            // Apply reason filter
-            if (($reasonFilter !== null) && (!in_array($reasonKey, $reasonFilter, true))) {
-                ++$alreadyCorrect;
-
-                continue;
-            }
-
-            // For timezone reason: fix QuickTime timestamps lacking timezone info.
-            // --local-as-utc: camera stored local time as "UTC" (non-Apple cameras).
-            //   → Keep the existing time, just add the timezone offset.
-            // Default: camera stored real UTC (Apple/DJI).
-            //   → Convert UTC to local time using the configured timezone.
-            // For all other reasons: use the filename date as the write value.
-            $localAsUtc = (bool) $input->getOption('local-as-utc');
-
-            if ($reasonKey === self::REASON_TIMEZONE) {
-                // With --force, read the raw QuickTime CreateDate (bypasses Keys:CreationDate)
-                // so a previously wrong write can be corrected.
-                $rawDateTime = $force
-                    ? ($this->exifMetadataProvider->getRawQuickTimeCreateDate($file) ?? $this->exifMetadataProvider->getRawCaptureDateTime($file))
-                    : $this->exifMetadataProvider->getRawCaptureDateTime($file);
-                $timezone = $this->resolveTimezone($input);
-
-                if (($rawDateTime instanceof DateTimeInterface) && ($timezone instanceof DateTimeZone)) {
-                    if ($localAsUtc) {
-                        // Timestamp is already local time stored as "UTC".
-                        // Attach the timezone, then ExiftoolWriter converts to real UTC.
-                        // 16:34:58 "UTC" → Keys:CreationDate=16:34:58+02:00, CreateDate=14:34:58 UTC.
-                        $writeDateTime = new DateTimeImmutable(
-                            $rawDateTime->format('Y-m-d H:i:s'),
-                            $timezone,
-                        );
-                    } else {
-                        // Timestamp is real UTC. Convert to local time.
-                        // 14:34:58 UTC → Keys:CreationDate=16:34:58+02:00, CreateDate untouched.
-                        $writeDateTime = DateTimeImmutable::createFromInterface($rawDateTime)
-                            ->setTimezone($timezone);
-                    }
-                } else {
-                    $writeDateTime = $filenameDateTime;
-                }
-            } else {
-                $writeDateTime = $filenameDateTime;
-            }
-
-            $pendingWrites[] = [
-                'path'               => $file->getPathname(),
-                'date'               => $writeDateTime->format('Y:m:d H:i:s'),
-                'reasonKey'          => $reasonKey,
-                'reason'             => $reasonLabel,
-                'isVideo'            => $isVideo,
-                'dateTime'           => $writeDateTime,
-                'preserveCreateDate' => ($reasonKey === self::REASON_TIMEZONE) && !$localAsUtc,
-            ];
-        }
+        $scanResult = $this->writeDateCandidateAnalyzer->scan(
+            $files,
+            $maxDateDrift,
+            $reasonFilter,
+            (bool) $input->getOption('force'),
+            (bool) $input->getOption('local-as-utc'),
+            $this->resolveTimezone($input),
+            static function () use ($progressBar): void {
+                $progressBar?->advance();
+            },
+        );
 
         $progressBar?->finish();
         $io->newLine(2);
 
+        $scannedFiles     = $scanResult->scannedFiles;
+        $alreadyCorrect   = $scanResult->alreadyCorrect;
+        $noDateInName     = $scanResult->noDateInName;
+        $readErrors       = $scanResult->readErrors;
+        $unsupportedWrite = $scanResult->unsupportedWrite;
+        /** @var list<WriteDatePendingWrite> $pendingWrites */
+        $pendingWrites = $scanResult->pendingWrites;
+
         // Post-scan summary before listing individual entries
-        if ($pendingWrites !== []) {
-            $reasonCounts = [];
+        $overviewLines = $this->writeDateReportFormatter->formatOverviewLines($scannedFiles, $pendingWrites);
 
-            foreach ($pendingWrites as $entry) {
-                /** @var string $rk */
-                $rk                = $entry['reasonKey'];
-                $reasonCounts[$rk] = ($reasonCounts[$rk] ?? 0) + 1;
-            }
-
-            $io->text(sprintf(
-                '<fg=cyan>Found %d file(s) needing metadata repair:</>',
-                count($pendingWrites),
-            ));
-
-            foreach ($reasonCounts as $reason => $cnt) {
-                $label = self::REASON_LABELS[$reason] ?? $reason;
-                $io->text(sprintf('  %d %s <fg=gray>(%s)</>', $cnt, $cnt === 1 ? 'file' : 'files', $label));
-            }
-
-            $io->newLine();
-        } elseif ($scannedFiles > 0) {
-            $io->text('<fg=green>All files have correct metadata — nothing to do.</>');
+        if ($overviewLines !== []) {
+            $io->text($overviewLines);
             $io->newLine();
         }
 
@@ -389,7 +257,7 @@ final class WriteDateCommand extends Command
         $maxPathLength = 0;
 
         foreach ($pendingWrites as $entry) {
-            $relativePath  = FileHelper::relativizePath($entry['path'], $sourceDirectory);
+            $relativePath  = PathHelper::relativizePath($entry->path, $sourceDirectory);
             $maxPathLength = max($maxPathLength, mb_strlen($relativePath));
         }
 
@@ -404,29 +272,42 @@ final class WriteDateCommand extends Command
 
         // Process pending writes
         foreach ($pendingWrites as $entry) {
-            $relativePath = FileHelper::relativizePath($entry['path'], $sourceDirectory);
+            $relativePath = PathHelper::relativizePath($entry->path, $sourceDirectory);
             $padding      = str_repeat(' ', $maxPathLength - mb_strlen($relativePath));
-            $linkedPath   = FileHelper::linkifyPath($relativePath, $relativePath, $sourceDirectory, $linkConfig, 'yellow');
-            $targetField  = $entry['isVideo'] ? 'QuickTime:CreateDate' : 'DateTimeOriginal';
-
-            /** @var string $reasonKey */
-            $reasonKey = $entry['reasonKey'];
-
-            /** @var string $reasonLabel */
-            $reasonLabel = $entry['reason'];
+            $linkedPath   = PathHelper::linkifyPath($relativePath, $relativePath, $sourceDirectory, $linkConfig, 'yellow');
+            $targetField  = $entry->isVideo ? 'QuickTime:CreateDate' : 'DateTimeOriginal';
 
             if ($dryRun) {
-                $this->renderWriteEntry($io, '<fg=yellow>[W]</>', $linkedPath, $padding, $targetField . ': ' . $entry['date'], $reasonKey, $reasonLabel);
+                $io->text($this->writeDateReportFormatter->formatEntry(
+                    '<fg=yellow>[W]</>',
+                    $linkedPath,
+                    $padding,
+                    $targetField . ': ' . $entry->writeDateTime->format('Y:m:d H:i:s'),
+                    $entry->reasonKey,
+                    $entry->reasonLabel,
+                ));
                 ++$wouldWrite;
             } else {
-                $fileInfo = new SplFileInfo($entry['path']);
-                $success  = $this->exiftoolWriter->writeDateTime($fileInfo, $entry['dateTime'], $entry['isVideo'], $entry['preserveCreateDate']);
+                $fileInfo = new SplFileInfo($entry->path);
+                $success  = $this->exiftoolWriter->writeDateTime($fileInfo, $entry->writeDateTime, $entry->isVideo, $entry->preserveCreateDate);
 
                 if ($success) {
-                    $this->renderWriteEntry($io, '<fg=green>[W]</>', $linkedPath, $padding, $targetField . ': ' . $entry['date'], $reasonKey, $reasonLabel);
+                    $io->text($this->writeDateReportFormatter->formatEntry(
+                        '<fg=green>[W]</>',
+                        $linkedPath,
+                        $padding,
+                        $targetField . ': ' . $entry->writeDateTime->format('Y:m:d H:i:s'),
+                        $entry->reasonKey,
+                        $entry->reasonLabel,
+                    ));
                     ++$written;
                 } else {
-                    $this->renderWriteEntry($io, '<fg=red>[E]</>', $linkedPath, $padding, 'FAILED to write: ' . $entry['date']);
+                    $io->text($this->writeDateReportFormatter->formatEntry(
+                        '<fg=red>[E]</>',
+                        $linkedPath,
+                        $padding,
+                        'FAILED to write: ' . $entry->writeDateTime->format('Y:m:d H:i:s'),
+                    ));
                     ++$writeFailed;
                 }
             }
@@ -444,87 +325,11 @@ final class WriteDateCommand extends Command
     }
 
     /**
-     * Renders a single write-date output entry with aligned formatting.
-     */
-    private function renderWriteEntry(
-        SymfonyStyle $io,
-        string $tag,
-        string $linkedPath,
-        string $padding,
-        string $detail,
-        ?string $reasonKey = null,
-        ?string $reasonLabel = null,
-    ): void {
-        $io->text(sprintf(' %s %s' . $padding . ' <fg=cyan>→</> %s', $tag, $linkedPath, $detail));
-
-        if ($reasonKey !== null) {
-            $io->text(sprintf('      <fg=gray>[%s] %s</>', $reasonKey, $reasonLabel ?? ''));
-        }
-    }
-
-    /**
-     * Determines whether metadata needs to be written for the given file and returns
-     * a reason key + label pair. Returns [null, null] when the metadata is already correct.
+     * Resolves and parses the 'reason' filter option into a list of reason keys.
      *
-     * @param SplFileInfo            $file             File to check
-     * @param DateTimeInterface|null $captureDateTime  Current metadata date, or null
-     * @param DateTimeImmutable      $filenameDateTime Date extracted from the filename
-     * @param int                    $maxDateDrift     Maximum allowed drift in days
+     * @param InputInterface $input The input interface carrying the 'reason' option.
      *
-     * @return array{string|null, string|null} Reason key and label, or [null, null] when no write is needed
-     */
-    private function determineWriteReason(
-        SplFileInfo $file,
-        ?DateTimeInterface $captureDateTime,
-        DateTimeImmutable $filenameDateTime,
-        int $maxDateDrift,
-        bool $force = false,
-    ): array {
-        // No capture date at all
-        if (!$captureDateTime instanceof DateTimeInterface) {
-            return [self::REASON_NODATA, self::REASON_LABELS[self::REASON_NODATA]];
-        }
-
-        // Date drift check — always runs, even for reliable dates. A large drift
-        // indicates the metadata was written incorrectly (e.g. re-encoded file).
-        if ($maxDateDrift > 0) {
-            $drift = $filenameDateTime->diff($captureDateTime)->days;
-
-            if (($drift !== false) && ($drift > $maxDateDrift)) {
-                return [self::REASON_DRIFT, sprintf(self::REASON_LABELS[self::REASON_DRIFT], $drift)];
-            }
-        }
-
-        // If the date is reliable (no issues, or raw matches filename) → no write needed.
-        // --force skips this check to allow correcting previously wrong writes.
-        if (!$force && $this->exifMetadataProvider->hasReliableDateTime($file)) {
-            return [null, null];
-        }
-
-        // Fallback DateTime only (0x0132)
-        if ($this->exifMetadataProvider->isFallbackDateTime($file)) {
-            return [self::REASON_FALLBACK, self::REASON_LABELS[self::REASON_FALLBACK]];
-        }
-
-        // Ambiguous timezone (QuickTime UTC ambiguity)
-        if ($this->exifMetadataProvider->isAmbiguousTimezone($file)) {
-            return [self::REASON_TIMEZONE, self::REASON_LABELS[self::REASON_TIMEZONE]];
-        }
-
-        // With --force on a video that has metadata but no detected issue:
-        // the file was likely already fixed. Allow re-writing as timezone reason
-        // so the user can correct a previous wrong write.
-        if ($force && !$this->mediaTypeClassifier->isLivePhotoStill($file)) {
-            return [self::REASON_TIMEZONE, 'forced re-write of timezone metadata'];
-        }
-
-        return [null, null];
-    }
-
-    /**
-     * Resolves the --reason filter option into a list of reason keys.
-     *
-     * @return list<string>|null Reason keys to include, or null for all
+     * @return list<string>|null A list of lowercase reason keys to include, or null for all.
      */
     private function resolveReasonFilter(InputInterface $input): ?array
     {
@@ -538,26 +343,6 @@ final class WriteDateCommand extends Command
             static fn (string $token): string => strtolower(trim($token)),
             explode(',', $option),
         );
-    }
-
-    /**
-     * Resolves the source path from input. Accepts both files and directories.
-     */
-    private function resolveSource(InputInterface $input): ?string
-    {
-        $source = $input->getArgument('source');
-
-        if (!is_string($source)) {
-            return null;
-        }
-
-        $resolved = realpath($source);
-
-        if ($resolved === false) {
-            return null;
-        }
-
-        return $resolved;
     }
 
     /**
@@ -583,35 +368,17 @@ final class WriteDateCommand extends Command
         int $unsupportedWrite,
         bool $dryRun,
     ): void {
-        /** @var list<array{string, string}> $rows */
-        $rows = [
-            ['Scanned files', (string) $scannedFiles],
-            ['Already correct', (string) $alreadyCorrect],
-        ];
-
-        if ($dryRun) {
-            $rows[] = ['Would write', (string) $wouldWrite];
-        } else {
-            if ($written > 0) {
-                $rows[] = ['Written', (string) $written];
-            }
-
-            if ($writeFailed > 0) {
-                $rows[] = ['Write failed', (string) $writeFailed];
-            }
-        }
-
-        if ($noDateInName > 0) {
-            $rows[] = ['No date in name', (string) $noDateInName];
-        }
-
-        if ($unsupportedWrite > 0) {
-            $rows[] = ['Unsupported write', (string) $unsupportedWrite];
-        }
-
-        if ($readErrors > 0) {
-            $rows[] = ['Read errors', (string) $readErrors];
-        }
+        $rows = $this->writeDateReportFormatter->formatSummaryRows(
+            $scannedFiles,
+            $alreadyCorrect,
+            $wouldWrite,
+            $written,
+            $writeFailed,
+            $noDateInName,
+            $readErrors,
+            $unsupportedWrite,
+            $dryRun,
+        );
 
         $this->renderer->renderSummarySection($rows, $io);
     }

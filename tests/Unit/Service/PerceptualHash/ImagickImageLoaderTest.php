@@ -55,6 +55,10 @@ final class ImagickImageLoaderTest extends TestCase
         return new ImagickImageLoader(new MediaTypeClassifier());
     }
 
+    /**
+     * Verifies that loadNormalized returns a valid Imagick instance for a standard JPEG file.
+     * The image should have the expected dimensions after normalization.
+     */
     #[Test]
     public function loadNormalizedReturnsImagickForValidJpeg(): void
     {
@@ -72,6 +76,9 @@ final class ImagickImageLoaderTest extends TestCase
         self::assertSame(128, $result->getImageHeight());
     }
 
+    /**
+     * Verifies that loadNormalized returns null if the provided file path does not exist.
+     */
     #[Test]
     public function loadNormalizedReturnsNullForNonExistentFile(): void
     {
@@ -81,6 +88,9 @@ final class ImagickImageLoaderTest extends TestCase
         self::assertNull($result);
     }
 
+    /**
+     * Verifies that loadNormalized returns null if the file is not a valid image (corrupt).
+     */
     #[Test]
     public function loadNormalizedReturnsNullForCorruptFile(): void
     {
@@ -93,6 +103,10 @@ final class ImagickImageLoaderTest extends TestCase
         self::assertNull($result);
     }
 
+    /**
+     * Verifies that the maxResolution hint is correctly passed to the JPEG decoder.
+     * The resulting image should be scaled down according to the hint to save resources.
+     */
     #[Test]
     public function loadNormalizedRespectsMaxResolutionHint(): void
     {
@@ -113,6 +127,10 @@ final class ImagickImageLoaderTest extends TestCase
         self::assertLessThanOrEqual(64, $result->getImageHeight());
     }
 
+    /**
+     * Verifies that video files are correctly handled by extracting frames.
+     * The resulting Imagick instance should represent a stitched composite of multiple frames.
+     */
     #[Test]
     public function loadNormalizedHandlesVideoFiles(): void
     {

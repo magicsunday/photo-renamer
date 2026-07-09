@@ -18,16 +18,25 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Verifies the immutable value object contract of TemporalMetadata,
- * including the fallback DateTime flag and ambiguous timezone flag.
+ * Verifies the {@see TemporalMetadata} value object which encapsulates
+ * file-specific time and identity information.
  *
- * @author  Rico Sonntag <mail@ricosonntag.de>
- * @license https://opensource.org/licenses/MIT
- * @link    https://github.com/magicsunday/photo-renamer/
+ * This test ensures that:
+ * - Capture dates and Live Photo IDs are stored and retrieved correctly.
+ * - Precision/ambiguity flags (fallback, ambiguous timezone) are handled.
+ * - Live Photo heuristic fields (camera model, GPS, etc.) are correctly mapped.
+ * - Case-insensitive normalization of Live Photo IDs works as expected.
  */
 #[CoversClass(TemporalMetadata::class)]
 final class TemporalMetadataTest extends TestCase
 {
+    /**
+     * Ensures the 'isFallbackDateTime' flag defaults to false.
+     *
+     * Fallback dates (e.g., from file system mtime) are visually distinguished
+     * in CLI output, so it's important that this flag is only true when
+     * explicitly requested during extraction.
+     */
     #[Test]
     public function itDefaultsIsFallbackDateTimeToFalse(): void
     {
@@ -39,6 +48,10 @@ final class TemporalMetadataTest extends TestCase
         self::assertFalse($metadata->isFallbackDateTime());
     }
 
+    /**
+     * Verifies that the 'isFallbackDateTime' flag is correctly preserved
+     * when passed via the constructor.
+     */
     #[Test]
     public function itReturnsTrueWhenFallbackFlagIsSet(): void
     {
@@ -51,6 +64,10 @@ final class TemporalMetadataTest extends TestCase
         self::assertTrue($metadata->isFallbackDateTime());
     }
 
+    /**
+     * Ensures the fallback flag remains false when explicitly set as such
+     * in the constructor.
+     */
     #[Test]
     public function itReturnsFalseWhenFallbackFlagIsExplicitlyFalse(): void
     {
@@ -63,6 +80,9 @@ final class TemporalMetadataTest extends TestCase
         self::assertFalse($metadata->isFallbackDateTime());
     }
 
+    /**
+     * Checks if the capture date (CaptureDateTime) is correctly returned.
+     */
     #[Test]
     public function itReturnsCaptureDateTime(): void
     {
@@ -72,6 +92,9 @@ final class TemporalMetadataTest extends TestCase
         self::assertSame($dateTime, $metadata->getCaptureDateTime());
     }
 
+    /**
+     * Ensures that null is returned when no capture date is set.
+     */
     #[Test]
     public function itReturnsNullCaptureDateTimeWhenAbsent(): void
     {
@@ -80,6 +103,9 @@ final class TemporalMetadataTest extends TestCase
         self::assertNull($metadata->getCaptureDateTime());
     }
 
+    /**
+     * Checks the correct return of the Live Photo ID.
+     */
     #[Test]
     public function itReturnsLivePhotoId(): void
     {
@@ -88,6 +114,11 @@ final class TemporalMetadataTest extends TestCase
         self::assertSame('ABC-123', $metadata->getLivePhotoId());
     }
 
+    /**
+     * Ensures that timezone ambiguity is set to false by default.
+     * Ambiguity occurs when a timestamp (e.g., from MP4) cannot be
+     * uniquely assigned to a timezone (UTC vs. local time).
+     */
     #[Test]
     public function itDefaultsIsAmbiguousTimezoneToFalse(): void
     {
@@ -99,6 +130,9 @@ final class TemporalMetadataTest extends TestCase
         self::assertFalse($metadata->isAmbiguousTimezone());
     }
 
+    /**
+     * Verifies that the flag for ambiguous timezones is correctly detected.
+     */
     #[Test]
     public function itReturnsTrueWhenAmbiguousTimezoneIsSet(): void
     {
@@ -112,6 +146,11 @@ final class TemporalMetadataTest extends TestCase
         self::assertTrue($metadata->isAmbiguousTimezone());
     }
 
+    /**
+     * Checks all fields relevant for the Live Photo heuristic.
+     * Validates ID normalization and device identity checks
+     * (camera manufacturer, model, software version).
+     */
     #[Test]
     public function itExposesAdditionalLivePhotoHeuristicFields(): void
     {

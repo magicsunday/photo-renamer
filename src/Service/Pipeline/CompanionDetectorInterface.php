@@ -32,7 +32,7 @@ interface CompanionDetectorInterface
      * @param AssetGroup $group     Group containing candidate companion items
      * @param AssetItem  $canonical Canonical item whose companions are sought
      *
-     * @return array<string, true> Pathnames of detected companion items
+     * @return CompanionPathSet Pathnames of detected companion items
      */
-    public function detect(AssetGroup $group, AssetItem $canonical): array;
+    public function detect(AssetGroup $group, AssetItem $canonical): CompanionPathSet;
 }

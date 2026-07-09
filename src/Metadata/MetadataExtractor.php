@@ -27,28 +27,42 @@ use function trim;
 
 /**
  * Extracts capture date and Apple Live Photo content identifier from image/video
- * files via the imagemeta {@see MetadataReader}. Accesses the typed
- * {@see StructuredMetadata} tree directly (no dynamic property lookups).
+ * files via the imagemeta {@see MetadataReader}.
  *
- * @author  Rico Sonntag <mail@ricosonntag.de>
- * @license https://opensource.org/licenses/MIT
- * @link    https://github.com/magicsunday/photo-renamer/
+ * This extractor bridges the raw metadata tree provided by 'magicsunday/imagemeta'
+ * with the 'renamer' pipeline. It specifically targets:
+ * - EXIF: DateTimeOriginal for still images.
+ * - QuickTime: Keys:CreationDate or mvhd:CreateDate for videos.
+ * - MakerNotes: Apple-specific Live Photo identifiers to pair JPG/HEIC with MOV.
+ *
+ * It implements a fallback logic where it prefers high-precision creation dates
+ * (including timezone offsets if present) but falls back to file modification
+ * time (mtime) if no internal metadata is found.
  */
 final readonly class MetadataExtractor implements MetadataExtractorInterface
 {
     /**
-     * @param MetadataReader $metadataReader imagemeta reader for parsing EXIF/QuickTime/XMP metadata
+     * @param MetadataReader $metadataReader The underlying library for parsing file structures
      */
     public function __construct(private MetadataReader $metadataReader)
     {
     }
 
     /**
-     * Reads metadata from the given file and returns a {@see TemporalMetadata}
-     * combining the capture timestamp and Live Photo content identifier.
-     * Returns null when the file contains neither.
+     * Extracts all relevant temporal and device metadata from the given file.
      *
-     * @throws ExifMetadataReadException When the underlying metadata reader fails
+     * Processes EXIF, IPTC, XMP, and QuickTime metadata tags to build a
+     * comprehensive {@see TemporalMetadata} object. It handles specific
+     * Apple-proprietary tags for Live Photo identification and attempts
+     * to resolve the most accurate capture date by checking multiple
+     * standard and non-standard fields.
+     *
+     * @param SplFileInfo $file The physical file to analyze.
+     *
+     * @return TemporalMetadata|null The extracted metadata, or null if the file is
+     *                               not a supported media type.
+     *
+     * @throws ExifMetadataReadException When the file is corrupted or unreadable.
      */
     #[Override]
     public function extractTemporalMetadata(SplFileInfo $file): ?TemporalMetadata
@@ -77,7 +91,11 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         // timezone ambiguity detection.
         $hasExifDateTimeOriginal = $metadata->exifDoc?->dateTimeOriginal() instanceof DateTimeInterface;
 
-        [$captureDateTime, $isFallback, $isAmbiguousTimezone] = $this->extractCaptureDateTimeWithFallbackFlag($structured, $isQuickTimeContainer, $hasExifDateTimeOriginal);
+        $captureTimestampExtraction = $this->extractCaptureDateTimeWithFallbackFlag(
+            $structured,
+            $isQuickTimeContainer,
+            $hasExifDateTimeOriginal,
+        );
 
         $livePhotoVideoIndex         = $structured->makerNotesApple?->livePhoto?->index;
         $cameraMake                  = $this->normalizeNullable($structured->hardware->camera->make);
@@ -89,7 +107,7 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         $hasQuickTimeLivePhotoMarker = $this->hasQuickTimeLivePhotoMarker($metadata);
 
         if (
-            !($captureDateTime instanceof DateTimeInterface)
+            !($captureTimestampExtraction->captureDateTime instanceof DateTimeInterface)
             && ($livePhotoId === null)
             && ($livePhotoVideoIndex === null)
             && !$hasQuickTimeLivePhotoMarker
@@ -103,10 +121,10 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
             : null;
 
         return new TemporalMetadata(
-            $captureDateTime,
+            $captureTimestampExtraction->captureDateTime,
             $livePhotoId,
-            $isFallback,
-            $isAmbiguousTimezone,
+            $captureTimestampExtraction->isFallback,
+            $captureTimestampExtraction->isAmbiguousTimezone,
             $livePhotoVideoIndex,
             $cameraMake,
             $cameraModel,
@@ -120,20 +138,23 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
     }
 
     /**
-     * Returns the capture timestamp, whether it came from the fallback DateTime
-     * tag (0x0132), and whether the timezone is ambiguous.
+     * Extracts the most appropriate capture date and sets the fallback flag.
      *
-     * The imagemeta library's `temporal->original` uses `dateTimeOriginalBestEffort()`
-     * which itself falls back through 0x9003 → 0x9004 → 0x0132, so we cannot
-     * use it to distinguish the source. Instead, we check `temporal->create`
-     * (pure 0x9004) and compare: if `temporal->original` is set but `temporal->create`
-     * is null and both resolve to the same timestamp, the date came from the
-     * generic capture fallback (0x0132), not from a dedicated date tag.
+     * For images, it prioritizes DateTimeOriginal. For videos (QuickTime/MP4),
+     * it prioritizes CreationDate over CreateDate (which is often UTC 1904).
+     * If no direct capture date is found, it falls back to FileModifyDate.
      *
-     * @return array{DateTimeInterface|null, bool, bool} Tuple of [captureDateTime, isFallback, isAmbiguousTimezone]
+     * @param StructuredMetadata $structured              The structured metadata from the reader.
+     * @param bool               $isQuickTimeContainer    Whether the file is a MOV/MP4 container.
+     * @param bool               $hasExifDateTimeOriginal Whether an EXIF DateTimeOriginal was found.
+     *
+     * @return CaptureTimestampExtraction Resolved capture timestamp facts for the current file
      */
-    private function extractCaptureDateTimeWithFallbackFlag(StructuredMetadata $structured, bool $isQuickTimeContainer, bool $hasExifDateTimeOriginal): array
-    {
+    private function extractCaptureDateTimeWithFallbackFlag(
+        StructuredMetadata $structured,
+        bool $isQuickTimeContainer,
+        bool $hasExifDateTimeOriginal,
+    ): CaptureTimestampExtraction {
         $temporal = $structured->locationTime->temporal;
         $original = $temporal->original;
         $create   = $temporal->create;
@@ -144,7 +165,7 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         $dateTime = $original ?? $create ?? $capture;
 
         if (!$dateTime instanceof DateTimeInterface) {
-            return [null, false, false];
+            return new CaptureTimestampExtraction(null, false, false);
         }
 
         // Fallback detection: if the EXIF document has no DateTimeOriginal (0x9003),
@@ -174,13 +195,15 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
             && ($temporal->offsetTimeDigitized === null)
             && ($temporal->offsetTime === null);
 
-        return [$dateTime, $isFallback, $isAmbiguousTimezone];
+        return new CaptureTimestampExtraction($dateTime, $isFallback, $isAmbiguousTimezone);
     }
 
     /**
-     * Returns the Apple Live Photo content identifier from the Apple maker notes,
-     * or null when the file is not part of a Live Photo pair. Empty/whitespace-only
-     * identifiers are normalised to null.
+     * Extracts a unique content identifier for grouping (e.g. Live Photo ID).
+     *
+     * @param Metadata $metadata The metadata container.
+     *
+     * @return string|null The identifier, or null if none is present.
      */
     private function extractContentIdentifier(Metadata $metadata): ?string
     {
@@ -196,6 +219,13 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         return $trimmed !== '' ? $trimmed : null;
     }
 
+    /**
+     * Extracts the video duration in seconds.
+     *
+     * @param Metadata $metadata The metadata container.
+     *
+     * @return float|null Duration in seconds, or null if not available.
+     */
     private function extractVideoDurationSeconds(Metadata $metadata): ?float
     {
         if (!$metadata->quickTime instanceof QuickTimeMeta) {
@@ -217,6 +247,13 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         return $duration;
     }
 
+    /**
+     * Checks for QuickTime atoms that indicate a Live Photo video part.
+     *
+     * @param Metadata $metadata The metadata container.
+     *
+     * @return bool True if Live Photo markers are found.
+     */
     private function hasQuickTimeLivePhotoMarker(Metadata $metadata): bool
     {
         if (!$metadata->quickTime instanceof QuickTimeMeta) {
@@ -230,6 +267,13 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         return $metadata->quickTime->boolValue(QuickTimeMeta::HAS_LIVE_PHOTO_INFO_KEY) ?? false;
     }
 
+    /**
+     * Normalizes a string value by trimming and converting empty strings to null.
+     *
+     * @param string|null $value The value to normalize.
+     *
+     * @return string|null The normalized value.
+     */
     private function normalizeNullable(?string $value): ?string
     {
         if ($value === null) {

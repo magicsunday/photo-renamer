@@ -14,18 +14,47 @@ namespace MagicSunday\Renamer\Test\Unit\Command;
 use DateTimeImmutable;
 use DateTimeZone;
 use MagicSunday\Renamer\Command\WriteDateCommand;
+use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\FilenameDateParser;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
+use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
+use MagicSunday\Renamer\Metadata\MetadataCache;
+use MagicSunday\Renamer\Metadata\MetadataCacheEntry;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\LinkConfig;
 use MagicSunday\Renamer\Regex\RegexMatchResult;
 use MagicSunday\Renamer\Regex\SafeRegex;
+use MagicSunday\Renamer\Service\DateDriftAnalyzer;
 use MagicSunday\Renamer\Service\ExiftoolWriter;
+use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
+use MagicSunday\Renamer\Service\Filesystem\FileCollector;
+use MagicSunday\Renamer\Service\Filesystem\LegacyRenameExecutor;
+use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
-use MagicSunday\Renamer\Service\MetadataCache;
+use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\CandidateOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\DefaultOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\FallbackOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\ReviewOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\WarningOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\SummaryRow;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
+use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
+use MagicSunday\Renamer\Service\WriteDate\TimezoneRewritePlan;
+use MagicSunday\Renamer\Service\WriteDate\TimezoneRewritePlanner;
+use MagicSunday\Renamer\Service\WriteDate\WriteDateCandidateAnalyzer;
+use MagicSunday\Renamer\Service\WriteDate\WriteDatePendingWrite;
+use MagicSunday\Renamer\Service\WriteDate\WriteDateReasonAnalyzer;
+use MagicSunday\Renamer\Service\WriteDate\WriteDateReasonCatalog;
+use MagicSunday\Renamer\Service\WriteDate\WriteDateReasonDecision;
+use MagicSunday\Renamer\Service\WriteDate\WriteDateReportFormatter;
+use MagicSunday\Renamer\Service\WriteDate\WriteDateScanResult;
+use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
+use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -38,6 +67,7 @@ use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Tester\CommandTester;
+use Symfony\Component\Filesystem\Filesystem;
 
 use function file_put_contents;
 use function unlink;
@@ -53,16 +83,43 @@ use const DIRECTORY_SEPARATOR;
  */
 #[CoversClass(WriteDateCommand::class)]
 #[UsesClass(RecursiveRegexFileFilterIterator::class)]
+#[UsesClass(DateDriftCalculator::class)]
 #[UsesClass(FileHelper::class)]
+#[UsesClass(FilenameDateParser::class)]
+#[UsesClass(PathHelper::class)]
 #[UsesClass(ExifMetadataProvider::class)]
 #[UsesClass(TemporalMetadata::class)]
 #[UsesClass(LinkConfig::class)]
 #[UsesClass(RegexMatchResult::class)]
 #[UsesClass(SafeRegex::class)]
+#[UsesClass(DateDriftAnalyzer::class)]
 #[UsesClass(FileSystemService::class)]
 #[UsesClass(MediaTypeClassifier::class)]
 #[UsesClass(MetadataCache::class)]
+#[UsesClass(MetadataCacheEntry::class)]
 #[UsesClass(RenameOutputRenderer::class)]
+#[UsesClass(ExecutionPlanExecutor::class)]
+#[UsesClass(FileCollector::class)]
+#[UsesClass(LegacyRenameExecutor::class)]
+#[UsesClass(RuntimeFileMoveExecutor::class)]
+#[UsesClass(OutputEntryPresenter::class)]
+#[UsesClass(OutputSkipReasonDecider::class)]
+#[UsesClass(CandidateOutputSkipReasonRule::class)]
+#[UsesClass(DefaultOutputSkipReasonRule::class)]
+#[UsesClass(FallbackOutputSkipReasonRule::class)]
+#[UsesClass(ReviewOutputSkipReasonRule::class)]
+#[UsesClass(WarningOutputSkipReasonRule::class)]
+#[UsesClass(ConsoleProgressReporter::class)]
+#[UsesClass(SummaryRow::class)]
+#[UsesClass(TimezoneRewritePlan::class)]
+#[UsesClass(TimezoneRewritePlanner::class)]
+#[UsesClass(WriteDateCandidateAnalyzer::class)]
+#[UsesClass(WriteDatePendingWrite::class)]
+#[UsesClass(WriteDateReasonAnalyzer::class)]
+#[UsesClass(WriteDateReasonCatalog::class)]
+#[UsesClass(WriteDateReasonDecision::class)]
+#[UsesClass(WriteDateReportFormatter::class)]
+#[UsesClass(WriteDateScanResult::class)]
 final class WriteDateCommandTest extends TestCase
 {
     use WorkspaceTrait;
@@ -79,7 +136,8 @@ final class WriteDateCommandTest extends TestCase
     }
 
     /**
-     * Verifies that the command fails when exiftool is not available.
+     * Verifies that the command fails gracefully with an informative error message
+     * if the "exiftool" binary is not found on the system.
      */
     #[Test]
     public function executeFailsWhenExiftoolUnavailable(): void
@@ -144,7 +202,9 @@ final class WriteDateCommandTest extends TestCase
     }
 
     /**
-     * Verifies that a file with no date in its name is counted as "no date in name".
+     * Verifies that the command correctly identifies files where the filename does
+     * not contain a recognizable date pattern, which is a prerequisite for writing
+     * that date back into the metadata.
      */
     #[Test]
     public function executeCountsFilesWithNoDateInName(): void
@@ -172,7 +232,8 @@ final class WriteDateCommandTest extends TestCase
     }
 
     /**
-     * Verifies that a file with correct metadata is counted as "already correct".
+     * Verifies that files that already have accurate metadata matching the date
+     * in their filename are skipped and counted as "already correct".
      */
     #[Test]
     public function executeCountsAlreadyCorrectFiles(): void
@@ -211,7 +272,8 @@ final class WriteDateCommandTest extends TestCase
     }
 
     /**
-     * Verifies that a file with no metadata is detected as needing a write.
+     * Verifies that in dry-run mode, the command detects files with no metadata
+     * and lists them as candidates for metadata writing.
      */
     #[Test]
     public function executeDryRunDetectsNoMetadata(): void
@@ -244,7 +306,8 @@ final class WriteDateCommandTest extends TestCase
     }
 
     /**
-     * Verifies that a file with fallback DateTime is detected as needing a write.
+     * Verifies that files using the fallback DateTime tag (0x0132) are detected
+     * in dry-run mode as needing an update to more specific tags like DateTimeOriginal.
      */
     #[Test]
     public function executeDryRunDetectsFallbackDateTime(): void
@@ -283,7 +346,8 @@ final class WriteDateCommandTest extends TestCase
     }
 
     /**
-     * Verifies that a file with QuickTime timestamp without timezone info is detected as needing a write.
+     * Verifies that QuickTime/MP4 files with ambiguous timezones (missing offset)
+     * are detected and listed as requiring a metadata update to include the offset.
      */
     #[Test]
     public function executeDryRunDetectsAmbiguousTimezone(): void
@@ -324,7 +388,8 @@ final class WriteDateCommandTest extends TestCase
     }
 
     /**
-     * Verifies that date drift detection works in dry-run mode.
+     * Verifies that the command detects significant time differences between the
+     * filename date and the internal metadata date, flagging them for correction.
      */
     #[Test]
     public function executeDryRunDetectsDateDrift(): void
@@ -611,16 +676,23 @@ final class WriteDateCommandTest extends TestCase
         $metadataExtractor   = new StubMetadataExtractor();
         $metadataProvider    = new ExifMetadataProvider($metadataExtractor);
         $mediaTypeClassifier = new MediaTypeClassifier();
-        $renderer            = new RenameOutputRenderer($style);
-        $fileSystemService   = new FileSystemService($style, $renderer);
+        $renderer            = OutputRendererFactory::create($style);
+        $fileSystemService   = FileSystemServiceFactory::create($renderer, $style);
         $exiftoolWriter      = new ExiftoolWriter();
 
         return new WriteDateCommand(
             $metadataProvider,
-            $mediaTypeClassifier,
             $fileSystemService,
             $exiftoolWriter,
             $renderer,
+            new Filesystem(),
+            new WriteDateCandidateAnalyzer(
+                $metadataProvider,
+                $mediaTypeClassifier,
+                new WriteDateReasonAnalyzer($metadataProvider, new DateDriftAnalyzer(), $mediaTypeClassifier),
+                new TimezoneRewritePlanner($metadataProvider),
+            ),
+            new WriteDateReportFormatter(),
             static fn (): bool => false,
         );
     }
@@ -633,16 +705,23 @@ final class WriteDateCommandTest extends TestCase
         $metadataExtractor ??= new StubMetadataExtractor();
         $metadataProvider    = new ExifMetadataProvider($metadataExtractor);
         $mediaTypeClassifier = new MediaTypeClassifier();
-        $renderer            = new RenameOutputRenderer($style);
-        $fileSystemService   = new FileSystemService($style, $renderer);
+        $renderer            = OutputRendererFactory::create($style);
+        $fileSystemService   = FileSystemServiceFactory::create($renderer, $style);
         $exiftoolWriter      = new ExiftoolWriter();
 
         return new WriteDateCommand(
             $metadataProvider,
-            $mediaTypeClassifier,
             $fileSystemService,
             $exiftoolWriter,
             $renderer,
+            new Filesystem(),
+            new WriteDateCandidateAnalyzer(
+                $metadataProvider,
+                $mediaTypeClassifier,
+                new WriteDateReasonAnalyzer($metadataProvider, new DateDriftAnalyzer(), $mediaTypeClassifier),
+                new TimezoneRewritePlanner($metadataProvider),
+            ),
+            new WriteDateReportFormatter(),
             static fn (): bool => true,
         );
     }

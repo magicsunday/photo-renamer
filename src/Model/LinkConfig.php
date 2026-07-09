@@ -23,6 +23,11 @@ use MagicSunday\Renamer\Helper\FileHelper;
  */
 final readonly class LinkConfig
 {
+    /**
+     * @param string|null $root     Local root path for link resolution (e.g. '/Volumes/photo')
+     * @param string|null $base     Base URL for links (e.g. 'http://localhost:8080')
+     * @param string|null $protocol Protocol for the links (e.g. 'vscode', 'file')
+     */
     public function __construct(
         public ?string $root,
         public ?string $base,
@@ -31,8 +36,12 @@ final readonly class LinkConfig
     }
 
     /**
-     * Creates a LinkConfig from environment variables.
-     * Returns a config with null fields when the env vars are not set.
+     * Creates a LinkConfig instance from environment variables.
+     *
+     * Reads FILE_LINK_ROOT, FILE_LINK_BASE, and FILE_LINK_PROTOCOL. Returns
+     * a configuration with null fields if these variables are not defined.
+     *
+     * @return self The constructed configuration.
      */
     public static function fromEnv(): self
     {
@@ -44,7 +53,12 @@ final readonly class LinkConfig
     }
 
     /**
-     * Returns whether clickable links are enabled (both root and base configured).
+     * Returns whether clickable links are enabled.
+     *
+     * Links are considered enabled only when both the root path and
+     * the base URL are properly configured.
+     *
+     * @return bool True if links are enabled.
      */
     public function isEnabled(): bool
     {

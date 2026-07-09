@@ -16,9 +16,13 @@ use MagicSunday\Renamer\Model\Collection\RenameList;
 use SplFileInfo;
 
 /**
- * Groups multiple source files that share the same duplicate identifier (e.g. same EXIF date
- * or same target basename). Holds both the raw source file list and the computed rename
- * operations, plus the canonical target file info used as the base name for the group.
+ * Represents a group of files that are logically considered duplicates or
+ * related (e.g., sharing the same EXIF date or target basename).
+ *
+ * This model holds the collection of source files, the planned rename
+ * operations, and the canonical target information that defines the base
+ * filename for the entire group. It is used primarily in the legacy
+ * execution and output phases.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -27,13 +31,16 @@ use SplFileInfo;
 final class FileDuplicate
 {
     /**
-     * Canonical target file info representing the base name assigned to this group.
+     * The canonical target file information, defining the base name assigned
+     * to this entire group.
      */
     private SplFileInfo $target;
 
     /**
-     * @param FileList   $files   Source files belonging to this duplicate group
-     * @param RenameList $renames Computed rename operations for all files in this group
+     * @param FileList   $files   The collection of source files belonging
+     *                            to this duplicate group.
+     * @param RenameList $renames The collection of computed rename operations
+     *                            for all files in this group.
      */
     public function __construct(private readonly FileList $files = new FileList(), private RenameList $renames = new RenameList())
     {
@@ -41,7 +48,9 @@ final class FileDuplicate
     }
 
     /**
-     * Returns all source files that belong to this duplicate group.
+     * Returns the collection of all source files belonging to this group.
+     *
+     * @return FileList The list of source files.
      */
     public function getFiles(): FileList
     {
@@ -49,11 +58,11 @@ final class FileDuplicate
     }
 
     /**
-     * Registers a source file as belonging to this duplicate group.
+     * Registers a new source file as part of this duplicate group.
      *
-     * @param SplFileInfo $fileInfo Source file to add
+     * @param SplFileInfo $fileInfo The source file to be added to the group.
      *
-     * @return FileDuplicate Fluent interface
+     * @return FileDuplicate Fluent interface for method chaining.
      */
     public function addFile(SplFileInfo $fileInfo): self
     {
@@ -63,7 +72,9 @@ final class FileDuplicate
     }
 
     /**
-     * Returns the canonical target file info that defines the base name for this group.
+     * Returns the canonical target file information for this group.
+     *
+     * @return SplFileInfo The target file info defining the base name.
      */
     public function getTarget(): SplFileInfo
     {
@@ -71,12 +82,14 @@ final class FileDuplicate
     }
 
     /**
-     * Assigns the canonical target file info, which determines the base filename
-     * all members of this group will share (before duplicate suffixes).
+     * Sets the canonical target file information for this group.
      *
-     * @param SplFileInfo $target Canonical target to set
+     * This target determines the common base filename that all members of
+     * this group will share before any duplicate numbering suffixes are applied.
      *
-     * @return FileDuplicate Fluent interface
+     * @param SplFileInfo $target The canonical target information to assign.
+     *
+     * @return FileDuplicate Fluent interface for method chaining.
      */
     public function setTarget(SplFileInfo $target): self
     {
@@ -86,7 +99,9 @@ final class FileDuplicate
     }
 
     /**
-     * Returns the list of computed rename operations for all files in this group.
+     * Returns the collection of all planned rename operations for this group.
+     *
+     * @return RenameList The list of rename operations.
      */
     public function getRenames(): RenameList
     {
@@ -94,12 +109,14 @@ final class FileDuplicate
     }
 
     /**
-     * Replaces the entire rename list, used when hash sub-grouping recomputes
-     * rename targets with sub-group suffixes.
+     * Replaces the entire collection of rename operations.
      *
-     * @param RenameList $renames New rename list to assign
+     * This is typically used when the grouping or naming logic needs to
+     * re-evaluate the target paths, for example, after hash sub-grouping.
      *
-     * @return FileDuplicate Fluent interface
+     * @param RenameList $renames The new collection of rename operations.
+     *
+     * @return FileDuplicate Fluent interface for method chaining.
      */
     public function setRenames(RenameList $renames): self
     {
@@ -109,11 +126,11 @@ final class FileDuplicate
     }
 
     /**
-     * Appends a single rename operation to this group's rename list.
+     * Adds a single rename operation to the group's collection.
      *
-     * @param Rename $rename Rename operation to add
+     * @param Rename $rename The specific rename operation to add.
      *
-     * @return FileDuplicate Fluent interface
+     * @return FileDuplicate Fluent interface for method chaining.
      */
     public function addRename(Rename $rename): self
     {

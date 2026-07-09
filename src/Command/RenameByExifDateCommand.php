@@ -13,10 +13,11 @@ namespace MagicSunday\Renamer\Command;
 
 use FilesystemIterator;
 use MagicSunday\Renamer\Constants;
-use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
+use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Model\RenameOptions;
+use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\CanonicalScorerInterface;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilderInterface;
@@ -26,6 +27,7 @@ use MagicSunday\Renamer\Service\HashSubGroupingServiceInterface;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
 use MagicSunday\Renamer\Service\Pipeline\AssetGroupPipeline;
+use MagicSunday\Renamer\Service\Pipeline\PipelineReviewMapper;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\ValidationResult;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
@@ -39,6 +41,7 @@ use RecursiveIteratorIterator;
 use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Filesystem\Filesystem;
 
 use function array_filter;
 use function array_map;
@@ -64,18 +67,39 @@ use function sprintf;
  */
 final class RenameByExifDateCommand extends AbstractRenameCommand
 {
+    /**
+     * Constructor.
+     *
+     * @param FileSystemServiceInterface         $fileSystemService           Service to handle file system operations
+     * @param DuplicateDetectionServiceInterface $duplicateDetectionService   Service to handle grouping and duplicate resolution
+     * @param SafeRegex                          $safeRegex                   Safe regex wrapper used by the supported-media iterator filter
+     * @param Filesystem                         $filesystem                  Command-facing filesystem boundary reused by metadata-cache helpers
+     * @param ExifMetadataProvider               $exifMetadataProvider        Provider for EXIF metadata from files
+     * @param PerceptualHashCalculatorInterface  $perceptualHashCalculator    Calculator for perceptual image hashes (visual similarity)
+     * @param HashSubGroupingServiceInterface    $hashSubGroupingService      Service to further group files by perceptual hash
+     * @param AssetGroupPipeline                 $pipeline                    The main asset processing pipeline
+     * @param CanonicalScorerInterface           $canonicalScorer             Scorer to determine the "best" file in a group
+     * @param ExecutionPlanBuilderInterface      $executionPlanBuilder        Builder for the final execution plan
+     * @param PipelineReviewMapper               $pipelineReviewMapper        Maps structured pipeline review facts to output-ready entries
+     * @param RenameOutputRenderer               $renameOutputRenderer        Renderer for the rename operation output
+     * @param TargetBasenameStrategy             $duplicateIdentifierStrategy Fixed basename grouping strategy for EXIF rename groups
+     */
     public function __construct(
         FileSystemServiceInterface $fileSystemService,
         DuplicateDetectionServiceInterface $duplicateDetectionService,
+        SafeRegex $safeRegex,
+        Filesystem $filesystem,
         private readonly ExifMetadataProvider $exifMetadataProvider,
         private readonly PerceptualHashCalculatorInterface $perceptualHashCalculator,
         private readonly HashSubGroupingServiceInterface $hashSubGroupingService,
         private readonly AssetGroupPipeline $pipeline,
         private readonly CanonicalScorerInterface $canonicalScorer,
         private readonly ExecutionPlanBuilderInterface $executionPlanBuilder,
+        private readonly PipelineReviewMapper $pipelineReviewMapper,
         private readonly RenameOutputRenderer $renameOutputRenderer,
+        private readonly TargetBasenameStrategy $duplicateIdentifierStrategy,
     ) {
-        parent::__construct($fileSystemService, $duplicateDetectionService);
+        parent::__construct($fileSystemService, $duplicateDetectionService, $safeRegex, $filesystem);
     }
 
     /**
@@ -87,11 +111,6 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
      * Lazily created EXIF date filename strategy, reset when the pattern changes.
      */
     private ?ExifDateFilenameStrategy $exifDateFilenameStrategy = null;
-
-    /**
-     * Lazily created duplicate identifier strategy.
-     */
-    private ?DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy = null;
 
     /**
      * Configures the EXIF date rename command with its name, description, and options.
@@ -117,13 +136,18 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
                 'merge-threshold',
                 null,
                 InputOption::VALUE_REQUIRED,
-                'Maximum RMSE (0.0–1.0) for merging perceptually similar files. Overrides MERGE_THRESHOLD env var. Default: 0.05.',
+                'Maximum RMSE (0.0–1.0) for merging visually similar files. Internal safe limits still cap the effective threshold, so lower values only make the policy stricter. Overrides MERGE_THRESHOLD env var. Default: 0.06.',
             );
     }
 
     /**
-     * Executes the command and resets cached strategies when the filename pattern changes.
-     * Sets up the persistent metadata cache before the pipeline and flushes it afterwards.
+     * Executes the command logic.
+     *
+     * Initializes the filename pattern, configures metadata providers,
+     * perceptual hash calculation, and canonical scoring before running
+     * the asset group pipeline.
+     *
+     * @return int The exit code (0 for success, non-zero for failure).
      */
     #[Override]
     protected function executeCommand(): int
@@ -134,9 +158,8 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
         $targetFilenamePattern = $this->input->getOption('target-filename-pattern');
 
         if (is_string($targetFilenamePattern)) {
-            $this->targetFilenamePattern       = $targetFilenamePattern;
-            $this->exifDateFilenameStrategy    = null;
-            $this->duplicateIdentifierStrategy = null;
+            $this->targetFilenamePattern    = $targetFilenamePattern;
+            $this->exifDateFilenameStrategy = null;
         }
 
         $this->configureProviderTimezone($this->exifMetadataProvider, $this->input);
@@ -149,7 +172,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
         }
 
         if ($this->hashSubGroupingService instanceof HashSubGroupingService) {
-            $this->hashSubGroupingService->setMaxMergeChangedArea(
+            $this->hashSubGroupingService->setMaxMergeRmse(
                 $this->resolveMergeThreshold($this->input),
             );
         }
@@ -175,6 +198,10 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
     }
 
     /**
+     * Creates the file iterator.
+     *
+     * Filters files by supported media extensions (JPG, HEIC, MOV, etc.).
+     *
      * @return RecursiveIteratorIterator<RecursiveIterator<string, SplFileInfo>>
      */
     #[Override]
@@ -196,7 +223,8 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
                     $this->sourceDirectory,
                     FilesystemIterator::SKIP_DOTS
                 ),
-                $fileExtensionRegex
+                $fileExtensionRegex,
+                $this->safeRegex,
             );
         }
 
@@ -208,7 +236,12 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
     }
 
     /**
-     * Returns the strategy that builds the target filename based on EXIF dates.
+     * Returns the target filename strategy for EXIF-based renames.
+     *
+     * This strategy extracts the capture date from EXIF/QuickTime metadata
+     * and formats it into the target basename.
+     *
+     * @return RenameStrategyInterface The EXIF date rename strategy.
      */
     #[Override]
     protected function getTargetFilenameStrategy(): RenameStrategyInterface
@@ -217,16 +250,34 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
     }
 
     /**
-     * Provides the duplicate identifier strategy capable of handling Live Photos.
+     * Returns the duplicate identifier strategy.
+     *
+     * Uses the TargetBasenameStrategy to group files. This ensures that
+     * files with different extensions (e.g. .JPG and .MOV) that share the
+     * same capture time are placed in the same duplicate group.
+     *
+     * @return DuplicateIdentifierStrategyInterface The duplicate identifier strategy.
      */
     #[Override]
     protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
     {
-        return $this->duplicateIdentifierStrategy ??= new TargetBasenameStrategy();
+        return $this->duplicateIdentifierStrategy;
     }
 
     /**
-     * Executes the new 8-step AssetGroup pipeline.
+     * Executes the asset group processing pipeline.
+     *
+     * This follows an 8-step process:
+     * 1. Building groups
+     * 2. Classification
+     * 3. Role assignment
+     * 4. Target name resolution
+     * 5. Collision resolution
+     * 6. Validation
+     * 7. Execution plan building
+     * 8. Output rendering and optional execution
+     *
+     * @throws RuntimeException If circular swaps are detected
      */
     private function processWithAssetGroups(): void
     {
@@ -234,7 +285,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
         $pipelineResult = $this->pipeline->run(
             $this->createFileIterator(),
             $this->getTargetFilenameStrategy(),
-            $this->getDuplicateIdentifierStrategy(),
+            $this->duplicateIdentifierStrategy,
             $this->sourceDirectory,
             $this->useFileExtensionFromSource,
         );
@@ -262,7 +313,14 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
         );
 
         // Build RenameResult from pipeline context
-        $result = $pipelineResult->context->toRenameResult();
+        $reviewEntries = $this->pipelineReviewMapper->mapVideoDuplicateCandidates(
+            $pipelineResult->context->getVideoDuplicateCandidates(),
+            $pipelineResult->context->sourceDirectory,
+        );
+        $result = $pipelineResult->context->toRenameResult(
+            $reviewEntries,
+            count($reviewEntries),
+        );
 
         $this->renderPostScanSummary($result);
 
@@ -288,6 +346,10 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
         $hasSkippedFiles = $result->skippedFiles !== [];
 
         if (($preview->plannedMoves === 0) && ($preview->plannedSkips === 0) && !$hasSkippedFiles) {
+            if ($this->listAll) {
+                $this->io->newLine(2);
+            }
+
             $this->io->text('<fg=green> All files already have the correct name. Nothing to do.</>');
         }
 
@@ -315,7 +377,9 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
     }
 
     /**
-     * Renders validation warnings for the rename plan.
+     * Renders validation warnings if issues were detected during the pipeline.
+     *
+     * @param ValidationResult $validationResult The validation result containing warnings
      */
     private function renderValidationWarnings(ValidationResult $validationResult): void
     {
@@ -326,7 +390,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
             ));
 
             foreach ($validationResult->duplicateTargets as $target) {
-                $this->io->text(sprintf('  <fg=yellow>→</> %s', FileHelper::relativizePath($target, $this->sourceDirectory)));
+                $this->io->text(sprintf('  <fg=yellow>→</> %s', PathHelper::relativizePath($target, $this->sourceDirectory)));
             }
 
             $this->io->newLine();
@@ -340,7 +404,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
 
             foreach ($validationResult->caseConflicts as $group) {
                 $relativePaths = array_map(
-                    fn (string $path): string => FileHelper::relativizePath($path, $this->sourceDirectory),
+                    fn (string $path): string => PathHelper::relativizePath($path, $this->sourceDirectory),
                     $group,
                 );
                 $this->io->text(sprintf('  <fg=yellow>→</> %s', implode(' ↔ ', $relativePaths)));
@@ -357,7 +421,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
 
             foreach ($validationResult->circularSwaps as $cycle) {
                 $relativePaths = array_map(
-                    fn (string $path): string => FileHelper::relativizePath($path, $this->sourceDirectory),
+                    fn (string $path): string => PathHelper::relativizePath($path, $this->sourceDirectory),
                     $cycle,
                 );
                 $this->io->text(sprintf('  <fg=yellow>→</> %s', implode(' → ', $relativePaths)));

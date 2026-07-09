@@ -11,14 +11,15 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Command;
 
+use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
-use MagicSunday\Renamer\Service\SafeHashCalculatorInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\ContentHashStrategy;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\InheritFilenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use Override;
+use Symfony\Component\Filesystem\Filesystem;
 
 /**
  * Groups files by their binary content hash (xxh128) and assigns "-duplicate-NNN"
@@ -32,16 +33,25 @@ use Override;
  */
 final class RenameByHashCommand extends AbstractRenameCommand
 {
-    private ?RenameStrategyInterface $renameStrategy = null;
-
-    private ?DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy = null;
-
+    /**
+     * Constructor.
+     *
+     * @param FileSystemServiceInterface         $fileSystemService           Service to handle file system operations
+     * @param DuplicateDetectionServiceInterface $duplicateDetectionService   Service to handle grouping and duplicate resolution
+     * @param SafeRegex                          $safeRegex                   Safe regex wrapper used by the shared legacy file iterator path
+     * @param Filesystem                         $filesystem                  Command-facing filesystem boundary reused by metadata-cache helpers
+     * @param InheritFilenameStrategy            $renameStrategy              Fixed inherit-name strategy used by the hash command
+     * @param ContentHashStrategy                $duplicateIdentifierStrategy Hash-based grouping strategy for duplicate detection
+     */
     public function __construct(
         FileSystemServiceInterface $fileSystemService,
         DuplicateDetectionServiceInterface $duplicateDetectionService,
-        private readonly SafeHashCalculatorInterface $hashCalculator,
+        SafeRegex $safeRegex,
+        Filesystem $filesystem,
+        private readonly InheritFilenameStrategy $renameStrategy,
+        private readonly ContentHashStrategy $duplicateIdentifierStrategy,
     ) {
-        parent::__construct($fileSystemService, $duplicateDetectionService);
+        parent::__construct($fileSystemService, $duplicateDetectionService, $safeRegex, $filesystem);
     }
 
     /**
@@ -59,18 +69,41 @@ final class RenameByHashCommand extends AbstractRenameCommand
             );
     }
 
+    /**
+     * Returns the rename strategy.
+     *
+     * Uses the InheritFilenameStrategy, which keeps the original filename
+     * but removes any existing duplicate suffixes.
+     *
+     * @return RenameStrategyInterface The rename strategy
+     */
     #[Override]
     protected function getTargetFilenameStrategy(): RenameStrategyInterface
     {
-        return $this->renameStrategy ??= new InheritFilenameStrategy();
+        return $this->renameStrategy;
     }
 
+    /**
+     * Returns the duplicate identifier strategy.
+     *
+     * Uses the ContentHashStrategy to group files by their binary content.
+     *
+     * @return DuplicateIdentifierStrategyInterface The duplicate identifier strategy
+     */
     #[Override]
     protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
     {
-        return $this->duplicateIdentifierStrategy ??= new ContentHashStrategy($this->hashCalculator);
+        return $this->duplicateIdentifierStrategy;
     }
 
+    /**
+     * Skips content-hash sub-grouping.
+     *
+     * Since the main grouping is already based on content hashes, there is
+     * no need for a second pass of sub-grouping by hash.
+     *
+     * @return bool Always true
+     */
     #[Override]
     protected function skipHashSubGrouping(): bool
     {

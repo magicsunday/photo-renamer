@@ -15,9 +15,12 @@ use MagicSunday\Renamer\Model\AssetGroup;
 use Override;
 
 /**
- * String-keyed collection of AssetGroup instances. Keys are the stable logical
- * group keys produced by the grouping phase (e.g. a datetime string or content
- * identifier), mapping each key to its AssetGroup.
+ * A string-keyed collection of {@see AssetGroup} instances.
+ *
+ * This collection stores asset groups produced during the grouping phase of
+ * the renaming pipeline. Each key typically represents a stable logical
+ * identifier, such as a formatted capture timestamp or a content identifier,
+ * which uniquely identifies the capture event.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -28,9 +31,16 @@ use Override;
 final class AssetGroupCollection extends AbstractCollection
 {
     /**
-     * Returns the AssetGroup for the given key, or null if it does not exist.
+     * Retrieves the {@see AssetGroup} associated with the given key.
      *
-     * @param int|string $key Group key to look up (cast to string)
+     * This provides a type-safe way to access a specific group from the
+     * collection. The key is automatically cast to a string to ensure
+     * compatibility with the underlying storage.
+     *
+     * @param int|string $key The group key to look up (e.g., a timestamp string).
+     *
+     * @return AssetGroup|null The associated AssetGroup if found, or null if
+     *                         no group exists for the given key.
      */
     #[Override]
     public function get(int|string $key): ?AssetGroup

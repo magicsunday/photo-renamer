@@ -13,55 +13,130 @@ namespace MagicSunday\Renamer\Test\Integration\Command;
 
 use DateTimeImmutable;
 use MagicSunday\Renamer\Command\RenameByExifDateCommand;
+use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\FilenameDateParser;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
+use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
+use MagicSunday\Renamer\Metadata\MetadataCache;
+use MagicSunday\Renamer\Metadata\MetadataCacheEntry;
+use MagicSunday\Renamer\Metadata\MetadataQualityFlagResolver;
+use MagicSunday\Renamer\Metadata\MetadataQualityFlags;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
+use MagicSunday\Renamer\Model\AssetGroup;
+use MagicSunday\Renamer\Model\AssetItem;
 use MagicSunday\Renamer\Model\Collection\AbstractCollection;
+use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\Collection\FileList;
 use MagicSunday\Renamer\Model\Collection\RenameList;
+use MagicSunday\Renamer\Model\Execution\ExecutionGroup;
+use MagicSunday\Renamer\Model\Execution\ExecutionItem;
+use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
+use MagicSunday\Renamer\Model\Execution\ExecutionPreview;
+use MagicSunday\Renamer\Model\Execution\ExecutionResult;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\LinkConfig;
+use MagicSunday\Renamer\Model\OutputEntry;
 use MagicSunday\Renamer\Model\OutputEntryTag;
+use MagicSunday\Renamer\Model\OutputEntryType;
+use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
 use MagicSunday\Renamer\Model\TargetFileResult;
 use MagicSunday\Renamer\Regex\RegexMatchResult;
 use MagicSunday\Renamer\Regex\SafeRegex;
+use MagicSunday\Renamer\Service\CanonicalScore;
 use MagicSunday\Renamer\Service\CanonicalScorer;
+use MagicSunday\Renamer\Service\ContentIdentifierCacheEntry;
 use MagicSunday\Renamer\Service\DuplicateDetectionService;
 use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilder;
+use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
+use MagicSunday\Renamer\Service\Filesystem\FileCollector;
+use MagicSunday\Renamer\Service\Filesystem\LegacyRenameExecutor;
+use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
+use MagicSunday\Renamer\Service\Filesystem\SortedFileIteratorCollector;
 use MagicSunday\Renamer\Service\FileSystemService;
+use MagicSunday\Renamer\Service\FormatPriorityResolver;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
+use MagicSunday\Renamer\Service\LegacyContentIdentifierCoordinator;
+use MagicSunday\Renamer\Service\LegacyDuplicateTargetCandidateFactory;
+use MagicSunday\Renamer\Service\LegacyLivePhotoCompanionDetector;
+use MagicSunday\Renamer\Service\LegacyLivePhotoDuplicateCoordinator;
+use MagicSunday\Renamer\Service\LegacyLivePhotoTargetPromoter;
+use MagicSunday\Renamer\Service\LegacyTargetFileResolver;
+use MagicSunday\Renamer\Service\LegacyTargetPathResolver;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoBasenameTargetMap;
+use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictAsset;
+use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictCandidateTiers;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetector;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoContentIdentifierTarget;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoContentIdentifierTargetMap;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoExistingFilePathnameIndex;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingCollection;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingService;
+use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
-use MagicSunday\Renamer\Service\MetadataCache;
+use MagicSunday\Renamer\Service\Output\DiffHighlighter;
+use MagicSunday\Renamer\Service\Output\OutputCounters;
+use MagicSunday\Renamer\Service\Output\OutputDecisionLogRenderer;
+use MagicSunday\Renamer\Service\Output\OutputEntryBuildResult;
+use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
+use MagicSunday\Renamer\Service\Output\OutputEntryTagResolution;
+use MagicSunday\Renamer\Service\Output\OutputSkipFlags;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecision;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\CandidateOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\DefaultOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\FallbackOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\ReviewOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\WarningOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSummaryRowBuilder;
+use MagicSunday\Renamer\Service\Output\PathPrefixSplit;
+use MagicSunday\Renamer\Service\Output\RenameSummaryCounters;
+use MagicSunday\Renamer\Service\Output\SkippedFileAppendResult;
+use MagicSunday\Renamer\Service\Output\SkipReasonFormatter;
+use MagicSunday\Renamer\Service\Output\SummaryRow;
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
 use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzer;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualSignalCache;
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityResult;
 use MagicSunday\Renamer\Service\Pipeline\AssetGroupPipeline;
+use MagicSunday\Renamer\Service\Pipeline\CaptureAssetCandidateExtractor;
+use MagicSunday\Renamer\Service\Pipeline\CaptureContentIdentifierCoordinator;
 use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuilder;
 use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuildState;
+use MagicSunday\Renamer\Service\Pipeline\CaptureGroupQualityTracker;
 use MagicSunday\Renamer\Service\Pipeline\CollisionResolver;
 use MagicSunday\Renamer\Service\Pipeline\CompanionDetector;
+use MagicSunday\Renamer\Service\Pipeline\CompanionPathSet;
 use MagicSunday\Renamer\Service\Pipeline\ExifRenamePipelineResult;
+use MagicSunday\Renamer\Service\Pipeline\ExistingCompanionVideoCandidate;
+use MagicSunday\Renamer\Service\Pipeline\FlatGroupNameResolver;
+use MagicSunday\Renamer\Service\Pipeline\OrphanLivePhotoVideoReconciler;
+use MagicSunday\Renamer\Service\Pipeline\PendingLivePhotoVideoResolver;
+use MagicSunday\Renamer\Service\Pipeline\PipelineReviewMapper;
 use MagicSunday\Renamer\Service\Pipeline\RoleAssigner;
 use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifier;
+use MagicSunday\Renamer\Service\Pipeline\SubgroupNameResolver;
+use MagicSunday\Renamer\Service\Pipeline\SubgroupPresenceDetector;
 use MagicSunday\Renamer\Service\Pipeline\TargetNameResolver;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\RenamePlanValidator;
+use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
+use MagicSunday\Renamer\Service\TargetFileResolver;
+use MagicSunday\Renamer\Service\TargetPathResolver;
+use MagicSunday\Renamer\Service\ValidationResult;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
+use MagicSunday\Renamer\Test\Fixtures\CaptureGroupBuilderFactory;
+use MagicSunday\Renamer\Test\Fixtures\DuplicateDetectionServiceFactory;
+use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
+use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
+use MagicSunday\Renamer\Test\Fixtures\TargetNameResolverFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubPerceptualHashCalculator;
@@ -74,6 +149,7 @@ use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Tester\CommandTester;
+use Symfony\Component\Filesystem\Filesystem;
 
 use function array_filter;
 use function array_keys;
@@ -105,6 +181,18 @@ use const DIRECTORY_SEPARATOR;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(RenameByExifDateCommand::class)]
+#[UsesClass(AssetGroup::class)]
+#[UsesClass(AssetItem::class)]
+#[UsesClass(AssetGroupCollection::class)]
+#[UsesClass(ExecutionGroup::class)]
+#[UsesClass(ExecutionItem::class)]
+#[UsesClass(ExecutionPlan::class)]
+#[UsesClass(ExecutionPreview::class)]
+#[UsesClass(ExecutionResult::class)]
+#[UsesClass(OutputEntry::class)]
+#[UsesClass(OutputEntryType::class)]
+#[UsesClass(PipelineContext::class)]
+#[UsesClass(ValidationResult::class)]
 #[UsesClass(RecursiveRegexFileFilterIterator::class)]
 #[UsesClass(FileHelper::class)]
 #[UsesClass(ExifMetadataProvider::class)]
@@ -127,11 +215,15 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(HashSubGroupingService::class)]
 #[UsesClass(ImagickImageLoader::class)]
 #[UsesClass(LivePhotoBasenameTargetMap::class)]
+#[UsesClass(LivePhotoConflictAsset::class)]
+#[UsesClass(LivePhotoConflictCandidateTiers::class)]
+#[UsesClass(LivePhotoPairingService::class)]
 #[UsesClass(LivePhotoConflictDetector::class)]
 #[UsesClass(LivePhotoContentIdentifierTarget::class)]
 #[UsesClass(LivePhotoContentIdentifierTargetMap::class)]
 #[UsesClass(LivePhotoExistingFilePathnameIndex::class)]
 #[UsesClass(LivePhotoPairingCollection::class)]
+#[UsesClass(MediaCompatibilityPolicy::class)]
 #[UsesClass(MediaTypeClassifier::class)]
 #[UsesClass(MetadataCache::class)]
 #[UsesClass(PerceptualSignalCache::class)]
@@ -152,6 +244,61 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(SimilarityResult::class)]
 #[UsesClass(TargetBasenameStrategy::class)]
 #[UsesClass(ExifDateFilenameStrategy::class)]
+#[UsesClass(OutputEntryPresenter::class)]
+#[UsesClass(OutputSkipReasonDecider::class)]
+#[UsesClass(CandidateOutputSkipReasonRule::class)]
+#[UsesClass(DefaultOutputSkipReasonRule::class)]
+#[UsesClass(FallbackOutputSkipReasonRule::class)]
+#[UsesClass(ReviewOutputSkipReasonRule::class)]
+#[UsesClass(WarningOutputSkipReasonRule::class)]
+#[UsesClass(DateDriftCalculator::class)]
+#[UsesClass(FilenameDateParser::class)]
+#[UsesClass(PathHelper::class)]
+#[UsesClass(MetadataCacheEntry::class)]
+#[UsesClass(MetadataQualityFlagResolver::class)]
+#[UsesClass(MetadataQualityFlags::class)]
+#[UsesClass(CanonicalScore::class)]
+#[UsesClass(ContentIdentifierCacheEntry::class)]
+#[UsesClass(ExecutionPlanExecutor::class)]
+#[UsesClass(FileCollector::class)]
+#[UsesClass(LegacyRenameExecutor::class)]
+#[UsesClass(RuntimeFileMoveExecutor::class)]
+#[UsesClass(SortedFileIteratorCollector::class)]
+#[UsesClass(FormatPriorityResolver::class)]
+#[UsesClass(LegacyContentIdentifierCoordinator::class)]
+#[UsesClass(LegacyDuplicateTargetCandidateFactory::class)]
+#[UsesClass(LegacyLivePhotoCompanionDetector::class)]
+#[UsesClass(LegacyLivePhotoDuplicateCoordinator::class)]
+#[UsesClass(LegacyLivePhotoTargetPromoter::class)]
+#[UsesClass(LegacyTargetFileResolver::class)]
+#[UsesClass(LegacyTargetPathResolver::class)]
+#[UsesClass(DiffHighlighter::class)]
+#[UsesClass(OutputCounters::class)]
+#[UsesClass(OutputDecisionLogRenderer::class)]
+#[UsesClass(OutputEntryBuildResult::class)]
+#[UsesClass(OutputEntryTagResolution::class)]
+#[UsesClass(OutputSkipFlags::class)]
+#[UsesClass(OutputSkipReasonDecision::class)]
+#[UsesClass(OutputSummaryRowBuilder::class)]
+#[UsesClass(PathPrefixSplit::class)]
+#[UsesClass(RenameSummaryCounters::class)]
+#[UsesClass(SkippedFileAppendResult::class)]
+#[UsesClass(SkipReasonFormatter::class)]
+#[UsesClass(SummaryRow::class)]
+#[UsesClass(CaptureAssetCandidateExtractor::class)]
+#[UsesClass(CaptureContentIdentifierCoordinator::class)]
+#[UsesClass(CaptureGroupQualityTracker::class)]
+#[UsesClass(CompanionPathSet::class)]
+#[UsesClass(ExistingCompanionVideoCandidate::class)]
+#[UsesClass(FlatGroupNameResolver::class)]
+#[UsesClass(OrphanLivePhotoVideoReconciler::class)]
+#[UsesClass(PendingLivePhotoVideoResolver::class)]
+#[UsesClass(PipelineReviewMapper::class)]
+#[UsesClass(SubgroupNameResolver::class)]
+#[UsesClass(SubgroupPresenceDetector::class)]
+#[UsesClass(ConsoleProgressReporter::class)]
+#[UsesClass(TargetFileResolver::class)]
+#[UsesClass(TargetPathResolver::class)]
 final class RenameByExifDateCommandTest extends TestCase
 {
     use WorkspaceTrait;
@@ -174,33 +321,6 @@ final class RenameByExifDateCommandTest extends TestCase
     private const string DATE_SUBGROUP = '2025-01-01T00:02:24.000+00:00';
 
     /**
-     * Comprehensive rename mapping covering:
-     *
-     * - True duplicates (same hash, same date)
-     * - Hash sub-grouping (different hash, same date → sequential -NNN)
-     * - Live Photo pairing (JPG + MOV with same content ID)
-     * - Live Photo companion inherits sub-group number
-     * - Subdirectory duplicates (parent dir first)
-     * - Unique files (single file per date)
-     * - Mixed extensions (.jpg/.JPG) preserve source extension
-     * - Already-suffixed files get renumbered correctly
-     *
-     * Source layout:
-     *   1.jpg       hash:123  dateA  LP-1    → canonical jpg  (Live Photo)
-     *   2.jpg       hash:123  dateA  —       → duplicate of 1 (same hash, no LP)
-     *   3.jpg       hash:456  dateB  —       → unique
-     *   4.jpg       hash:789  dateC  —       → unique
-     *   sub/1.jpg   hash:456  dateE  —       → unique (subdirectory, different date)
-     *   a.jpg       hash:234  dateD  —       → canonical for dateD
-     *   A.jpg       hash:234  dateD  —       → duplicate of a (same hash)
-     *   A.JPG       hash:123  dateA  —       → duplicate of 1 (same hash, uppercase ext)
-     *   1-dup.jpg   hash:123  dateA  —       → duplicate of 1 (already suffixed)
-     *   1.mov       hash:abc  dateA  LP-1    → companion mov (Live Photo)
-     *   mov.mov     hash:abc  —     LP-1    → duplicate mov (paired by content ID)
-     *   B.jpg       hash:cde  dateA  LP-B    → hash sub-group 002 (Live Photo)
-     *   B.mov       hash:fgh  —     LP-B    → companion inherits sub-group 002
-     */
-    /**
      * Verifies the complete rename mapping for 13 files across multiple scenarios:
      *
      * - Live Photo LP-1: canonical HEIC gets unsuffixed name, MOV companion inherits
@@ -214,6 +334,21 @@ final class RenameByExifDateCommandTest extends TestCase
      * - Subdirectory: nested file gets its relative path preserved with own date
      * - Parent-before-child ordering: parent dir files are processed before nested ones
      * - No nested -duplicate--duplicate- patterns in any target name
+     *
+     * File scenarios:
+     *   1.jpg       hash:123  dateA  LP-1    → canonical (Live Photo)
+     *   2.jpg       hash:123  dateA  —       → duplicate of 1 (same hash, no LP)
+     *   3.jpg       hash:456  dateB  —       → unique
+     *   4.jpg       hash:789  dateC  —       → unique
+     *   sub/1.jpg   hash:456  dateE  —       → unique (subdirectory, different date)
+     *   a.jpg       hash:234  dateD  —       → canonical for dateD
+     *   A.jpg       hash:234  dateD  —       → duplicate of a (same hash)
+     *   A.JPG       hash:123  dateA  —       → duplicate of 1 (same hash, uppercase ext)
+     *   1-dup.jpg   hash:123  dateA  —       → duplicate of 1 (already suffixed)
+     *   1.mov       hash:abc  dateA  LP-1    → companion mov (Live Photo)
+     *   mov.mov     hash:abc  —     LP-1    → duplicate mov (paired by content ID)
+     *   B.jpg       hash:cde  dateA  LP-B    → hash sub-group 002 (Live Photo)
+     *   B.mov       hash:fgh  —     LP-B    → companion inherits sub-group 002
      */
     #[Test]
     public function executeProducesExpectedRenameMapping(): void
@@ -405,7 +540,7 @@ final class RenameByExifDateCommandTest extends TestCase
 
             $suffixedTargets = array_filter(
                 $targets,
-                static fn (string $t): bool => $t !== '2025-01-01_00-02-20-016.jpg',
+                static fn (string $targetPath): bool => $targetPath !== '2025-01-01_00-02-20-016.jpg',
             );
 
             foreach ($suffixedTargets as $target) {
@@ -756,27 +891,34 @@ final class RenameByExifDateCommandTest extends TestCase
 
     private function runDryRunOutput(string $workspace, StubMetadataExtractor $metadataExtractor): string
     {
-        $output = new BufferedOutput();
-        $style  = new SymfonyStyle(new ArrayInput([]), $output);
+        $output           = new BufferedOutput();
+        $style            = new SymfonyStyle(new ArrayInput([]), $output);
+        $progressReporter = new ConsoleProgressReporter($style);
 
         $mediaTypeClassifier       = new MediaTypeClassifier();
-        $hashSubGroupingService    = new HashSubGroupingService(new SafeHashCalculator(), $style, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier()));
+        $hashSubGroupingService    = new HashSubGroupingService(new SafeHashCalculator(), $progressReporter, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier()));
         $livePhotoConflictDetector = new LivePhotoConflictDetector($mediaTypeClassifier);
 
-        $captureGroupBuilder = new CaptureGroupBuilder(
-            $style,
+        $captureGroupBuilder = CaptureGroupBuilderFactory::create(
+            $progressReporter,
             $mediaTypeClassifier,
             $livePhotoConflictDetector,
             new LivePhotoPairingService(),
         );
-        $subgroupClassifier   = new SubgroupClassifier($hashSubGroupingService, $mediaTypeClassifier, $style);
-        $companionDetector    = new CompanionDetector($mediaTypeClassifier);
-        $canonicalScorer      = new CanonicalScorer();
-        $roleAssigner         = new RoleAssigner($canonicalScorer, $companionDetector);
-        $targetNameResolver   = new TargetNameResolver();
-        $collisionResolver    = new CollisionResolver();
-        $renamePlanValidator  = new RenamePlanValidator();
-        $executionPlanBuilder = new ExecutionPlanBuilder();
+        $subgroupClassifier = new SubgroupClassifier(
+            $hashSubGroupingService,
+            $mediaTypeClassifier,
+            new OrphanLivePhotoVideoReconciler($mediaTypeClassifier, new StubPerceptualHashCalculator(), $progressReporter),
+            $progressReporter,
+        );
+        $mediaCompatibilityPolicy = new MediaCompatibilityPolicy($mediaTypeClassifier);
+        $companionDetector        = new CompanionDetector($mediaCompatibilityPolicy);
+        $canonicalScorer          = new CanonicalScorer();
+        $roleAssigner             = new RoleAssigner($canonicalScorer, $companionDetector, $mediaCompatibilityPolicy);
+        $targetNameResolver       = TargetNameResolverFactory::create();
+        $collisionResolver        = new CollisionResolver();
+        $renamePlanValidator      = new RenamePlanValidator();
+        $executionPlanBuilder     = new ExecutionPlanBuilder();
 
         $pipeline = new AssetGroupPipeline(
             $captureGroupBuilder,
@@ -787,23 +929,27 @@ final class RenameByExifDateCommandTest extends TestCase
             $renamePlanValidator,
         );
 
-        $renderer = new RenameOutputRenderer($style);
+        $renderer = OutputRendererFactory::create($style);
 
         $command = new RenameByExifDateCommand(
-            new FileSystemService($style, $renderer),
-            new DuplicateDetectionService(
-                $style,
+            FileSystemServiceFactory::create($renderer, $style),
+            DuplicateDetectionServiceFactory::create(
+                $progressReporter,
                 $hashSubGroupingService,
                 $mediaTypeClassifier,
                 $livePhotoConflictDetector,
             ),
+            new SafeRegex(),
+            new Filesystem(),
             new ExifMetadataProvider($metadataExtractor),
             new StubPerceptualHashCalculator(),
             $hashSubGroupingService,
             $pipeline,
             $canonicalScorer,
             $executionPlanBuilder,
+            new PipelineReviewMapper(),
             $renderer,
+            new TargetBasenameStrategy(),
         );
 
         $tester   = new CommandTester($command);
@@ -831,7 +977,7 @@ final class RenameByExifDateCommandTest extends TestCase
         $absolutePrefix = rtrim($workspace, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
         $relativePrefix = basename(rtrim($workspace, DIRECTORY_SEPARATOR)) . DIRECTORY_SEPARATOR;
 
-        if (preg_match_all('/\[(?:O|D|R)]\s+(\S+)\s+→\s+(\S+)/', $clean, $matches, PREG_SET_ORDER) > 0) {
+        if (preg_match_all('/\[(?:O|D|R)]\s+(\S+)\s+→\s+(\S+)/u', $clean, $matches, PREG_SET_ORDER) > 0) {
             foreach ($matches as $match) {
                 $source = $this->stripPrefix($match[1], $absolutePrefix, $relativePrefix);
                 $target = $this->stripPrefix($match[2], $absolutePrefix, $relativePrefix);

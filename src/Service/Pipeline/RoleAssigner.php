@@ -17,14 +17,11 @@ use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\ItemRole;
 use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Service\CanonicalScorerInterface;
-use MagicSunday\Renamer\Service\MediaTypeClassifier;
+use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use Override;
 
-use function array_keys;
 use function implode;
-use function in_array;
 use function sprintf;
-use function strtolower;
 
 /**
  * Thin orchestrator that assigns roles (Canonical, Duplicate, Companion) to items
@@ -39,12 +36,14 @@ use function strtolower;
 final readonly class RoleAssigner implements RoleAssignerInterface
 {
     /**
-     * @param CanonicalScorerInterface   $scorer            Scores items and selects the canonical
-     * @param CompanionDetectorInterface $companionDetector Detects Live Photo companions
+     * @param CanonicalScorerInterface   $scorer                   Scores items and selects the canonical
+     * @param CompanionDetectorInterface $companionDetector        Detects Live Photo companions
+     * @param MediaCompatibilityPolicy   $mediaCompatibilityPolicy Shared still/video compatibility rules
      */
     public function __construct(
         private CanonicalScorerInterface $scorer,
         private CompanionDetectorInterface $companionDetector,
+        private MediaCompatibilityPolicy $mediaCompatibilityPolicy,
     ) {
     }
 
@@ -111,7 +110,9 @@ final readonly class RoleAssigner implements RoleAssignerInterface
         //    In multi-subgroup groups, each still may have its own LP video companion
         //    (e.g. B.jpg + B.mov in a different subgroup from the canonical).
         $subgroupCompanionPaths = $this->detectSubgroupCompanions($group, $canonical);
-        $allCompanionPaths      = $companionPaths + $subgroupCompanionPaths;
+        $allCompanionPaths      = new CompanionPathSet();
+        $allCompanionPaths->merge($companionPaths);
+        $allCompanionPaths->merge($subgroupCompanionPaths);
 
         // 5. Assign roles to all non-canonical items
         foreach ($group->getItems() as $item) {
@@ -119,7 +120,7 @@ final readonly class RoleAssigner implements RoleAssignerInterface
                 continue;
             }
 
-            if (isset($allCompanionPaths[$item->file->getPathname()])) {
+            if ($allCompanionPaths->contains($item->file->getPathname())) {
                 $group->replaceItem($item, $item->withRole(ItemRole::Companion));
                 $group->addDecision(sprintf(
                     'Companion: %s (Live Photo pair)',
@@ -153,12 +154,11 @@ final readonly class RoleAssigner implements RoleAssignerInterface
      * @param AssetGroup $group     Group containing items to analyze
      * @param AssetItem  $canonical The canonical item (already handled separately)
      *
-     * @return array<string, true> Additional companion pathnames
+     * @return CompanionPathSet Additional companion pathnames
      */
-    private function detectSubgroupCompanions(AssetGroup $group, AssetItem $canonical): array
+    private function detectSubgroupCompanions(AssetGroup $group, AssetItem $canonical): CompanionPathSet
     {
-        /** @var array<string, true> $companions */
-        $companions = [];
+        $companions = new CompanionPathSet();
 
         /** @var array<string, true> $seenContentIds */
         $seenContentIds = [];
@@ -185,7 +185,7 @@ final readonly class RoleAssigner implements RoleAssignerInterface
 
             // Only stills can anchor a companion pair
             $detected = $this->companionDetector->detect($group, $item);
-            $companions += $detected;
+            $companions->merge($detected);
         }
 
         return $companions;
@@ -196,30 +196,26 @@ final readonly class RoleAssigner implements RoleAssignerInterface
      * item to its companions. Fallback date is only propagated when the canonical is
      * a still image (not video), while ambiguous timezone is propagated unconditionally.
      *
-     * @param AssetItem           $canonical      The canonical item
-     * @param array<string, true> $companionPaths Pathnames of detected companions
-     * @param PipelineContext     $context        Mutable pipeline state
+     * @param AssetItem        $canonical      The canonical item
+     * @param CompanionPathSet $companionPaths Pathnames of detected companions
+     * @param PipelineContext  $context        Mutable pipeline state
      */
     private function propagateQualityFlags(
         AssetItem $canonical,
-        array $companionPaths,
+        CompanionPathSet $companionPaths,
         PipelineContext $context,
     ): void {
-        if ($companionPaths === []) {
+        if ($companionPaths->isEmpty()) {
             return;
         }
 
         $canonicalPath    = $canonical->file->getPathname();
-        $canonicalIsStill = !in_array(
-            strtolower($canonical->file->getExtension()),
-            MediaTypeClassifier::VIDEO_EXTENSIONS,
-            true,
-        );
+        $canonicalIsStill = $this->mediaCompatibilityPolicy->isStillImage($canonical->file);
 
         $hasFallbackDate      = $canonicalIsStill && isset($context->getFallbackDateFiles()[$canonicalPath]);
         $hasAmbiguousTimezone = isset($context->getAmbiguousTimezoneFiles()[$canonicalPath]);
 
-        foreach (array_keys($companionPaths) as $companionPath) {
+        foreach ($companionPaths->toPathList() as $companionPath) {
             if ($hasFallbackDate) {
                 $context->addFallbackDateFile($companionPath);
             }
@@ -233,25 +229,25 @@ final readonly class RoleAssigner implements RoleAssignerInterface
     /**
      * Detects Live Photo companions that are in a different directory than their canonical.
      *
-     * @param AssetGroup          $group          Group with assigned roles
-     * @param AssetItem           $canonical      The canonical item
-     * @param array<string, true> $companionPaths Pathnames of all detected companions
-     * @param PipelineContext     $context        Mutable pipeline state
+     * @param AssetGroup       $group          Group with assigned roles
+     * @param AssetItem        $canonical      The canonical item
+     * @param CompanionPathSet $companionPaths Pathnames of all detected companions
+     * @param PipelineContext  $context        Mutable pipeline state
      */
     private function detectCrossDirectoryCompanions(
         AssetGroup $group,
         AssetItem $canonical,
-        array $companionPaths,
+        CompanionPathSet $companionPaths,
         PipelineContext $context,
     ): void {
-        if ($companionPaths === []) {
+        if ($companionPaths->isEmpty()) {
             return;
         }
 
         $canonicalDir = $canonical->file->getPath();
 
         foreach ($group->getItems() as $item) {
-            if (!isset($companionPaths[$item->file->getPathname()])) {
+            if (!$companionPaths->contains($item->file->getPathname())) {
                 continue;
             }
 

@@ -19,6 +19,7 @@ use function array_fill;
 use function array_pop;
 use function intdiv;
 use function max;
+use function min;
 use function round;
 use function sqrt;
 
@@ -51,77 +52,212 @@ final class LocalDifferenceAnalyzer
     private const int NOISE_THRESHOLD = 6;
 
     /**
-     * Set to true to re-enable the legacy blob analysis pipeline
-     * (mask → morphology → flood-fill → changedAreaRatio/hasCompactRetouch).
-     * Superseded by RMSE which is codec-agnostic and faster.
-     */
-    private bool $enableBlobAnalysis = false;
-
-    /**
      * Minimum blob area ratio to consider as a compact retouch.
      */
     private const float RETOUCH_BLOB_THRESHOLD = 0.001;
 
-    public function analyze(Imagick $imageA, Imagick $imageB): LocalDiffResult
+    /**
+     * Computes the grayscale Root Mean Square Error (RMSE) and the RGB chroma
+     * difference between two images using a fast path.
+     *
+     * This method is optimized for speed and does not perform the expensive
+     * blob analysis. It is primarily used for the initial screening of
+     * potential duplicates to quickly discard images that are clearly different.
+     *
+     * @param Imagick $imageA The first image to compare.
+     * @param Imagick $imageB The second image to compare.
+     *
+     * @return LocalDiffResult A result object containing the RMSE and chroma
+     *                         difference. Success is false if Imagick fails.
+     */
+    public function analyzeRmse(Imagick $imageA, Imagick $imageB): LocalDiffResult
     {
         try {
-            return $this->doAnalyze($imageA, $imageB);
+            [$grayA, $grayB, $totalPixels, , , $chromaDiff] = $this->exportPixelData($imageA, $imageB);
+
+            $rmse = $this->computeGrayscaleRmse($grayA, $grayB, $totalPixels);
+
+            return new LocalDiffResult($rmse, 0.0, 0.0, 0, false, chromaDifference: $chromaDiff);
         } catch (Throwable) {
-            // On failure, mark as unsuccessful so the merge gate can distinguish
-            // failure (should NOT merge) from a genuine perfect match (should merge).
             return new LocalDiffResult(0.0, 0.0, 0.0, 0, false, success: false);
         }
     }
 
-    private function doAnalyze(Imagick $imageA, Imagick $imageB): LocalDiffResult
+    /**
+     * Computes the grayscale RMSE and chroma difference, and performs a detailed
+     * legacy blob analysis to detect local retouches.
+     *
+     * This method is more resource-intensive as it identifies spatially coherent
+     * clusters of differences (blobs). It is used when a more precise decision
+     * is required, for example, to distinguish between simple compression noise
+     * and actual content modifications (like a blurred license plate).
+     *
+     * @param Imagick $imageA The first image to compare.
+     * @param Imagick $imageB The second image to compare.
+     *
+     * @return LocalDiffResult A detailed result object including RMSE, chroma
+     *                         difference, and blob statistics.
+     */
+    public function analyzeDetailed(Imagick $imageA, Imagick $imageB): LocalDiffResult
     {
-        // Downscale both to working resolution
-        $grayA = $this->downscaleGray($imageA);
-        $grayB = $this->downscaleGray($imageB);
+        try {
+            [$grayA, $grayB, $totalPixels, $width, $height, $chromaDiff] = $this->exportPixelData($imageA, $imageB);
 
-        $width  = $grayA->getImageWidth();
-        $height = $grayA->getImageHeight();
+            $rmse   = $this->computeGrayscaleRmse($grayA, $grayB, $totalPixels);
+            $result = $this->doLegacyBlobAnalysis($grayA, $grayB, $totalPixels, $width, $height, $rmse);
 
-        // Ensure same dimensions
-        if (($width !== $grayB->getImageWidth()) || ($height !== $grayB->getImageHeight())) {
-            $grayB->resizeImage($width, $height, Imagick::FILTER_TRIANGLE, 1.0, false);
+            return new LocalDiffResult(
+                $result->rmse,
+                $result->changedAreaRatio,
+                $result->largestBlobRatio,
+                $result->blobCount,
+                $result->hasCompactRetouch,
+                chromaDifference: $chromaDiff,
+            );
+        } catch (Throwable) {
+            return new LocalDiffResult(0.0, 0.0, 0.0, 0, false, success: false);
         }
+    }
 
-        // Export grayscale pixels
-        /** @var list<int> $pixelsA */
-        $pixelsA = $grayA->exportImagePixels(0, 0, $width, $height, 'I', Imagick::PIXEL_CHAR);
+    /**
+     * A backward-compatible entry point that delegates to the fast RMSE analysis.
+     *
+     * This method is kept to maintain compatibility with existing callers that
+     * don't require the detailed blob analysis by default.
+     *
+     * @param Imagick $imageA The first image to compare.
+     * @param Imagick $imageB The second image to compare.
+     *
+     * @return LocalDiffResult The result of the fast RMSE/chroma analysis.
+     */
+    public function analyze(Imagick $imageA, Imagick $imageB): LocalDiffResult
+    {
+        return $this->analyzeRmse($imageA, $imageB);
+    }
 
-        /** @var list<int> $pixelsB */
-        $pixelsB = $grayB->exportImagePixels(0, 0, $width, $height, 'I', Imagick::PIXEL_CHAR);
+    /**
+     * Downscales the images, exports pixel data, and prepares grayscale versions
+     * for calibrated RMSE calculation.
+     *
+     * The method performs several critical steps:
+     * 1. Downscales images to a manageable working size (WORK_SIZE).
+     * 2. Synchronizes dimensions between both images.
+     * 3. Exports RGB pixels to calculate the chroma difference.
+     * 4. Converts images to a calibrated grayscale (Rec.709) for RMSE computation.
+     *
+     * @param Imagick $imageA The first image to process.
+     * @param Imagick $imageB The second image to process.
+     *
+     * @return array{list<int>, list<int>, int, int, int, float} A tuple containing:
+     *                                                           - grayA: Grayscale pixels of image A
+     *                                                           - grayB: Grayscale pixels of image B
+     *                                                           - totalPixels: Total number of pixels
+     *                                                           - width: Working width
+     *                                                           - height: Working height
+     *                                                           - chromaDiff: Computed chroma difference
+     */
+    private function exportPixelData(Imagick $imageA, Imagick $imageB): array
+    {
+        $scaledA = $this->downscale($imageA);
+        $scaledB = null;
 
-        $grayA->clear();
-        $grayB->clear();
+        try {
+            $scaledB = $this->downscale($imageB);
 
-        $totalPixels = $width * $height;
+            $width  = $scaledA->getImageWidth();
+            $height = $scaledA->getImageHeight();
 
-        // Compute RMSE only — fast single-pass over pixel arrays
+            if (($width !== $scaledB->getImageWidth()) || ($height !== $scaledB->getImageHeight())) {
+                $scaledB->resizeImage($width, $height, Imagick::FILTER_TRIANGLE, 1.0, false);
+            }
+
+            $totalPixels = $width * $height;
+
+            // RGB export for chroma difference
+            /** @var list<int> $rgbA */
+            $rgbA = $scaledA->exportImagePixels(0, 0, $width, $height, 'RGB', Imagick::PIXEL_CHAR);
+
+            /** @var list<int> $rgbB */
+            $rgbB = $scaledB->exportImagePixels(0, 0, $width, $height, 'RGB', Imagick::PIXEL_CHAR);
+
+            $chromaDiff = $this->computeChromaDifference($rgbA, $rgbB, $totalPixels);
+
+            // Convert to Imagick grayscale in-place for calibrated RMSE
+            $scaledA->transformImageColorspace(Imagick::COLORSPACE_GRAY);
+            $scaledB->transformImageColorspace(Imagick::COLORSPACE_GRAY);
+
+            /** @var list<int> $grayA */
+            $grayA = $scaledA->exportImagePixels(0, 0, $width, $height, 'I', Imagick::PIXEL_CHAR);
+
+            /** @var list<int> $grayB */
+            $grayB = $scaledB->exportImagePixels(0, 0, $width, $height, 'I', Imagick::PIXEL_CHAR);
+
+            return [$grayA, $grayB, $totalPixels, $width, $height, $chromaDiff];
+        } finally {
+            $scaledA->clear();
+            $scaledB?->clear();
+        }
+    }
+
+    /**
+     * Computes RMSE normalized to 0.0–1.0 from two grayscale pixel arrays.
+     * Operates on Imagick COLORSPACE_GRAY output to preserve calibrated thresholds.
+     *
+     * @param list<int> $pixelsA Grayscale pixel values (1 per pixel)
+     * @param list<int> $pixelsB Grayscale pixel values (1 per pixel)
+     */
+    private function computeGrayscaleRmse(array $pixelsA, array $pixelsB, int $totalPixels): float
+    {
         $sumSquaredErr = 0.0;
 
-        for ($i = 0; $i < $totalPixels; ++$i) {
-            $diff = $pixelsA[$i] - $pixelsB[$i];
+        for ($pixelIndex = 0; $pixelIndex < $totalPixels; ++$pixelIndex) {
+            $diff = $pixelsA[$pixelIndex] - $pixelsB[$pixelIndex];
             $sumSquaredErr += $diff * $diff;
         }
 
-        // RMSE normalized to 0.0–1.0 (divide by 255 max pixel value)
-        $rmse = sqrt($sumSquaredErr / $totalPixels) / 255.0;
+        return sqrt($sumSquaredErr / $totalPixels) / 255.0;
+    }
 
-        // Legacy blob analysis — disabled for performance. Reactivate by
-        // setting ENABLE_BLOB_ANALYSIS to true if RMSE proves insufficient.
-        if ($this->enableBlobAnalysis) {
-            return $this->doLegacyBlobAnalysis($pixelsA, $pixelsB, $totalPixels, $width, $height, $rmse);
+    /**
+     * Computes the absolute difference in mean chroma energy between two images,
+     * normalized to 0.0–1.0. Chroma energy per pixel = max(R,G,B) - min(R,G,B):
+     * 0 for grayscale pixels, positive for colored pixels.
+     *
+     * Detects color→grayscale conversions: one image has high chroma energy,
+     * the other has near-zero → large difference. Codec conversions (HEIC→JPG)
+     * preserve chroma → near-zero difference.
+     *
+     * @param list<int> $pixelsA RGB pixel values (3 per pixel)
+     * @param list<int> $pixelsB RGB pixel values (3 per pixel)
+     */
+    private function computeChromaDifference(array $pixelsA, array $pixelsB, int $totalPixels): float
+    {
+        $sumA = 0.0;
+        $sumB = 0.0;
+
+        for ($pixelIndex = 0; $pixelIndex < $totalPixels; ++$pixelIndex) {
+            $offset = $pixelIndex * 3;
+
+            $rA = $pixelsA[$offset];
+            $gA = $pixelsA[$offset + 1];
+            $bA = $pixelsA[$offset + 2];
+            $sumA += max($rA, $gA, $bA) - min($rA, $gA, $bA);
+
+            $rB = $pixelsB[$offset];
+            $gB = $pixelsB[$offset + 1];
+            $bB = $pixelsB[$offset + 2];
+            $sumB += max($rB, $gB, $bB) - min($rB, $gB, $bB);
         }
 
-        return new LocalDiffResult($rmse, 0.0, 0.0, 0, false);
+        $meanChromaA = $sumA / $totalPixels;
+        $meanChromaB = $sumB / $totalPixels;
+
+        return abs($meanChromaA - $meanChromaB) / 255.0;
     }
 
     /**
      * Legacy blob analysis pipeline: binary mask → morphological opening → flood-fill.
-     * Superseded by RMSE. Kept behind ENABLE_BLOB_ANALYSIS flag for rollback.
+     * Superseded by RMSE. Kept for analyzeDetailed() which needs blob metrics.
      *
      * @param list<int> $pixelsA
      * @param list<int> $pixelsB
@@ -137,14 +273,14 @@ final class LocalDifferenceAnalyzer
         $mask         = [];
         $changedCount = 0;
 
-        for ($i = 0; $i < $totalPixels; ++$i) {
-            $absDiff = abs($pixelsA[$i] - $pixelsB[$i]);
+        for ($pixelIndex = 0; $pixelIndex < $totalPixels; ++$pixelIndex) {
+            $absDiff = abs($pixelsA[$pixelIndex] - $pixelsB[$pixelIndex]);
 
             if ($absDiff > self::NOISE_THRESHOLD) {
-                $mask[$i] = 1;
+                $mask[$pixelIndex] = 1;
                 ++$changedCount;
             } else {
-                $mask[$i] = 0;
+                $mask[$pixelIndex] = 0;
             }
         }
 
@@ -155,8 +291,8 @@ final class LocalDifferenceAnalyzer
         $mask         = $this->morphologicalOpen($mask, $width, $height);
         $changedCount = 0;
 
-        foreach ($mask as $v) {
-            $changedCount += $v;
+        foreach ($mask as $isChanged) {
+            $changedCount += $isChanged;
         }
 
         if ($changedCount === 0) {
@@ -179,9 +315,17 @@ final class LocalDifferenceAnalyzer
     }
 
     /**
-     * Downscales and converts to grayscale at working resolution.
+     * Downscales the given image to a working resolution (max WORK_SIZE)
+     * while preserving the original colorspace and aspect ratio.
+     *
+     * Using a fixed maximum dimension ensures consistent RMSE and blob analysis
+     * results regardless of the original image resolution (e.g., 12MP vs 48MP).
+     *
+     * @param Imagick $img The source image.
+     *
+     * @return Imagick A scaled-down clone of the image. The caller is responsible for clearing it.
      */
-    private function downscaleGray(Imagick $img): Imagick
+    private function downscale(Imagick $img): Imagick
     {
         $clone  = clone $img;
         $width  = $clone->getImageWidth();
@@ -197,8 +341,6 @@ final class LocalDifferenceAnalyzer
                 false,
             );
         }
-
-        $clone->transformImageColorspace(Imagick::COLORSPACE_GRAY);
 
         return $clone;
     }
@@ -221,9 +363,17 @@ final class LocalDifferenceAnalyzer
     }
 
     /**
-     * @param array<int, int> $mask
+     * Shrinks regions of set pixels (1) in the binary mask.
      *
-     * @return array<int, int>
+     * Part of the morphological opening. A pixel is only kept (1) if it has at
+     * least one 4-connected neighbor that is also set. This effectively removes
+     * isolated single-pixel 'islands' which are typical for JPEG compression artifacts.
+     *
+     * @param array<int, int> $mask   The binary mask to erode.
+     * @param int             $width  Width of the mask.
+     * @param int             $height Height of the mask.
+     *
+     * @return array<int, int> The eroded binary mask.
      */
     private function erode(array $mask, int $width, int $height): array
     {
@@ -231,21 +381,22 @@ final class LocalDifferenceAnalyzer
 
         for ($y = 0; $y < $height; ++$y) {
             for ($x = 0; $x < $width; ++$x) {
-                $idx = $y * $width + $x;
+                $pixelIndex = $y * $width + $x;
 
-                if ($mask[$idx] === 0) {
-                    $result[$idx] = 0;
+                if ($mask[$pixelIndex] === 0) {
+                    $result[$pixelIndex] = 0;
 
                     continue;
                 }
 
-                // Keep pixel only if it has at least one 4-connected neighbor
-                $hasNeighbor = (($x > 0) && ($mask[$idx - 1] === 1))
-                    || (($x < $width - 1) && ($mask[$idx + 1] === 1))
-                    || (($y > 0) && ($mask[$idx - $width] === 1))
-                    || (($y < $height - 1) && ($mask[$idx + $width] === 1));
-
-                $result[$idx] = $hasNeighbor ? 1 : 0;
+                $result[$pixelIndex] = $this->hasFourConnectedNeighbor(
+                    $mask,
+                    $width,
+                    $height,
+                    $x,
+                    $y,
+                    $pixelIndex,
+                ) ? 1 : 0;
             }
         }
 
@@ -253,9 +404,17 @@ final class LocalDifferenceAnalyzer
     }
 
     /**
-     * @param array<int, int> $mask
+     * Expands regions of set pixels (1) in the binary mask.
      *
-     * @return array<int, int>
+     * Part of the morphological opening. Sets a pixel to 1 if it or any of its
+     * 4-connected neighbors is already set to 1. This restores the size of
+     * regions that were slightly shrunk during the erosion step.
+     *
+     * @param array<int, int> $mask   The binary mask to dilate.
+     * @param int             $width  Width of the mask.
+     * @param int             $height Height of the mask.
+     *
+     * @return array<int, int> The dilated binary mask.
      */
     private function dilate(array $mask, int $width, int $height): array
     {
@@ -263,21 +422,22 @@ final class LocalDifferenceAnalyzer
 
         for ($y = 0; $y < $height; ++$y) {
             for ($x = 0; $x < $width; ++$x) {
-                $idx = $y * $width + $x;
+                $pixelIndex = $y * $width + $x;
 
-                if ($mask[$idx] === 1) {
-                    $result[$idx] = 1;
+                if ($mask[$pixelIndex] === 1) {
+                    $result[$pixelIndex] = 1;
 
                     continue;
                 }
 
-                // Set pixel if any 4-connected neighbor is set
-                $hasNeighbor = (($x > 0) && ($mask[$idx - 1] === 1))
-                    || (($x < $width - 1) && ($mask[$idx + 1] === 1))
-                    || (($y > 0) && ($mask[$idx - $width] === 1))
-                    || (($y < $height - 1) && ($mask[$idx + $width] === 1));
-
-                $result[$idx] = $hasNeighbor ? 1 : 0;
+                $result[$pixelIndex] = $this->hasFourConnectedNeighbor(
+                    $mask,
+                    $width,
+                    $height,
+                    $x,
+                    $y,
+                    $pixelIndex,
+                ) ? 1 : 0;
             }
         }
 
@@ -285,12 +445,36 @@ final class LocalDifferenceAnalyzer
     }
 
     /**
-     * Finds connected components via iterative flood-fill.
-     * Returns [blobCount, largestBlobArea].
+     * Checks whether a pixel has a set four-connected neighbor.
      *
-     * @param array<int, int> $mask
+     * @param array<int, int> $mask Binary mask where 1 marks a set pixel.
+     */
+    private function hasFourConnectedNeighbor(
+        array $mask,
+        int $width,
+        int $height,
+        int $x,
+        int $y,
+        int $pixelIndex,
+    ): bool {
+        return (($x > 0) && ($mask[$pixelIndex - 1] === 1))
+            || (($x < $width - 1) && ($mask[$pixelIndex + 1] === 1))
+            || (($y > 0) && ($mask[$pixelIndex - $width] === 1))
+            || (($y < $height - 1) && ($mask[$pixelIndex + $width] === 1));
+    }
+
+    /**
+     * Finds connected components (spatially coherent regions of difference) via iterative flood-fill (BFS).
      *
-     * @return array{int, int}
+     * This method identifies distinct 'blobs' of changed pixels and measures their size.
+     * The largest blob area is a strong indicator of localized manual editing (e.g.,
+     * blurring a face or license plate) versus global noise.
+     *
+     * @param array<int, int> $mask   Binary mask where 1 indicates a significant pixel difference.
+     * @param int             $width  Width of the mask.
+     * @param int             $height Height of the mask.
+     *
+     * @return array{int, int} Returns [blobCount, largestBlobArea].
      */
     private function findBlobs(array $mask, int $width, int $height): array
     {
@@ -299,62 +483,62 @@ final class LocalDifferenceAnalyzer
         $largestBlobArea = 0;
         $totalPixels     = $width * $height;
 
-        for ($i = 0; $i < $totalPixels; ++$i) {
-            if ($mask[$i] === 0) {
+        for ($pixelIndex = 0; $pixelIndex < $totalPixels; ++$pixelIndex) {
+            if ($mask[$pixelIndex] === 0) {
                 continue;
             }
 
-            if (isset($visited[$i])) {
+            if (isset($visited[$pixelIndex])) {
                 continue;
             }
 
             // BFS flood-fill from this pixel.
             // Mark visited on enqueue (not dequeue) to prevent duplicate queue entries.
-            $visited[$i] = true;
-            $queue       = [$i];
-            $area        = 0;
+            $visited[$pixelIndex] = true;
+            $queue                = [$pixelIndex];
+            $area                 = 0;
 
             while ($queue !== []) {
-                $idx = array_pop($queue);
+                $currentIndex = array_pop($queue);
                 ++$area;
 
-                $x = $idx % $width;
-                $y = intdiv($idx, $width);
+                $x = $currentIndex % $width;
+                $y = intdiv($currentIndex, $width);
 
                 // 4-connected neighbors — only enqueue if not yet visited
                 if ($x > 0) {
-                    $n = $idx - 1;
+                    $neighborIndex = $currentIndex - 1;
 
-                    if (!isset($visited[$n]) && ($mask[$n] === 1)) {
-                        $visited[$n] = true;
-                        $queue[]     = $n;
+                    if (!isset($visited[$neighborIndex]) && ($mask[$neighborIndex] === 1)) {
+                        $visited[$neighborIndex] = true;
+                        $queue[]                 = $neighborIndex;
                     }
                 }
 
                 if ($x < $width - 1) {
-                    $n = $idx + 1;
+                    $neighborIndex = $currentIndex + 1;
 
-                    if (!isset($visited[$n]) && ($mask[$n] === 1)) {
-                        $visited[$n] = true;
-                        $queue[]     = $n;
+                    if (!isset($visited[$neighborIndex]) && ($mask[$neighborIndex] === 1)) {
+                        $visited[$neighborIndex] = true;
+                        $queue[]                 = $neighborIndex;
                     }
                 }
 
                 if ($y > 0) {
-                    $n = $idx - $width;
+                    $neighborIndex = $currentIndex - $width;
 
-                    if (!isset($visited[$n]) && ($mask[$n] === 1)) {
-                        $visited[$n] = true;
-                        $queue[]     = $n;
+                    if (!isset($visited[$neighborIndex]) && ($mask[$neighborIndex] === 1)) {
+                        $visited[$neighborIndex] = true;
+                        $queue[]                 = $neighborIndex;
                     }
                 }
 
                 if ($y < $height - 1) {
-                    $n = $idx + $width;
+                    $neighborIndex = $currentIndex + $width;
 
-                    if (!isset($visited[$n]) && ($mask[$n] === 1)) {
-                        $visited[$n] = true;
-                        $queue[]     = $n;
+                    if (!isset($visited[$neighborIndex]) && ($mask[$neighborIndex] === 1)) {
+                        $visited[$neighborIndex] = true;
+                        $queue[]                 = $neighborIndex;
                     }
                 }
             }

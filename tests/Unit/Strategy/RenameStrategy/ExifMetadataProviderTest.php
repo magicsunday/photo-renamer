@@ -14,16 +14,18 @@ namespace MagicSunday\Renamer\Test\Unit\Strategy\RenameStrategy;
 use DateTimeImmutable;
 use DateTimeInterface;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
-use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\FilenameDateParser;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
+use MagicSunday\Renamer\Metadata\MetadataCache;
+use MagicSunday\Renamer\Metadata\MetadataCacheEntry;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
-use MagicSunday\Renamer\Service\MetadataCache;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
+use Symfony\Component\Filesystem\Filesystem;
 
 use function file_put_contents;
 use function is_dir;
@@ -51,14 +53,16 @@ use const DIRECTORY_SEPARATOR;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(ExifMetadataProvider::class)]
-#[UsesClass(FileHelper::class)]
+#[UsesClass(FilenameDateParser::class)]
 #[UsesClass(TemporalMetadata::class)]
 #[UsesClass(MetadataCache::class)]
+#[UsesClass(MetadataCacheEntry::class)]
 final class ExifMetadataProviderTest extends TestCase
 {
     /**
-     * Verifies that a TemporalMetadata with a capture date yields a DateTimeInterface
-     * with the correct date and microsecond precision preserved.
+     * Verifies that the capture timestamp is correctly extracted from the EXIF
+     * metadata. This ensures that the primary sorting and naming criterion
+     * (the capture time) is accurately preserved.
      */
     #[Test]
     public function itReturnsCaptureDateTime(): void
@@ -81,8 +85,9 @@ final class ExifMetadataProviderTest extends TestCase
     }
 
     /**
-     * Verifies that both getCaptureDateTime() and getContentIdentifier() return null
-     * when the metadata extractor has no response for the given file path.
+     * Verifies that both `getCaptureDateTime()` and `getContentIdentifier()`
+     * return null when no relevant metadata is found in the file. This is
+     * crucial for graceful fallbacks during the grouping phase.
      */
     #[Test]
     public function itReturnsNullWhenMetadataMissing(): void
@@ -97,8 +102,10 @@ final class ExifMetadataProviderTest extends TestCase
     }
 
     /**
-     * Verifies that a capture date with full microsecond precision (6 fractional
-     * digits) is preserved in the returned DateTimeInterface.
+     * Verifies that microsecond precision (up to 6 fractional digits) is
+     * preserved during extraction. This allows distinguishing between photos
+     * taken in rapid succession (burst mode) that would otherwise share
+     * the same timestamp.
      */
     #[Test]
     public function itPreservesMicrosecondPrecision(): void
@@ -187,7 +194,11 @@ final class ExifMetadataProviderTest extends TestCase
 
     /**
      * Verifies that when a persistent MetadataCache is set and contains a valid
-     * entry, the extractor is NOT called (cache hit skips extraction).
+     * entry, the extractor is NOT called.
+     *
+     * This test ensures that the provider correctly respects the persistent
+     * cache, skipping expensive metadata extraction via Exiftool if the
+     * data is already known from a previous run.
      */
     #[Test]
     public function itSkipsExtractionOnPersistentCacheHit(): void
@@ -207,7 +218,7 @@ final class ExifMetadataProviderTest extends TestCase
             $file = new SplFileInfo($filePath);
 
             // Pre-populate the persistent cache
-            $cache = new MetadataCache($cacheFile);
+            $cache = new MetadataCache($cacheFile, new Filesystem());
             $cache->set($file, new TemporalMetadata(
                 new DateTimeImmutable('2024-05-05T12:34:56+02:00'),
                 'uuid-1234',
@@ -215,7 +226,7 @@ final class ExifMetadataProviderTest extends TestCase
             $cache->flush();
 
             // Create a fresh cache instance that loads from disk
-            $freshCache = new MetadataCache($cacheFile);
+            $freshCache = new MetadataCache($cacheFile, new Filesystem());
 
             // The extractor should NOT be called — we verify by not registering a response
             $metadataExtractor = new StubMetadataExtractor();
@@ -244,7 +255,11 @@ final class ExifMetadataProviderTest extends TestCase
 
     /**
      * Verifies that on a persistent cache miss, the extractor is called and the
-     * result is stored in the persistent cache for future runs.
+     * result is stored in the persistent cache.
+     *
+     * This ensures that new files are correctly analyzed and their metadata
+     * is persisted, allowing subsequent runs or pairwise comparisons to
+     * benefit from the cached results.
      */
     #[Test]
     public function itStoresExtractionResultInPersistentCacheOnMiss(): void
@@ -272,7 +287,7 @@ final class ExifMetadataProviderTest extends TestCase
                 ),
             );
 
-            $cache    = new MetadataCache($cacheFile);
+            $cache    = new MetadataCache($cacheFile, new Filesystem());
             $provider = new ExifMetadataProvider($metadataExtractor);
             $provider->setCache($cache);
 
@@ -284,12 +299,12 @@ final class ExifMetadataProviderTest extends TestCase
             $cache->flush();
 
             // Load from disk — the entry should be present
-            $freshCache = new MetadataCache($cacheFile);
+            $freshCache = new MetadataCache($cacheFile, new Filesystem());
             $entry      = $freshCache->get($file);
 
             self::assertNotNull($entry);
-            self::assertSame('2024-08-20T15:00:00.000000+00:00', $entry['captureDateTime']);
-            self::assertSame('live-uuid', $entry['contentId']);
+            self::assertSame('2024-08-20T15:00:00.000000+00:00', $entry->getCaptureDateTime()?->format('Y-m-d\TH:i:s.uP'));
+            self::assertSame('live-uuid', $entry->getContentId());
         } finally {
             @unlink($filePath);
 
@@ -332,7 +347,7 @@ final class ExifMetadataProviderTest extends TestCase
                 ),
             );
 
-            $cache    = new MetadataCache($cacheFile);
+            $cache    = new MetadataCache($cacheFile, new Filesystem());
             $provider = new ExifMetadataProvider($metadataExtractor);
             $provider->setCache($cache);
 
@@ -362,8 +377,12 @@ final class ExifMetadataProviderTest extends TestCase
     }
 
     /**
-     * Verifies that hasReliableDateTime returns true when raw metadata matches
-     * the filename date, even though isAmbiguousTimezone is true.
+     * Verifies that `hasReliableDateTime()` returns true when raw metadata matches
+     * the filename date, even if the timezone is marked as ambiguous.
+     *
+     * For some video formats, the timezone is uncertain, but if the local time
+     * in the filename matches the UTC time in the metadata, we assume the
+     * date is reliable enough for naming.
      */
     #[Test]
     public function hasReliableDateTimeReturnsTrueWhenRawMatchesFilename(): void
@@ -392,8 +411,12 @@ final class ExifMetadataProviderTest extends TestCase
     }
 
     /**
-     * Verifies that hasReliableDateTime returns false when ambiguous and raw
-     * does NOT match the filename date.
+     * Verifies that `hasReliableDateTime()` returns false when the timezone is
+     * ambiguous and the raw metadata does NOT match the filename date.
+     *
+     * If the filename says one thing and the metadata says another (e.g. shifted
+     * by a few hours), and the timezone is already marked as unreliable, we
+     * cannot trust the date for renaming without user intervention or fallback.
      */
     #[Test]
     public function hasReliableDateTimeReturnsFalseWhenAmbiguousAndMismatch(): void

@@ -36,7 +36,10 @@ final readonly class ExecutionPlan
     }
 
     /**
-     * Returns the total number of groups in the plan.
+     * Returns the total number of groups in the plan. Each group represents
+     * one unique capture (potentially with companions and duplicates).
+     *
+     * @return int<0, max>
      */
     public function groupCount(): int
     {
@@ -45,6 +48,9 @@ final readonly class ExecutionPlan
 
     /**
      * Returns the number of groups that contain Live Photo companions.
+     * This is used to display specific statistics for Live Photo processing.
+     *
+     * @return int<0, max>
      */
     public function livePhotoGroupCount(): int
     {
@@ -57,7 +63,10 @@ final readonly class ExecutionPlan
     }
 
     /**
-     * Returns the total number of items across all groups.
+     * Returns the total number of individual items across all groups.
+     * Includes originals, companions, and all duplicates.
+     *
+     * @return int<0, max>
      */
     public function totalItemCount(): int
     {
@@ -71,7 +80,10 @@ final readonly class ExecutionPlan
     }
 
     /**
-     * Returns the number of items where isExecutable is true.
+     * Returns the number of items that are actually eligible for movement or renaming.
+     * This count excludes items that are already at the target or are blocked.
+     *
+     * @return int<0, max>
      */
     public function executableItemCount(): int
     {
@@ -89,8 +101,10 @@ final readonly class ExecutionPlan
     }
 
     /**
-     * Returns the number of non-executable items that are not no-ops
-     * (i.e. items blocked from execution with a reason).
+     * Returns the number of items that are NOT executable (blocked), excluding no-ops.
+     * These are items that require attention (e.g., naming collisions).
+     *
+     * @return int<0, max>
      */
     public function nonExecutableItemCount(): int
     {
@@ -108,7 +122,10 @@ final readonly class ExecutionPlan
     }
 
     /**
-     * Returns the number of items where isNoOp is true.
+     * Returns the number of items that are already at their target location.
+     * These items do not require any file operation.
+     *
+     * @return int<0, max>
      */
     public function noOpItemCount(): int
     {

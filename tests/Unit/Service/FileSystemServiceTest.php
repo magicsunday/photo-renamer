@@ -13,23 +13,54 @@ namespace MagicSunday\Renamer\Test\Unit\Service;
 
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\Collection\FileList;
 use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\LinkConfig;
+use MagicSunday\Renamer\Model\OutputEntry;
 use MagicSunday\Renamer\Model\OutputEntryTag;
+use MagicSunday\Renamer\Model\OutputEntryType;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
+use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
+use MagicSunday\Renamer\Service\Filesystem\FileCollector;
+use MagicSunday\Renamer\Service\Filesystem\LegacyRenameExecutor;
+use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
+use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
 use MagicSunday\Renamer\Service\FileSystemService;
+use MagicSunday\Renamer\Service\Output\DiffHighlighter;
+use MagicSunday\Renamer\Service\Output\DiffTokenState;
+use MagicSunday\Renamer\Service\Output\OutputCounters;
+use MagicSunday\Renamer\Service\Output\OutputEntryBuildResult;
+use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
+use MagicSunday\Renamer\Service\Output\OutputEntryTagResolution;
+use MagicSunday\Renamer\Service\Output\OutputSkipFlags;
+use MagicSunday\Renamer\Service\Output\OutputSkipReason;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecision;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\CandidateOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\DefaultOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\FallbackOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\ReviewOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\WarningOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSummaryRowBuilder;
+use MagicSunday\Renamer\Service\Output\PathPrefixSplit;
+use MagicSunday\Renamer\Service\Output\RenameSummaryCounters;
+use MagicSunday\Renamer\Service\Output\SkippedFileAppendResult;
+use MagicSunday\Renamer\Service\Output\SkipReasonFormatter;
+use MagicSunday\Renamer\Service\Output\SummaryRow;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
+use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
+use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
+use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
-use ReflectionMethod;
 use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Console\Helper\ProgressBar;
@@ -41,7 +72,6 @@ use Symfony\Component\Filesystem\Exception\IOException;
 use function file_get_contents;
 use function file_put_contents;
 use function mkdir;
-use function sprintf;
 use function str_replace;
 use function sys_get_temp_dir;
 use function uniqid;
@@ -69,11 +99,41 @@ use const DIRECTORY_SEPARATOR;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
+#[UsesClass(PathHelper::class)]
 #[UsesClass(FileHelper::class)]
+#[UsesClass(ExecutionPlanExecutor::class)]
+#[UsesClass(FileCollector::class)]
+#[UsesClass(LegacyRenameExecutor::class)]
+#[UsesClass(RuntimeFileMoveExecutor::class)]
+#[UsesClass(RuntimeCollisionPathAllocator::class)]
 #[UsesClass(FileList::class)]
 #[UsesClass(RenameList::class)]
 #[UsesClass(LinkConfig::class)]
+#[UsesClass(OutputEntry::class)]
 #[UsesClass(OutputEntryTag::class)]
+#[UsesClass(OutputEntryType::class)]
+#[UsesClass(DiffHighlighter::class)]
+#[UsesClass(DiffTokenState::class)]
+#[UsesClass(OutputCounters::class)]
+#[UsesClass(OutputEntryBuildResult::class)]
+#[UsesClass(OutputEntryPresenter::class)]
+#[UsesClass(OutputEntryTagResolution::class)]
+#[UsesClass(OutputSkipFlags::class)]
+#[UsesClass(PathPrefixSplit::class)]
+#[UsesClass(OutputSkipReason::class)]
+#[UsesClass(OutputSkipReasonDecider::class)]
+#[UsesClass(OutputSkipReasonDecision::class)]
+#[UsesClass(CandidateOutputSkipReasonRule::class)]
+#[UsesClass(DefaultOutputSkipReasonRule::class)]
+#[UsesClass(FallbackOutputSkipReasonRule::class)]
+#[UsesClass(ReviewOutputSkipReasonRule::class)]
+#[UsesClass(WarningOutputSkipReasonRule::class)]
+#[UsesClass(OutputSummaryRowBuilder::class)]
+#[UsesClass(RenameSummaryCounters::class)]
+#[UsesClass(SkipReasonFormatter::class)]
+#[UsesClass(SkippedFileAppendResult::class)]
+#[UsesClass(SummaryRow::class)]
+#[UsesClass(ConsoleProgressReporter::class)]
 final class FileSystemServiceTest extends TestCase
 {
     use WorkspaceTrait;
@@ -216,8 +276,8 @@ final class FileSystemServiceTest extends TestCase
         $logPosition = strpos($normalized, '[R]');
         self::assertNotFalse($logPosition);
 
-        $relativeSource = FileHelper::relativizePath($sourceFile, $sourceDirectory);
-        $relativeTarget = FileHelper::relativizePath($targetFile, $sourceDirectory);
+        $relativeSource = PathHelper::relativizePath($sourceFile, $sourceDirectory);
+        $relativeTarget = PathHelper::relativizePath($targetFile, $sourceDirectory);
 
         self::assertStringContainsString($relativeSource, $normalized);
         self::assertStringContainsString($relativeTarget, $normalized);
@@ -258,8 +318,8 @@ final class FileSystemServiceTest extends TestCase
 
         $buffer = $output->fetch();
 
-        $relativeSource = FileHelper::relativizePath($sourceFile, $directory);
-        $relativeTarget = FileHelper::relativizePath($targetFile, $directory);
+        $relativeSource = PathHelper::relativizePath($sourceFile, $directory);
+        $relativeTarget = PathHelper::relativizePath($targetFile, $directory);
 
         self::assertStringContainsString($relativeSource, $buffer);
         self::assertStringContainsString($relativeTarget, $buffer);
@@ -307,12 +367,12 @@ final class FileSystemServiceTest extends TestCase
 
         $buffer = $output->fetch();
 
-        $relativeCanonicalSource = FileHelper::relativizePath($canonicalPath, $directory);
-        $relativeCanonicalTarget = FileHelper::relativizePath($canonicalPath, $directory);
-        $relativeRenameSource    = FileHelper::relativizePath($renameSource, $directory);
-        $relativeDuplicateSource = FileHelper::relativizePath($duplicateSource, $directory);
-        $relativeRenameTarget    = FileHelper::relativizePath($renameTarget, $directory);
-        $relativeDuplicateTarget = FileHelper::relativizePath($duplicateTarget, $directory);
+        $relativeCanonicalSource = PathHelper::relativizePath($canonicalPath, $directory);
+        $relativeCanonicalTarget = PathHelper::relativizePath($canonicalPath, $directory);
+        $relativeRenameSource    = PathHelper::relativizePath($renameSource, $directory);
+        $relativeDuplicateSource = PathHelper::relativizePath($duplicateSource, $directory);
+        $relativeRenameTarget    = PathHelper::relativizePath($renameTarget, $directory);
+        $relativeDuplicateTarget = PathHelper::relativizePath($duplicateTarget, $directory);
 
         self::assertStringContainsString('[O] ' . $relativeCanonicalSource, $buffer);
         self::assertStringContainsString('[R] ' . $relativeRenameSource, $buffer);
@@ -568,36 +628,6 @@ final class FileSystemServiceTest extends TestCase
     }
 
     /**
-     * Verifies that findAvailableDuplicatePath() throws a RuntimeException when
-     * all 999 possible -duplicate-NNN suffixes are occupied in the occupiedPaths set.
-     *
-     * This is the safety limit preventing infinite suffix searches. The exception
-     * message includes the base name to aid debugging.
-     */
-    #[Test]
-    public function findAvailableDuplicatePathThrowsWhenMaxSuffixExceeded(): void
-    {
-        [$service] = $this->createService();
-
-        $targetPath = '/tmp/dir/photo.jpg';
-
-        // Build occupiedPaths that block every suffix from 001..999
-        /** @var array<string, true> $occupiedPaths */
-        $occupiedPaths = [];
-
-        for ($i = 1; $i <= 999; ++$i) {
-            $occupiedPaths[sprintf('/tmp/dir/photo%s%03d.jpg', Constants::DUPLICATE_IDENTIFIER, $i)] = true;
-        }
-
-        $method = new ReflectionMethod($service, 'findAvailableDuplicatePath');
-
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Exceeded 999 attempts finding available target for "photo"');
-
-        $method->invoke($service, $targetPath, $occupiedPaths);
-    }
-
-    /**
      * Verifies that when two renames in the same batch target the same path, the
      * second file is automatically redirected to a -duplicate-NNN fallback path
      * instead of overwriting the first.
@@ -662,80 +692,6 @@ final class FileSystemServiceTest extends TestCase
 
         self::assertFileExists($fallbackTarget);
         self::assertSame('content-B', file_get_contents($fallbackTarget));
-    }
-
-    /**
-     * Verifies that findAvailableDuplicatePath() strips an existing -duplicate-NNN
-     * suffix from the basename before generating a new one, preventing nested suffixes
-     * like "photo-duplicate-003-duplicate-001.jpg".
-     *
-     * When the runtime collision fallback is triggered for a target that already carries
-     * a -duplicate-NNN suffix (e.g. because the planning phase assigned it), the method
-     * must produce "photo-duplicate-001.jpg" instead of stacking another suffix.
-     */
-    #[Test]
-    public function findAvailableDuplicatePathStripsDuplicateSuffixBeforeGeneratingNew(): void
-    {
-        [$service] = $this->createService();
-
-        $targetPath = '/tmp/dir/photo' . Constants::DUPLICATE_IDENTIFIER . '003.jpg';
-
-        // The unsuffixed "photo-duplicate-001.jpg" is free, so it should be selected.
-        /** @var array<string, true> $occupiedPaths */
-        $occupiedPaths = [
-            $targetPath => true,
-        ];
-
-        $method = new ReflectionMethod($service, 'findAvailableDuplicatePath');
-
-        /** @var string $result */
-        $result = $method->invoke($service, $targetPath, $occupiedPaths);
-
-        // The result should be "photo-duplicate-001.jpg", NOT "photo-duplicate-003-duplicate-001.jpg"
-        self::assertSame(
-            '/tmp/dir/photo' . Constants::DUPLICATE_IDENTIFIER . '001.jpg',
-            $result,
-        );
-
-        // Verify no nested -duplicate- pattern exists
-        self::assertDoesNotMatchRegularExpression(
-            '/-duplicate-\d+-duplicate-/',
-            $result,
-            'Must not produce nested duplicate suffixes',
-        );
-    }
-
-    /**
-     * Verifies that findAvailableDuplicatePath() skips occupied suffix numbers and
-     * returns the first available one after stripping the existing suffix.
-     *
-     * When "photo-duplicate-001.jpg" is occupied, the method should try 002, 003, etc.
-     * until finding a free slot, all based on the stripped basename "photo".
-     */
-    #[Test]
-    public function findAvailableDuplicatePathSkipsOccupiedSuffixesAfterStripping(): void
-    {
-        [$service] = $this->createService();
-
-        $targetPath = '/tmp/dir/photo' . Constants::DUPLICATE_IDENTIFIER . '005.jpg';
-
-        // Block suffix 001 and 002 to force the method to find 003.
-        /** @var array<string, true> $occupiedPaths */
-        $occupiedPaths = [
-            $targetPath                                                    => true,
-            '/tmp/dir/photo' . Constants::DUPLICATE_IDENTIFIER . '001.jpg' => true,
-            '/tmp/dir/photo' . Constants::DUPLICATE_IDENTIFIER . '002.jpg' => true,
-        ];
-
-        $method = new ReflectionMethod($service, 'findAvailableDuplicatePath');
-
-        /** @var string $result */
-        $result = $method->invoke($service, $targetPath, $occupiedPaths);
-
-        self::assertSame(
-            '/tmp/dir/photo' . Constants::DUPLICATE_IDENTIFIER . '003.jpg',
-            $result,
-        );
     }
 
     /**
@@ -813,9 +769,9 @@ final class FileSystemServiceTest extends TestCase
             }
         };
 
-        $renderer = new RenameOutputRenderer($io);
+        $renderer = OutputRendererFactory::create($io);
 
-        return [new FileSystemService($io, $renderer), $output, $io];
+        return [FileSystemServiceFactory::create($renderer, $io), $output, $io];
     }
 
     private function createFileDuplicateCollection(

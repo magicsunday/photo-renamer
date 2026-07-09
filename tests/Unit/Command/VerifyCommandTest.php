@@ -15,16 +15,44 @@ use DateTimeImmutable;
 use DateTimeZone;
 use MagicSunday\Renamer\Command\VerifyCommand;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
+use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\FilenameDateParser;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
+use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
+use MagicSunday\Renamer\Metadata\MetadataCache;
+use MagicSunday\Renamer\Metadata\MetadataCacheEntry;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Regex\RegexMatchResult;
 use MagicSunday\Renamer\Regex\SafeRegex;
+use MagicSunday\Renamer\Service\DateDriftAnalyzer;
+use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
+use MagicSunday\Renamer\Service\Filesystem\FileCollector;
+use MagicSunday\Renamer\Service\Filesystem\LegacyRenameExecutor;
+use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
-use MagicSunday\Renamer\Service\MetadataCache;
+use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\CandidateOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\DefaultOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\FallbackOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\ReviewOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\WarningOutputSkipReasonRule;
+use MagicSunday\Renamer\Service\Output\SummaryRow;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
+use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
+use MagicSunday\Renamer\Service\Verify\LivePhotoCompletenessAnalyzer;
+use MagicSunday\Renamer\Service\Verify\LivePhotoContentIdMap;
+use MagicSunday\Renamer\Service\Verify\LivePhotoContentIdObservation;
+use MagicSunday\Renamer\Service\Verify\MetadataIssueScanner;
+use MagicSunday\Renamer\Service\Verify\VerifyCategorySection;
+use MagicSunday\Renamer\Service\Verify\VerifyDetailEntryFormatter;
+use MagicSunday\Renamer\Service\Verify\VerifyReportFormatter;
+use MagicSunday\Renamer\Service\Verify\VerifyScanResult;
+use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
+use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -36,6 +64,7 @@ use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Tester\CommandTester;
+use Symfony\Component\Filesystem\Filesystem;
 
 use function file_put_contents;
 use function unlink;
@@ -52,15 +81,41 @@ use const DIRECTORY_SEPARATOR;
  */
 #[CoversClass(VerifyCommand::class)]
 #[UsesClass(RecursiveRegexFileFilterIterator::class)]
+#[UsesClass(DateDriftCalculator::class)]
 #[UsesClass(FileHelper::class)]
+#[UsesClass(FilenameDateParser::class)]
+#[UsesClass(PathHelper::class)]
 #[UsesClass(ExifMetadataProvider::class)]
 #[UsesClass(TemporalMetadata::class)]
 #[UsesClass(RegexMatchResult::class)]
 #[UsesClass(SafeRegex::class)]
+#[UsesClass(DateDriftAnalyzer::class)]
 #[UsesClass(FileSystemService::class)]
 #[UsesClass(MediaTypeClassifier::class)]
 #[UsesClass(MetadataCache::class)]
+#[UsesClass(MetadataCacheEntry::class)]
 #[UsesClass(RenameOutputRenderer::class)]
+#[UsesClass(ExecutionPlanExecutor::class)]
+#[UsesClass(FileCollector::class)]
+#[UsesClass(LegacyRenameExecutor::class)]
+#[UsesClass(RuntimeFileMoveExecutor::class)]
+#[UsesClass(OutputEntryPresenter::class)]
+#[UsesClass(OutputSkipReasonDecider::class)]
+#[UsesClass(CandidateOutputSkipReasonRule::class)]
+#[UsesClass(DefaultOutputSkipReasonRule::class)]
+#[UsesClass(FallbackOutputSkipReasonRule::class)]
+#[UsesClass(ReviewOutputSkipReasonRule::class)]
+#[UsesClass(WarningOutputSkipReasonRule::class)]
+#[UsesClass(ConsoleProgressReporter::class)]
+#[UsesClass(SummaryRow::class)]
+#[UsesClass(LivePhotoCompletenessAnalyzer::class)]
+#[UsesClass(LivePhotoContentIdMap::class)]
+#[UsesClass(LivePhotoContentIdObservation::class)]
+#[UsesClass(MetadataIssueScanner::class)]
+#[UsesClass(VerifyCategorySection::class)]
+#[UsesClass(VerifyDetailEntryFormatter::class)]
+#[UsesClass(VerifyReportFormatter::class)]
+#[UsesClass(VerifyScanResult::class)]
 final class VerifyCommandTest extends TestCase
 {
     use WorkspaceTrait;
@@ -77,7 +132,8 @@ final class VerifyCommandTest extends TestCase
     }
 
     /**
-     * Verifies that an invalid source directory returns FAILURE.
+     * Verifies that the command fails with an appropriate exit code when
+     * the provided source directory does not exist.
      */
     #[Test]
     public function executeFailsForNonExistentDirectory(): void
@@ -92,7 +148,8 @@ final class VerifyCommandTest extends TestCase
     }
 
     /**
-     * Verifies that an empty directory produces a clean summary with zero scanned files.
+     * Verifies that processing an empty directory results in a successful
+     * execution with a summary showing zero files were scanned.
      */
     #[Test]
     public function executeWithEmptyDirectoryProducesCleanSummary(): void
@@ -117,7 +174,8 @@ final class VerifyCommandTest extends TestCase
     }
 
     /**
-     * Verifies that an unrecognized file extension is reported in the filetype category.
+     * Verifies that files with unsupported or unknown extensions (like .txt)
+     * are correctly identified and listed in the "unrecognized" category.
      */
     #[Test]
     public function executeReportsUnrecognizedFileType(): void
@@ -145,7 +203,8 @@ final class VerifyCommandTest extends TestCase
     }
 
     /**
-     * Verifies that a file whose metadata cannot be read is reported in the error category.
+     * Verifies that files causing a metadata extraction error (e.g. corrupt files)
+     * are caught and listed in the dedicated "Metadata read errors" section.
      */
     #[Test]
     public function executeReportsMetadataReadError(): void
@@ -179,7 +238,8 @@ final class VerifyCommandTest extends TestCase
     }
 
     /**
-     * Verifies that a file with no metadata is reported in the nodata category.
+     * Verifies that files that can be read but contain no usable metadata (like
+     * screenshots without EXIF) are reported in the "No metadata" section.
      */
     #[Test]
     public function executeReportsNoMetadata(): void
@@ -210,7 +270,8 @@ final class VerifyCommandTest extends TestCase
     }
 
     /**
-     * Verifies that a file with ambiguous timezone is reported.
+     * Verifies that files with ambiguous timezones (dates that could belong to multiple
+     * UTC offsets depending on the local time) are flagged for manual review.
      */
     #[Test]
     public function executeReportsAmbiguousTimezone(): void
@@ -249,7 +310,52 @@ final class VerifyCommandTest extends TestCase
     }
 
     /**
-     * Verifies that the --show filter limits output to selected categories.
+     * Verifies that date drift in verify mode uses calendar-day semantics instead
+     * of elapsed 24-hour intervals.
+     *
+     * The filename timestamp lies late on January 15, while the metadata falls
+     * shortly after midnight on January 17. Elapsed-time drift is still only one
+     * full day, but calendar-day drift is two days, so verify mode must report a
+     * drift when the threshold is set to one day.
+     */
+    #[Test]
+    public function executeReportsCalendarDayDriftBeyondElapsedDays(): void
+    {
+        $workspace = $this->createWorkspace();
+        $jpgPath   = $workspace . DIRECTORY_SEPARATOR . '2024-01-15_23-30-00.jpg';
+        file_put_contents($jpgPath, 'photo-data');
+
+        try {
+            $metadataExtractor = new StubMetadataExtractor();
+            $metadataExtractor->withResponse(
+                $jpgPath,
+                new TemporalMetadata(
+                    new DateTimeImmutable('2024-01-17T00:15:00+00:00'),
+                    null,
+                ),
+            );
+
+            $command  = $this->createCommand($metadataExtractor);
+            $tester   = new CommandTester($command);
+            $exitCode = $tester->execute([
+                'source'           => $workspace,
+                '--max-date-drift' => '1',
+            ]);
+
+            self::assertSame(Command::SUCCESS, $exitCode);
+
+            $output = $tester->getDisplay();
+            self::assertStringContainsString('Date drift', $output);
+            self::assertStringContainsString('2024-01-15_23-30-00.jpg', $output);
+        } finally {
+            @unlink($jpgPath);
+            $this->cleanupWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Verifies that the "--show" filter correctly limits the output to the specified
+     * categories (e.g. only showing errors 'E' and skipping 'S').
      */
     #[Test]
     public function executeShowFilterLimitsOutput(): void
@@ -295,7 +401,8 @@ final class VerifyCommandTest extends TestCase
     }
 
     /**
-     * Verifies that a Live Photo without its companion is reported.
+     * Verifies that orphaned Live Photo components (e.g. a still image without
+     * its paired video) are detected and flagged in the output.
      */
     #[Test]
     public function executeReportsMissingLivePhotoCompanion(): void
@@ -333,7 +440,8 @@ final class VerifyCommandTest extends TestCase
     }
 
     /**
-     * Verifies that a complete Live Photo pair (still + video) is NOT reported as missing.
+     * Verifies that complete Live Photo pairs (still + video) are recognized
+     * as valid and do not trigger any warnings or errors.
      */
     #[Test]
     public function executeDoesNotReportCompleteLivePhotoPair(): void
@@ -380,7 +488,8 @@ final class VerifyCommandTest extends TestCase
     }
 
     /**
-     * Verifies that the summary always appears and counts are correct.
+     * Verifies that the numeric counts in the final summary accurately reflect
+     * the sum of entries listed in each detailed category.
      */
     #[Test]
     public function executeSummaryCountsMatchCategoryCounts(): void
@@ -566,14 +675,18 @@ final class VerifyCommandTest extends TestCase
         $metadataExtractor ??= new StubMetadataExtractor();
         $metadataProvider    = new ExifMetadataProvider($metadataExtractor);
         $mediaTypeClassifier = new MediaTypeClassifier();
-        $renderer            = new RenameOutputRenderer($style);
-        $fileSystemService   = new FileSystemService($style, $renderer);
+        $renderer            = OutputRendererFactory::create($style);
+        $fileSystemService   = FileSystemServiceFactory::create($renderer, $style);
 
         return new VerifyCommand(
             $metadataProvider,
-            $mediaTypeClassifier,
             $fileSystemService,
             $renderer,
+            new Filesystem(),
+            new VerifyDetailEntryFormatter(),
+            new MetadataIssueScanner($metadataProvider, new DateDriftAnalyzer(), $mediaTypeClassifier),
+            new LivePhotoCompletenessAnalyzer(),
+            new VerifyReportFormatter(),
         );
     }
 }

@@ -37,14 +37,19 @@ final readonly class SafeRegex
 {
     /**
      * Executes a regular expression operation while converting PHP warnings into exceptions.
+     * This ensures that any logic error in the regex (like invalid syntax) is caught
+     * as a typed exception rather than a silent warning.
      *
      * @template T
      *
-     * @param callable(): T $operation callback that performs the actual regular expression work
-     * @param string        $pattern   regular expression pattern applied by the callback
-     * @param string        $context   short description inserted into error messages
+     * @param callable(): T $operation Callback that performs the actual regular expression work.
+     * @param string        $pattern   The regular expression pattern applied by the callback.
+     * @param string        $context   Short description inserted into error messages to identify
+     *                                 where the failure occurred (e.g., "executing preg_match").
      *
-     * @return T result of the executed operation
+     * @return T The result of the executed operation.
+     *
+     * @throws RegexExecutionException If the regex operation fails or triggers a warning.
      */
     private function execute(callable $operation, string $pattern, string $context): mixed
     {
@@ -65,12 +70,15 @@ final readonly class SafeRegex
 
     /**
      * Wrapper for {@see preg_replace()} that converts warnings into exceptions.
+     * Replaces occurrences of the pattern in the subject with the replacement string.
      *
-     * @param string $pattern     regular expression pattern to search for
-     * @param string $replacement replacement string used when the pattern matches
-     * @param string $subject     input string being modified
+     * @param string $pattern     The regular expression pattern to search for.
+     * @param string $replacement The replacement string used when the pattern matches.
+     * @param string $subject     The input string being modified.
      *
-     * @return string resulting string after replacements
+     * @return string The resulting string after all replacements have been applied.
+     *
+     * @throws RegexExecutionException If the replacement fails (e.g., due to backtracking limits).
      */
     public function replace(string $pattern, string $replacement, string $subject): string
     {
@@ -97,13 +105,16 @@ final readonly class SafeRegex
 
     /**
      * Wrapper for {@see preg_replace_callback()} that converts warnings into exceptions.
+     * Invokes the given callback for each match to determine the replacement string.
      *
-     * @param string                                      $pattern            regular expression pattern to search for
-     * @param callable(array<int|string, string>): string $callback           callback invoked for each match
-     * @param string                                      $subject            input string being modified
-     * @param string                                      $contextDescription description inserted into error messages on failure
+     * @param string                                      $pattern            The regular expression pattern to search for.
+     * @param callable(array<int|string, string>): string $callback           The callback invoked for each match.
+     * @param string                                      $subject            The input string being modified.
+     * @param string                                      $contextDescription Description inserted into error messages on failure.
      *
-     * @return string resulting string after replacements
+     * @return string The resulting string after replacements.
+     *
+     * @throws RegexExecutionException If the operation fails.
      */
     public function replaceCallback(string $pattern, callable $callback, string $subject, string $contextDescription): string
     {
@@ -131,12 +142,15 @@ final readonly class SafeRegex
 
     /**
      * Wrapper for {@see preg_match()} that converts warnings into exceptions.
+     * Performs a single match and returns a result object containing the captured data.
      *
-     * @param string $pattern            regular expression pattern to search for
-     * @param string $subject            input string being matched
-     * @param string $contextDescription description inserted into error messages on failure
+     * @param string $pattern            The regular expression pattern to search for.
+     * @param string $subject            The input string to search within.
+     * @param string $contextDescription Description inserted into error messages on failure.
      *
-     * @return RegexMatchResult captured matches indexed by offsets
+     * @return RegexMatchResult Captured matches indexed by offsets.
+     *
+     * @throws RegexExecutionException If the matching operation fails.
      */
     public function match(string $pattern, string $subject, string $contextDescription): RegexMatchResult
     {
@@ -165,12 +179,15 @@ final readonly class SafeRegex
 
     /**
      * Wrapper for {@see preg_match_all()} that converts warnings into exceptions.
+     * Performs a global search and returns all matches in a nested structure.
      *
-     * @param string $pattern            regular expression pattern to search for
-     * @param string $subject            input string being matched
-     * @param string $contextDescription description inserted into error messages on failure
+     * @param string $pattern            The regular expression pattern to search for.
+     * @param string $subject            The input string to search within.
+     * @param string $contextDescription Description inserted into error messages on failure.
      *
-     * @return RegexMatchAllResult captured matches grouped by pattern index
+     * @return RegexMatchAllResult Captured matches grouped by pattern index.
+     *
+     * @throws RegexExecutionException If the matching operation fails.
      */
     public function matchAll(string $pattern, string $subject, string $contextDescription): RegexMatchAllResult
     {

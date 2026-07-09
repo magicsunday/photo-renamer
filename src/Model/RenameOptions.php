@@ -12,9 +12,12 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Model;
 
 /**
- * Immutable value object carrying all user-supplied configuration options
- * for a single in-place rename execution. Passed through the entire pipeline
- * from command input parsing down to the file system service.
+ * Represents the configuration options for a renaming operation.
+ *
+ * This immutable value object carries all user-supplied settings gathered from
+ * the command-line interface. It is passed throughout the entire pipeline
+ * to ensure that all processing steps (grouping, naming, execution, and output)
+ * respect the same set of configuration rules.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -23,10 +26,18 @@ namespace MagicSunday\Renamer\Model;
 final readonly class RenameOptions
 {
     /**
-     * @param bool        $dryRun              When true, renames are simulated without touching the file system
-     * @param bool        $listAll             When true, all files are listed in output including unchanged ones
-     * @param string|null $sourceBaseDirectory Absolute path to the directory scanned for source files
-     * @param int|null    $maxDateDrift        Maximum allowed date drift in days (0 = disabled, null = disabled)
+     * @param bool        $dryRun              If true, the operation is simulated,
+     *                                         and no changes are made to the
+     *                                         file system.
+     * @param bool        $listAll             If true, all processed files (including
+     *                                         those that are not renamed) are
+     *                                         listed in the final output.
+     * @param string|null $sourceBaseDirectory The absolute path to the base
+     *                                         directory being scanned. Used for
+     *                                         path relativization in reports.
+     * @param int|null    $maxDateDrift        The maximum allowed difference in
+     *                                         days between filename dates and
+     *                                         metadata dates (null to disable).
      */
     public function __construct(
         public bool $dryRun = false,

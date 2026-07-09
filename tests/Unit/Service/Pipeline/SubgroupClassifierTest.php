@@ -18,13 +18,18 @@ use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
+use MagicSunday\Renamer\Model\Collection\FileList;
 use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Service\HashSubGroupingServiceInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
+use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
+use MagicSunday\Renamer\Service\Pipeline\ExistingCompanionVideoCandidate;
+use MagicSunday\Renamer\Service\Pipeline\OrphanLivePhotoVideoReconciler;
 use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifier;
 use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifierInterface;
+use MagicSunday\Renamer\Service\Reporting\NullProgressReporter;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
@@ -32,9 +37,6 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use SplFileInfo;
-use Symfony\Component\Console\Input\ArrayInput;
-use Symfony\Component\Console\Output\BufferedOutput;
-use Symfony\Component\Console\Style\SymfonyStyle;
 
 /**
  * Verifies SubgroupClassifier delegates to HashSubGroupingService and maps results
@@ -48,30 +50,43 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 #[UsesClass(AssetGroup::class)]
 #[UsesClass(AssetItem::class)]
 #[UsesClass(AssetGroupCollection::class)]
+#[UsesClass(FileList::class)]
 #[UsesClass(FileDuplicate::class)]
 #[UsesClass(FileHelper::class)]
 #[UsesClass(Rename::class)]
 #[UsesClass(RenameList::class)]
 #[UsesClass(TemporalMetadata::class)]
 #[UsesClass(MediaTypeClassifier::class)]
+#[UsesClass(ExistingCompanionVideoCandidate::class)]
+#[UsesClass(OrphanLivePhotoVideoReconciler::class)]
+#[UsesClass(NullProgressReporter::class)]
 final class SubgroupClassifierTest extends TestCase
 {
     private HashSubGroupingServiceInterface&MockObject $hashSubGroupingService;
+
+    private PerceptualHashCalculatorInterface $perceptualHashCalculator;
 
     private SubgroupClassifierInterface $classifier;
 
     protected function setUp(): void
     {
-        $this->hashSubGroupingService = $this->createMock(HashSubGroupingServiceInterface::class);
-        $this->classifier             = new SubgroupClassifier(
+        $this->hashSubGroupingService   = $this->createMock(HashSubGroupingServiceInterface::class);
+        $this->perceptualHashCalculator = self::createStub(PerceptualHashCalculatorInterface::class);
+        $this->classifier               = new SubgroupClassifier(
             $this->hashSubGroupingService,
             new MediaTypeClassifier(),
-            new SymfonyStyle(new ArrayInput([]), new BufferedOutput()),
+            new OrphanLivePhotoVideoReconciler(
+                new MediaTypeClassifier(),
+                $this->perceptualHashCalculator,
+                new NullProgressReporter(),
+            ),
+            new NullProgressReporter(),
         );
     }
 
     /**
-     * A group with only 1 item should not invoke apply() at all.
+     * Ensures that groups with only one item are skipped, as no sub-grouping
+     * is necessary.
      */
     #[Test]
     public function singleItemGroupIsSkipped(): void
@@ -94,7 +109,8 @@ final class SubgroupClassifierTest extends TestCase
     }
 
     /**
-     * When apply() returns false (no sub-grouping needed), items remain unchanged.
+     * Verifies that items remain unchanged if the sub-grouping service
+     * decides that no further splitting of the group is required.
      */
     #[Test]
     public function noSubgroupingNeededLeavesItemsUnchanged(): void
@@ -112,7 +128,7 @@ final class SubgroupClassifierTest extends TestCase
         $this->hashSubGroupingService
             ->expects(self::once())
             ->method('apply')
-            ->willReturn(false);
+            ->willReturn(null);
 
         $this->hashSubGroupingService
             ->expects(self::once())
@@ -125,8 +141,8 @@ final class SubgroupClassifierTest extends TestCase
     }
 
     /**
-     * When apply() returns true and mutates renames with sub-group suffixes,
-     * the corresponding AssetItems should receive clusterIds.
+     * Verifies that the cluster ID is correctly set on items when
+     * subgrouping (e.g., via perceptual hashing) occurs.
      */
     #[Test]
     public function subgroupingAppliedSetsClusterIdOnItems(): void
@@ -144,24 +160,10 @@ final class SubgroupClassifierTest extends TestCase
         $this->hashSubGroupingService
             ->expects(self::once())
             ->method('apply')
-            ->willReturnCallback(
-                static function (FileDuplicate $fileDuplicate): bool {
-                    // Simulate sub-grouping: mutate rename targets with sub-group suffixes
-                    $renames = $fileDuplicate->getRenames();
-                    $rename0 = $renames->get(0);
-                    $rename1 = $renames->get(1);
-
-                    if ($rename0 instanceof Rename) {
-                        $rename0->setTarget(new SplFileInfo('/photos/2024-01-01_12-00-00.jpg'));
-                    }
-
-                    if ($rename1 instanceof Rename) {
-                        $rename1->setTarget(new SplFileInfo('/photos/2024-01-01_12-00-00-002.jpg'));
-                    }
-
-                    return true;
-                },
-            );
+            ->willReturn([
+                '/photos/IMG_0001.jpg' => '000_abc123',
+                '/photos/IMG_0002.jpg' => '002_def456',
+            ]);
 
         $this->hashSubGroupingService
             ->expects(self::once())
@@ -170,12 +172,13 @@ final class SubgroupClassifierTest extends TestCase
         $this->classifier->classify($groups);
 
         $items = $group->getItems();
-        self::assertSame('2024-01-01_12-00-00', $items[0]->clusterId);
-        self::assertSame('2024-01-01_12-00-00-002', $items[1]->clusterId);
+        self::assertSame('000_abc123', $items[0]->clusterId);
+        self::assertSame('002_def456', $items[1]->clusterId);
     }
 
     /**
-     * clearCache() must be called after processing each group to release Imagick memory.
+     * Ensures that the cache is cleared for each group to avoid side
+     * effects between different asset groups.
      */
     #[Test]
     public function clearCacheCalledPerGroup(): void
@@ -194,7 +197,7 @@ final class SubgroupClassifierTest extends TestCase
 
         $this->hashSubGroupingService
             ->method('apply')
-            ->willReturn(false);
+            ->willReturn(null);
 
         $this->hashSubGroupingService
             ->expects(self::exactly(2))
@@ -223,35 +226,22 @@ final class SubgroupClassifierTest extends TestCase
         $this->hashSubGroupingService
             ->expects(self::once())
             ->method('apply')
-            ->willReturnCallback(
-                static function (FileDuplicate $fileDuplicate): bool {
-                    $renames = $fileDuplicate->getRenames();
-                    $rename0 = $renames->get(0);
-                    $rename1 = $renames->get(1);
-
-                    if ($rename0 instanceof Rename) {
-                        $rename0->setTarget(new SplFileInfo('/photos/2024-01-01_12-00-00.jpg'));
-                    }
-
-                    if ($rename1 instanceof Rename) {
-                        $rename1->setTarget(new SplFileInfo('/photos/2024-01-01_12-00-00-002.jpg'));
-                    }
-
-                    return true;
-                },
-            );
+            ->willReturn([
+                '/photos/IMG_0001.jpg' => '000_abc123',
+                '/photos/IMG_0002.jpg' => '002_def456',
+            ]);
 
         $this->classifier->classify($groups);
 
         // SubgroupClassifier only sets clusterIds; naming collision tracking is CollisionResolver's job
         $items = $group->getItems();
-        self::assertSame('2024-01-01_12-00-00', $items[0]->clusterId);
-        self::assertSame('2024-01-01_12-00-00-002', $items[1]->clusterId);
+        self::assertSame('000_abc123', $items[0]->clusterId);
+        self::assertSame('002_def456', $items[1]->clusterId);
     }
 
     /**
-     * The content identifier and temporal metadata maps passed to apply()
-     * must be built from the AssetItems' properties.
+     * Verifies that the map of Content-IDs is correctly built from the items
+     * in the group to identify duplicates within the group.
      */
     #[Test]
     public function contentIdentifierMapBuiltFromItems(): void
@@ -269,7 +259,6 @@ final class SubgroupClassifierTest extends TestCase
 
         $item2 = new AssetItem(
             new SplFileInfo('/photos/IMG_0001.mov'),
-            metadata: null,
             contentIdentifier: 'abc-123',
         );
 
@@ -297,11 +286,11 @@ final class SubgroupClassifierTest extends TestCase
                     array $contentIdentifierMap,
                     Closure $targetPathnameResolver,
                     array $temporalMetadataMap,
-                ) use (&$capturedContentIdMap, &$capturedTemporalMap): bool {
+                ) use (&$capturedContentIdMap, &$capturedTemporalMap): ?array {
                     $capturedContentIdMap = $contentIdentifierMap;
                     $capturedTemporalMap  = $temporalMetadataMap;
 
-                    return false;
+                    return null;
                 },
             );
 
@@ -341,8 +330,8 @@ final class SubgroupClassifierTest extends TestCase
     }
 
     /**
-     * When apply() returns false (single hash group), the group should be marked
-     * as classification succeeded — not degraded.
+     * Ensures that the group's status is correctly marked upon successful
+     * classification.
      */
     #[Test]
     public function classificationMarkedSucceededOnNormalGroup(): void
@@ -360,7 +349,7 @@ final class SubgroupClassifierTest extends TestCase
         $this->hashSubGroupingService
             ->expects(self::once())
             ->method('apply')
-            ->willReturn(false);
+            ->willReturn(null);
 
         $this->classifier->classify($groups);
 
@@ -369,8 +358,8 @@ final class SubgroupClassifierTest extends TestCase
     }
 
     /**
-     * When apply() returns true and sub-grouping succeeds, the group should be
-     * marked as classification succeeded.
+     * When apply() returns a cluster map and sub-grouping succeeds, the group
+     * should be marked as classification succeeded.
      */
     #[Test]
     public function classificationMarkedSucceededAfterSubgrouping(): void
@@ -388,23 +377,10 @@ final class SubgroupClassifierTest extends TestCase
         $this->hashSubGroupingService
             ->expects(self::once())
             ->method('apply')
-            ->willReturnCallback(
-                static function (FileDuplicate $fileDuplicate): bool {
-                    $renames = $fileDuplicate->getRenames();
-                    $rename0 = $renames->get(0);
-                    $rename1 = $renames->get(1);
-
-                    if ($rename0 instanceof Rename) {
-                        $rename0->setTarget(new SplFileInfo('/photos/2024-01-01_12-00-00.jpg'));
-                    }
-
-                    if ($rename1 instanceof Rename) {
-                        $rename1->setTarget(new SplFileInfo('/photos/2024-01-01_12-00-00-002.jpg'));
-                    }
-
-                    return true;
-                },
-            );
+            ->willReturn([
+                '/photos/IMG_0001.jpg' => '000_abc123',
+                '/photos/IMG_0002.jpg' => '002_def456',
+            ]);
 
         $this->classifier->classify($groups);
 
@@ -413,13 +389,13 @@ final class SubgroupClassifierTest extends TestCase
 
         // ClusterIds should also be set
         $items = $group->getItems();
-        self::assertSame('2024-01-01_12-00-00', $items[0]->clusterId);
-        self::assertSame('2024-01-01_12-00-00-002', $items[1]->clusterId);
+        self::assertSame('000_abc123', $items[0]->clusterId);
+        self::assertSame('002_def456', $items[1]->clusterId);
     }
 
     /**
-     * When apply() throws, the group should be marked as degraded and no items
-     * should have clusterIds set (atomic rollback).
+     * Verifies that the group's status is marked as "Degraded" if an exception
+     * occurs during classification (e.g., faulty image data).
      */
     #[Test]
     public function classificationMarkedDegradedOnException(): void
@@ -458,8 +434,8 @@ final class SubgroupClassifierTest extends TestCase
     }
 
     /**
-     * When apply() returns true and sub-grouping succeeds, each item must have a
-     * clusterRank set based on the order it appears within its cluster.
+     * When apply() returns a cluster map, each item must have a clusterRank set
+     * based on the order it appears within its cluster.
      */
     #[Test]
     public function classifyGroupSetsClusterRank(): void
@@ -476,47 +452,30 @@ final class SubgroupClassifierTest extends TestCase
         $groups = new AssetGroupCollection();
         $groups->set('2024-01-01_12-00-00', $group);
 
+        // Items 1 and 2 in same cluster, item 3 in a different cluster
         $this->hashSubGroupingService
             ->expects(self::once())
             ->method('apply')
-            ->willReturnCallback(
-                static function (FileDuplicate $fileDuplicate): bool {
-                    $renames = $fileDuplicate->getRenames();
-                    $rename0 = $renames->get(0);
-                    $rename1 = $renames->get(1);
-                    $rename2 = $renames->get(2);
-
-                    // Item 1 and 2 in canonical cluster, item 3 in subgroup -002
-                    if ($rename0 instanceof Rename) {
-                        $rename0->setTarget(new SplFileInfo('/photos/2024-01-01_12-00-00.jpg'));
-                    }
-
-                    if ($rename1 instanceof Rename) {
-                        $rename1->setTarget(new SplFileInfo('/photos/2024-01-01_12-00-00-duplicate-001.jpg'));
-                    }
-
-                    if ($rename2 instanceof Rename) {
-                        $rename2->setTarget(new SplFileInfo('/photos/2024-01-01_12-00-00-002.jpg'));
-                    }
-
-                    return true;
-                },
-            );
+            ->willReturn([
+                '/photos/IMG_0001.jpg' => '000_abc123',
+                '/photos/IMG_0002.jpg' => '000_abc123',
+                '/photos/IMG_0003.jpg' => '002_def456',
+            ]);
 
         $this->classifier->classify($groups);
 
         $items = $group->getItems();
 
         // Item 1: canonical cluster, rank 0
-        self::assertSame('2024-01-01_12-00-00', $items[0]->clusterId);
+        self::assertSame('000_abc123', $items[0]->clusterId);
         self::assertSame(0, $items[0]->clusterRank);
 
-        // Item 2: canonical cluster (duplicate), rank 1
-        self::assertSame('2024-01-01_12-00-00-duplicate-001', $items[1]->clusterId);
+        // Item 2: canonical cluster, rank 1 (second in same cluster)
+        self::assertSame('000_abc123', $items[1]->clusterId);
         self::assertSame(1, $items[1]->clusterRank);
 
-        // Item 3: subgroup -002, rank 0 (first in its cluster)
-        self::assertSame('2024-01-01_12-00-00-002', $items[2]->clusterId);
+        // Item 3: subgroup cluster, rank 0 (first in its cluster)
+        self::assertSame('002_def456', $items[2]->clusterId);
         self::assertSame(0, $items[2]->clusterRank);
     }
 

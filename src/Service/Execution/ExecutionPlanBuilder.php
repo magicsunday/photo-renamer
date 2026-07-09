@@ -21,6 +21,7 @@ use MagicSunday\Renamer\Model\Execution\ExecutionItemType;
 use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
 use MagicSunday\Renamer\Model\ItemRole;
 use MagicSunday\Renamer\Model\PipelineContext;
+use Override;
 
 use function array_map;
 use function basename;
@@ -51,6 +52,15 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
         'ambiguous' => 3,
     ];
 
+    /**
+     * Builds the execution-layer projection for the already classified asset groups.
+     *
+     * @param AssetGroupCollection $groups  Asset groups to project into execution DTOs
+     * @param PipelineContext      $context Pipeline context carrying quality and conflict flags
+     *
+     * @return ExecutionPlan Execution-ready projection of the input groups
+     */
+    #[Override]
     public function build(
         AssetGroupCollection $groups,
         PipelineContext $context,
@@ -65,10 +75,15 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
     }
 
     /**
-     * Projects a single AssetGroup into an ExecutionGroup.
+     * Projects a single asset group into its execution-layer representation.
      *
-     * @param AssetGroup      $group   Source asset group
-     * @param PipelineContext $context Pipeline state with quality flags
+     * Items are ordered canonically, quality flags are mapped onto execution entries,
+     * and the group's decision log is carried over without introducing new decisions.
+     *
+     * @param AssetGroup      $group   Source asset group to project
+     * @param PipelineContext $context Current pipeline context with quality flags
+     *
+     * @return ExecutionGroup Execution-layer view of the source group
      */
     private function projectGroup(
         AssetGroup $group,
@@ -103,11 +118,17 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
     }
 
     /**
-     * Projects a single AssetItem into an ExecutionItem.
+     * Projects one asset item into an execution item and applies execution gating.
+     *
+     * This is the final step where pipeline state flags are translated into runtime
+     * execution decisions. Items can be blocked here due to Live Photo conflicts,
+     * ambiguous timezones, fallback dates, or because the rename is a no-op.
      *
      * @param AssetItem       $item     Source asset item
-     * @param string          $groupKey Group key for the execution item
-     * @param PipelineContext $context  Pipeline state with quality flags
+     * @param string          $groupKey Group key the item belongs to
+     * @param PipelineContext $context  Current pipeline context with quality flags
+     *
+     * @return ExecutionItem Execution-layer representation of the item
      */
     private function projectItem(
         AssetItem $item,
@@ -173,7 +194,7 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
     {
         usort(
             $items,
-            static fn (AssetItem $a, AssetItem $b): int => self::ROLE_ORDER[$a->role->value] <=> self::ROLE_ORDER[$b->role->value],
+            static fn (AssetItem $itemA, AssetItem $itemB): int => self::ROLE_ORDER[$itemA->role->value] <=> self::ROLE_ORDER[$itemB->role->value],
         );
 
         return $items;

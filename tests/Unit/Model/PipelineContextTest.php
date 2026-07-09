@@ -11,6 +11,9 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Model;
 
+use MagicSunday\Renamer\Model\OutputEntry;
+use MagicSunday\Renamer\Model\OutputEntryTag;
+use MagicSunday\Renamer\Model\Pipeline\VideoDuplicateCandidate;
 use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Model\RenameResult;
 use MagicSunday\Renamer\Model\SkippedFile;
@@ -34,6 +37,9 @@ use SplFileInfo;
 #[CoversClass(PipelineContext::class)]
 #[UsesClass(RenameResult::class)]
 #[UsesClass(SkippedFile::class)]
+#[UsesClass(VideoDuplicateCandidate::class)]
+#[UsesClass(OutputEntry::class)]
+#[UsesClass(OutputEntryTag::class)]
 final class PipelineContextTest extends TestCase
 {
     /**
@@ -71,12 +77,19 @@ final class PipelineContextTest extends TestCase
         $context->addAmbiguousTimezoneFile('/photos/b.mov');
         $context->addLivePhotoConflictFile('/photos/c.heic');
         $context->addSkippedFile(new SkippedFile(new SplFileInfo('/photos/d.heic'), 'no capture date'));
+        $context->addVideoDuplicateCandidate(new VideoDuplicateCandidate(
+            '/photos/e.mov',
+            '/photos/archive/e.mov',
+            'video stream identical, audio differs',
+        ));
 
         self::assertSame(['/photos/a.jpg' => true], $context->getFallbackDateFiles());
         self::assertSame(['/photos/b.mov' => true], $context->getAmbiguousTimezoneFiles());
         self::assertSame(['/photos/c.heic' => true], $context->getLivePhotoConflictFiles());
         self::assertCount(1, $context->getSkippedFiles());
         self::assertSame('/photos/d.heic', $context->getSkippedFiles()[0]->getFile()->getPathname());
+        self::assertCount(1, $context->getVideoDuplicateCandidates());
+        self::assertSame('/photos/archive/e.mov', $context->getVideoDuplicateCandidates()[0]->counterpartPath);
     }
 
     /**
@@ -163,8 +176,20 @@ final class PipelineContextTest extends TestCase
         $context->addFallbackDateFile('/photos/a.jpg');
         $context->addAmbiguousTimezoneFile('/photos/b.mov');
         $context->addLivePhotoConflictFile('/photos/c.heic');
+        $context->addVideoDuplicateCandidate(new VideoDuplicateCandidate(
+            '/photos/e.mov',
+            '/photos/archive/e.mov',
+            'video stream identical, audio differs',
+        ));
 
-        $result = $context->toRenameResult();
+        $reviewEntry = OutputEntry::info(
+            sortKey: '/photos/e.mov',
+            sourcePath: 'e.mov',
+            reason: 'Cross-group video review: archive/e.mov — video stream identical, audio differs',
+            tag: OutputEntryTag::Review,
+        );
+
+        $result = $context->toRenameResult([$reviewEntry], 1);
 
         self::assertSame(100, $result->scannedFiles);
         self::assertSame(3, $result->namingCollisions);
@@ -172,5 +197,7 @@ final class PipelineContextTest extends TestCase
         self::assertSame(['/photos/a.jpg' => true], $result->fallbackDateFiles);
         self::assertSame(['/photos/b.mov' => true], $result->ambiguousTimezoneFiles);
         self::assertSame(['/photos/c.heic' => true], $result->livePhotoConflictFiles);
+        self::assertSame([$reviewEntry], $result->reviewEntries);
+        self::assertSame(1, $result->crossGroupVideoReviewCount);
     }
 }

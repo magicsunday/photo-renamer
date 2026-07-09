@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service\Pipeline;
 
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
+use MagicSunday\Renamer\Service\ContentIdentifierCacheEntry;
 use SplFileInfo;
 
 /**
@@ -48,14 +49,11 @@ final class CaptureGroupBuildState
     public array $filesByPath = [];
 
     /**
-     * Cache for content identifier resolution. Maps normalized content identifiers
-     * to their associated duplicate identifier, pending files, and target.
+     * Cache for content identifier resolution during grouping.
+     * Maps normalized content identifiers to the shared mutable cache entry that
+     * coordinates deferred companion files and eventual group resolution.
      *
-     * @var array<string, array{
-     *     duplicateIdentifier: string|null,
-     *     pendingFiles: list<SplFileInfo>,
-     *     target: SplFileInfo|null
-     * }>
+     * @var array<string, ContentIdentifierCacheEntry>
      */
     public array $contentIdentifierCache = [];
 }

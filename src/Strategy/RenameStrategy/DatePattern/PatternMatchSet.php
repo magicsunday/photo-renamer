@@ -39,7 +39,7 @@ final readonly class PatternMatchSet
      *
      * @return PatternMatchSet Set populated with placeholder names for each discovered token
      */
-    public static function fromPattern(string $pattern, SafeRegex $safeRegex = new SafeRegex()): self
+    public static function fromPattern(string $pattern, SafeRegex $safeRegex): self
     {
         $result = $safeRegex->matchAll(
             '/\{(\w+)\}/',

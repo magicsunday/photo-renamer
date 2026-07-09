@@ -29,14 +29,19 @@ use RecursiveIteratorIterator;
 interface DuplicateDetectionServiceInterface
 {
     /**
-     * Creates a collection of duplicates. Files with the same unique identifier are grouped together.
+     * Creates a collection of duplicates.
+     *
+     * Files with the same unique identifier are grouped together into the same
+     * {@see FileDuplicate} instance.
      *
      * @template TInner of RecursiveIterator
      *
-     * @param RecursiveIteratorIterator<TInner>    $iterator                    iterator yielding candidate files
-     * @param RenameStrategyInterface              $renameStrategy              strategy used to generate target filenames
-     * @param DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy strategy that identifies duplicate groups
-     * @param string                               $sourceDirectory             absolute path to the source directory
+     * @param RecursiveIteratorIterator<TInner>    $iterator                    The iterator yielding candidate files.
+     * @param RenameStrategyInterface              $renameStrategy              The strategy used to generate target filenames.
+     * @param DuplicateIdentifierStrategyInterface $duplicateIdentifierStrategy The strategy that identifies duplicate groups.
+     * @param string                               $sourceDirectory             The absolute path to the source directory.
+     *
+     * @return FileDuplicateCollection The collection of grouped duplicates.
      */
     public function groupFilesByDuplicateIdentifier(
         RecursiveIteratorIterator $iterator,
@@ -46,12 +51,17 @@ interface DuplicateDetectionServiceInterface
     ): FileDuplicateCollection;
 
     /**
-     * Creates a consecutive new filename for all duplicate files.
+     * Creates consecutive new filenames for all duplicate files.
      *
-     * @param FileDuplicateCollection $fileDuplicateCollection    collection whose entries should receive duplicate filenames
-     * @param string                  $sourceDirectory            absolute path to the source directory
-     * @param bool                    $useFileExtensionFromSource when true, source extension is retained
-     * @param bool                    $skipHashSubGrouping        when true, content-hash sub-grouping is skipped entirely
+     * Assigns a sequential duplicate suffix (e.g. "-duplicate-001") to all files
+     * in each group except for the canonical representative.
+     *
+     * @param FileDuplicateCollection $fileDuplicateCollection    The collection whose entries should receive duplicate filenames.
+     * @param string                  $sourceDirectory            The absolute path to the source directory.
+     * @param bool                    $useFileExtensionFromSource When true, the source extension is retained.
+     * @param bool                    $skipHashSubGrouping        When true, content-hash sub-grouping is skipped entirely.
+     *
+     * @return FileDuplicateCollection The updated collection with generated filenames.
      */
     public function createDuplicateFilenames(
         FileDuplicateCollection $fileDuplicateCollection,
@@ -62,12 +72,15 @@ interface DuplicateDetectionServiceInterface
 
     /**
      * Returns the number of groups where content-hash sub-grouping was applied.
+     *
+     * @return int Total count of naming collisions.
      */
     public function getNamingCollisions(): int;
 
     /**
-     * Returns the number of files scanned during the last call to
-     * {@see groupFilesByDuplicateIdentifier()}.
+     * Returns the number of files scanned during the last grouping pass.
+     *
+     * @return int Total scanned file count.
      */
     public function getLastScannedFileCount(): int;
 
@@ -88,10 +101,12 @@ interface DuplicateDetectionServiceInterface
     public function getFallbackDateFiles(): array;
 
     /**
-     * Returns pathnames of files with ambiguous timezone (cannot determine
-     * if the QuickTime timestamp is UTC or local time).
+     * Returns pathnames of files with an ambiguous timezone.
      *
-     * @return array<string, true>
+     * A timezone is ambiguous when the QuickTime timestamp could be UTC or
+     * local time but we cannot determine which.
+     *
+     * @return array<string, true> Map of pathnames with ambiguous timezone.
      */
     public function getAmbiguousTimezoneFiles(): array;
 

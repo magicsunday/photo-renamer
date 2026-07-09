@@ -13,6 +13,8 @@ namespace MagicSunday\Renamer\Test\Unit\Service\LivePhoto;
 
 use DateTimeImmutable;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
+use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictAsset;
+use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictCandidateTiers;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetector;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -22,6 +24,8 @@ use PHPUnit\Framework\TestCase;
 use SplFileInfo;
 
 #[CoversClass(LivePhotoConflictDetector::class)]
+#[UsesClass(LivePhotoConflictAsset::class)]
+#[UsesClass(LivePhotoConflictCandidateTiers::class)]
 #[UsesClass(TemporalMetadata::class)]
 #[UsesClass(MediaTypeClassifier::class)]
 final class LivePhotoConflictDetectorTest extends TestCase

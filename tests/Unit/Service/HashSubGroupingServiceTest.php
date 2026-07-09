@@ -12,6 +12,8 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
 use Closure;
+use Imagick;
+use ImagickPixel;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\Collection\FileList;
 use MagicSunday\Renamer\Model\Collection\RenameList;
@@ -21,9 +23,12 @@ use MagicSunday\Renamer\Service\HashSubGroupingService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
 use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzer;
+use MagicSunday\Renamer\Service\PerceptualHash\LocalDiffResult;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityResult;
+use MagicSunday\Renamer\Service\Reporting\NullProgressReporter;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
+use MagicSunday\Renamer\Service\SafeHashCalculatorInterface;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubPerceptualHashCalculator;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -31,9 +36,6 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
-use Symfony\Component\Console\Input\ArrayInput;
-use Symfony\Component\Console\Output\BufferedOutput;
-use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function file_put_contents;
 use function iterator_to_array;
@@ -65,7 +67,10 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(FileHelper::class)]
 #[UsesClass(FileList::class)]
 #[UsesClass(ImagickImageLoader::class)]
+#[UsesClass(LocalDiffResult::class)]
+#[UsesClass(LocalDifferenceAnalyzer::class)]
 #[UsesClass(MediaTypeClassifier::class)]
+#[UsesClass(NullProgressReporter::class)]
 #[UsesClass(SafeHashCalculator::class)]
 #[UsesClass(SimilarityResult::class)]
 final class HashSubGroupingServiceTest extends TestCase
@@ -85,14 +90,14 @@ final class HashSubGroupingServiceTest extends TestCase
     }
 
     /**
-     * Verifies that apply() returns false for a group containing only one file,
+     * Verifies that apply() returns null for a group containing only one file,
      * because sub-grouping is unnecessary when there is nothing to compare.
      *
      * Returning false tells the caller that the rename list was not modified
      * and no further sub-group processing is needed.
      */
     #[Test]
-    public function applyReturnsFalseForSingleFile(): void
+    public function applyReturnsNullForSingleFile(): void
     {
         $service = $this->createHashSubGroupingService();
 
@@ -114,18 +119,18 @@ final class HashSubGroupingServiceTest extends TestCase
 
         $result = $service->apply($fileDuplicate, $renameA, null, [], $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory));
 
-        self::assertFalse($result);
+        self::assertNull($result);
     }
 
     /**
-     * Verifies that apply() returns false when all files in the group share the
+     * Verifies that apply() returns null when all files in the group share the
      * same hash (all are true duplicates, only one sub-group exists).
      *
      * No sequential numbering is needed because there is only one distinct content
      * variant. The standard -duplicate-NNN suffixes will be assigned by the caller.
      */
     #[Test]
-    public function applyReturnsFalseForSingleHashGroup(): void
+    public function applyReturnsNullForSingleHashGroup(): void
     {
         $service = $this->createHashSubGroupingService();
 
@@ -152,11 +157,11 @@ final class HashSubGroupingServiceTest extends TestCase
 
         $result = $service->apply($fileDuplicate, $renameA, null, [], $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory));
 
-        self::assertFalse($result);
+        self::assertNull($result);
     }
 
     /**
-     * Verifies that apply() returns true and assigns sub-group numbers when two
+     * Verifies that apply() returns cluster map and assigns sub-group numbers when two
      * files have different content hashes: the canonical keeps the unsuffixed
      * base name, the second file gets -002.
      *
@@ -164,7 +169,7 @@ final class HashSubGroupingServiceTest extends TestCase
      * date group produces sequential numbers instead of -duplicate-NNN.
      */
     #[Test]
-    public function applyReturnsTrueAndAssignsSubGroupsForDistinctHashes(): void
+    public function applyReturnsClusterMapForDistinctHashes(): void
     {
         $service = $this->createHashSubGroupingService();
 
@@ -191,7 +196,7 @@ final class HashSubGroupingServiceTest extends TestCase
 
         $result = $service->apply($fileDuplicate, $renameA, null, [], $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory));
 
-        self::assertTrue($result);
+        self::assertIsArray($result);
 
         $renames = iterator_to_array($fileDuplicate->getRenames());
 
@@ -259,7 +264,7 @@ final class HashSubGroupingServiceTest extends TestCase
 
         $result = $service->apply($fileDuplicate, $renameA, null, [], $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory));
 
-        self::assertTrue($result);
+        self::assertIsArray($result);
 
         $renames       = iterator_to_array($fileDuplicate->getRenames());
         $renameTargets = [];
@@ -338,7 +343,7 @@ final class HashSubGroupingServiceTest extends TestCase
             $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
         );
 
-        self::assertTrue($result);
+        self::assertIsArray($result);
 
         $renames       = iterator_to_array($fileDuplicate->getRenames());
         $renameTargets = [];
@@ -354,7 +359,7 @@ final class HashSubGroupingServiceTest extends TestCase
     }
 
     /**
-     * Verifies that apply() returns false when companion videos (MOVs) all share
+     * Verifies that apply() returns null when companion videos (MOVs) all share
      * the same hash, indicating the stills are semantic duplicates of the same
      * capture (different JPG encoding/metadata, not different photos).
      */
@@ -427,7 +432,7 @@ final class HashSubGroupingServiceTest extends TestCase
             $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
         );
 
-        self::assertFalse($result);
+        self::assertNull($result);
     }
 
     /**
@@ -471,7 +476,7 @@ final class HashSubGroupingServiceTest extends TestCase
             $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
         );
 
-        self::assertTrue($result);
+        self::assertIsArray($result);
     }
 
     /**
@@ -515,7 +520,7 @@ final class HashSubGroupingServiceTest extends TestCase
             $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
         );
 
-        self::assertTrue($result);
+        self::assertIsArray($result);
     }
 
     /**
@@ -548,7 +553,7 @@ final class HashSubGroupingServiceTest extends TestCase
      * is below the threshold, treating them as perceptual duplicates.
      *
      * Two files with different xxh128 content hashes but identical visual content
-     * (same dHash) should be merged into a single group → apply() returns false.
+     * (same dHash) should be merged into a single group → apply() returns null.
      */
     #[Test]
     public function applyMergesPerceptuallySimilarHashGroups(): void
@@ -559,8 +564,10 @@ final class HashSubGroupingServiceTest extends TestCase
         $fileA = $sourceDirectory . DIRECTORY_SEPARATOR . 'a.jpg';
         $fileB = $sourceDirectory . DIRECTORY_SEPARATOR . 'b.jpg';
 
-        file_put_contents($fileA, 'content-A');
-        file_put_contents($fileB, 'content-B-different');
+        // Must be valid JPEG files so Imagick can load them for RMSE analysis.
+        // Conservative merge policy: Imagick load failure → no merge.
+        $this->createSyntheticJpeg($fileA);
+        $this->createSyntheticJpeg($fileB);
 
         $target = $targetDirectory . DIRECTORY_SEPARATOR . 'target.jpg';
 
@@ -590,7 +597,205 @@ final class HashSubGroupingServiceTest extends TestCase
             $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
         );
 
-        self::assertFalse($result, 'Perceptually identical files should be merged → no sub-grouping');
+        self::assertNull($result, 'Perceptually identical files should be merged → no sub-grouping');
+    }
+
+    /**
+     * Verifies that dHash-identical format backups stay merged when decoder noise
+     * produces RMSE slightly above the old internal exact-match safe zone.
+     */
+    #[Test]
+    public function applyMergesDhashExactFormatNoiseWithinDefaultThreshold(): void
+    {
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $fileA = $sourceDirectory . DIRECTORY_SEPARATOR . 'a.jpg';
+        $fileB = $sourceDirectory . DIRECTORY_SEPARATOR . 'b.jpg';
+
+        $this->createSyntheticJpeg($fileA, color: '#808080');
+        $this->createSyntheticJpeg($fileB, color: '#8c8c8c');
+
+        $target = $targetDirectory . DIRECTORY_SEPARATOR . 'target.jpg';
+
+        $stub = new StubPerceptualHashCalculator()
+            ->withHash($fileA, 'abcdef0123456789')
+            ->withHash($fileB, 'abcdef0123456789');
+
+        $service = $this->createHashSubGroupingServiceWithStub($stub);
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate
+            ->addFile(new SplFileInfo($fileA))
+            ->addFile(new SplFileInfo($fileB))
+            ->setTarget(new SplFileInfo($target));
+
+        $renameA = new Rename(new SplFileInfo($fileA), new SplFileInfo($target));
+        $renameB = new Rename(new SplFileInfo($fileB), new SplFileInfo($target));
+        $fileDuplicate->addRename($renameA);
+        $fileDuplicate->addRename($renameB);
+
+        $result = $service->apply(
+            $fileDuplicate,
+            $renameA,
+            null,
+            [],
+            $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
+        );
+
+        self::assertNull($result, 'dHash-identical format noise should merge under the default threshold.');
+    }
+
+    /**
+     * Verifies that simple two-file format backups are merged even when the
+     * perceptual pre-classifier downgrades them to edited variants.
+     */
+    #[Test]
+    public function applyMergesSimpleFormatBackupEditedVariantWithoutMetadata(): void
+    {
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $fileA = $sourceDirectory . DIRECTORY_SEPARATOR . 'a.heic';
+        $fileB = $sourceDirectory . DIRECTORY_SEPARATOR . 'b.jpg';
+
+        $this->createSyntheticJpeg($fileA, color: '#808080');
+        $this->createSyntheticJpeg($fileB, color: '#8c8c8c');
+
+        $target = $targetDirectory . DIRECTORY_SEPARATOR . 'target.jpg';
+
+        $stub = new StubPerceptualHashCalculator()
+            ->withHash($fileA, 'abcdef0123456789')
+            ->withHash($fileB, 'abcdef01234567ff');
+
+        $service = $this->createHashSubGroupingServiceWithStub($stub);
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate
+            ->addFile(new SplFileInfo($fileA))
+            ->addFile(new SplFileInfo($fileB))
+            ->setTarget(new SplFileInfo($target));
+
+        $renameA = new Rename(new SplFileInfo($fileA), new SplFileInfo($target));
+        $renameB = new Rename(new SplFileInfo($fileB), new SplFileInfo($target));
+        $fileDuplicate->addRename($renameA);
+        $fileDuplicate->addRename($renameB);
+
+        $result = $service->apply(
+            $fileDuplicate,
+            $renameA,
+            null,
+            [],
+            $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
+        );
+
+        self::assertNull($result, 'HEIC/JPG backup pairs with the same target basename should stay in one sub-group.');
+    }
+
+    /**
+     * Verifies that an explicit stricter merge threshold still overrides the
+     * dHash-exact safe zone.
+     */
+    #[Test]
+    public function applyKeepsDhashExactFormatNoiseSeparateWhenUserThresholdIsStricter(): void
+    {
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $fileA = $sourceDirectory . DIRECTORY_SEPARATOR . 'a.jpg';
+        $fileB = $sourceDirectory . DIRECTORY_SEPARATOR . 'b.jpg';
+
+        $this->createSyntheticJpeg($fileA, color: '#808080');
+        $this->createSyntheticJpeg($fileB, color: '#8c8c8c');
+
+        $target = $targetDirectory . DIRECTORY_SEPARATOR . 'target.jpg';
+
+        $stub = new StubPerceptualHashCalculator()
+            ->withHash($fileA, 'abcdef0123456789')
+            ->withHash($fileB, 'abcdef0123456789');
+
+        $service = $this->createHashSubGroupingServiceWithStub($stub);
+        $service->setMaxMergeRmse(0.04);
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate
+            ->addFile(new SplFileInfo($fileA))
+            ->addFile(new SplFileInfo($fileB))
+            ->setTarget(new SplFileInfo($target));
+
+        $renameA = new Rename(new SplFileInfo($fileA), new SplFileInfo($target));
+        $renameB = new Rename(new SplFileInfo($fileB), new SplFileInfo($target));
+        $fileDuplicate->addRename($renameA);
+        $fileDuplicate->addRename($renameB);
+
+        $result = $service->apply(
+            $fileDuplicate,
+            $renameA,
+            null,
+            [],
+            $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
+        );
+
+        self::assertIsArray($result, 'A stricter user threshold must keep the files in separate sub-groups.');
+    }
+
+    /**
+     * Verifies that perceptual merges remain safe when the lexicographically
+     * smallest content hash is not the initial union-find root.
+     *
+     * This guards the deterministic re-rooting step against creating parent cycles
+     * after a successful merge. The merged pair must still collapse into a single
+     * sub-group instead of hanging during root lookup.
+     */
+    #[Test]
+    public function applyMergesPerceptualGroupsWhenSmallestHashStartsAsNonRoot(): void
+    {
+        $sourceDirectory = $this->createTempDirectory();
+        $targetDirectory = $this->createTempDirectory();
+
+        $fileA = $sourceDirectory . DIRECTORY_SEPARATOR . 'a.jpg';
+        $fileB = $sourceDirectory . DIRECTORY_SEPARATOR . 'b.jpg';
+
+        $this->createSyntheticJpeg($fileA);
+        $this->createSyntheticJpeg($fileB);
+
+        $target = $targetDirectory . DIRECTORY_SEPARATOR . 'target.jpg';
+
+        $perceptualStub = new StubPerceptualHashCalculator()
+            ->withHash($fileA, 'abcdef0123456789')
+            ->withHash($fileB, 'abcdef0123456789');
+
+        $hashCalculator = $this->createMock(SafeHashCalculatorInterface::class);
+        $hashCalculator->expects(self::exactly(2))
+            ->method('hashFile')
+            ->willReturnCallback(static fn (SplFileInfo $file): string => match ($file->getFilename()) {
+                'a.jpg' => 'ffff000000000000',
+                'b.jpg' => '0000ffff00000000',
+                default => '9999999999999999',
+            });
+
+        $service = $this->createHashSubGroupingServiceWithCalculator($hashCalculator, $perceptualStub);
+
+        $fileDuplicate = new FileDuplicate();
+        $fileDuplicate
+            ->addFile(new SplFileInfo($fileA))
+            ->addFile(new SplFileInfo($fileB))
+            ->setTarget(new SplFileInfo($target));
+
+        $renameA = new Rename(new SplFileInfo($fileA), new SplFileInfo($target));
+        $renameB = new Rename(new SplFileInfo($fileB), new SplFileInfo($target));
+        $fileDuplicate->addRename($renameA);
+        $fileDuplicate->addRename($renameB);
+
+        $result = $service->apply(
+            $fileDuplicate,
+            $renameA,
+            null,
+            [],
+            $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
+        );
+
+        self::assertNull($result, 'Perceptually merged groups with a smaller non-root hash must remain cycle-free.');
     }
 
     /**
@@ -637,7 +842,7 @@ final class HashSubGroupingServiceTest extends TestCase
             $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
         );
 
-        self::assertTrue($result, 'Visually distinct files should remain in separate sub-groups');
+        self::assertIsArray($result, 'Visually distinct files should remain in separate sub-groups');
     }
 
     /**
@@ -684,7 +889,7 @@ final class HashSubGroupingServiceTest extends TestCase
             $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
         );
 
-        self::assertTrue($result, 'Failed dHash should result in separate sub-groups (conservative)');
+        self::assertIsArray($result, 'Failed dHash should result in separate sub-groups (conservative)');
     }
 
     private function createHashSubGroupingService(): HashSubGroupingService
@@ -694,14 +899,21 @@ final class HashSubGroupingServiceTest extends TestCase
 
     private function createHashSubGroupingServiceWithStub(PerceptualHashCalculatorInterface $perceptualHashCalculator): HashSubGroupingService
     {
-        $output = new BufferedOutput();
-        $io     = new SymfonyStyle(new ArrayInput([]), $output);
+        return $this->createHashSubGroupingServiceWithCalculator(
+            new SafeHashCalculator(),
+            $perceptualHashCalculator,
+        );
+    }
 
+    private function createHashSubGroupingServiceWithCalculator(
+        SafeHashCalculatorInterface $hashCalculator,
+        PerceptualHashCalculatorInterface $perceptualHashCalculator,
+    ): HashSubGroupingService {
         $imageLoader = new ImagickImageLoader(new MediaTypeClassifier());
 
         return new HashSubGroupingService(
-            new SafeHashCalculator(),
-            $io,
+            $hashCalculator,
+            new NullProgressReporter(),
             new MediaTypeClassifier(),
             $perceptualHashCalculator,
             new LocalDifferenceAnalyzer(),
@@ -715,5 +927,17 @@ final class HashSubGroupingServiceTest extends TestCase
         $this->tempDirectories[] = $directory;
 
         return $directory;
+    }
+
+    /**
+     * Creates a minimal valid JPEG file for tests that need Imagick-loadable images.
+     */
+    private function createSyntheticJpeg(string $path, int $width = 100, int $height = 100, string $color = 'gray'): void
+    {
+        $img = new Imagick();
+        $img->newImage($width, $height, new ImagickPixel($color));
+        $img->setImageFormat('jpeg');
+        $img->writeImage($path);
+        $img->clear();
     }
 }

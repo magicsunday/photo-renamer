@@ -11,11 +11,14 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service\Pipeline;
 
+use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
+use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\Pipeline\CompanionDetector;
 use MagicSunday\Renamer\Service\Pipeline\CompanionDetectorInterface;
+use MagicSunday\Renamer\Service\Pipeline\CompanionPathSet;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
@@ -34,13 +37,18 @@ use SplFileInfo;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(CompanionDetector::class)]
+#[UsesClass(CompanionPathSet::class)]
+#[UsesClass(FileHelper::class)]
 #[UsesClass(AssetGroup::class)]
 #[UsesClass(AssetItem::class)]
 #[UsesClass(MediaTypeClassifier::class)]
+#[UsesClass(MediaCompatibilityPolicy::class)]
 final class CompanionDetectorTest extends TestCase
 {
     /**
-     * Content-ID match: HEIC(abc) + MOV(abc) should detect MOV as companion.
+     * Verifies that companions are correctly identified via their Content-ID.
+     * This particularly applies to Live Photos, where images and videos share
+     * the same ID.
      */
     #[Test]
     public function contentIdMatchDetectsCompanion(): void
@@ -63,12 +71,13 @@ final class CompanionDetectorTest extends TestCase
 
         $companions = $detector->detect($group, $heic);
 
-        self::assertArrayHasKey($mov->file->getPathname(), $companions);
-        self::assertCount(1, $companions);
+        self::assertTrue($companions->contains($mov->file->getPathname()));
+        self::assertCount(1, $companions->toPathList());
     }
 
     /**
-     * Content-ID match must skip same media type: HEIC(abc) + JPG(abc) should NOT pair.
+     * Ensures that files with the same Content-ID but the same media type
+     * (e.g., two images) are not recognized as companions for each other.
      */
     #[Test]
     public function contentIdMatchSkipsSameMediaType(): void
@@ -91,11 +100,12 @@ final class CompanionDetectorTest extends TestCase
 
         $companions = $detector->detect($group, $heic);
 
-        self::assertEmpty($companions);
+        self::assertTrue($companions->isEmpty());
     }
 
     /**
-     * Basename fallback: HEIC(abc) + MOV(no content-id, same basename) should pair.
+     * Verifies the detection of companions based on the filename (basename)
+     * when no Content-ID is present but the names match.
      */
     #[Test]
     public function basenameFollowsDetectsCompanion(): void
@@ -109,7 +119,6 @@ final class CompanionDetectorTest extends TestCase
 
         $mov = new AssetItem(
             new SplFileInfo('/photos/IMG_0001.mov'),
-            contentIdentifier: null,
         );
 
         $group = new AssetGroup('group-1');
@@ -118,12 +127,13 @@ final class CompanionDetectorTest extends TestCase
 
         $companions = $detector->detect($group, $heic);
 
-        self::assertArrayHasKey($mov->file->getPathname(), $companions);
-        self::assertCount(1, $companions);
+        self::assertTrue($companions->contains($mov->file->getPathname()));
+        self::assertCount(1, $companions->toPathList());
     }
 
     /**
-     * Basename fallback with 2+ candidates is ambiguous: no companion detected.
+     * Verifies that name-based detection only works if exactly one
+     * candidate with a matching name exists in the group.
      */
     #[Test]
     public function basenameFollowsRequiresExactlyOneCandidate(): void
@@ -137,12 +147,10 @@ final class CompanionDetectorTest extends TestCase
 
         $mov1 = new AssetItem(
             new SplFileInfo('/photos/IMG_0001.mov'),
-            contentIdentifier: null,
         );
 
         $mov2 = new AssetItem(
             new SplFileInfo('/other/IMG_0001.mp4'),
-            contentIdentifier: null,
         );
 
         $group = new AssetGroup('group-1');
@@ -152,12 +160,12 @@ final class CompanionDetectorTest extends TestCase
 
         $companions = $detector->detect($group, $heic);
 
-        self::assertEmpty($companions);
+        self::assertTrue($companions->isEmpty());
     }
 
     /**
-     * Basename fallback with conflicting content ID: HEIC(abc) + MOV(xyz, same basename)
-     * should NOT pair and should log a decision.
+     * Ensures basename fallback refuses candidates whose non-null Content-ID
+     * conflicts with the canonical item's Content-ID and records the conflict.
      */
     #[Test]
     public function basenameFollowsDetectsConflictingContentId(): void
@@ -180,13 +188,14 @@ final class CompanionDetectorTest extends TestCase
 
         $companions = $detector->detect($group, $heic);
 
-        self::assertEmpty($companions);
+        self::assertTrue($companions->isEmpty());
         self::assertNotEmpty($group->getDecisionLog());
         self::assertCount(1, $group->getDecisionLog());
     }
 
     /**
-     * No companion detection when canonical has no content ID.
+     * Verifies that no companions are recognized if the main file (canonical)
+     * does not have a Content-ID.
      */
     #[Test]
     public function noCompanionWhenCanonicalHasNoContentId(): void
@@ -195,12 +204,10 @@ final class CompanionDetectorTest extends TestCase
 
         $heic = new AssetItem(
             new SplFileInfo('/photos/IMG_0001.heic'),
-            contentIdentifier: null,
         );
 
         $mov = new AssetItem(
             new SplFileInfo('/photos/IMG_0001.mov'),
-            contentIdentifier: null,
         );
 
         $group = new AssetGroup('group-1');
@@ -209,7 +216,7 @@ final class CompanionDetectorTest extends TestCase
 
         $companions = $detector->detect($group, $heic);
 
-        self::assertEmpty($companions);
+        self::assertTrue($companions->isEmpty());
     }
 
     /**
@@ -230,12 +237,12 @@ final class CompanionDetectorTest extends TestCase
 
         $companions = $detector->detect($group, $heic);
 
-        self::assertEmpty($companions);
+        self::assertTrue($companions->isEmpty());
     }
 
     /**
-     * Multiple content-ID companions of same media type: HEIC(abc) + MOV(abc) + MP4(abc)
-     * should detect only one video (best candidate), not both.
+     * Verifies that when there are multiple possible companions with the same
+     * Content-ID, the best candidate per media type is selected.
      */
     #[Test]
     public function multipleContentIdCompanionsSelectsBestPerMediaType(): void
@@ -265,12 +272,13 @@ final class CompanionDetectorTest extends TestCase
         $companions = $detector->detect($group, $heic);
 
         // Only one video companion selected (MOV wins: basename matches canonical)
-        self::assertCount(1, $companions);
-        self::assertArrayHasKey($mov->file->getPathname(), $companions);
+        self::assertCount(1, $companions->toPathList());
+        self::assertTrue($companions->contains($mov->file->getPathname()));
     }
 
     /**
-     * Reversed media types: MOV(abc) as canonical + HEIC(abc) should detect HEIC as companion.
+     * Checks the special case where a video acts as the main file and the
+     * associated still image is recognized as a companion.
      */
     #[Test]
     public function canonicalIsVideoStillIsCompanion(): void
@@ -293,8 +301,8 @@ final class CompanionDetectorTest extends TestCase
 
         $companions = $detector->detect($group, $mov);
 
-        self::assertArrayHasKey($heic->file->getPathname(), $companions);
-        self::assertCount(1, $companions);
+        self::assertTrue($companions->contains($heic->file->getPathname()));
+        self::assertCount(1, $companions->toPathList());
     }
 
     /**
@@ -328,7 +336,7 @@ final class CompanionDetectorTest extends TestCase
 
         $companions = $detector->detect($group, $heic);
 
-        self::assertCount(1, $companions);
+        self::assertCount(1, $companions->toPathList());
     }
 
     /**
@@ -363,8 +371,8 @@ final class CompanionDetectorTest extends TestCase
 
         $companions = $detector->detect($group, $heic);
 
-        self::assertCount(1, $companions);
-        self::assertArrayHasKey($movMatch->file->getPathname(), $companions);
+        self::assertCount(1, $companions->toPathList());
+        self::assertTrue($companions->contains($movMatch->file->getPathname()));
     }
 
     /**
@@ -402,8 +410,8 @@ final class CompanionDetectorTest extends TestCase
         $companions = $detector->detect($group, $heic);
 
         // Lower clusterRank wins
-        self::assertCount(1, $companions);
-        self::assertArrayHasKey($movLowRank->file->getPathname(), $companions);
+        self::assertCount(1, $companions->toPathList());
+        self::assertTrue($companions->contains($movLowRank->file->getPathname()));
 
         // Test without clusterRank: shorter pathname wins
         $movLong = new AssetItem(
@@ -424,8 +432,8 @@ final class CompanionDetectorTest extends TestCase
         $companions2 = $detector->detect($group2, $heic);
 
         // Shorter pathname wins
-        self::assertCount(1, $companions2);
-        self::assertArrayHasKey($movShort->file->getPathname(), $companions2);
+        self::assertCount(1, $companions2->toPathList());
+        self::assertTrue($companions2->contains($movShort->file->getPathname()));
 
         // Test lexicographic tie-breaker (same length)
         $movAlpha = new AssetItem(
@@ -446,14 +454,14 @@ final class CompanionDetectorTest extends TestCase
         $companions3 = $detector->detect($group3, $heic);
 
         // Lexicographic: AAA < BBB
-        self::assertCount(1, $companions3);
-        self::assertArrayHasKey($movAlpha->file->getPathname(), $companions3);
+        self::assertCount(1, $companions3->toPathList());
+        self::assertTrue($companions3->contains($movAlpha->file->getPathname()));
     }
 
     private function createDetector(): CompanionDetectorInterface
     {
         return new CompanionDetector(
-            new MediaTypeClassifier(),
+            new MediaCompatibilityPolicy(new MediaTypeClassifier()),
         );
     }
 }

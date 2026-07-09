@@ -18,6 +18,7 @@ use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
+use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
@@ -34,6 +35,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Filesystem\Filesystem;
 
 use function array_filter;
 use function array_map;
@@ -113,19 +115,35 @@ abstract class AbstractRenameCommand extends Command
     protected bool $isSingleFile = false;
 
     /**
-     * @param FileSystemServiceInterface         $fileSystemService         Handles file iteration, counting and rename execution
-     * @param DuplicateDetectionServiceInterface $duplicateDetectionService Orchestrates grouping and suffix assignment
+     * Constructor.
+     *
+     * @param FileSystemServiceInterface         $fileSystemService         Service to handle file system operations like iteration and renames
+     * @param DuplicateDetectionServiceInterface $duplicateDetectionService Service to handle grouping of files and suffix assignment for duplicates
+     * @param SafeRegex                          $safeRegex                 Safe regex wrapper shared by legacy iterator filters and pattern strategies
+     * @param Filesystem                         $filesystem                Command-facing filesystem boundary reused by metadata-cache helpers
      */
     public function __construct(
         protected FileSystemServiceInterface $fileSystemService,
         protected DuplicateDetectionServiceInterface $duplicateDetectionService,
+        protected readonly SafeRegex $safeRegex,
+        protected readonly Filesystem $filesystem,
     ) {
         parent::__construct();
     }
 
     /**
-     * Registers the shared CLI arguments (source-directory) and options
-     * (--dry-run, --list-all) common to all rename commands.
+     * Exposes the command-level filesystem boundary to shared metadata provider configuration.
+     */
+    protected function getCommandFilesystem(): Filesystem
+    {
+        return $this->filesystem;
+    }
+
+    /**
+     * Configures the command.
+     *
+     * Registers the shared CLI arguments (source) and options
+     * (--dry-run, --list-all, --show, --timezone, --max-date-drift) common to all rename commands.
      */
     #[Override]
     protected function configure(): void
@@ -169,9 +187,20 @@ abstract class AbstractRenameCommand extends Command
     }
 
     /**
-     * Entry point called by Symfony Console. Initializes IO, parses input, validates
-     * options, handles dry-run confirmation, normalizes paths and delegates to
-     * {@see executeCommand()} for the actual pipeline execution.
+     * Main execution entry point.
+     *
+     * Called by Symfony Console. It performs the following steps:
+     * 1. Initializes IO (SymfonyStyle)
+     * 2. Parses input and initializes command parameters
+     * 3. Validates command options
+     * 4. Handles dry-run confirmation
+     * 5. Normalizes directory paths
+     * 6. Delegates to {@see executeCommand()} for the actual pipeline execution
+     *
+     * @param InputInterface  $input  The input interface
+     * @param OutputInterface $output The output interface
+     *
+     * @return int The exit code (0 for success, non-zero for failure)
      */
     #[Override]
     final protected function execute(InputInterface $input, OutputInterface $output): int
@@ -201,7 +230,12 @@ abstract class AbstractRenameCommand extends Command
     }
 
     /**
-     * Initializes command parameters from input.
+     * Initializes command parameters from the provided input.
+     *
+     * Sets internal state for dryRun, listAll, maxDateDrift, and showFilter
+     * based on the CLI options.
+     *
+     * @param InputInterface $input The input interface
      */
     private function initializeCommandParameters(InputInterface $input): void
     {
@@ -276,6 +310,8 @@ abstract class AbstractRenameCommand extends Command
 
     /**
      * Normalizes the source directory path.
+     *
+     * This ensures the source directory is an absolute canonical path.
      */
     private function normalizeDirectoryPaths(): void
     {
@@ -284,6 +320,21 @@ abstract class AbstractRenameCommand extends Command
 
     /**
      * Converts a directory path to an absolute canonical form.
+     *
+     * If the path is relative, it is resolved against the current working
+     * directory. Trailing slashes are removed.
+     *
+     * This method handles path normalization for consistent display and
+     * file system matching, ensuring that differences in separators or
+     * trailing slashes do not affect grouping or mapping.
+     *
+     * @param string      $directory    The directory path to canonicalize (can be relative or absolute).
+     * @param string|null $fallbackBase Fallback base directory if getcwd() fails or returns an empty string.
+     *
+     * @return string The canonical absolute path, with no trailing slash (unless it is the root).
+     *
+     * @throws RuntimeException If the directory contains path traversal components ("..") and
+     *                          cannot be resolved via realpath() (e.g., it doesn't exist).
      */
     private function canonicalizeDirectoryPath(string $directory, ?string $fallbackBase = null): string
     {
@@ -393,6 +444,11 @@ abstract class AbstractRenameCommand extends Command
 
     /**
      * Renders a short post-scan summary showing what the pipeline found.
+     *
+     * Displays counts for issues like ambiguous timezones, fallback dates,
+     * skipped files, and Live Photo conflicts.
+     *
+     * @param RenameResult $result The result object containing scan statistics
      */
     protected function renderPostScanSummary(RenameResult $result): void
     {
@@ -508,22 +564,35 @@ abstract class AbstractRenameCommand extends Command
 
     /**
      * Returns the rename strategy that computes target filenames from source files.
-     * Each concrete command provides its own strategy (EXIF date, pattern, lowercase, etc.).
+     *
+     * Each concrete command provides its own strategy (EXIF date, pattern, lowercase, etc.),
+     * which defines the core renaming logic and determines the primary sort order
+     * of the result list.
      */
     abstract protected function getTargetFilenameStrategy(): RenameStrategyInterface;
 
     /**
      * Returns the duplicate identifier strategy that determines how files are grouped.
-     * Each concrete command selects the grouping granularity (basename, filename, pathname, hash).
+     *
+     * Each concrete command selects the grouping granularity (basename, filename,
+     * pathname, or content-hash). This determines which files are considered
+     * "versions" of each other and must receive duplicate suffixes.
      */
     abstract protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface;
 
     /**
      * Creates the file iterator for scanning the source directory or single file.
+     *
      * Subclasses may override to apply file type filters (e.g. EXIF command
      * filters by image/video extensions).
      *
+     * In single file mode, a regex filter is applied to a directory iterator
+     * to isolate the specific file while maintaining compatibility with the
+     * pipeline's recursive scanning architecture.
+     *
      * @return RecursiveIteratorIterator<RecursiveIterator<string, SplFileInfo>>
+     *
+     * @throws RuntimeException If the source directory or file does not exist.
      */
     protected function createFileIterator(): RecursiveIteratorIterator
     {
@@ -546,6 +615,7 @@ abstract class AbstractRenameCommand extends Command
                         FilesystemIterator::SKIP_DOTS,
                     ),
                     '/^' . preg_quote($basename, '/') . '$/i',
+                    $this->safeRegex,
                 ),
             );
         }

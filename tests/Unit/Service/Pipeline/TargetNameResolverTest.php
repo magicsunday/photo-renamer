@@ -17,7 +17,12 @@ use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\ItemRole;
+use MagicSunday\Renamer\Service\Pipeline\ExistingSubgroupNamePreserver;
+use MagicSunday\Renamer\Service\Pipeline\FlatGroupNameResolver;
+use MagicSunday\Renamer\Service\Pipeline\SubgroupNameResolver;
+use MagicSunday\Renamer\Service\Pipeline\SubgroupPresenceDetector;
 use MagicSunday\Renamer\Service\Pipeline\TargetNameResolver;
+use MagicSunday\Renamer\Test\Fixtures\TargetNameResolverFactory;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
@@ -25,8 +30,18 @@ use PHPUnit\Framework\TestCase;
 use SplFileInfo;
 
 /**
- * Verifies pure semantic naming: role + group key produce the correct proposed name
- * without any collision checks.
+ * Verifies the semantic naming logic of the TargetNameResolver.
+ *
+ * This test suite ensures that asset groups are correctly renamed based on their
+ * role (Canonical, Companion, Duplicate, Subgroup) and the group key (usually
+ * a timestamp). It covers:
+ * - Simple renaming (canonical, companions, duplicates)
+ * - Subgroup numbering (clusters of similar files)
+ * - Idempotency (preventing unnecessary re-naming of already correct files)
+ * - Stability of naming across dry-runs or partial executions
+ *
+ * The resolver only proposes names; it does not perform physical disk checks for
+ * collisions with existing unrelated files (that is handled by CollisionResolver).
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -38,15 +53,20 @@ use SplFileInfo;
 #[UsesClass(AssetGroupCollection::class)]
 #[UsesClass(FileHelper::class)]
 #[UsesClass(Constants::class)]
+#[UsesClass(ExistingSubgroupNamePreserver::class)]
+#[UsesClass(FlatGroupNameResolver::class)]
+#[UsesClass(SubgroupNameResolver::class)]
+#[UsesClass(SubgroupPresenceDetector::class)]
 final class TargetNameResolverTest extends TestCase
 {
     /**
-     * Single canonical HEIC gets the clean group key as basename.
+     * Ensures that the main file (canonical) receives a clean filename without
+     * suffixes (except for the date pattern).
      */
     #[Test]
     public function canonicalGetsCleanBasename(): void
     {
-        $resolver = new TargetNameResolver();
+        $resolver = TargetNameResolverFactory::create();
 
         $item  = $this->createItem('/photos/IMG_0001.heic', ItemRole::Canonical);
         $group = $this->createGroup('2024-01-01_12-00-00-000', [$item]);
@@ -63,12 +83,13 @@ final class TargetNameResolverTest extends TestCase
     }
 
     /**
-     * Companion MOV gets the same group key basename but its own extension.
+     * Verifies that companion files (e.g., sidecars) receive the same basename
+     * as the main file but keep their own file extension.
      */
     #[Test]
     public function companionGetsSameBasenameWithOwnExtension(): void
     {
-        $resolver = new TargetNameResolver();
+        $resolver = TargetNameResolverFactory::create();
 
         $canonical = $this->createItem('/photos/IMG_0001.heic', ItemRole::Canonical);
         $companion = $this->createItem('/photos/IMG_0001.mov', ItemRole::Companion);
@@ -86,12 +107,13 @@ final class TargetNameResolverTest extends TestCase
     }
 
     /**
-     * Duplicates get sequential suffixes: -duplicate-001, -duplicate-002.
+     * Verifies that duplicate files receive a sequential suffix (e.g., -duplicate-001)
+     * to avoid name collisions within the group.
      */
     #[Test]
     public function duplicateGetsSequentialSuffix(): void
     {
-        $resolver = new TargetNameResolver();
+        $resolver = TargetNameResolverFactory::create();
 
         $canonical  = $this->createItem('/photos/IMG_0001.heic', ItemRole::Canonical);
         $duplicate1 = $this->createItem('/photos/IMG_0002.heic', ItemRole::Duplicate);
@@ -116,7 +138,7 @@ final class TargetNameResolverTest extends TestCase
     #[Test]
     public function ambiguousGetsDuplicateStyleSuffix(): void
     {
-        $resolver = new TargetNameResolver();
+        $resolver = TargetNameResolverFactory::create();
 
         $canonical = $this->createItem('/photos/IMG_0001.heic', ItemRole::Canonical);
         $ambiguous = $this->createItem('/photos/IMG_0002.heic', ItemRole::Ambiguous);
@@ -133,12 +155,13 @@ final class TargetNameResolverTest extends TestCase
     }
 
     /**
-     * File already at target path has renameRequired = false.
+     * Ensures that files that already carry the correct name are marked
+     * as "No-Op" (renameRequired = false).
      */
     #[Test]
     public function alreadyCorrectFileHasRenameRequiredFalse(): void
     {
-        $resolver = new TargetNameResolver();
+        $resolver = TargetNameResolverFactory::create();
 
         $item  = $this->createItem('/photos/2024-01-01_12-00-00-000.heic', ItemRole::Canonical);
         $group = $this->createGroup('2024-01-01_12-00-00-000', [$item]);
@@ -155,12 +178,13 @@ final class TargetNameResolverTest extends TestCase
     }
 
     /**
-     * Items in different directories preserve their source directory.
+     * Verifies that files remain within their original directories and only
+     * the filename is adjusted.
      */
     #[Test]
     public function filesStayInTheirOwnDirectory(): void
     {
-        $resolver = new TargetNameResolver();
+        $resolver = TargetNameResolverFactory::create();
 
         $canonical = $this->createItem('/photos/2024/IMG_0001.heic', ItemRole::Canonical);
         $duplicate = $this->createItem('/photos/2025/IMG_0002.heic', ItemRole::Duplicate);
@@ -183,7 +207,7 @@ final class TargetNameResolverTest extends TestCase
     #[Test]
     public function useFileExtensionFromSourcePreservesExtension(): void
     {
-        $resolver = new TargetNameResolver();
+        $resolver = TargetNameResolverFactory::create();
 
         $canonical = $this->createItem('/photos/IMG_0001.heic', ItemRole::Canonical);
         $duplicate = $this->createItem('/photos/IMG_0002.JPG', ItemRole::Duplicate);
@@ -206,7 +230,7 @@ final class TargetNameResolverTest extends TestCase
     #[Test]
     public function sequenceNumberSetOnDuplicates(): void
     {
-        $resolver = new TargetNameResolver();
+        $resolver = TargetNameResolverFactory::create();
 
         $canonical  = $this->createItem('/photos/IMG_0001.heic', ItemRole::Canonical);
         $duplicate1 = $this->createItem('/photos/IMG_0002.heic', ItemRole::Duplicate);
@@ -233,7 +257,7 @@ final class TargetNameResolverTest extends TestCase
     #[Test]
     public function emptyGroupIsSkipped(): void
     {
-        $resolver = new TargetNameResolver();
+        $resolver = TargetNameResolverFactory::create();
 
         $group = new AssetGroup('2024-01-01_12-00-00-000');
 
@@ -246,12 +270,13 @@ final class TargetNameResolverTest extends TestCase
     }
 
     /**
-     * Items in a non-canonical cluster get a subgroup suffix (-002).
+     * Verifies that items in subgroups receive a corresponding subgroup suffix
+     * (e.g. "-002") if the group was split by perceptual hashing.
      */
     #[Test]
     public function subgroupItemsGetSubgroupSuffix(): void
     {
-        $resolver = new TargetNameResolver();
+        $resolver = TargetNameResolverFactory::create();
 
         $groupKey         = '2024-01-01_12-00-00-000';
         $canonicalCluster = $groupKey;
@@ -281,7 +306,7 @@ final class TargetNameResolverTest extends TestCase
     #[Test]
     public function canonicalClusterGetsCleanBasename(): void
     {
-        $resolver = new TargetNameResolver();
+        $resolver = TargetNameResolverFactory::create();
 
         $groupKey         = '2024-01-01_12-00-00-000';
         $canonicalCluster = $groupKey;
@@ -310,12 +335,13 @@ final class TargetNameResolverTest extends TestCase
     }
 
     /**
-     * Three distinct clusters produce sequential subgroup numbers: -002, -003.
+     * Verifies that multiple subgroups (clusters) within the same group
+     * receive deterministic sequential suffixes (e.g., -002, -003).
      */
     #[Test]
     public function multipleSubgroupsGetSequentialNumbers(): void
     {
-        $resolver = new TargetNameResolver();
+        $resolver = TargetNameResolverFactory::create();
 
         $groupKey         = '2024-01-01_12-00-00-000';
         $canonicalCluster = $groupKey;
@@ -346,7 +372,7 @@ final class TargetNameResolverTest extends TestCase
     #[Test]
     public function duplicatesWithinSubgroupGetDuplicateSuffix(): void
     {
-        $resolver = new TargetNameResolver();
+        $resolver = TargetNameResolverFactory::create();
 
         $groupKey         = '2024-01-01_12-00-00-000';
         $canonicalCluster = $groupKey;
@@ -378,7 +404,7 @@ final class TargetNameResolverTest extends TestCase
     #[Test]
     public function crossDirectoryNonCanonicalClusterKeepsSubgroupSuffix(): void
     {
-        $resolver = new TargetNameResolver();
+        $resolver = TargetNameResolverFactory::create();
 
         $groupKey         = '2024-01-01_12-00-00-000';
         $canonicalCluster = $groupKey;
@@ -411,7 +437,7 @@ final class TargetNameResolverTest extends TestCase
     #[Test]
     public function canonicalInRootDuplicateInSubdirPreservesDirectories(): void
     {
-        $resolver = new TargetNameResolver();
+        $resolver = TargetNameResolverFactory::create();
 
         $canonical = $this->createItem('/photos/IMG_0001.heic', ItemRole::Canonical);
         $duplicate = $this->createItem('/photos/backup/IMG_0002.jpg', ItemRole::Duplicate);
@@ -436,7 +462,7 @@ final class TargetNameResolverTest extends TestCase
     #[Test]
     public function canonicalInSubdirNonCanonicalInRootPreservesDirectories(): void
     {
-        $resolver = new TargetNameResolver();
+        $resolver = TargetNameResolverFactory::create();
 
         $canonical = $this->createItem('/photos/originals/IMG_0001.heic', ItemRole::Canonical);
         $duplicate = $this->createItem('/photos/IMG_0002.jpg', ItemRole::Duplicate);
@@ -461,7 +487,7 @@ final class TargetNameResolverTest extends TestCase
     #[Test]
     public function subgroupSuffixStableAcrossDirectories(): void
     {
-        $resolver = new TargetNameResolver();
+        $resolver = TargetNameResolverFactory::create();
 
         $groupKey         = '2024-01-01_12-00-00-000';
         $canonicalCluster = $groupKey;
@@ -493,7 +519,7 @@ final class TargetNameResolverTest extends TestCase
     #[Test]
     public function partialClusterIdAssignmentTriggersSubgroupNaming(): void
     {
-        $resolver = new TargetNameResolver();
+        $resolver = TargetNameResolverFactory::create();
 
         $groupKey = '2024-01-01_12-00-00-000';
         $cluster  = $groupKey;
@@ -530,7 +556,7 @@ final class TargetNameResolverTest extends TestCase
     #[Test]
     public function subgroupIdempotencyPrefersAlreadyCleanName(): void
     {
-        $resolver = new TargetNameResolver();
+        $resolver = TargetNameResolverFactory::create();
 
         $groupKey         = '2024-01-01_21-53-58-997';
         $canonicalCluster = $groupKey;
@@ -593,13 +619,13 @@ final class TargetNameResolverTest extends TestCase
     }
 
     /**
-     * When both subgroup items are already correctly named (-002.jpg and -002-duplicate-001.jpg),
-     * both should receive [O] (proposedName === sourcePath) with no renames required.
+     * Verifies idempotency for subgroups: files that already carry a
+     * matching name should keep it to avoid unnecessary renames.
      */
     #[Test]
     public function subgroupIdempotencyAlreadyCorrectlyNamedFilesRemainNoOp(): void
     {
-        $resolver = new TargetNameResolver();
+        $resolver = TargetNameResolverFactory::create();
 
         $groupKey         = '2024-01-01_21-53-58-997';
         $canonicalCluster = $groupKey;
@@ -658,7 +684,7 @@ final class TargetNameResolverTest extends TestCase
     #[Test]
     public function subgroupDuplicateNumbersRemainStable(): void
     {
-        $resolver = new TargetNameResolver();
+        $resolver = TargetNameResolverFactory::create();
 
         $groupKey         = '2024-01-01_21-53-58-997';
         $canonicalCluster = $groupKey;
@@ -719,7 +745,7 @@ final class TargetNameResolverTest extends TestCase
     #[Test]
     public function subgroupAlphabeticallyEarlierDuplicateDoesNotSwapWithCleanName(): void
     {
-        $resolver = new TargetNameResolver();
+        $resolver = TargetNameResolverFactory::create();
 
         $groupKey         = '2024-01-01_21-53-58-997';
         $canonicalCluster = $groupKey;
@@ -774,7 +800,7 @@ final class TargetNameResolverTest extends TestCase
     #[Test]
     public function subgroupWithoutIdempotentMatchUsesClusterRank(): void
     {
-        $resolver = new TargetNameResolver();
+        $resolver = TargetNameResolverFactory::create();
 
         $groupKey         = '2024-01-01_21-53-58-997';
         $canonicalCluster = $groupKey;
@@ -825,7 +851,7 @@ final class TargetNameResolverTest extends TestCase
     #[Test]
     public function secondDryRunAfterSubgroupRenameIsFullyIdempotent(): void
     {
-        $resolver = new TargetNameResolver();
+        $resolver = TargetNameResolverFactory::create();
 
         $groupKey         = '2024-01-01_21-53-58-997';
         $canonicalCluster = $groupKey;
@@ -881,7 +907,7 @@ final class TargetNameResolverTest extends TestCase
     #[Test]
     public function canonicalClusterDuplicateNumbersRemainStable(): void
     {
-        $resolver = new TargetNameResolver();
+        $resolver = TargetNameResolverFactory::create();
 
         $groupKey = '2024-01-01_12-00-00-000';
         $cluster  = $groupKey;
@@ -938,7 +964,7 @@ final class TargetNameResolverTest extends TestCase
     #[Test]
     public function subgroupNumberingIsStableRegardlessOfInsertionOrder(): void
     {
-        $resolver = new TargetNameResolver();
+        $resolver = TargetNameResolverFactory::create();
 
         $groupKey         = '2024-01-01_12-00-00-000';
         $canonicalCluster = $groupKey;
@@ -986,7 +1012,7 @@ final class TargetNameResolverTest extends TestCase
     #[Test]
     public function testCompanionInSubdirectoryKeepsSubgroupSuffix(): void
     {
-        $resolver = new TargetNameResolver();
+        $resolver = TargetNameResolverFactory::create();
 
         $groupKey         = '2024-01-01_12-00-00-000';
         $canonicalCluster = $groupKey;
@@ -1051,7 +1077,7 @@ final class TargetNameResolverTest extends TestCase
         $clusterA = 'alpha_hash';
 
         // --- Run 1: two clusters (canonical + bravo) ---
-        $resolver1 = new TargetNameResolver();
+        $resolver1 = TargetNameResolverFactory::create();
 
         $group1 = $this->createGroup($groupKey, [
             $this->createItemWithCluster('/photos/IMG_0001.heic', ItemRole::Canonical, $canonicalCluster),
@@ -1068,7 +1094,7 @@ final class TargetNameResolverTest extends TestCase
         $run1BravoName = $run1BravoItem->proposedName;
 
         // --- Run 2: identical setup — must produce same result (determinism proof) ---
-        $resolver2 = new TargetNameResolver();
+        $resolver2 = TargetNameResolverFactory::create();
 
         $group2 = $this->createGroup($groupKey, [
             $this->createItemWithCluster('/photos/IMG_0001.heic', ItemRole::Canonical, $canonicalCluster),
@@ -1090,7 +1116,7 @@ final class TargetNameResolverTest extends TestCase
         );
 
         // --- Run 3: add a third cluster that sorts after bravo (charlie) ---
-        $resolver3 = new TargetNameResolver();
+        $resolver3 = TargetNameResolverFactory::create();
 
         $group3 = $this->createGroup($groupKey, [
             $this->createItemWithCluster('/photos/IMG_0001.heic', ItemRole::Canonical, $canonicalCluster),
@@ -1120,7 +1146,7 @@ final class TargetNameResolverTest extends TestCase
         // not preserved across threshold changes. When alpha_hash is introduced and sorts
         // before bravo_hash, bravo's number shifts from 002 to 003 because alpha_hash
         // now occupies position 002.
-        $resolver3b = new TargetNameResolver();
+        $resolver3b = TargetNameResolverFactory::create();
 
         $group3b = $this->createGroup($groupKey, [
             $this->createItemWithCluster('/photos/IMG_0001.heic', ItemRole::Canonical, $canonicalCluster),
@@ -1168,7 +1194,7 @@ final class TargetNameResolverTest extends TestCase
     #[Test]
     public function testDegradedGroupWithExistingSubgroupNamesPreservesNames(): void
     {
-        $resolver = new TargetNameResolver();
+        $resolver = TargetNameResolverFactory::create();
 
         $groupKey = '2024-01-01_12-00-00-000';
 
@@ -1209,7 +1235,7 @@ final class TargetNameResolverTest extends TestCase
     #[Test]
     public function testDegradedGroupWithConflictingSubgroupNamesFallsThrough(): void
     {
-        $resolver = new TargetNameResolver();
+        $resolver = TargetNameResolverFactory::create();
 
         $groupKey = '2024-01-01_12-00-00-000';
 
@@ -1240,7 +1266,7 @@ final class TargetNameResolverTest extends TestCase
     #[Test]
     public function testDegradedGroupWithPartialClusterIdsFallsThrough(): void
     {
-        $resolver = new TargetNameResolver();
+        $resolver = TargetNameResolverFactory::create();
 
         $groupKey = '2024-01-01_12-00-00-000';
 

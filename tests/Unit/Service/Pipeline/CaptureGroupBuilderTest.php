@@ -13,6 +13,8 @@ namespace MagicSunday\Renamer\Test\Unit\Service\Pipeline;
 
 use DateTimeImmutable;
 use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Metadata\MetadataQualityFlagResolver;
+use MagicSunday\Renamer\Metadata\MetadataQualityFlags;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
@@ -20,14 +22,24 @@ use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Model\SkippedFile;
 use MagicSunday\Renamer\Model\TargetFileResult;
+use MagicSunday\Renamer\Service\ContentIdentifierCacheEntry;
+use MagicSunday\Renamer\Service\Filesystem\SortedFileIteratorCollector;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
+use MagicSunday\Renamer\Service\Pipeline\CaptureAssetCandidateExtractor;
+use MagicSunday\Renamer\Service\Pipeline\CaptureContentIdentifierCoordinator;
 use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuilder;
 use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuilderInterface;
 use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuildState;
+use MagicSunday\Renamer\Service\Pipeline\CaptureGroupQualityTracker;
+use MagicSunday\Renamer\Service\Pipeline\PendingLivePhotoVideoResolver;
+use MagicSunday\Renamer\Service\Reporting\NullProgressReporter;
+use MagicSunday\Renamer\Service\TargetFileResolver;
+use MagicSunday\Renamer\Service\TargetPathResolver;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\LivePhotoAwareRenameStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\MetadataAwareRenameStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
+use MagicSunday\Renamer\Test\Fixtures\CaptureGroupBuilderFactory;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
@@ -35,9 +47,6 @@ use PHPUnit\Framework\TestCase;
 use RecursiveArrayIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
-use Symfony\Component\Console\Helper\ProgressBar;
-use Symfony\Component\Console\Output\NullOutput;
-use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function count;
 use function in_array;
@@ -52,11 +61,22 @@ use function strtolower;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(CaptureGroupBuilder::class)]
+#[UsesClass(SortedFileIteratorCollector::class)]
+#[UsesClass(ContentIdentifierCacheEntry::class)]
+#[UsesClass(CaptureAssetCandidateExtractor::class)]
+#[UsesClass(CaptureContentIdentifierCoordinator::class)]
 #[UsesClass(CaptureGroupBuildState::class)]
+#[UsesClass(CaptureGroupQualityTracker::class)]
+#[UsesClass(PendingLivePhotoVideoResolver::class)]
+#[UsesClass(NullProgressReporter::class)]
+#[UsesClass(TargetFileResolver::class)]
+#[UsesClass(TargetPathResolver::class)]
 #[UsesClass(AssetGroup::class)]
 #[UsesClass(AssetItem::class)]
 #[UsesClass(AssetGroupCollection::class)]
 #[UsesClass(Constants::class)]
+#[UsesClass(MetadataQualityFlagResolver::class)]
+#[UsesClass(MetadataQualityFlags::class)]
 #[UsesClass(PipelineContext::class)]
 #[UsesClass(SkippedFile::class)]
 #[UsesClass(TargetFileResult::class)]
@@ -314,18 +334,10 @@ final class CaptureGroupBuilderTest extends TestCase
     private function createBuilder(
         ?MediaTypeClassifierInterface $mediaTypeClassifier = null,
     ): CaptureGroupBuilderInterface {
-        $io = self::createStub(SymfonyStyle::class);
-
-        $nullOutput = new NullOutput();
-
-        $io->method('createProgressBar')->willReturnCallback(
-            static fn (int $max = 0): ProgressBar => new ProgressBar($nullOutput, $max),
-        );
-
         $mediaTypeClassifier ??= $this->createDefaultMediaTypeClassifier();
 
-        return new CaptureGroupBuilder(
-            $io,
+        return CaptureGroupBuilderFactory::create(
+            new NullProgressReporter(),
             $mediaTypeClassifier,
         );
     }
