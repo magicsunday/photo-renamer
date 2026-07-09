@@ -14,6 +14,7 @@ namespace MagicSunday\Renamer\Test\Unit\Service\PerceptualHash;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator;
+use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashMath;
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityClassification;
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityResult;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -38,6 +39,7 @@ use function uniqid;
 #[CoversClass(PerceptualHashCalculator::class)]
 #[UsesClass(ImagickImageLoader::class)]
 #[UsesClass(MediaTypeClassifier::class)]
+#[UsesClass(PerceptualHashMath::class)]
 #[UsesClass(SimilarityResult::class)]
 final class PerceptualHashCalculatorTest extends TestCase
 {

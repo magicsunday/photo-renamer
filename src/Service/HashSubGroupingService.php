@@ -636,13 +636,7 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
             $durationByHash[$hash]       = $metadata?->getVideoDurationSeconds();
         }
 
-        // Union-find: parent[index] = index of parent in $hashes array.
-        /** @var array<int, int> $parent */
-        $parent = [];
-
-        for ($hashIndex = 0; $hashIndex < $count; ++$hashIndex) {
-            $parent[$hashIndex] = $hashIndex;
-        }
+        $components = new DisjointSetUnion($count);
 
         // Stage B image cache: avoids redundant Imagick loads across pairwise comparisons.
         // When comparing pairs (index,j) and (index,k), file index is loaded once instead of twice.
@@ -655,7 +649,7 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
         for ($indexA = 0; $indexA < $count; ++$indexA) {
             for ($indexB = $indexA + 1; $indexB < $count; ++$indexB) {
                 // Skip pairs already in the same union-find group
-                if ($this->findRoot($parent, $indexA) === $this->findRoot($parent, $indexB)) {
+                if ($components->find($indexA) === $components->find($indexB)) {
                     continue;
                 }
 
@@ -693,12 +687,7 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
                 }
 
                 if ($shouldMerge) {
-                    $rootA = $this->findRoot($parent, $indexA);
-                    $rootB = $this->findRoot($parent, $indexB);
-
-                    if ($rootA !== $rootB) {
-                        $parent[$rootB] = $rootA;
-                    }
+                    $components->union($indexA, $indexB);
                 }
             }
         }
@@ -715,7 +704,7 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
         $rootByHashIndex   = [];
 
         for ($hashIndex = 0; $hashIndex < $count; ++$hashIndex) {
-            $root                        = $this->findRoot($parent, $hashIndex);
+            $root                        = $components->find($hashIndex);
             $rootByHashIndex[$hashIndex] = $root;
             $currentMinIndex             = $componentMinIndex[$root] ?? null;
 
@@ -724,16 +713,13 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
             }
         }
 
-        for ($hashIndex = 0; $hashIndex < $count; ++$hashIndex) {
-            $parent[$hashIndex] = $componentMinIndex[$rootByHashIndex[$hashIndex]];
-        }
-
         // Build merged groups keyed by root's content hash.
         /** @var array<string, list<Rename>> $merged */
         $merged = [];
 
         for ($hashIndex = 0; $hashIndex < $count; ++$hashIndex) {
-            $rootHash = $hashes[$this->findRoot($parent, $hashIndex)];
+            $root     = $rootByHashIndex[$hashIndex];
+            $rootHash = $hashes[$componentMinIndex[$root]];
 
             if (!isset($merged[$rootHash])) {
                 $merged[$rootHash] = [];
@@ -766,28 +752,6 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
         }
 
         return $renames[0];
-    }
-
-    /**
-     * Finds the root of element $index in the union-find structure with path compression.
-     *
-     * Part of a Disjoint Set Union (DSU) implementation to efficiently group
-     * perceptually similar hashes. Path compression ensures near-constant time
-     * complexity for subsequent lookups.
-     *
-     * @param array<int, int> $parent The disjoint set parent array.
-     * @param int             $index  The index to find the root for.
-     *
-     * @return int The root index of the set.
-     */
-    private function findRoot(array &$parent, int $index): int
-    {
-        while ($parent[$index] !== $index) {
-            $parent[$index] = $parent[$parent[$index]];
-            $index          = $parent[$index];
-        }
-
-        return $index;
     }
 
     /**

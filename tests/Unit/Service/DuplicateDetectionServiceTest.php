@@ -33,6 +33,7 @@ use MagicSunday\Renamer\Model\RenameResult;
 use MagicSunday\Renamer\Model\SkippedFile;
 use MagicSunday\Renamer\Model\TargetFileResult;
 use MagicSunday\Renamer\Service\ContentIdentifierCacheEntry;
+use MagicSunday\Renamer\Service\DisjointSetUnion;
 use MagicSunday\Renamer\Service\DuplicateCanonicalRenameSelector;
 use MagicSunday\Renamer\Service\DuplicateCanonicalSelection;
 use MagicSunday\Renamer\Service\DuplicateDetectionService;
@@ -122,6 +123,7 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(DuplicateCanonicalRenameSelector::class)]
 #[UsesClass(DuplicateCanonicalSelection::class)]
 #[UsesClass(DuplicateSuffixAssigner::class)]
+#[UsesClass(DisjointSetUnion::class)]
 #[CoversClass(HashSubGroupingService::class)]
 #[CoversClass(FileDuplicateCollection::class)]
 #[CoversClass(FileDuplicate::class)]

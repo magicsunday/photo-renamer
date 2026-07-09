@@ -51,6 +51,7 @@ use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\CanonicalScore;
 use MagicSunday\Renamer\Service\CanonicalScorer;
 use MagicSunday\Renamer\Service\ContentIdentifierCacheEntry;
+use MagicSunday\Renamer\Service\DisjointSetUnion;
 use MagicSunday\Renamer\Service\DuplicateDetectionService;
 use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilder;
 use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
@@ -212,6 +213,7 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(SafeRegex::class)]
 #[UsesClass(DuplicateDetectionService::class)]
 #[UsesClass(FileSystemService::class)]
+#[UsesClass(DisjointSetUnion::class)]
 #[UsesClass(HashSubGroupingService::class)]
 #[UsesClass(ImagickImageLoader::class)]
 #[UsesClass(LivePhotoBasenameTargetMap::class)]
