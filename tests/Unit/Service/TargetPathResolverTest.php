@@ -125,6 +125,8 @@ final class TargetPathResolverTest extends TestCase
     {
         yield 'empty' => [''];
         yield 'whitespace' => ['   '];
+        yield 'leading whitespace' => [' photo.jpg'];
+        yield 'trailing whitespace' => ['photo.jpg '];
         yield 'current directory alias' => ['.'];
         yield 'parent directory alias' => ['..'];
     }

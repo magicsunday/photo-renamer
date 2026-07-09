@@ -56,7 +56,8 @@ final readonly class TargetPathResolver
         $normalizedTargetFilename = trim($targetFilename);
 
         if (
-            in_array($normalizedTargetFilename, ['', '.', '..'], true)
+            $targetFilename !== $normalizedTargetFilename
+            || in_array($normalizedTargetFilename, ['', '.', '..'], true)
         ) {
             throw new RuntimeException(
                 sprintf('Target filename "%s" must be a valid filename', $targetFilename),
