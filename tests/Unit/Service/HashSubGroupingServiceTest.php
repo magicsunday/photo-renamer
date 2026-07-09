@@ -894,11 +894,11 @@ final class HashSubGroupingServiceTest extends TestCase
     }
 
     /**
-     * Verifies that the internal union-find lookup compresses nested parent
-     * chains to the canonical root.
+     * Verifies that the internal union-find lookup performs path halving on
+     * nested parent chains.
      */
     #[Test]
-    public function findRootCompressesNestedParentChains(): void
+    public function findRootPerformsPathHalvingOnNestedChains(): void
     {
         $service = $this->createHashSubGroupingService();
         $method  = new ReflectionMethod($service, 'findRoot');

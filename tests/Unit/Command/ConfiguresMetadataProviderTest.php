@@ -30,6 +30,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Filesystem\Filesystem;
 
+use function dirname;
 use function getenv;
 use function is_string;
 use function putenv;
@@ -65,7 +66,7 @@ final class ConfiguresMetadataProviderTest extends TestCase
 
         try {
             [$metadataCache, $signalCache] = $this->createCaches();
-            $projectRoot                   = realpath(__DIR__ . '/../../..');
+            $projectRoot                   = realpath(dirname(__DIR__, 3));
 
             self::assertIsString($projectRoot);
 
@@ -87,11 +88,7 @@ final class ConfiguresMetadataProviderTest extends TestCase
                 );
             }
         } finally {
-            if (is_string($previousCacheDir)) {
-                putenv('CACHE_DIR=' . $previousCacheDir);
-            } else {
-                putenv('CACHE_DIR');
-            }
+            $this->restoreEnv('CACHE_DIR', $previousCacheDir);
         }
     }
 
