@@ -20,21 +20,13 @@ use function abs;
 use function array_fill;
 use function array_slice;
 use function array_sum;
-use function bindec;
 use function count;
-use function ctype_xdigit;
-use function dechex;
-use function hex2bin;
 use function intdiv;
 use function max;
 use function min;
-use function ord;
 use function round;
 use function sort;
-use function str_repeat;
-use function strlen;
 use function strtolower;
-use function substr;
 
 use const SORT_NUMERIC;
 
@@ -101,6 +93,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
      */
     public function __construct(
         private readonly ImagickImageLoader $imageLoader,
+        private readonly PerceptualHashMath $hashMath = new PerceptualHashMath(),
     ) {
     }
 
@@ -189,7 +182,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
                 }
             }
 
-            return strtolower($this->bitsToHex($bits, 64));
+            return strtolower($this->hashMath->bitsToHex($bits, 64));
         } catch (Throwable) {
             return null;
         }
@@ -239,7 +232,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
                 $bits .= ($value > $median) ? '1' : '0';
             }
 
-            return strtolower($this->bitsToHex($bits, 64));
+            return strtolower($this->hashMath->bitsToHex($bits, 64));
         } catch (Throwable) {
             return null;
         }
@@ -386,7 +379,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         [$imgA, $dhashA] = $this->loadAndComputeDhash($fileA);
         [$imgB, $dhashB] = $this->loadAndComputeDhash($fileB);
         $dhashDistance   = (($dhashA !== null) && ($dhashB !== null))
-            ? $this->hammingDistance($dhashA, $dhashB)
+            ? $this->hashMath->hammingDistance($dhashA, $dhashB)
             : 64;
 
         // Early exit: dHash distance > 16 → clearly different content.
@@ -409,7 +402,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         $signalsB = $this->getOrComputeRemainingSignals($fileB, $imgB);
 
         $whashDistance = (($signalsA !== null) && ($signalsB !== null))
-            ? $this->hammingDistance($signalsA['whash'] ?? '', $signalsB['whash'] ?? '')
+            ? $this->hashMath->hammingDistance($signalsA['whash'] ?? '', $signalsB['whash'] ?? '')
             : 64;
 
         $hfEnergyDelta = (($signalsA !== null) && ($signalsB !== null) && ($signalsA['hf'] !== null) && ($signalsB['hf'] !== null))
@@ -426,7 +419,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
             $durDelta = abs($durationA - $durationB);
         }
 
-        $score = $this->computeWeightedScore($dhashDistance, $whashDistance, $hfEnergyDelta, $colorDistance, $durDelta, $isVideo);
+        $score = $this->hashMath->computeWeightedScore($dhashDistance, $whashDistance, $hfEnergyDelta, $colorDistance, $durDelta, $isVideo);
 
         $classification = match (true) {
             $score >= 95 => SimilarityClassification::DuplicateLikely,
@@ -514,83 +507,6 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         } catch (Throwable) {
             return null;
         }
-    }
-
-    /**
-     * Computes the weighted multi-signal similarity score (0–100).
-     *
-     * Combines multiple perceptual signals with specific weights to determine a
-     * final similarity percentage. Weights differ for images and videos to
-     * account for temporal consistency (duration) and codec-induced noise.
-     *
-     * Weights (Images): dHash 30%, wHash 25%, HF-energy 20%, color 25%.
-     * Weights (Videos): dHash 25%, wHash 20%, HF-energy 15%, color 10%, duration 30%.
-     *
-     * @param int        $dhashDistance Hamming distance of dHash (0-64).
-     * @param int        $whashDistance Hamming distance of wHash (0-64).
-     * @param float      $hfEnergyDelta Absolute difference in HF-energy (0.0-1.0).
-     * @param float      $colorDistance L1 distance of color histograms (0.0-1.0).
-     * @param float|null $durDelta      Absolute duration difference in seconds (videos only).
-     * @param bool       $isVideo       Whether the comparison is between video files.
-     *
-     * @return int The final similarity score as a percentage (0-100).
-     */
-    private function computeWeightedScore(
-        int $dhashDistance,
-        int $whashDistance,
-        float $hfEnergyDelta,
-        float $colorDistance,
-        ?float $durDelta,
-        bool $isVideo,
-    ): int {
-        $simDhash = max(0.0, 1.0 - ($dhashDistance / 64.0));
-        $simWhash = max(0.0, 1.0 - ($whashDistance / 64.0));
-        $simHf    = 1.0 - min(1.0, $hfEnergyDelta / 0.15);
-        $simColor = 1.0 - min(1.0, $colorDistance);
-
-        if ($isVideo && ($durDelta !== null)) {
-            $simDur = max(0.0, 1.0 - $durDelta / 30.0);
-
-            // For videos with matching duration (±1s), suppress unreliable color score.
-            // Video re-encodes produce different pixel values per codec but identical duration.
-            $videoColor = ($durDelta <= 1.0) ? 1.0 : $simColor;
-
-            $score = 0.25 * $simDhash + 0.20 * $simWhash + 0.15 * $simHf + 0.10 * $videoColor + 0.30 * $simDur;
-        } else {
-            $score = 0.30 * $simDhash + 0.25 * $simWhash + 0.20 * $simHf + 0.25 * $simColor;
-        }
-
-        return (int) round($score * 100);
-    }
-
-    /**
-     * Computes the Hamming distance between two hex hashes.
-     *
-     * The distance is calculated as the number of differing bits.
-     * If lengths differ, the difference is added to the bit-level distance.
-     *
-     * @param string $hashA First hex hash.
-     * @param string $hashB Second hex hash.
-     *
-     * @return int The Hamming distance in bits.
-     */
-    private function hammingDistance(string $hashA, string $hashB): int
-    {
-        $binA = $this->decodeHex($hashA);
-        $binB = $this->decodeHex($hashB);
-
-        if (($binA === null) || ($binB === null)) {
-            return 64;
-        }
-
-        $len  = min(strlen($binA), strlen($binB));
-        $dist = 0;
-
-        for ($i = 0; $i < $len; ++$i) {
-            $dist += $this->bitcount(ord($binA[$i]) ^ ord($binB[$i]));
-        }
-
-        return $dist + 8 * abs(strlen($binA) - strlen($binB));
     }
 
     #[Override]
@@ -762,89 +678,5 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         }
 
         return $subMatrix;
-    }
-
-    /**
-     * Converts a bit string to a hex string with safe padding and optional fixed width.
-     *
-     * Ensures the bit string length is a multiple of 4 (nibble-aligned) by prepending
-     * zero-bits if necessary, then converts each 4-bit chunk to its hexadecimal representation.
-     *
-     * @param string   $bits       The string of '0' and '1' characters to convert.
-     * @param int|null $targetBits Optional target bit length to pad to before nibble alignment.
-     *
-     * @return string The resulting lowercase hex string.
-     */
-    private function bitsToHex(string $bits, ?int $targetBits = null): string
-    {
-        $len = strlen($bits);
-
-        if (($targetBits !== null) && ($targetBits > $len)) {
-            $bits = str_repeat('0', $targetBits - $len) . $bits;
-            $len  = $targetBits;
-        }
-
-        $padBits = (4 - ($len % 4)) % 4;
-
-        if ($padBits > 0) {
-            $bits = str_repeat('0', $padBits) . $bits;
-            $len += $padBits;
-        }
-
-        $hex = '';
-
-        for ($i = 0; $i < $len; $i += 4) {
-            $chunk = substr($bits, $i, 4);
-            $hex .= dechex((int) bindec($chunk));
-        }
-
-        return $hex;
-    }
-
-    /**
-     * Decodes a hex string to its binary representation safely.
-     *
-     * Performs strict validation for hex characters and even string length
-     * to prevent errors during binary conversion.
-     *
-     * @param string $value The hex string to decode.
-     *
-     * @return string|null The binary string or null if invalid hex or odd length.
-     */
-    private function decodeHex(string $value): ?string
-    {
-        if ((strlen($value) & 1) === 1) {
-            return null;
-        }
-
-        if (($value !== '') && !ctype_xdigit($value)) {
-            return null;
-        }
-
-        $decoded = hex2bin($value);
-
-        return $decoded !== false ? $decoded : null;
-    }
-
-    /**
-     * Returns the number of set bits (population count) in an integer.
-     *
-     * Efficiently calculates the bit count by iteratively clearing the
-     * least significant set bit using the `$value & ($value - 1)` trick.
-     *
-     * @param int $value The integer to check.
-     *
-     * @return int The number of bits set to 1.
-     */
-    private function bitcount(int $value): int
-    {
-        $count = 0;
-
-        while ($value !== 0) {
-            $value &= $value - 1;
-            ++$count;
-        }
-
-        return $count;
     }
 }

@@ -59,6 +59,7 @@ use MagicSunday\Renamer\Service\CanonicalScore;
 use MagicSunday\Renamer\Service\CanonicalScorer;
 use MagicSunday\Renamer\Service\ContentIdentifierCacheEntry;
 use MagicSunday\Renamer\Service\DateDriftAnalyzer;
+use MagicSunday\Renamer\Service\DisjointSetUnion;
 use MagicSunday\Renamer\Service\DuplicateDetectionService;
 use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilder;
 use MagicSunday\Renamer\Service\ExiftoolWriter;
@@ -111,6 +112,7 @@ use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
 use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzer;
 use MagicSunday\Renamer\Service\PerceptualHash\LocalDiffResult;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator;
+use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashMath;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualSignalCache;
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityClassification;
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityResult;
@@ -223,6 +225,7 @@ use function copy;
 #[UsesClass(CanonicalScore::class)]
 #[UsesClass(ContentIdentifierCacheEntry::class)]
 #[UsesClass(DateDriftAnalyzer::class)]
+#[UsesClass(DisjointSetUnion::class)]
 #[UsesClass(DuplicateDetectionService::class)]
 #[UsesClass(ExiftoolWriter::class)]
 #[UsesClass(ExecutionPlanExecutor::class)]
@@ -275,6 +278,7 @@ use function copy;
 #[UsesClass(LocalDifferenceAnalyzer::class)]
 #[UsesClass(LocalDiffResult::class)]
 #[UsesClass(PerceptualHashCalculator::class)]
+#[UsesClass(PerceptualHashMath::class)]
 #[UsesClass(PerceptualSignalCache::class)]
 #[UsesClass(SimilarityClassification::class)]
 #[UsesClass(SimilarityResult::class)]

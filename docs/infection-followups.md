@@ -6,11 +6,13 @@ The Infection report generated after enabling the full mutation suite showed
 16 timed-out mutants, 27 skipped mutants, 1436 escaped mutants, and a Covered
 Code MSI of 66% at a 30 second timeout.
 
-After the follow-up tests, two local Infection runs generated 4320 mutants and
-reported a stable Covered Code MSI of 68%. The first validation run killed 2832
-mutants, left 1316 escaped, timed out 8, and skipped 164. The second run, with
-`minCoveredMsi` already raised to 68, killed 2883 mutants, left 1368 escaped,
-timed out 29, and skipped 40.
+After the follow-up tests, local Infection runs reported a stable Covered Code
+MSI of 68%. The first validation run generated 4320 mutants, killed 2832,
+left 1316 escaped, timed out 8, and skipped 164. The second run, with
+`minCoveredMsi` already raised to 68, generated 4320 mutants, killed 2883,
+left 1368 escaped, timed out 29, and skipped 40. After extracting the directly
+tested helpers into public helper classes, the final validation run generated
+4328 mutants, killed 2846, left 1315 escaped, timed out 5, and skipped 162.
 
 The timeout/skipped split is not stable between runs because Infection stops
 individual mutants once they exceed the configured runtime budget. The Covered

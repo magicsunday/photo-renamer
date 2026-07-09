@@ -19,6 +19,7 @@ use MagicSunday\Renamer\Model\Collection\FileList;
 use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\Rename;
+use MagicSunday\Renamer\Service\DisjointSetUnion;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
@@ -35,7 +36,6 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
-use ReflectionMethod;
 use SplFileInfo;
 
 use function file_put_contents;
@@ -65,6 +65,7 @@ use const DIRECTORY_SEPARATOR;
 #[CoversClass(FileDuplicate::class)]
 #[CoversClass(RenameList::class)]
 #[CoversClass(Rename::class)]
+#[UsesClass(DisjointSetUnion::class)]
 #[UsesClass(FileHelper::class)]
 #[UsesClass(FileList::class)]
 #[UsesClass(ImagickImageLoader::class)]
@@ -891,31 +892,6 @@ final class HashSubGroupingServiceTest extends TestCase
         );
 
         self::assertIsArray($result, 'Failed dHash should result in separate sub-groups (conservative)');
-    }
-
-    /**
-     * Verifies that the internal union-find lookup performs path halving on
-     * nested parent chains.
-     */
-    #[Test]
-    public function findRootPerformsPathHalvingOnNestedChains(): void
-    {
-        $service = $this->createHashSubGroupingService();
-        $method  = new ReflectionMethod($service, 'findRoot');
-        $parent  = $this->createNestedParentChain();
-
-        $root = $method->invokeArgs($service, [&$parent, 3]);
-
-        self::assertSame(0, $root);
-        self::assertSame([0 => 0, 1 => 0, 2 => 1, 3 => 1], $parent);
-    }
-
-    /**
-     * @return array<int, int>
-     */
-    private function createNestedParentChain(): array
-    {
-        return [0 => 0, 1 => 0, 2 => 1, 3 => 2];
     }
 
     private function createHashSubGroupingService(): HashSubGroupingService
