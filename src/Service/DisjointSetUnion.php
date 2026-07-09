@@ -52,11 +52,6 @@ final class DisjointSetUnion
         }
     }
 
-    public function setParent(int $index, int $parent): void
-    {
-        $this->parent[$index] = $parent;
-    }
-
     /**
      * @return array<int, int>
      */

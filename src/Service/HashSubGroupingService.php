@@ -713,16 +713,13 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
             }
         }
 
-        for ($hashIndex = 0; $hashIndex < $count; ++$hashIndex) {
-            $components->setParent($hashIndex, $componentMinIndex[$rootByHashIndex[$hashIndex]]);
-        }
-
         // Build merged groups keyed by root's content hash.
         /** @var array<string, list<Rename>> $merged */
         $merged = [];
 
         for ($hashIndex = 0; $hashIndex < $count; ++$hashIndex) {
-            $rootHash = $hashes[$components->find($hashIndex)];
+            $root     = $rootByHashIndex[$hashIndex];
+            $rootHash = $hashes[$componentMinIndex[$root]];
 
             if (!isset($merged[$rootHash])) {
                 $merged[$rootHash] = [];

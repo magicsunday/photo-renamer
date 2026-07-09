@@ -47,6 +47,7 @@ final class PerceptualHashMathTest extends TestCase
     {
         $math = new PerceptualHashMath();
 
+        self::assertSame(64, $math->hammingDistance('', ''));
         self::assertSame(64, $math->hammingDistance('abc', '00'));
         self::assertSame(64, $math->hammingDistance('zz', '00'));
         self::assertSame(16, $math->hammingDistance('ff', '00ff'));

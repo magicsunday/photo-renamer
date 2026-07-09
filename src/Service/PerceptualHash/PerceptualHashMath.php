@@ -119,11 +119,11 @@ final class PerceptualHashMath
 
     private function decodeHex(string $value): ?string
     {
-        if ((strlen($value) & 1) === 1) {
+        if (($value === '') || ((strlen($value) & 1) === 1)) {
             return null;
         }
 
-        if (($value !== '') && !ctype_xdigit($value)) {
+        if (!ctype_xdigit($value)) {
             return null;
         }
 

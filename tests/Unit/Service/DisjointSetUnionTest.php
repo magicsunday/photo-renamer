@@ -33,12 +33,15 @@ final class DisjointSetUnionTest extends TestCase
     public function findPerformsPathHalvingOnNestedChains(): void
     {
         $components = new DisjointSetUnion(4);
-        $components->setParent(1, 0);
-        $components->setParent(2, 1);
-        $components->setParent(3, 2);
+        $components->union(1, 0);
+        $components->union(2, 1);
+        $components->union(3, 2);
 
-        self::assertSame(0, $components->find(3));
-        self::assertSame([0 => 0, 1 => 0, 2 => 1, 3 => 1], $components->parents());
+        self::assertSame(3, $components->find(3));
+        self::assertSame([0 => 1, 1 => 2, 2 => 3, 3 => 3], $components->parents());
+
+        self::assertSame(3, $components->find(0));
+        self::assertSame([0 => 2, 1 => 2, 2 => 3, 3 => 3], $components->parents());
     }
 
     /**
