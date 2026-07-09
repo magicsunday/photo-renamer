@@ -143,6 +143,10 @@ final class RenameByDatePatternCommand extends AbstractRenameCommand
     #[Override]
     protected function createFileIterator(): RecursiveIteratorIterator
     {
+        if ($this->isSingleFile) {
+            return parent::createFileIterator();
+        }
+
         if ($this->patternRegex === null) {
             throw new RuntimeException('Pattern regex has not been initialised.');
         }

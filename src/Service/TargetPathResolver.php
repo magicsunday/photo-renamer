@@ -14,6 +14,7 @@ namespace MagicSunday\Renamer\Service;
 use RuntimeException;
 use SplFileInfo;
 
+use function in_array;
 use function rtrim;
 use function sprintf;
 use function str_contains;
@@ -52,6 +53,16 @@ final readonly class TargetPathResolver
         SplFileInfo $sourceFileInfo,
         string $targetFilename,
     ): string {
+        $normalizedTargetFilename = trim($targetFilename);
+
+        if (
+            in_array($normalizedTargetFilename, ['', '.', '..'], true)
+        ) {
+            throw new RuntimeException(
+                sprintf('Target filename "%s" must be a valid filename', $targetFilename),
+            );
+        }
+
         if (str_contains($targetFilename, DIRECTORY_SEPARATOR) || str_contains($targetFilename, '/')) {
             throw new RuntimeException(
                 sprintf('Target filename "%s" must not contain directory separators', $targetFilename),

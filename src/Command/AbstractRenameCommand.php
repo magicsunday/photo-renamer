@@ -614,7 +614,7 @@ abstract class AbstractRenameCommand extends Command
                         $this->sourceDirectory,
                         FilesystemIterator::SKIP_DOTS,
                     ),
-                    '/^' . preg_quote($basename, '/') . '$/i',
+                    '/^' . preg_quote($basename, '/') . '$/',
                     $this->safeRegex,
                 ),
             );

@@ -133,6 +133,10 @@ final class RenameByPatternCommand extends AbstractRenameCommand
     #[Override]
     protected function createFileIterator(): RecursiveIteratorIterator
     {
+        if ($this->isSingleFile) {
+            return parent::createFileIterator();
+        }
+
         return $this->fileSystemService
             ->createFileIterator(
                 $this->sourceDirectory,

@@ -28,15 +28,22 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use RecursiveArrayIterator;
+use RecursiveIterator;
 use RecursiveIteratorIterator;
+use SplFileInfo;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
 use Symfony\Component\Filesystem\Filesystem;
 
+use function basename;
+use function file_put_contents;
 use function getcwd;
 use function ltrim;
+use function mkdir;
 use function rtrim;
 use function str_replace;
+use function sys_get_temp_dir;
+use function uniqid;
 
 /**
  * Verifies the AbstractRenameCommand base class, which provides the shared
@@ -530,6 +537,85 @@ final class AbstractRenameCommandTest extends TestCase
 
         self::assertSame(Command::FAILURE, $tester->getStatusCode());
         self::assertStringContainsString('does not exist', $tester->getDisplay());
+    }
+
+    /**
+     * Verifies that single-file mode only forwards the exact requested filename
+     * to the recursive filter. On case-sensitive filesystems, `Photo.jpg` and
+     * `photo.jpg` can coexist and must not both be processed.
+     */
+    #[Test]
+    public function executeSingleFileModeMatchesExactFilename(): void
+    {
+        $filesystem = new Filesystem();
+        $workspace  = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'renamer-single-file-' . uniqid();
+        $sourceFile = $workspace . DIRECTORY_SEPARATOR . 'Photo.jpg';
+
+        mkdir($workspace);
+        file_put_contents($sourceFile, 'selected');
+        file_put_contents($workspace . DIRECTORY_SEPARATOR . 'photo.jpg', 'other');
+
+        try {
+            $fileSystemService         = $this->createMock(FileSystemServiceInterface::class);
+            $duplicateDetectionService = $this->createMock(DuplicateDetectionServiceInterface::class);
+
+            $renameStrategy              = self::createStub(RenameStrategyInterface::class);
+            $duplicateIdentifierStrategy = self::createStub(DuplicateIdentifierStrategyInterface::class);
+
+            $iterator                = new RecursiveIteratorIterator(new RecursiveArrayIterator([]));
+            $fileDuplicateCollection = new FileDuplicateCollection();
+
+            $fileSystemService
+                ->expects(self::once())
+                ->method('createFileIterator')
+                ->with(
+                    $workspace,
+                    self::callback(static function (RecursiveIterator $recursiveIterator) use ($sourceFile): bool {
+                        $matches = [];
+
+                        foreach (new RecursiveIteratorIterator($recursiveIterator) as $fileInfo) {
+                            /** @var SplFileInfo $fileInfo */
+                            $matches[] = basename($fileInfo->getPathname());
+                        }
+
+                        self::assertSame([basename($sourceFile)], $matches);
+
+                        return true;
+                    }),
+                )
+                ->willReturn($iterator);
+
+            $duplicateDetectionService
+                ->expects(self::once())
+                ->method('groupFilesByDuplicateIdentifier')
+                ->willReturn($fileDuplicateCollection);
+
+            $duplicateDetectionService
+                ->expects(self::once())
+                ->method('createDuplicateFilenames')
+                ->willReturn($fileDuplicateCollection);
+
+            $fileSystemService
+                ->expects(self::once())
+                ->method('renameFiles');
+
+            $command = $this->createBaseCommand(
+                $fileSystemService,
+                $duplicateDetectionService,
+                $renameStrategy,
+                $duplicateIdentifierStrategy,
+            );
+
+            $tester = new CommandTester($command);
+            $tester->execute([
+                'source'    => $sourceFile,
+                '--dry-run' => true,
+            ]);
+
+            self::assertSame(Command::SUCCESS, $tester->getStatusCode());
+        } finally {
+            $filesystem->remove($workspace);
+        }
     }
 
     private function buildExpectedAbsolutePath(string $relativePath): string
