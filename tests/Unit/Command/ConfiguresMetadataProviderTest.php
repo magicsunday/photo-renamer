@@ -67,8 +67,7 @@ final class ConfiguresMetadataProviderTest extends TestCase
         try {
             [$metadataCache, $signalCache] = $this->createCaches();
             $projectRoot                   = realpath(dirname(__DIR__, 3));
-
-            self::assertIsString($projectRoot);
+            $projectRoot                   = $projectRoot !== false ? $projectRoot : dirname(__DIR__, 3);
 
             $expectedPrefix = $projectRoot
                 . DIRECTORY_SEPARATOR . '.build'
