@@ -25,6 +25,7 @@ use Symfony\Component\Filesystem\Filesystem;
 use function getenv;
 use function in_array;
 use function is_string;
+use function realpath;
 use function sys_get_temp_dir;
 
 use const DIRECTORY_SEPARATOR;
@@ -159,7 +160,11 @@ trait ConfiguresMetadataProvider
                 : sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'renamer-cache';
         }
 
-        return __DIR__ . '/../../../.build/cache';
+        $projectRoot = realpath(__DIR__ . '/../../..');
+
+        return (is_string($projectRoot) ? $projectRoot : __DIR__ . '/../../..')
+            . DIRECTORY_SEPARATOR . '.build'
+            . DIRECTORY_SEPARATOR . 'cache';
     }
 
     /**

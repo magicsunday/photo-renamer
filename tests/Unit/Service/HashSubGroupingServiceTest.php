@@ -35,6 +35,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
+use ReflectionMethod;
 use SplFileInfo;
 
 use function file_put_contents;
@@ -890,6 +891,31 @@ final class HashSubGroupingServiceTest extends TestCase
         );
 
         self::assertIsArray($result, 'Failed dHash should result in separate sub-groups (conservative)');
+    }
+
+    /**
+     * Verifies that the internal union-find lookup compresses nested parent
+     * chains to the canonical root.
+     */
+    #[Test]
+    public function findRootCompressesNestedParentChains(): void
+    {
+        $service = $this->createHashSubGroupingService();
+        $method  = new ReflectionMethod($service, 'findRoot');
+        $parent  = $this->createNestedParentChain();
+
+        $root = $method->invokeArgs($service, [&$parent, 3]);
+
+        self::assertSame(0, $root);
+        self::assertSame([0 => 0, 1 => 0, 2 => 1, 3 => 1], $parent);
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private function createNestedParentChain(): array
+    {
+        return [0 => 0, 1 => 0, 2 => 1, 3 => 2];
     }
 
     private function createHashSubGroupingService(): HashSubGroupingService

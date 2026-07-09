@@ -20,6 +20,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
+use ReflectionMethod;
 use SplFileInfo;
 
 use function copy;
@@ -162,6 +163,64 @@ final class PerceptualHashCalculatorTest extends TestCase
 
         self::assertLessThanOrEqual(5, $result->dhashDistance, 'Same image with different EXIF should have very close dHash');
         self::assertTrue($result->isDuplicateLikely());
+    }
+
+    /**
+     * Verifies bit packing for short and fixed-width bit strings.
+     */
+    #[Test]
+    public function bitsToHexPadsToNibbleAndTargetWidth(): void
+    {
+        $calculator = $this->createCalculator();
+        $method     = new ReflectionMethod($calculator, 'bitsToHex');
+
+        self::assertSame('5', $method->invoke($calculator, '101'));
+        self::assertSame('05', $method->invoke($calculator, '101', 8));
+        self::assertSame('0005', $method->invoke($calculator, '101', 16));
+    }
+
+    /**
+     * Verifies strict hex decoding behavior through the public distance contract.
+     */
+    #[Test]
+    public function hammingDistanceRejectsInvalidHexAndCountsUnequalLengths(): void
+    {
+        $calculator = $this->createCalculator();
+        $method     = new ReflectionMethod($calculator, 'hammingDistance');
+
+        self::assertSame(64, $method->invoke($calculator, 'abc', '00'));
+        self::assertSame(64, $method->invoke($calculator, 'zz', '00'));
+        self::assertSame(16, $method->invoke($calculator, 'ff', '00ff'));
+        self::assertSame(4, $method->invoke($calculator, '0f', '00'));
+    }
+
+    /**
+     * Verifies score weighting at image/video boundaries, including the video
+     * color-noise suppression window for near-identical durations.
+     */
+    #[Test]
+    public function weightedScoreHandlesImageAndVideoDurationBoundaries(): void
+    {
+        $calculator = $this->createCalculator();
+        $method     = new ReflectionMethod($calculator, 'computeWeightedScore');
+
+        self::assertSame(74, $method->invoke($calculator, 8, 16, 0.03, 0.50, null, false));
+        self::assertSame(90, $method->invoke($calculator, 8, 8, 0.03, 1.00, 1.0, true));
+        self::assertSame(51, $method->invoke($calculator, 8, 8, 0.03, 1.00, 31.0, true));
+    }
+
+    /**
+     * Verifies the population count helper for zero and multi-bit values.
+     */
+    #[Test]
+    public function bitcountCountsOnlySetBits(): void
+    {
+        $calculator = $this->createCalculator();
+        $method     = new ReflectionMethod($calculator, 'bitcount');
+
+        self::assertSame(0, $method->invoke($calculator, 0));
+        self::assertSame(4, $method->invoke($calculator, 0b10101010));
+        self::assertSame(8, $method->invoke($calculator, 0xFF));
     }
 
     private function createJpeg(string $filename, string $color): string
