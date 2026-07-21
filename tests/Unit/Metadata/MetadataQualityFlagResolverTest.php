@@ -40,12 +40,11 @@ final class MetadataQualityFlagResolverTest extends TestCase
     public function resolveReturnsNoFlagsForReliableFile(): void
     {
         $file     = new SplFileInfo('/tmp/2024-01-15.jpg');
-        $strategy = $this->createMock(MetadataAwareRenameStrategyInterface::class);
+        $strategy = self::createStub(MetadataAwareRenameStrategyInterface::class);
 
         $strategy
             ->method('hasReliableDateTime')
-            ->with($file)
-            ->willReturn(true);
+            ->willReturnStrictMap([[$file, true]]);
 
         $flags = MetadataQualityFlagResolver::resolve($file, $strategy);
 
@@ -61,20 +60,17 @@ final class MetadataQualityFlagResolverTest extends TestCase
     public function resolveReturnsFlagsForUnreliableFile(): void
     {
         $file     = new SplFileInfo('/tmp/2024-01-15.mov');
-        $strategy = $this->createMock(MetadataAwareRenameStrategyInterface::class);
+        $strategy = self::createStub(MetadataAwareRenameStrategyInterface::class);
 
         $strategy
             ->method('hasReliableDateTime')
-            ->with($file)
-            ->willReturn(false);
+            ->willReturnStrictMap([[$file, false]]);
         $strategy
             ->method('isFallbackDateTime')
-            ->with($file)
-            ->willReturn(false);
+            ->willReturnStrictMap([[$file, false]]);
         $strategy
             ->method('isAmbiguousTimezone')
-            ->with($file)
-            ->willReturn(true);
+            ->willReturnStrictMap([[$file, true]]);
 
         $flags = MetadataQualityFlagResolver::resolve($file, $strategy);
 
