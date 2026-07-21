@@ -15,6 +15,7 @@ use MagicSunday\Renamer\Metadata\MetadataQualityFlagResolver;
 use MagicSunday\Renamer\Metadata\MetadataQualityFlags;
 use MagicSunday\Renamer\Strategy\RenameStrategy\MetadataAwareRenameStrategyInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
@@ -33,48 +34,50 @@ use SplFileInfo;
 final class MetadataQualityFlagResolverTest extends TestCase
 {
     /**
-     * Verifies that reliable files suppress both secondary quality flags,
-     * keeping the caller aligned with `hasReliableDateTime()` as the authority.
+     * Every branch of the resolver, with the secondary flags set so that each one
+     * is load-bearing: the reliable row would still pass with the short-circuit
+     * removed if the secondaries were left at their default false.
+     *
+     * @return iterable<string, array{bool, bool, bool, bool, bool}>
+     */
+    public static function qualityFlagCases(): iterable
+    {
+        yield 'reliable suppresses both flags' => [true, true, true, false, false];
+        yield 'fallback date only' => [false, true, false, true, false];
+        yield 'ambiguous timezone only' => [false, false, true, false, true];
+        yield 'both quality flags' => [false, true, true, true, true];
+    }
+
+    /**
+     * Verifies that `hasReliableDateTime()` is the authority — a reliable file
+     * suppresses both secondary flags even when the strategy reports them — and
+     * that an unreliable file passes each secondary flag through unchanged.
      */
     #[Test]
-    public function resolveReturnsNoFlagsForReliableFile(): void
-    {
+    #[DataProvider('qualityFlagCases')]
+    public function resolveDerivesFlagsFromTheStrategy(
+        bool $reliable,
+        bool $fallbackDate,
+        bool $ambiguousTimezone,
+        bool $expectedFallbackDate,
+        bool $expectedAmbiguousTimezone,
+    ): void {
         $file     = new SplFileInfo('/tmp/2024-01-15.jpg');
         $strategy = self::createStub(MetadataAwareRenameStrategyInterface::class);
 
         $strategy
             ->method('hasReliableDateTime')
-            ->willReturnStrictMap([[$file, true]]);
-
-        $flags = MetadataQualityFlagResolver::resolve($file, $strategy);
-
-        self::assertFalse($flags->hasFallbackDate());
-        self::assertFalse($flags->hasAmbiguousTimezone());
-    }
-
-    /**
-     * Verifies that unreliable files return the concrete fallback and timezone
-     * flags reported by the strategy.
-     */
-    #[Test]
-    public function resolveReturnsFlagsForUnreliableFile(): void
-    {
-        $file     = new SplFileInfo('/tmp/2024-01-15.mov');
-        $strategy = self::createStub(MetadataAwareRenameStrategyInterface::class);
-
-        $strategy
-            ->method('hasReliableDateTime')
-            ->willReturnStrictMap([[$file, false]]);
+            ->willReturnStrictMap([[$file, $reliable]]);
         $strategy
             ->method('isFallbackDateTime')
-            ->willReturnStrictMap([[$file, false]]);
+            ->willReturnStrictMap([[$file, $fallbackDate]]);
         $strategy
             ->method('isAmbiguousTimezone')
-            ->willReturnStrictMap([[$file, true]]);
+            ->willReturnStrictMap([[$file, $ambiguousTimezone]]);
 
         $flags = MetadataQualityFlagResolver::resolve($file, $strategy);
 
-        self::assertFalse($flags->hasFallbackDate());
-        self::assertTrue($flags->hasAmbiguousTimezone());
+        self::assertSame($expectedFallbackDate, $flags->hasFallbackDate());
+        self::assertSame($expectedAmbiguousTimezone, $flags->hasAmbiguousTimezone());
     }
 }
