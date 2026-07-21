@@ -83,7 +83,7 @@ final class TargetPathResolverTest extends TestCase
         );
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Target filename "nested/2019-09-28.jpg" must not contain directory separators');
+        $this->expectExceptionMessageIsOrContains('Target filename "nested/2019-09-28.jpg" must not contain directory separators');
 
         $resolver->resolve(
             DIRECTORY_SEPARATOR . 'tmp' . DIRECTORY_SEPARATOR . 'Fotos',
@@ -109,7 +109,7 @@ final class TargetPathResolverTest extends TestCase
         );
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage(sprintf('Target filename "%s" must be a valid filename', $targetFilename));
+        $this->expectExceptionMessageIsOrContains(sprintf('Target filename "%s" must be a valid filename', $targetFilename));
 
         $resolver->resolve(
             DIRECTORY_SEPARATOR . 'tmp' . DIRECTORY_SEPARATOR . 'Fotos',
