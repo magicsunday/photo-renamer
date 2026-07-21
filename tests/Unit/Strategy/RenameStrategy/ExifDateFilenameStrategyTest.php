@@ -152,7 +152,7 @@ final class ExifDateFilenameStrategyTest extends TestCase
         $strategy = $this->createStrategy('Y-m-d_H-i-s', $metadataExtractor);
 
         $this->expectException(TargetFilenameException::class);
-        $this->expectExceptionMessage('metadata failure');
+        $this->expectExceptionMessageIsOrContains('metadata failure');
 
         $strategy->generateFilename(new SplFileInfo($path));
     }

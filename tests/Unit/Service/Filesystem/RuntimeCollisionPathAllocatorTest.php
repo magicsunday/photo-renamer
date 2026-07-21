@@ -54,7 +54,7 @@ final class RuntimeCollisionPathAllocatorTest extends TestCase
         }
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Exceeded 999 attempts finding available target for "photo"');
+        $this->expectExceptionMessageIsOrContains('Exceeded 999 attempts finding available target for "photo"');
 
         $allocator->findAvailableDuplicatePath($targetPath, $occupiedPaths);
     }

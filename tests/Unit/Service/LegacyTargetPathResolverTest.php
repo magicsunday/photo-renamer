@@ -107,7 +107,7 @@ final class LegacyTargetPathResolverTest extends TestCase
         $source     = new SplFileInfo($sourceRoot . DIRECTORY_SEPARATOR . 'IMG_0001.jpg');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('must not contain directory separators');
+        $this->expectExceptionMessageIsOrContains('must not contain directory separators');
 
         $resolver->resolve($sourceRoot, $source, 'evil/subdir.jpg');
     }

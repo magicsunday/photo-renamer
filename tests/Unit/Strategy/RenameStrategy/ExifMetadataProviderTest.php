@@ -187,7 +187,7 @@ final class ExifMetadataProviderTest extends TestCase
         $provider = new ExifMetadataProvider($metadataExtractor);
 
         $this->expectException(ExifMetadataReadException::class);
-        $this->expectExceptionMessage('failure');
+        $this->expectExceptionMessageIsOrContains('failure');
 
         $provider->getCaptureDateTime(new SplFileInfo($path));
     }
