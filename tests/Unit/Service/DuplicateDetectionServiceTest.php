@@ -2226,7 +2226,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         $method = new ReflectionMethod($service, 'createDuplicateTargetFileInfo');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Exceeded 999 duplicate suffix attempts');
+        $this->expectExceptionMessageIsOrContains('Exceeded 999 duplicate suffix attempts');
 
         $method->invoke($service, $source, $target, $duplicateCount, false, true, false, []);
     }
@@ -2248,7 +2248,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         $sourceFile = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('must not contain directory separators');
+        $this->expectExceptionMessageIsOrContains('must not contain directory separators');
 
         $method = new ReflectionMethod($service, 'getTargetPathname');
         $method->invoke($service, $sourceFile, '../evil.jpg');
@@ -2271,7 +2271,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         $sourceFile = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('must not contain directory separators');
+        $this->expectExceptionMessageIsOrContains('must not contain directory separators');
 
         $method = new ReflectionMethod($service, 'getTargetPathname');
         $method->invoke($service, $sourceFile, 'sub/file.jpg');
@@ -2294,7 +2294,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         $sourceFile = new SplFileInfo($sourceDirectory . DIRECTORY_SEPARATOR . 'photo.jpg');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('must not contain directory separators');
+        $this->expectExceptionMessageIsOrContains('must not contain directory separators');
 
         $method = new ReflectionMethod($service, 'getTargetPathname');
         $method->invoke($service, $sourceFile, 'sub' . DIRECTORY_SEPARATOR . 'file.jpg');

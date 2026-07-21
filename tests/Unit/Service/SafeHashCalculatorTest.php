@@ -132,7 +132,7 @@ final class SafeHashCalculatorTest extends TestCase
         $nonExistentFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'non-existent-' . uniqid('', true) . '.jpg';
 
         $this->expectException(HashComputationException::class);
-        $this->expectExceptionMessage('Failed to compute xxh128 hash');
+        $this->expectExceptionMessageIsOrContains('Failed to compute xxh128 hash');
 
         $calculator->hashFile(new SplFileInfo($nonExistentFile), 'xxh128');
     }
