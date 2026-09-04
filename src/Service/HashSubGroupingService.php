@@ -200,9 +200,7 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
 
             $renameToHash[$sourcePath] = $hash;
 
-            if (!isset($hashGroups[$hash])) {
-                $hashGroups[$hash] = [];
-            }
+            $hashGroups[$hash] ??= [];
 
             $hashGroups[$hash][] = $rename;
         }
@@ -721,9 +719,7 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
             $root     = $rootByHashIndex[$hashIndex];
             $rootHash = $hashes[$componentMinIndex[$root]];
 
-            if (!isset($merged[$rootHash])) {
-                $merged[$rootHash] = [];
-            }
+            $merged[$rootHash] ??= [];
 
             foreach ($hashGroups[$hashes[$hashIndex]] as $rename) {
                 $merged[$rootHash][] = $rename;

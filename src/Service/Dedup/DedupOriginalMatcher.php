@@ -218,9 +218,7 @@ final readonly class DedupOriginalMatcher
         foreach (FormatPriorityResolver::resolve() as $index => $extension) {
             $normalizedExtension = FileHelper::normalizeExtension(strtolower($extension));
 
-            if (!isset($ranks[$normalizedExtension])) {
-                $ranks[$normalizedExtension] = $index;
-            }
+            $ranks[$normalizedExtension] ??= $index;
         }
 
         return $ranks;
