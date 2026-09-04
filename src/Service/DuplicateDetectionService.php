@@ -639,9 +639,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
 
                 $ext = strtolower($rename->getTarget()->getExtension());
 
-                if (!isset($duplicateCountByExtension[$ext])) {
-                    $duplicateCountByExtension[$ext] = 1;
-                }
+                $duplicateCountByExtension[$ext] ??= 1;
 
                 if ($isCanonicalRename) {
                     $rename->setTarget(

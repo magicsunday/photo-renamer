@@ -350,10 +350,7 @@ final readonly class SubgroupNameResolver
 
             if ($item->clusterId !== null) {
                 $base = $this->normalizeClusterId($item->clusterId);
-
-                if (!isset($seenBases[$base])) {
-                    $seenBases[$base] = true;
-                }
+                $seenBases[$base] ??= true;
             }
         }
 
