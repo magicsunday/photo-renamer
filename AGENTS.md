@@ -26,6 +26,8 @@ All commands run inside Docker via `make`. **Never run PHP, composer, or phpunit
 make test           # Full CI pipeline (MANDATORY before any commit)
 make unit           # PHPUnit only
 make stan           # PHPStan only
+make deptrac        # Deptrac architecture layers (+ unassigned classes, layer cycles)
+make templates      # Config copies vs. the coding-standard templates
 make coverage       # PHPUnit with HTML + Clover coverage (.build/coverage/)
 make cgl            # Fix code style
 make rector         # Apply rector rules
@@ -34,7 +36,13 @@ make binary         # Build SPC binary (always via Docker)
 make cache-clear    # Clear persistent metadata cache
 ```
 
-CI pipeline order: phplint → php-cs-fixer (dry-run) → rector (dry-run) → phpstan → phpunit → jscpd
+CI pipeline order: phplint → php-cs-fixer (dry-run) → rector (dry-run) → phpstan → deptrac → templates → phpunit → jscpd
+
+### Shared tooling (`magicsunday/coding-standard`)
+
+- `require-dev` holds `magicsunday/coding-standard` (delivers php-cs-fixer, PHPStan + rule packs, Rector, phplint, PHPUnit, Deptrac) and `infection/infection` only. Do not add those tools individually.
+- `.php-cs-fixer.dist.php`, `phpstan.neon` and `rector.php` wrap the shared `php-cs-fixer/base.php`, `phpstan/base.neon` and `rector/base.php` (PHP floor `80500`). Change a shared rule upstream, not here.
+- `phpunit.xml`, `.phplint.yml`, `.editorconfig`, `.jscpd.json` are adapted template copies; `composer ci:test:php:templates` (`check-consumer-config.php .`) fails when a strict flag is dropped.
 
 ## Code Style
 
@@ -57,13 +65,15 @@ CI pipeline order: phplint → php-cs-fixer (dry-run) → rector (dry-run) → p
 
 ## PHPStan
 
-- Level: `max`
-- Includes strict-rules, deprecation-rules, phpunit extensions
+- Level: `max`, strict-rules, deprecation-rules and phpunit extensions — all from the shared `phpstan/base.neon`
+- Checked exceptions (from the base): a method that throws a `MagicSunday\` exception documents it with `@throws`, and a `@throws` names only what the body can raise. `LogicException` subclasses are unchecked. Tests are exempt (`missingType.checkedException` ignored under `tests/`).
 - **Never** use `@phpstan-ignore` — fix types properly
+- No baseline
 
 ## PHPUnit
 
-- PHPUnit 12 with attributes: `#[Test]`, `#[CoversClass]`, `#[UsesClass]`
+- PHPUnit 13 with attributes: `#[Test]`, `#[CoversClass]`, `#[UsesClass]` — `requireCoverageMetadata` makes `#[CoversClass]`/`#[CoversNothing]` mandatory
+- `tests/Unit/Architecture/` holds source-scanning PHPUnit guards (role boundaries, constructor wiring, shape-array returns); `tests/Architecture/` must stay free of PHPUnit tests (the template gate excludes it)
 - CamelCase test method names
 - `WorkspaceTrait` for temp directory management in tests
 - `StubMetadataExtractor` + `LivePhotoFixtureFactory` for test doubles
@@ -83,6 +93,21 @@ CI pipeline order: phplint → php-cs-fixer (dry-run) → rector (dry-run) → p
 KISS, SOLID, DRY, YAGNI, GRASP, Law of Demeter, SoC, CoC — in that order of priority.
 
 ## Architecture
+
+### Layers (Deptrac)
+
+`deptrac.yaml` imports the shared layer ruleset and maps `src/` onto one acyclic order (lowest first):
+
+```
+Exception, Constants < Regex < Model < Helper < Contract < Metadata < Service < Strategy < Command
+```
+
+- `Model` = `src/Model/**` + `Metadata/TemporalMetadata` (+ its trait); it depends on nothing outside itself.
+- `Contract` = the strategy interfaces (`src/Strategy/**/*Interface.php`). Services use only these, never a concrete strategy.
+- `Metadata`, `Strategy` = the rest of their namespaces. `Strategy` may use `Service` (e.g. `SafeHashCalculatorInterface`), never the reverse.
+- `Command` (+ `Application`) is the composition root; nothing depends on it.
+- `composer ci:test:php:deptrac` also fails on an unassigned class (`deptrac debug:unassigned`) and on a cycle in the measured layer graph (`check-deptrac-cycles.php`). A new top-level namespace needs a layer.
+- The design also holds under coding-standard's strict 3.0 ruleset. Widen a layer only with a comment explaining the edge.
 
 ### Commands (Symfony Console)
 
@@ -181,6 +206,7 @@ src/
   Helper/              # FileHelper (path utils, extension normalization, date extraction)
   Metadata/            # ExifMetadataProvider, MetadataExtractor, TemporalMetadata
   Model/               # DTOs: Rename, RenameResult, RenameOptions, OutputEntryTag, FileDuplicate
+  Model/Collection/    # AbstractCollection (keyed), AbstractList (int-keyed, append()), concrete collections
   Regex/               # SafeRegex wrapper
   Service/             # Core services (see table above)
   Service/LivePhoto/   # Live Photo pairing (7 classes)
@@ -191,8 +217,10 @@ src/
   Renamer.php          # CLI entry point
 config/
   Services.yaml        # Symfony DI configuration (autowiring)
+deptrac.yaml           # Architecture layers (imports the coding-standard ruleset)
 tests/
   Unit/                # Unit tests (mirrors src/ structure)
+  Unit/Architecture/   # Source-scanning architecture guards
   Integration/         # Full command integration tests
   Fixtures/            # WorkspaceTrait, StubMetadataExtractor, LivePhotoFixtureFactory
   Fixtures/Images/     # 29 test image scenarios (verified by TestImageScenariosTest)

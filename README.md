@@ -12,7 +12,7 @@
 <!-- Row 2: Standards / Tooling badges -->
 <p align="center">
   <a href="https://phpstan.org/"><img src="https://img.shields.io/badge/PHPStan-max%20level-brightgreen.svg" alt="PHPStan Max Level"></a>
-  <a href="https://phpunit.de/"><img src="https://img.shields.io/badge/PHPUnit-12-blue.svg" alt="PHPUnit 12"></a>
+  <a href="https://phpunit.de/"><img src="https://img.shields.io/badge/PHPUnit-13-blue.svg" alt="PHPUnit 13"></a>
   <a href="https://getrector.com/"><img src="https://img.shields.io/badge/Rector-2.0-orange.svg" alt="Rector 2.0"></a>
   <a href="https://www.php-fig.org/psr/psr-12/"><img src="https://img.shields.io/badge/Code%20Style-PSR--12-blue.svg" alt="PSR-12"></a>
 </p>
@@ -392,8 +392,34 @@ make test
 - Coding standards dry-run (`php-cs-fixer --dry-run`)
 - Refactoring dry-run (`rector --dry-run`)
 - Static analysis (`phpstan`)
-- Unit tests (`phpunit`)
+- Architecture layers (`deptrac`, plus the unassigned-class and layer-cycle checks)
+- Template lockstep (`check-consumer-config.php`)
+- Unit and integration tests (`phpunit`)
 - Copy/paste detection (`jscpd`)
+
+The tooling configuration is shared with the other `magicsunday/*` projects through
+[`magicsunday/coding-standard`](https://github.com/magicsunday/coding-standard), the only
+quality-tool entry in `require-dev` besides Infection: it delivers php-cs-fixer, PHPStan and
+its rule packs, Rector, phplint, PHPUnit and Deptrac. `.php-cs-fixer.dist.php`, `phpstan.neon`
+and `rector.php` only wrap the shared configs (`php-cs-fixer/base.php`, `phpstan/base.neon`,
+`rector/base.php`), and `deptrac.yaml` imports the shared layer ruleset
+(`deptrac/layers.yaml`). `phpunit.xml`, `.phplint.yml`, `.editorconfig` and `.jscpd.json` are
+adapted copies of the package's templates; `composer ci:test:php:templates` keeps them from
+drifting.
+
+### Architecture layers
+
+`deptrac.yaml` maps `src/` onto layers that may only depend downwards (lowest first):
+
+```
+Exception, Constants < Regex < Model < Helper < Contract < Metadata < Service < Strategy < Command
+```
+
+`Model` (all of `src/Model` plus the `TemporalMetadata` value object) and `Service` (all of
+`src/Service`) are the shared layers of the same name; `Contract` is the shared port layer and
+holds the strategy interfaces the services program against. `Command` is the composition root
+(the console application and its commands); no layer depends on it. The file itself documents
+why each edge is allowed.
 
 Test the CLI:
 
@@ -409,6 +435,8 @@ Test the CLI:
 | `make cgl-check` | Check code style (dry-run).       |
 | `make rector-check` | Check Rector rules (dry-run). |
 | `make stan`    | Run PHPStan analysis.                |
+| `make deptrac` | Check the architecture layers (Deptrac, unassigned classes, layer cycles). |
+| `make templates` | Check the config copies against the coding-standard templates. |
 | `make unit`    | Run PHPUnit tests.                   |
 | `make coverage` | Run PHPUnit with HTML + Clover coverage report (`.build/coverage/`). |
 | `make cpd`     | Run copy-paste detection.            |
