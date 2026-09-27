@@ -52,6 +52,8 @@ final readonly class DatePatternFilenameStrategy extends InheritFilenameStrategy
      * @param string          $replacement    PHP date() format template with {placeholder} tokens
      * @param PatternMatchSet $patternMatches Set of placeholder-to-date-format-character mappings
      * @param SafeRegex       $regex          Safe wrapper around preg_* functions with error handling
+     *
+     * @throws RegexExecutionException When the regular expression cannot be evaluated.
      */
     public function __construct(private string $pattern, private string $replacement, PatternMatchSet $patternMatches, private SafeRegex $regex)
     {

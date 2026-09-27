@@ -67,6 +67,8 @@ final readonly class MetadataIssueScanner
      * @param callable(): void|null                                        $progressAdvance Optional hook that is invoked after each scanned file
      *
      * @return VerifyScanResult Categorized findings, counters, and the content-id map for the next pass
+     *
+     * @throws ExifMetadataReadException When the file's metadata cannot be read.
      */
     public function scan(
         array $files,

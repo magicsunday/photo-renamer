@@ -9,7 +9,7 @@
 
 declare(strict_types=1);
 
-namespace MagicSunday\Renamer\Test\Architecture;
+namespace MagicSunday\Renamer\Test\Unit\Architecture;
 
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
@@ -71,9 +71,9 @@ final class BoundaryTupleArchitectureTest extends TestCase
     private function boundaryFiles(): array
     {
         $directories = [
-            __DIR__ . '/../../src/Service',
-            __DIR__ . '/../../src/Metadata',
-            __DIR__ . '/../../src/Helper',
+            __DIR__ . '/../../../src/Service',
+            __DIR__ . '/../../../src/Metadata',
+            __DIR__ . '/../../../src/Helper',
         ];
 
         $files = [];
@@ -103,10 +103,15 @@ final class BoundaryTupleArchitectureTest extends TestCase
     /**
      * Returns whether the file is an explicit allowlisted serialization boundary.
      *
+     * Both entries are persistent JSON disk caches whose public accessors hand
+     * out the stored payload shape as-is: MetadataCacheEntry for EXIF metadata,
+     * PerceptualSignalCache for the dHash/wHash/HF/histogram signals.
+     *
      * @param string $pathname Absolute normalized file path
      */
     private function isAllowedShapeArrayBoundary(string $pathname): bool
     {
-        return str_ends_with($pathname, DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . 'Metadata' . DIRECTORY_SEPARATOR . 'MetadataCacheEntry.php');
+        return str_ends_with($pathname, DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . 'Metadata' . DIRECTORY_SEPARATOR . 'MetadataCacheEntry.php')
+            || str_ends_with($pathname, DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . 'Service' . DIRECTORY_SEPARATOR . 'PerceptualHash' . DIRECTORY_SEPARATOR . 'PerceptualSignalCache.php');
     }
 }

@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Strategy\DuplicateIdentifier;
 
+use MagicSunday\Renamer\Exception\HashComputationException;
 use SplFileInfo;
 
 /**
@@ -34,6 +35,8 @@ interface DuplicateIdentifierStrategyInterface
      * @param SplFileInfo $targetFileInfo Computed target file with the rename strategy applied
      *
      * @return string|false Grouping key, or false on failure
+     *
+     * @throws HashComputationException When the file content cannot be hashed.
      */
     public function generateIdentifier(SplFileInfo $sourceFileInfo, SplFileInfo $targetFileInfo): string|false;
 }

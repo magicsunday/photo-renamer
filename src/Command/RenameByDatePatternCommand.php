@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Command;
 
 use FilesystemIterator;
+use MagicSunday\Renamer\Exception\RegexExecutionException;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
@@ -104,6 +105,8 @@ final class RenameByDatePatternCommand extends AbstractRenameCommand
      * before delegating to the parent rename pipeline.
      *
      * @return int The exit code (0 for success, non-zero for failure).
+     *
+     * @throws RegexExecutionException When the regular expression cannot be evaluated.
      */
     #[Override]
     protected function executeCommand(): int
@@ -172,6 +175,8 @@ final class RenameByDatePatternCommand extends AbstractRenameCommand
      * from filenames and reformat them.
      *
      * @return RenameStrategyInterface The rename strategy
+     *
+     * @throws RegexExecutionException When the regular expression cannot be evaluated.
      */
     #[Override]
     protected function getTargetFilenameStrategy(): RenameStrategyInterface

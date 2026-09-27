@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Strategy\RenameStrategy\DatePattern;
 
+use MagicSunday\Renamer\Exception\RegexExecutionException;
 use MagicSunday\Renamer\Regex\SafeRegex;
 
 /**
@@ -38,6 +39,8 @@ final readonly class PatternMatchSet
      * @param SafeRegex $safeRegex Safe wrapper around preg_* functions with error handling
      *
      * @return PatternMatchSet Set populated with placeholder names for each discovered token
+     *
+     * @throws RegexExecutionException When the regular expression cannot be evaluated.
      */
     public static function fromPattern(string $pattern, SafeRegex $safeRegex): self
     {

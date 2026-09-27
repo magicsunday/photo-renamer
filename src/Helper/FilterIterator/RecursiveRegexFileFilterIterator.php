@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Helper\FilterIterator;
 
+use MagicSunday\Renamer\Exception\RegexExecutionException;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use Override;
 use RecursiveFilterIterator;
@@ -46,6 +47,8 @@ final class RecursiveRegexFileFilterIterator extends RecursiveFilterIterator
     /**
      * Accepts all directories (enabling recursive descent) and files whose
      * filename matches the configured regex. Rejects non-file, non-directory entries.
+     *
+     * @throws RegexExecutionException When the regular expression cannot be evaluated.
      */
     #[Override]
     public function accept(): bool

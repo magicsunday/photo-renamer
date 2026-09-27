@@ -173,6 +173,7 @@ final class WriteDateCommandTest extends TestCase
         ]);
 
         self::assertSame(Command::FAILURE, $exitCode);
+        self::assertSame(1, substr_count($tester->getDisplay(), 'Source path does not exist.'));
     }
 
     /**

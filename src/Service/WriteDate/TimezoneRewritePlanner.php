@@ -14,6 +14,7 @@ namespace MagicSunday\Renamer\Service\WriteDate;
 use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
+use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use SplFileInfo;
 
@@ -55,6 +56,8 @@ final readonly class TimezoneRewritePlanner
      * @param DateTimeZone|null $timezone         Configured target timezone, or null when none is available
      *
      * @return TimezoneRewritePlan Planned write information for the command
+     *
+     * @throws ExifMetadataReadException When the file's metadata cannot be read.
      */
     public function plan(
         SplFileInfo $file,

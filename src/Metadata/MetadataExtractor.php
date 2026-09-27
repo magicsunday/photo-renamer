@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Metadata;
 
 use DateTimeInterface;
 use DateTimeZone;
+use MagicSunday\ImageMeta\Core\ParseError;
 use MagicSunday\ImageMeta\MetadataReader;
 use MagicSunday\ImageMeta\Model\Metadata;
 use MagicSunday\ImageMeta\Model\QuickTime\QuickTimeMeta;
@@ -89,7 +90,24 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
         // dateTimeOriginal() returns null when only 0x0132 (ModifyDate) exists
         // (fixed in imagemeta #2287). Critical for fallback detection and HEIC
         // timezone ambiguity detection.
-        $hasExifDateTimeOriginal = $metadata->exifDoc?->dateTimeOriginal() instanceof DateTimeInterface;
+        //
+        // The EXIF document is decoded lazily, so a malformed DateTimeOriginal
+        // only surfaces here, after read() succeeded. It is the same "file is
+        // corrupted" condition this method documents, so it is reported through
+        // the same exception rather than escaping as a library ParseError.
+        try {
+            $hasExifDateTimeOriginal = $metadata->exifDoc?->dateTimeOriginal() instanceof DateTimeInterface;
+        } catch (ParseError $exception) {
+            throw new ExifMetadataReadException(
+                sprintf(
+                    'Unable to read image metadata from "%s": %s',
+                    $file->getPathname(),
+                    $exception->getMessage(),
+                ),
+                $exception->getCode(),
+                previous: $exception,
+            );
+        }
 
         $captureTimestampExtraction = $this->extractCaptureDateTimeWithFallbackFlag(
             $structured,

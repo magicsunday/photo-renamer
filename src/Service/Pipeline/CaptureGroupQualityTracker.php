@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Pipeline;
 
+use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Metadata\MetadataQualityFlagResolver;
 use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Strategy\RenameStrategy\MetadataAwareRenameStrategyInterface;
@@ -36,6 +37,8 @@ final readonly class CaptureGroupQualityTracker
      * @param SplFileInfo             $file     Source file to check
      * @param RenameStrategyInterface $strategy Rename strategy that may expose quality info
      * @param PipelineContext         $context  Pipeline context to record quality flags
+     *
+     * @throws ExifMetadataReadException When the file's metadata cannot be read.
      */
     public function track(
         SplFileInfo $file,

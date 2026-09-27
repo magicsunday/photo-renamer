@@ -22,9 +22,9 @@ use SplFileInfo;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  *
- * @extends AbstractCollection<int, SplFileInfo>
+ * @extends AbstractList<SplFileInfo>
  */
-final class FileList extends AbstractCollection
+final class FileList extends AbstractList
 {
     /**
      * @param SplFileInfo[] $array Initial list of SplFileInfo objects.

@@ -1,16 +1,17 @@
 {
-    "format": [
-        "php"
-    ],
     "threshold": 0,
+    "minTokens": 100,
+    "minLines": 5,
+    "exitCode": 1,
     "reporters": [
         "console-full"
     ],
-    "minTokens": 130,
-    "minLines": 5,
-    "path": [
-        "src/"
+    "absolute": true,
+    "gitignore": true,
+    "format": [
+        "php"
     ],
-    "ignore": [],
-    "exitCode": 1
+    "path": [
+        "src"
+    ]
 }

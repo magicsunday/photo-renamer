@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Pipeline;
 
+use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Helper\FileHelper;
@@ -87,6 +88,8 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
      * @param PipelineContext                      $context                     Mutable state bag for pipeline phases
      *
      * @return AssetGroupCollection Collection of capture groups
+     *
+     * @throws ExifMetadataReadException When the file's metadata cannot be read.
      */
     #[Override]
     public function build(

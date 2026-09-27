@@ -26,9 +26,9 @@ use SplFileInfo;
  *
  * FileDuplicateCollection is the top-level container that maps duplicate-group
  * identifiers (e.g. "live-photo:content-id") to their FileDuplicate instances.
- * These tests guarantee that entries can be stored, retrieved by key, and
- * appended without key, which is essential for every downstream consumer
- * of the grouping pipeline.
+ * These tests guarantee that entries can be stored and retrieved by key,
+ * which is essential for every downstream consumer of the grouping pipeline.
+ * The collection is string-keyed, so it deliberately offers no append().
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -59,27 +59,5 @@ final class FileDuplicateCollectionTest extends TestCase
 
         self::assertTrue($collection->has('foo'));
         self::assertSame($duplicate, $collection->get('foo'));
-    }
-
-    /**
-     * Verifies that append() adds a FileDuplicate without requiring an explicit key,
-     * and that the entry is accessible via asArray() afterward.
-     *
-     * The append path is used when the caller does not need keyed lookup but simply
-     * collects duplicates sequentially. The test ensures the collection is not empty
-     * after appending and that the identical object instance is preserved.
-     */
-    #[Test]
-    public function itAppendsValues(): void
-    {
-        $collection = new FileDuplicateCollection();
-        $duplicate  = new FileDuplicate();
-        $duplicate->setTarget(new SplFileInfo(__FILE__));
-
-        $collection->append($duplicate);
-
-        $items = $collection->asArray();
-        self::assertCount(1, $items);
-        self::assertSame($duplicate, reset($items));
     }
 }

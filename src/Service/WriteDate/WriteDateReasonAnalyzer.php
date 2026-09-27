@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Service\WriteDate;
 
 use DateTimeImmutable;
 use DateTimeInterface;
+use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Service\DateDriftAnalyzer;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
@@ -61,6 +62,8 @@ final readonly class WriteDateReasonAnalyzer
      * @param bool                   $force            Whether the command should override already-reliable metadata
      *
      * @return WriteDateReasonDecision|null Reason decision, or null when no write is required
+     *
+     * @throws ExifMetadataReadException When the file's metadata cannot be read.
      */
     public function analyze(
         SplFileInfo $file,

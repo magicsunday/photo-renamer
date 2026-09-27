@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Strategy\RenameStrategy;
 
+use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use SplFileInfo;
 
@@ -32,6 +33,8 @@ interface MetadataAwareRenameStrategyInterface extends RenameStrategyInterface
      * @param SplFileInfo $splFileInfo File to query
      *
      * @return bool True when the date came from the fallback tag
+     *
+     * @throws ExifMetadataReadException When the file's metadata cannot be read.
      */
     public function isFallbackDateTime(SplFileInfo $splFileInfo): bool;
 
@@ -42,6 +45,8 @@ interface MetadataAwareRenameStrategyInterface extends RenameStrategyInterface
      * @param SplFileInfo $splFileInfo File to query
      *
      * @return bool True when the timezone is ambiguous
+     *
+     * @throws ExifMetadataReadException When the file's metadata cannot be read.
      */
     public function isAmbiguousTimezone(SplFileInfo $splFileInfo): bool;
 
@@ -52,6 +57,8 @@ interface MetadataAwareRenameStrategyInterface extends RenameStrategyInterface
      * @param SplFileInfo $splFileInfo File to query
      *
      * @return bool True when the capture date can be trusted
+     *
+     * @throws ExifMetadataReadException When the file's metadata cannot be read.
      */
     public function hasReliableDateTime(SplFileInfo $splFileInfo): bool;
 
@@ -60,6 +67,8 @@ interface MetadataAwareRenameStrategyInterface extends RenameStrategyInterface
      * additional markers used by Live Photo conflict heuristics.
      *
      * @return TemporalMetadata|null Metadata payload, or null when unavailable
+     *
+     * @throws ExifMetadataReadException When the file's metadata cannot be read.
      */
     public function getTemporalMetadata(SplFileInfo $splFileInfo): ?TemporalMetadata;
 }

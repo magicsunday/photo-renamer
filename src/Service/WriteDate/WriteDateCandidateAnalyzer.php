@@ -75,6 +75,8 @@ final readonly class WriteDateCandidateAnalyzer
      * @param callable(): void|null $progressAdvance Optional hook invoked after each scanned file
      *
      * @return WriteDateScanResult Pending writes and counters for the command summary
+     *
+     * @throws ExifMetadataReadException When the file's metadata cannot be read.
      */
     public function scan(
         array $files,

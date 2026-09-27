@@ -32,6 +32,7 @@ use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
 use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzer;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator;
+use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashMath;
 use MagicSunday\Renamer\Service\Pipeline\AssetGroupPipeline;
 use MagicSunday\Renamer\Service\Pipeline\CollisionResolver;
 use MagicSunday\Renamer\Service\Pipeline\CompanionDetector;
@@ -262,7 +263,7 @@ final class ExecutionPathDifferentialTest extends TestCase
         $imageLoader         = new ImagickImageLoader($mediaTypeClassifier);
         $progressReporter    = new ConsoleProgressReporter($io);
 
-        $perceptualHashCalculator = new PerceptualHashCalculator($imageLoader);
+        $perceptualHashCalculator = new PerceptualHashCalculator($imageLoader, new PerceptualHashMath());
 
         $hashSubGroupingService = new HashSubGroupingService(
             new SafeHashCalculator(),

@@ -11,7 +11,8 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Model;
 
-use MagicSunday\Renamer\Helper\FileHelper;
+use function getenv;
+use function is_string;
 
 /**
  * Immutable configuration for clickable file links in terminal output.
@@ -46,10 +47,28 @@ final readonly class LinkConfig
     public static function fromEnv(): self
     {
         return new self(
-            FileHelper::env('FILE_LINK_ROOT'),
-            FileHelper::env('FILE_LINK_BASE'),
-            FileHelper::env('FILE_LINK_PROTOCOL'),
+            self::env('FILE_LINK_ROOT'),
+            self::env('FILE_LINK_BASE'),
+            self::env('FILE_LINK_PROTOCOL'),
         );
+    }
+
+    /**
+     * Reads one environment variable, treating an unset or empty value as absent.
+     *
+     * Read here rather than through FileHelper::env(): the model layer sits below
+     * the helpers (PathHelper depends on this class), so it must not call back up
+     * into them.
+     *
+     * @param string $name The name of the environment variable to read.
+     *
+     * @return string|null The value, or null when it is unset or empty.
+     */
+    private static function env(string $name): ?string
+    {
+        $value = getenv($name);
+
+        return is_string($value) && ($value !== '') ? $value : null;
     }
 
     /**

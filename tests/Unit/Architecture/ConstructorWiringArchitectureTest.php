@@ -9,7 +9,7 @@
 
 declare(strict_types=1);
 
-namespace MagicSunday\Renamer\Test\Architecture;
+namespace MagicSunday\Renamer\Test\Unit\Architecture;
 
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
@@ -72,11 +72,11 @@ final class ConstructorWiringArchitectureTest extends TestCase
     private function productBoundaryFiles(): array
     {
         $directories = [
-            __DIR__ . '/../../src/Command',
-            __DIR__ . '/../../src/Helper',
-            __DIR__ . '/../../src/Metadata',
-            __DIR__ . '/../../src/Service',
-            __DIR__ . '/../../src/Strategy',
+            __DIR__ . '/../../../src/Command',
+            __DIR__ . '/../../../src/Helper',
+            __DIR__ . '/../../../src/Metadata',
+            __DIR__ . '/../../../src/Service',
+            __DIR__ . '/../../../src/Strategy',
         ];
         $files = [];
 

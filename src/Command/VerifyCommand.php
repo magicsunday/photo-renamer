@@ -15,6 +15,7 @@ use DateTimeInterface;
 use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
 use MagicSunday\Renamer\Command\Concern\ResolvesSourcePath;
 use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
@@ -137,6 +138,8 @@ final class VerifyCommand extends Command
      * @param OutputInterface $output The output interface.
      *
      * @return int The exit code (0 for success, non-zero for failure).
+     *
+     * @throws ExifMetadataReadException When the file's metadata cannot be read.
      */
     #[Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -144,11 +147,9 @@ final class VerifyCommand extends Command
         $io = new SymfonyStyle($input, $output);
         $io->title($this->getName() ?? '');
 
-        $source = $this->resolveSourcePath($input);
+        $source = $this->resolveExistingSourcePath($input, $io);
 
         if ($source === null) {
-            $io->error('Source path does not exist.');
-
             return self::FAILURE;
         }
 

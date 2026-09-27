@@ -53,17 +53,8 @@
         "symfony/yaml": "^8.0"
     },
     "require-dev": {
-        "friendsofphp/php-cs-fixer": "^3.85",
         "infection/infection": "^0.34",
-        "overtrue/phplint": "^9.0",
-        "phpat/phpat": "^0.12.4",
-        "phpdocumentor/reflection-docblock": "^6.0",
-        "phpstan/phpstan": "^2.0",
-        "phpstan/phpstan-deprecation-rules": "^2.0",
-        "phpstan/phpstan-phpunit": "^2.0",
-        "phpstan/phpstan-strict-rules": "^2.0",
-        "phpunit/phpunit": "^13.2",
-        "rector/rector": "^2.0"
+        "magicsunday/coding-standard": "^2.3"
     },
     "autoload": {
         "psr-4": {
@@ -110,11 +101,23 @@
             "@putenv COMPOSER_PROCESS_TIMEOUT=0",
             "@php -d pcov.enabled=1 .build/bin/infection --configuration=infection.json5 --threads=4 --initial-tests-php-options=\"-d pcov.enabled=1\" --only-covering-test-cases"
         ],
+        "ci:test:php:templates": [
+            "check-consumer-config.php ."
+        ],
+        "ci:test:php:deptrac": [
+            "deptrac analyse --no-progress",
+            "deptrac debug:unassigned",
+            "@php -r \"is_dir('.build') || mkdir('.build', 0777, true);\"",
+            "deptrac analyse --no-progress --formatter=graphviz-dot --output=.build/deptrac-layers.dot",
+            "check-deptrac-cycles.php .build/deptrac-layers.dot"
+        ],
         "ci:test": [
             "@ci:test:php:lint",
             "@ci:test:php:cgl",
             "@ci:test:php:rector",
             "@ci:test:php:phpstan",
+            "@ci:test:php:deptrac",
+            "@ci:test:php:templates",
             "@ci:test:php:unit",
             "@ci:test:php:cpd"
         ],

@@ -374,9 +374,9 @@ final class RenameByExifDateCommandTest extends TestCase
                 'A.JPG'               => ['hash-123', self::DATE_A, null],
                 '1-duplicate-001.jpg' => ['hash-123', self::DATE_A, null],
                 '1.mov'               => ['hash-abc', self::DATE_A, 'LP-1'],
-                'mov.mov'             => ['hash-abc', null,         'LP-1'],
+                'mov.mov'             => ['hash-abc', null, 'LP-1'],
                 'B.jpg'               => ['hash-cde', self::DATE_A, 'LP-B'],
-                'B.mov'               => ['hash-fgh', null,         'LP-B'],
+                'B.mov'               => ['hash-fgh', null, 'LP-B'],
             ];
 
             $metadataExtractor = new StubMetadataExtractor();

@@ -169,22 +169,20 @@ final class WriteDateCommand extends Command
         $io = new SymfonyStyle($input, $output);
         $io->title($this->getName() ?? '');
 
-        $source = $this->resolveSourcePath($input);
+        $source = $this->resolveExistingSourcePath($input, $io);
 
         if ($source === null) {
-            $io->error('Source path does not exist.');
-
             return self::FAILURE;
         }
-
-        $isSingleFile    = is_file($source);
-        $sourceDirectory = $isSingleFile ? dirname($source) : $source;
 
         if (!$this->isExiftoolAvailable()) {
             $io->error('exiftool is not installed or not found in PATH. Please install exiftool first.');
 
             return self::FAILURE;
         }
+
+        $isSingleFile    = is_file($source);
+        $sourceDirectory = $isSingleFile ? dirname($source) : $source;
 
         $dryRun       = (bool) $input->getOption('dry-run');
         $maxDateDrift = $this->resolveMaxDateDrift($input);
