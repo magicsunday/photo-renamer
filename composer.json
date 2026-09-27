@@ -101,11 +101,19 @@
             "@putenv COMPOSER_PROCESS_TIMEOUT=0",
             "@php -d pcov.enabled=1 .build/bin/infection --configuration=infection.json5 --threads=4 --initial-tests-php-options=\"-d pcov.enabled=1\" --only-covering-test-cases"
         ],
+        "ci:test:php:deptrac": [
+            "deptrac analyse --no-progress",
+            "deptrac debug:unassigned",
+            "@php -r \"is_dir('.build') || mkdir('.build', 0777, true);\"",
+            "deptrac analyse --no-progress --formatter=graphviz-dot --output=.build/deptrac-layers.dot",
+            "check-deptrac-cycles.php .build/deptrac-layers.dot"
+        ],
         "ci:test": [
             "@ci:test:php:lint",
             "@ci:test:php:cgl",
             "@ci:test:php:rector",
             "@ci:test:php:phpstan",
+            "@ci:test:php:deptrac",
             "@ci:test:php:unit",
             "@ci:test:php:cpd"
         ],

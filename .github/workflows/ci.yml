@@ -63,6 +63,10 @@ jobs:
               if: ${{ always() && steps.install.conclusion == 'success' }}
               run: composer ci:test:php:phpstan
 
+            - name: Deptrac
+              if: ${{ always() && steps.install.conclusion == 'success' }}
+              run: composer ci:test:php:deptrac
+
             - name: PHPUnit
               if: ${{ always() && steps.install.conclusion == 'success' }}
               run: composer ci:test:php:unit

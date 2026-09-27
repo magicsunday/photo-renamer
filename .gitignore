@@ -9,6 +9,7 @@ composer.lock
 
 # Build output
 .build/
+.deptrac.cache
 log/
 renamer
 renamer.phar

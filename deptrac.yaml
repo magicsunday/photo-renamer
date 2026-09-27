@@ -1,0 +1,182 @@
+# Architecture layers for magicsunday/photo-renamer (replaces the former phpat ArchitectureTest).
+#
+# The canonical layer definitions and ruleset come from the shared coding-standard import. Of
+# those, src/Model (all of it: the DTOs, enums, collections and the execution/pipeline models)
+# lands in Model and src/Service (all of it) in Service by directory. Two more shared layers are
+# widened by collectors of their own below:
+#
+#   - Model also holds TemporalMetadata and the accessor trait it uses. It is the value object the
+#     pipeline models carry (AssetItem), not metadata extraction, so it belongs with them.
+#   - Contract holds the strategy interfaces under src/Strategy. They are the ports the services
+#     program against; only the Command composition root picks a concrete strategy.
+#
+# Nothing lives under a Support, Enum, Configuration, Repository, Adapter, Facade or Module
+# namespace, so those shared layers stay empty here.
+#
+# The package-local layers are anchored to their top-level namespace, and each class lands in
+# exactly one layer. Metadata and Strategy are partitions: each takes what its namespace holds
+# minus the members filed under Model or Contract above.
+#
+# The layers form one total order, lowest first, and a layer lists only layers below it:
+#
+#   Exception, Constants < Regex < Model < Helper < Contract < Metadata < Service < Strategy
+#       < Command
+#
+# so the allow-lists admit no cycle, and the layer-cycle gate (check-deptrac-cycles.php, part of
+# `composer ci:test:php:deptrac`) proves the measured graph has none. The order is also valid
+# under coding-standard's strict 3.0 ruleset (Support < Enum < Model, Configuration < Contract
+# < Repository, Adapter, Service < Facade < Module): Model depends on nothing, Contract only on
+# Model and a local leaf, and Service only on Model, Contract and local layers below it.
+#
+# What the former phpat rules pinned is kept, and is stricter now that it is an allow-list:
+# exceptions and constants depend on nothing; Regex only on Exception; Helper never on Command,
+# Service, Strategy or Metadata; Model on nothing outside itself; Service and Strategy never on
+# Command.
+#
+# Deptrac unites these rulesets with the imported one, so the entries for Model, Contract and
+# Service only ADD edges to the shared layers. A layer may always depend on itself.
+
+imports:
+    - .build/vendor/magicsunday/coding-standard/deptrac/layers.yaml
+
+deptrac:
+    paths:
+        - src
+
+    # Bootstrap scripts, not classes: Renamer.php is the CLI entry point and Dependencies.php
+    # builds the DI container. Neither declares a class for a layer to hold.
+    exclude_files:
+        - '#src/(Renamer|Dependencies)\.php$#'
+
+    layers:
+        -
+            # Domain exceptions: shared leaves carrying only structured context.
+            name: Exception
+            collectors:
+                -
+                    type: directory
+                    value: 'src/Exception/.*'
+        -
+            # The shared constants holder at the src root.
+            name: Constants
+            collectors:
+                -
+                    type: classNameRegex
+                    value: '#^MagicSunday\\Renamer\\Constants$#'
+        -
+            # The safe preg_* wrapper and its result objects.
+            name: Regex
+            collectors:
+                -
+                    type: directory
+                    value: 'src/Regex/.*'
+        -
+            name: Helper
+            collectors:
+                -
+                    type: directory
+                    value: 'src/Helper/.*'
+        # Merged with the shared Model layer (src/Model); see the header.
+        -
+            name: Model
+            collectors:
+                -
+                    type: directory
+                    value: 'src/Metadata/(TemporalMetadata|MetadataSignalAccessorsTrait)\.php$'
+        # Merged with the shared Contract layer; see the header.
+        -
+            name: Contract
+            collectors:
+                -
+                    type: directory
+                    value: 'src/Strategy/.+Interface\.php$'
+        -
+            # Metadata extraction, caching and quality resolution.
+            name: Metadata
+            collectors:
+                -
+                    type: bool
+                    must:
+                        -
+                            type: directory
+                            value: 'src/Metadata/.*'
+                    must_not:
+                        -
+                            type: layer
+                            value: Model
+        -
+            # The concrete rename and duplicate-identifier strategies.
+            name: Strategy
+            collectors:
+                -
+                    type: bool
+                    must:
+                        -
+                            type: directory
+                            value: 'src/Strategy/.*'
+                    must_not:
+                        -
+                            type: layer
+                            value: Contract
+        -
+            # The composition root: the Symfony Console application and its commands, which
+            # pick the concrete strategies and wire the services.
+            name: Command
+            collectors:
+                -
+                    type: directory
+                    value: 'src/Command/.*'
+                -
+                    type: classNameRegex
+                    value: '#^MagicSunday\\Renamer\\Application$#'
+
+    ruleset:
+        Exception: ~
+        Constants: ~
+        Regex:
+            - Exception
+        # Model holds data only: it depends on nothing outside itself.
+        # Helper: path, extension and date utilities; PathHelper renders a LinkConfig.
+        Helper:
+            - Exception
+            - Constants
+            - Regex
+            - Model
+        # Contract: the strategy interfaces declare the domain exceptions they throw.
+        Contract:
+            - Exception
+        # Metadata: MetadataQualityFlagResolver reads the flags through the
+        # MetadataAwareRenameStrategyInterface port.
+        Metadata:
+            - Exception
+            - Helper
+            - Model
+            - Contract
+        # Service: application logic, programmed against the strategy ports only.
+        Service:
+            - Exception
+            - Constants
+            - Regex
+            - Helper
+            - Metadata
+        # Strategy: ContentHashStrategy hashes through the service-layer SafeHashCalculatorInterface,
+        # and ExifDateFilenameStrategy reads metadata through ExifMetadataProvider.
+        Strategy:
+            - Exception
+            - Regex
+            - Model
+            - Helper
+            - Contract
+            - Metadata
+            - Service
+        # Command: the composition root, the top of the graph; no layer depends on it.
+        Command:
+            - Exception
+            - Constants
+            - Regex
+            - Model
+            - Helper
+            - Contract
+            - Metadata
+            - Service
+            - Strategy
