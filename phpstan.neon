@@ -1,15 +1,11 @@
 includes:
-    - %currentWorkingDirectory%/.build/vendor/phpstan/phpstan-strict-rules/rules.neon
-    - %currentWorkingDirectory%/.build/vendor/phpstan/phpstan-deprecation-rules/rules.neon
-    - %currentWorkingDirectory%/.build/vendor/phpstan/phpstan-phpunit/extension.neon
-    - %currentWorkingDirectory%/.build/vendor/phpstan/phpstan-phpunit/rules.neon
-    - %currentWorkingDirectory%/.build/vendor/phpat/phpat/extension.neon
+    - %currentWorkingDirectory%/.build/vendor/magicsunday/coding-standard/phpstan/base.neon
 
 parameters:
-    # You can currently choose from 11 levels (0 is the loosest and 10 is the strictest).
-    level: max
+    # level: max, the rule packs (strict, deprecation, phpunit) and checked exceptions
+    # come from the shared base.
 
-    # PHP Version to check against (PHP 8.5 as minimum target)
+    # Single-PHP application: 8.5 is both floor and ceiling.
     phpVersion: 80500
 
     tmpDir: %currentWorkingDirectory%/.build/cache/.phpstan.cache
@@ -19,14 +15,14 @@ parameters:
         - %currentWorkingDirectory%/tests/
 
     excludePaths:
+        - %currentWorkingDirectory%/.build/
         - %currentWorkingDirectory%/src/Renamer.php
         - %currentWorkingDirectory%/src/Dependencies.php
 
-    phpat:
-        show_rule_names: true
-
-services:
-    -
-        class: MagicSunday\Renamer\Test\Architecture\ArchitectureTest
-        tags:
-            - phpat.test
+    ignoreErrors:
+        # A test method that calls a throwing API documents nothing by carrying @throws: PHPUnit
+        # catches whatever it throws and turns it into a failure (or an expectException pass).
+        # Checked-exception contracts are enforced on src/, where callers depend on them.
+        -
+            identifier: missingType.checkedException
+            path: %currentWorkingDirectory%/tests/*
