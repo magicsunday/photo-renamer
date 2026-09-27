@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service;
 
+use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
 use MagicSunday\Renamer\Helper\FileHelper;
@@ -268,6 +269,8 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      * @param string                               $sourceDirectory             Absolute path to the source directory.
      *
      * @return FileDuplicateCollection Collection of identified duplicate groups.
+     *
+     * @throws ExifMetadataReadException When the file's metadata cannot be read.
      */
     #[Override]
     public function groupFilesByDuplicateIdentifier(

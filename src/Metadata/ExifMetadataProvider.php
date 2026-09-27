@@ -364,6 +364,8 @@ final class ExifMetadataProvider
      * @param SplFileInfo      $splFileInfo The file context.
      *
      * @return TemporalMetadata The adjusted metadata.
+     *
+     * @throws ExifMetadataReadException When the file's metadata cannot be read.
      */
     private function applyConfiguredTimezone(TemporalMetadata $metadata, SplFileInfo $splFileInfo): TemporalMetadata
     {

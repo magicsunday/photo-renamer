@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Metadata;
 
+use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Strategy\RenameStrategy\MetadataAwareRenameStrategyInterface;
 use SplFileInfo;
 
@@ -41,6 +42,8 @@ final class MetadataQualityFlagResolver
      * @param MetadataAwareRenameStrategyInterface $strategy Rename strategy exposing quality indicators
      *
      * @return MetadataQualityFlags Actionable quality flags for downstream annotation.
+     *
+     * @throws ExifMetadataReadException When the file's metadata cannot be read.
      */
     public static function resolve(
         SplFileInfo $file,

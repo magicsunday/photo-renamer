@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Strategy\RenameStrategy\DatePattern;
 
+use MagicSunday\Renamer\Exception\RegexExecutionException;
 use MagicSunday\Renamer\Regex\SafeRegex;
 
 /**
@@ -56,6 +57,8 @@ final readonly class DatePlaceholderExpressionMap
      * @param SafeRegex $safeRegex Safe wrapper around preg_* functions with error handling
      *
      * @return string PCRE-compatible regex with capture groups in place of tokens
+     *
+     * @throws RegexExecutionException When the regular expression cannot be evaluated.
      */
     public function replacePlaceholders(string $pattern, SafeRegex $safeRegex): string
     {
