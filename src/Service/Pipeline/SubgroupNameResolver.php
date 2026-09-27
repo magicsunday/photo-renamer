@@ -113,22 +113,7 @@ final readonly class SubgroupNameResolver
                 : $unclassifiedSubgroup;
 
             if ($subgroup === 0) {
-                $aDupNum = $this->extractDuplicateNumber($itemA->file);
-                $bDupNum = $this->extractDuplicateNumber($itemB->file);
-
-                if ($aDupNum !== null && $bDupNum !== null) {
-                    return $aDupNum <=> $bDupNum;
-                }
-
-                if ($aDupNum !== null) {
-                    return 1;
-                }
-
-                if ($bDupNum !== null) {
-                    return -1;
-                }
-
-                return ($itemA->clusterRank ?? PHP_INT_MAX) <=> ($itemB->clusterRank ?? PHP_INT_MAX);
+                return $this->compareByDuplicateNumberThenRank($itemA, $itemB);
             }
 
             $expectedBasename = sprintf('%s-%03d', $groupKey, $subgroup);
@@ -143,22 +128,7 @@ final readonly class SubgroupNameResolver
                 return 1;
             }
 
-            $aDupNum = $this->extractDuplicateNumber($itemA->file);
-            $bDupNum = $this->extractDuplicateNumber($itemB->file);
-
-            if ($aDupNum !== null && $bDupNum !== null) {
-                return $aDupNum <=> $bDupNum;
-            }
-
-            if ($aDupNum !== null) {
-                return 1;
-            }
-
-            if ($bDupNum !== null) {
-                return -1;
-            }
-
-            return ($itemA->clusterRank ?? PHP_INT_MAX) <=> ($itemB->clusterRank ?? PHP_INT_MAX);
+            return $this->compareByDuplicateNumberThenRank($itemA, $itemB);
         });
 
         /** @var array<string, int> $clusterDuplicateCounter */
@@ -387,6 +357,39 @@ final readonly class SubgroupNameResolver
             '',
             $clusterId,
         );
+    }
+
+    /**
+     * Orders two items by their existing -duplicate-NNN suffix, then by cluster rank.
+     *
+     * This is the final tie-break of the subgroup sort, shared by the unclassified
+     * subgroup and the subgroup whose members do not match the expected basename:
+     * numbered duplicates keep their relative order, an unnumbered file sorts before
+     * a numbered one, and the perceptual cluster rank decides the rest.
+     *
+     * @param AssetItem $itemA First item to compare
+     * @param AssetItem $itemB Second item to compare
+     *
+     * @return int Negative, zero or positive, as usort() expects
+     */
+    private function compareByDuplicateNumberThenRank(AssetItem $itemA, AssetItem $itemB): int
+    {
+        $aDupNum = $this->extractDuplicateNumber($itemA->file);
+        $bDupNum = $this->extractDuplicateNumber($itemB->file);
+
+        if ($aDupNum !== null && $bDupNum !== null) {
+            return $aDupNum <=> $bDupNum;
+        }
+
+        if ($aDupNum !== null) {
+            return 1;
+        }
+
+        if ($bDupNum !== null) {
+            return -1;
+        }
+
+        return ($itemA->clusterRank ?? PHP_INT_MAX) <=> ($itemB->clusterRank ?? PHP_INT_MAX);
     }
 
     /**

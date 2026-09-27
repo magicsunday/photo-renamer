@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Command\Concern;
 
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function is_string;
 use function realpath;
@@ -21,7 +22,7 @@ use function realpath;
  *
  * `rename:verify` and `rename:write-date` both accept either a single file or a
  * directory and need the same canonicalization and existence check before any
- * further processing starts.
+ * further processing starts, reported to the operator with the same message.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -51,5 +52,28 @@ trait ResolvesSourcePath
         }
 
         return $resolved;
+    }
+
+    /**
+     * Resolves the source path argument and reports a missing source to the operator.
+     *
+     * Both commands abort with the same error when the source does not exist,
+     * so the message lives here next to the resolution it belongs to; the caller
+     * only decides the exit code.
+     *
+     * @param InputInterface $input The input interface carrying the `source` argument.
+     * @param SymfonyStyle   $io    The console style used to report a missing source.
+     *
+     * @return string|null The resolved absolute path, or null after reporting that it does not exist.
+     */
+    private function resolveExistingSourcePath(InputInterface $input, SymfonyStyle $io): ?string
+    {
+        $source = $this->resolveSourcePath($input);
+
+        if ($source === null) {
+            $io->error('Source path does not exist.');
+        }
+
+        return $source;
     }
 }

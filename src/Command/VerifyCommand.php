@@ -147,11 +147,9 @@ final class VerifyCommand extends Command
         $io = new SymfonyStyle($input, $output);
         $io->title($this->getName() ?? '');
 
-        $source = $this->resolveSourcePath($input);
+        $source = $this->resolveExistingSourcePath($input, $io);
 
         if ($source === null) {
-            $io->error('Source path does not exist.');
-
             return self::FAILURE;
         }
 
