@@ -4,9 +4,9 @@
 
 #### CI
 
-.PHONY: test lint cgl-check rector-check stan deptrac unit coverage cpd audit mutation
+.PHONY: test lint cgl-check rector-check stan deptrac templates unit coverage cpd audit mutation
 
-test: .logo ## Runs the full CI pipeline (lint, cgl, rector, phpstan, deptrac, phpunit, cpd).
+test: .logo ## Runs the full CI pipeline (lint, cgl, rector, phpstan, deptrac, templates, phpunit, cpd).
 	$(COMPOSE_BUILD) composer ci:test
 
 lint: .logo ## Runs the PHP linter.
@@ -23,6 +23,9 @@ stan: .logo ## Runs PHPStan analysis.
 
 deptrac: .logo ## Checks the architecture layers (Deptrac, unassigned classes, layer cycles).
 	$(COMPOSE_BUILD) composer ci:test:php:deptrac
+
+templates: .logo ## Checks the config copies against the coding-standard templates.
+	$(COMPOSE_BUILD) composer ci:test:php:templates
 
 unit: .logo ## Runs the PHPUnit tests.
 	$(COMPOSE_BUILD) composer ci:test:php:unit
