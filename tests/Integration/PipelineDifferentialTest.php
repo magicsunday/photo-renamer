@@ -32,6 +32,7 @@ use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
 use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzer;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator;
+use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashMath;
 use MagicSunday\Renamer\Service\Pipeline\CollisionResolver;
 use MagicSunday\Renamer\Service\Pipeline\CompanionDetector;
 use MagicSunday\Renamer\Service\Pipeline\OrphanLivePhotoVideoReconciler;
@@ -175,7 +176,7 @@ final class PipelineDifferentialTest extends TestCase
         $mediaTypeClassifier = new MediaTypeClassifier();
         $imageLoader         = new ImagickImageLoader($mediaTypeClassifier);
 
-        $perceptualHashCalculator = new PerceptualHashCalculator($imageLoader);
+        $perceptualHashCalculator = new PerceptualHashCalculator($imageLoader, new PerceptualHashMath());
 
         $hashSubGroupingService = new HashSubGroupingService(
             new SafeHashCalculator(),
@@ -265,7 +266,7 @@ final class PipelineDifferentialTest extends TestCase
         $mediaTypeClassifier = new MediaTypeClassifier();
         $imageLoader         = new ImagickImageLoader($mediaTypeClassifier);
 
-        $perceptualHashCalculator = new PerceptualHashCalculator($imageLoader);
+        $perceptualHashCalculator = new PerceptualHashCalculator($imageLoader, new PerceptualHashMath());
 
         $hashSubGroupingService = new HashSubGroupingService(
             new SafeHashCalculator(),

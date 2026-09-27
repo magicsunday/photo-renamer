@@ -493,7 +493,7 @@ final class WriteDateFlowTest extends TestCase
 
         $mediaTypeClassifier      = new MediaTypeClassifier();
         $imageLoader              = new ImagickImageLoader($mediaTypeClassifier);
-        $perceptualHashCalculator = new PerceptualHashCalculator($imageLoader);
+        $perceptualHashCalculator = new PerceptualHashCalculator($imageLoader, new PerceptualHashMath());
         $progressReporter         = new ConsoleProgressReporter($style);
 
         $hashSubGroupingService = new HashSubGroupingService(

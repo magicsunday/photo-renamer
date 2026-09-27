@@ -9,7 +9,7 @@
 
 declare(strict_types=1);
 
-namespace MagicSunday\Renamer\Test\Architecture;
+namespace MagicSunday\Renamer\Test\Unit\Architecture;
 
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
@@ -50,7 +50,7 @@ final class ConsoleBoundaryArchitectureTest extends TestCase
     #[Test]
     public function nonOutputServicesDoNotReferenceSymfonyStyle(): void
     {
-        $serviceDirectory = __DIR__ . '/../../src/Service';
+        $serviceDirectory = __DIR__ . '/../../../src/Service';
 
         /** @var RecursiveIteratorIterator<RecursiveDirectoryIterator> $iterator */
         $iterator = new RecursiveIteratorIterator(

@@ -58,7 +58,7 @@ final class PerceptualHashCalculatorTest extends TestCase
 
     private function createCalculator(): PerceptualHashCalculator
     {
-        return new PerceptualHashCalculator(new ImagickImageLoader(new MediaTypeClassifier()));
+        return new PerceptualHashCalculator(new ImagickImageLoader(new MediaTypeClassifier()), new PerceptualHashMath());
     }
 
     /**

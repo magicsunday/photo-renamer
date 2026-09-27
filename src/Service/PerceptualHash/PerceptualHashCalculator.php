@@ -90,10 +90,11 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
 
     /**
      * @param ImagickImageLoader $imageLoader Loader for normalized images and video frames.
+     * @param PerceptualHashMath $hashMath    Hash distance and weighted-score arithmetic, wired by the container.
      */
     public function __construct(
         private readonly ImagickImageLoader $imageLoader,
-        private readonly PerceptualHashMath $hashMath = new PerceptualHashMath(),
+        private readonly PerceptualHashMath $hashMath,
     ) {
     }
 

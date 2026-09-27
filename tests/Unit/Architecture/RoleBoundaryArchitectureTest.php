@@ -9,7 +9,7 @@
 
 declare(strict_types=1);
 
-namespace MagicSunday\Renamer\Test\Architecture;
+namespace MagicSunday\Renamer\Test\Unit\Architecture;
 
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\MetadataExtractor;
@@ -124,9 +124,9 @@ final class RoleBoundaryArchitectureTest extends TestCase
     private function roleFiles(string $suffix): array
     {
         $directories = [
-            __DIR__ . '/../../src/Service',
-            __DIR__ . '/../../src/Metadata',
-            __DIR__ . '/../../src/Helper',
+            __DIR__ . '/../../../src/Service',
+            __DIR__ . '/../../../src/Metadata',
+            __DIR__ . '/../../../src/Helper',
         ];
 
         $files = [];

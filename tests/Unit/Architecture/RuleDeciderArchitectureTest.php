@@ -9,7 +9,7 @@
 
 declare(strict_types=1);
 
-namespace MagicSunday\Renamer\Test\Architecture;
+namespace MagicSunday\Renamer\Test\Unit\Architecture;
 
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
@@ -73,7 +73,7 @@ final class RuleDeciderArchitectureTest extends TestCase
      */
     private function ruleAndDeciderFiles(): array
     {
-        $serviceDirectory = __DIR__ . '/../../src/Service';
+        $serviceDirectory = __DIR__ . '/../../../src/Service';
         $files            = [];
 
         /** @var RecursiveIteratorIterator<RecursiveDirectoryIterator> $iterator */

@@ -9,7 +9,7 @@
 
 declare(strict_types=1);
 
-namespace MagicSunday\Renamer\Test\Architecture;
+namespace MagicSunday\Renamer\Test\Unit\Architecture;
 
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
@@ -30,29 +30,29 @@ use function str_replace;
 use const DIRECTORY_SEPARATOR;
 
 /**
- * Verifies the explicit policy boundary introduced by the Wave-2 plan.
+ * Verifies the explicit analyzer boundary from the Wave-2 architecture plan.
  *
- * Policies are meant to encode focused business rules without becoming hidden
- * execution boundaries. This test keeps them free from console, filesystem, and
- * process dependencies that belong to commands, reporting adapters, or lower
- * I/O services instead.
+ * Analyzers are meant to inspect existing state and derive findings. They must
+ * stay free from console, filesystem, and process boundaries so they remain
+ * deterministic and easy to reuse from commands, planners, and tests.
  *
  * @internal
  */
 #[CoversNothing]
-final class PolicyBoundaryArchitectureTest extends TestCase
+final class AnalyzerBoundaryArchitectureTest extends TestCase
 {
     /**
-     * Verifies that policy classes do not directly depend on console,
+     * Verifies that analyzer classes do not directly depend on console,
      * filesystem, or process boundaries.
      *
-     * This preserves the intended role split where policies decide, but do not
-     * render, move files, or spawn external commands.
+     * This complements the broader namespace rules with a role-specific guard:
+     * analyzers may compute findings, but they must not render, mutate the
+     * filesystem, or shell out to external tools.
      */
     #[Test]
-    public function policiesDoNotDependOnConsoleFilesystemOrProcessBoundaries(): void
+    public function analyzersDoNotDependOnConsoleFilesystemOrProcessBoundaries(): void
     {
-        foreach ($this->policyFiles() as $pathname) {
+        foreach ($this->analyzerFiles() as $pathname) {
             $contents = file_get_contents($pathname);
 
             self::assertNotFalse($contents);
@@ -72,19 +72,17 @@ final class PolicyBoundaryArchitectureTest extends TestCase
     }
 
     /**
-     * Collects current policy-role source files across the product boundaries.
+     * Collects current analyzer-role source files across the product
+     * boundaries.
      *
-     * The inspection is suffix-based because the Wave-2 role language applies
-     * to architectural intent rather than to one namespace subtree.
-     *
-     * @return list<string> Absolute normalized file paths of current policy classes.
+     * @return list<string> Absolute normalized file paths for analyzer classes.
      */
-    private function policyFiles(): array
+    private function analyzerFiles(): array
     {
         $directories = [
-            __DIR__ . '/../../src/Service',
-            __DIR__ . '/../../src/Metadata',
-            __DIR__ . '/../../src/Helper',
+            __DIR__ . '/../../../src/Service',
+            __DIR__ . '/../../../src/Metadata',
+            __DIR__ . '/../../../src/Helper',
         ];
 
         $files = [];
@@ -102,7 +100,7 @@ final class PolicyBoundaryArchitectureTest extends TestCase
 
                 $pathname = str_replace('\\', DIRECTORY_SEPARATOR, $fileInfo->getPathname());
 
-                if (str_ends_with($pathname, 'Policy.php')) {
+                if (str_ends_with($pathname, 'Analyzer.php')) {
                     $files[] = $pathname;
                 }
             }

@@ -1222,7 +1222,7 @@ final class TestImageScenariosTest extends TestCase
         $imageLoader         = new ImagickImageLoader($mediaTypeClassifier);
         $progressReporter    = new ConsoleProgressReporter($style);
 
-        $perceptualHashCalculator = new PerceptualHashCalculator($imageLoader);
+        $perceptualHashCalculator = new PerceptualHashCalculator($imageLoader, new PerceptualHashMath());
 
         $hashSubGroupingService = new HashSubGroupingService(
             new SafeHashCalculator(),

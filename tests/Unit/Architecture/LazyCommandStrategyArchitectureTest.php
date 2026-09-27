@@ -9,7 +9,7 @@
 
 declare(strict_types=1);
 
-namespace MagicSunday\Renamer\Test\Architecture;
+namespace MagicSunday\Renamer\Test\Unit\Architecture;
 
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
@@ -71,7 +71,7 @@ final class LazyCommandStrategyArchitectureTest extends TestCase
      */
     private function commandFiles(): array
     {
-        $directory = __DIR__ . '/../../src/Command';
+        $directory = __DIR__ . '/../../../src/Command';
         $files     = [];
 
         /** @var RecursiveIteratorIterator<RecursiveDirectoryIterator> $iterator */
