@@ -66,19 +66,6 @@ abstract class AbstractCollection implements Countable, IteratorAggregate
     }
 
     /**
-     * Appends an element to the end of the collection using an auto-incremented key.
-     *
-     * This is useful for simple lists where the specific key is either
-     * irrelevant or not yet determined.
-     *
-     * @param TValue $value The element to append.
-     */
-    public function append(object $value): void
-    {
-        $this->elements[] = $value;
-    }
-
-    /**
      * Returns the internal elements as a plain PHP array.
      *
      * @return array<TKey, TValue> The underlying array storage.

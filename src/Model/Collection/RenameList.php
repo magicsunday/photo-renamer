@@ -25,9 +25,9 @@ use function array_values;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  *
- * @extends AbstractCollection<int, Rename>
+ * @extends AbstractList<Rename>
  */
-final class RenameList extends AbstractCollection
+final class RenameList extends AbstractList
 {
     /**
      * @param Rename[] $array Initial list of rename operations.
