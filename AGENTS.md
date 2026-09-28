@@ -107,7 +107,7 @@ Exception, Constants < Regex < Model < Helper < Contract < Metadata < Service < 
 - `Metadata`, `Strategy` = the rest of their namespaces. `Strategy` may use `Service` (e.g. `SafeHashCalculatorInterface`), never the reverse.
 - `Command` (+ `Application`) is the composition root; nothing depends on it.
 - `composer ci:test:php:deptrac` also fails on an unassigned class (`deptrac debug:unassigned`) and on a cycle in the measured layer graph (`check-deptrac-cycles.php`). A new top-level namespace needs a layer.
-- The design also holds under coding-standard's strict 3.0 ruleset. Widen a layer only with a comment explaining the edge.
+- The imported ruleset is coding-standard's strict, acyclic 3.0 one; the design holds under it. Widen a layer only with a comment explaining the edge.
 
 ### Commands (Symfony Console)
 

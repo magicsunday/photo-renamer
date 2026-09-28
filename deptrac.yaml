@@ -23,10 +23,11 @@
 #       < Command
 #
 # so the allow-lists admit no cycle, and the layer-cycle gate (check-deptrac-cycles.php, part of
-# `composer ci:test:php:deptrac`) proves the measured graph has none. The order is also valid
-# under coding-standard's strict 3.0 ruleset (Support < Enum < Model, Configuration < Contract
-# < Repository, Adapter, Service < Facade < Module): Model depends on nothing, Contract only on
-# Model and a local leaf, and Service only on Model, Contract and local layers below it.
+# `composer ci:test:php:deptrac`) proves the measured graph has none. The order fits the strict,
+# acyclic ruleset imported from coding-standard ^3.0 (Support < Enum < Model, Configuration
+# < Contract < Repository, Adapter, Service < Facade < Module): Model depends on nothing,
+# Contract only on Model and a local leaf, and Service only on Model, Contract and local layers
+# below it.
 #
 # What the former phpat rules pinned is kept, and is stricter now that it is an allow-list:
 # exceptions and constants depend on nothing; Regex only on Exception; Helper never on Command,
