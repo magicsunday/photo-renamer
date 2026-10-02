@@ -17,7 +17,7 @@
          failOnPhpunitDeprecation="true"
          failOnPhpunitNotice="true"
          displayDetailsOnPhpunitDeprecations="true"
-         executionOrder="depends,defects"
+         executionOrder="defects"
          colors="true"
 >
     <testsuites>
