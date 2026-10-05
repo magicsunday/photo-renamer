@@ -36,7 +36,9 @@ make binary         # Build SPC binary (always via Docker)
 make cache-clear    # Clear persistent metadata cache
 ```
 
-CI pipeline order: phplint → php-cs-fixer (dry-run) → rector (dry-run) → phpstan → deptrac → templates → phpunit → jscpd
+Local pipeline order of `composer ci:test`: phplint → php-cs-fixer (dry-run) → rector (dry-run) → phpstan → deptrac → templates → phpunit → jscpd
+
+`composer ci:test:php:cpd` runs the installed `node_modules/.bin/jscpd`, so the Node dependencies must be installed first (`make install` runs `npm ci`). jscpd is pinned to an exact version in `package.json`. CI runs it as its own job through the shared `cpd.yml` workflow of the `.github` repository, reported as `cpd / Copy-paste detection`.
 
 ### Shared tooling (`magicsunday/coding-standard`)
 

@@ -58,8 +58,9 @@ rector: .logo ## Applies the rector rules.
 
 .PHONY: install update
 
-install: .logo ## Installs the composer dependencies.
+install: .logo ## Installs the composer and Node dependencies.
 	$(COMPOSE_BUILD) composer install
+	$(COMPOSE_BUILD) npm ci
 
 update: .logo ## Updates the composer dependencies.
 	$(COMPOSE_BUILD) composer update
