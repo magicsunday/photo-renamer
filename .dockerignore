@@ -5,6 +5,7 @@ coverage-report/
 coverage-report-xdebug/
 images/
 images2/
+node_modules/
 spc/
 test-validation/
 tests/Fixtures/Images/

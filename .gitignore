@@ -6,6 +6,7 @@
 
 # Dependencies
 composer.lock
+node_modules/
 
 # Build output
 .build/
