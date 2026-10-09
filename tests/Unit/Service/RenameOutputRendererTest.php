@@ -24,6 +24,7 @@ use MagicSunday\Renamer\Model\Execution\ExecutionItem;
 use MagicSunday\Renamer\Model\Execution\ExecutionItemType;
 use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
 use MagicSunday\Renamer\Model\Execution\ExecutionPreview;
+use MagicSunday\Renamer\Model\Execution\ExecutionResult;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\LinkConfig;
 use MagicSunday\Renamer\Model\OutputEntry;
@@ -90,6 +91,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 #[UsesClass(ExecutionItem::class)]
 #[UsesClass(ExecutionPlan::class)]
 #[UsesClass(ExecutionPreview::class)]
+#[UsesClass(ExecutionResult::class)]
 #[UsesClass(DateDriftCalculator::class)]
 #[UsesClass(FileHelper::class)]
 #[UsesClass(FilenameDateParser::class)]
@@ -1656,6 +1658,7 @@ final class RenameOutputRendererTest extends TestCase
                 duplicateCount: 0,
             ),
             true,
+            new ExecutionResult(),
         );
 
         $buffer = $output->fetch();

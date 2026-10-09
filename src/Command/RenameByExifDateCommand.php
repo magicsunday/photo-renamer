@@ -182,7 +182,11 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
         $this->canonicalScorer->setSourceDirectory($this->sourceDirectory);
 
         try {
-            $this->processWithAssetGroups();
+            if (!$this->processWithAssetGroups()) {
+                $this->io->error('Completed with errors. See the summary for actual results.');
+
+                return self::FAILURE;
+            }
 
             $this->io->success('done');
 
@@ -281,9 +285,11 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
      * 7. Execution plan building
      * 8. Output rendering and optional execution
      *
+     * @return bool Whether scanning and execution completed without errors
+     *
      * @throws RuntimeException If circular swaps are detected
      */
-    private function processWithAssetGroups(): void
+    private function processWithAssetGroups(): bool
     {
         // Steps 1-6: build groups, classify, assign roles, resolve names, resolve collisions, validate
         $pipelineResult = $this->pipeline->run(
@@ -367,7 +373,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
 
         // Execute file operations (may apply runtime fallback for edge cases
         // where CollisionResolver could not predict a conflict at plan time)
-        $this->fileSystemService->executePlan($executionPlan, $this->dryRun);
+        $executionResult = $this->fileSystemService->executePlan($executionPlan, $this->dryRun);
 
         // Render summary
         $this->renameOutputRenderer->renderPlanSummary(
@@ -375,10 +381,19 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
             $result,
             $preview,
             $this->dryRun,
+            $executionResult,
         );
 
         // Cleanup
         $this->hashSubGroupingService->clearCache();
+
+        foreach ($result->skippedFiles as $skippedFile) {
+            if ($skippedFile->isError()) {
+                return false;
+            }
+        }
+
+        return $executionResult->runtimeErrors === 0;
     }
 
     /**

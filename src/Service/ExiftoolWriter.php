@@ -14,8 +14,16 @@ namespace MagicSunday\Renamer\Service;
 use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
+use MagicSunday\Renamer\Exception\ExiftoolWriteException;
 use SplFileInfo;
+use Symfony\Component\Process\Exception\ExceptionInterface;
+use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Process;
+
+use function sprintf;
+use function strlen;
+use function substr;
+use function trim;
 
 /**
  * Writes date/time metadata into media files via exiftool. Sets the appropriate
@@ -28,6 +36,14 @@ use Symfony\Component\Process\Process;
 final readonly class ExiftoolWriter
 {
     /**
+     * @param string $binary  Executable path; arguments are always passed without a shell
+     * @param float  $timeout Maximum seconds per write before terminating the process
+     */
+    public function __construct(private string $binary = 'exiftool', private float $timeout = 60.0)
+    {
+    }
+
+    /**
      * Writes the given date/time into the metadata of the specified file.
      * For videos, sets QuickTime:CreateDate, QuickTime:ModifyDate and Keys:CreationDate.
      * For images, sets DateTimeOriginal and CreateDate.
@@ -39,19 +55,40 @@ final readonly class ExiftoolWriter
      *                                              touching QuickTime:CreateDate/ModifyDate (used for
      *                                              timezone disambiguation of existing correct timestamps)
      *
-     * @return bool True when exiftool reports success, false otherwise
+     * @throws ExiftoolWriteException When the process fails, cannot start or exceeds its timeout
      */
     public function writeDateTime(
         SplFileInfo $file,
         DateTimeInterface $dateTime,
         bool $isVideo,
         bool $preserveCreateDate = false,
-    ): bool {
+    ): void {
         $args    = $this->buildArguments($file, $dateTime, $isVideo, $preserveCreateDate);
-        $process = new Process(['exiftool', ...$args]);
-        $process->run();
+        $process = new Process([$this->binary, ...$args]);
+        $process->setTimeout($this->timeout);
+        $process->disableOutput();
 
-        return $process->isSuccessful();
+        $stderr = '';
+
+        try {
+            $process->run(static function (string $type, string $data) use (&$stderr): void {
+                if ($type === Process::ERR) {
+                    $stderr .= substr($data, 0, 2048 - strlen($stderr));
+                }
+            });
+        } catch (ProcessTimedOutException $exception) {
+            throw new ExiftoolWriteException(sprintf('Exiftool timed out after %g seconds.', $this->timeout), $exception->getCode(), previous: $exception);
+        } catch (ExceptionInterface $exception) {
+            throw new ExiftoolWriteException('Exiftool process failed: ' . substr($exception->getMessage(), 0, 2048), $exception->getCode(), previous: $exception);
+        }
+
+        if (!$process->isSuccessful()) {
+            throw new ExiftoolWriteException(sprintf(
+                'Exiftool exited with code %s: %s',
+                (string) $process->getExitCode(),
+                trim($stderr) !== '' ? trim($stderr) : 'No error output.',
+            ));
+        }
     }
 
     /**

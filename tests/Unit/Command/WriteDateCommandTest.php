@@ -14,6 +14,7 @@ namespace MagicSunday\Renamer\Test\Unit\Command;
 use DateTimeImmutable;
 use DateTimeZone;
 use MagicSunday\Renamer\Command\WriteDateCommand;
+use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\FilenameDateParser;
@@ -58,6 +59,7 @@ use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
@@ -69,6 +71,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Tester\CommandTester;
 use Symfony\Component\Filesystem\Filesystem;
 
+use function chmod;
 use function file_put_contents;
 use function unlink;
 
@@ -93,6 +96,7 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(RegexMatchResult::class)]
 #[UsesClass(SafeRegex::class)]
 #[UsesClass(DateDriftAnalyzer::class)]
+#[UsesClass(ExiftoolWriter::class)]
 #[UsesClass(FileSystemService::class)]
 #[UsesClass(MediaTypeClassifier::class)]
 #[UsesClass(MetadataCache::class)]
@@ -123,6 +127,74 @@ use const DIRECTORY_SEPARATOR;
 final class WriteDateCommandTest extends TestCase
 {
     use WorkspaceTrait;
+
+    /**
+     * Metadata extraction errors cannot turn into a successful empty preview.
+     * The error count and command status must agree before any write is attempted.
+     */
+    #[Test]
+    public function readFailureProducesNonzeroExitAndSummary(): void
+    {
+        $workspace = $this->createTempWorkspace();
+        $source    = $workspace . '/2024-01-01.jpg';
+        file_put_contents($source, 'synthetic fixture');
+        $metadata = new StubMetadataExtractor();
+        $metadata->withResponse($source, new ExifMetadataReadException('synthetic read failure'));
+
+        try {
+            $tester = new CommandTester($this->createCommand($metadata));
+            self::assertSame(Command::FAILURE, $tester->execute(['source' => $workspace, '--dry-run' => true]));
+            self::assertMatchesRegularExpression('/Read errors\s+1/', $tester->getDisplay());
+            self::assertStringNotContainsString('All files have correct metadata', $tester->getDisplay());
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * A failing first write must not hide a later success. Both an external
+     * error and a timeout produce a failed command with accurate batch counts;
+     * dry-run previews the same inputs without starting the failing executable.
+     *
+     * @param bool $timeout Whether the first file times out instead of exiting nonzero
+     */
+    #[Test]
+    #[DataProvider('writeFailureCases')]
+    public function partialWriteFailuresReachExitStatusAndSummary(bool $timeout): void
+    {
+        $workspace = $this->createTempWorkspace();
+        $binary    = $workspace . '/exiftool-fixture';
+        $failure   = $timeout ? 'exec sleep 5' : "echo 'synthetic write failure' >&2; exit 9";
+        file_put_contents($binary, "#!/bin/sh\ncase \"$*\" in\n*2024-01-01.jpg*) " . $failure . ";;\nesac\nexit 0\n");
+        chmod($binary, 0700);
+        file_put_contents($workspace . '/2024-01-01.jpg', 'first');
+        file_put_contents($workspace . '/2024-01-02.jpg', 'second');
+
+        try {
+            $writer  = new ExiftoolWriter($binary, $timeout ? 0.3 : 5.0);
+            $preview = new CommandTester($this->createCommand(exiftoolWriter: $writer));
+            self::assertSame(Command::SUCCESS, $preview->execute(['source' => $workspace, '--dry-run' => true]));
+            self::assertMatchesRegularExpression('/Would write\s+2/', $preview->getDisplay());
+
+            $tester = new CommandTester($this->createCommand(exiftoolWriter: $writer));
+            $tester->setInputs(['yes']);
+            self::assertSame(Command::FAILURE, $tester->execute(['source' => $workspace]));
+            self::assertMatchesRegularExpression('/Written\s+1/', $tester->getDisplay());
+            self::assertMatchesRegularExpression('/Write failed\s+1/', $tester->getDisplay());
+            self::assertStringContainsString($timeout ? 'Exiftool timed out' : 'Exiftool exited with code 9: synthetic write failure', $tester->getDisplay());
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * @return iterable<string, array{bool}> Two external failure modes requiring per-file recovery
+     */
+    public static function writeFailureCases(): iterable
+    {
+        yield 'exit failure' => [false];
+        yield 'timeout' => [true];
+    }
 
     /**
      * Verifies that the command registers under the name "rename:write-date".
@@ -698,7 +770,7 @@ final class WriteDateCommandTest extends TestCase
         );
     }
 
-    private function createCommand(?StubMetadataExtractor $metadataExtractor = null): WriteDateCommand
+    private function createCommand(?StubMetadataExtractor $metadataExtractor = null, ?ExiftoolWriter $exiftoolWriter = null): WriteDateCommand
     {
         $output = new BufferedOutput();
         $style  = new SymfonyStyle(new ArrayInput([]), $output);
@@ -708,7 +780,7 @@ final class WriteDateCommandTest extends TestCase
         $mediaTypeClassifier = new MediaTypeClassifier();
         $renderer            = OutputRendererFactory::create($style);
         $fileSystemService   = FileSystemServiceFactory::create($renderer, $style);
-        $exiftoolWriter      = new ExiftoolWriter();
+        $exiftoolWriter ??= new ExiftoolWriter();
 
         return new WriteDateCommand(
             $metadataProvider,

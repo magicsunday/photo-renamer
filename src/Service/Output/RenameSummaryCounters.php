@@ -37,6 +37,8 @@ final readonly class RenameSummaryCounters
      * @param int $plannedMoves               Planned move operations in the rendered output
      * @param int $plannedSkips               Planned execution skips in the rendered output
      * @param int $crossGroupVideoReviewCount Cross-group video review entries detected during reconciliation
+     * @param int $runtimeErrors              Failed file operations observed during execution
+     * @param int $runtimeFallbacks           Successful moves whose actual target differs from the plan
      */
     public function __construct(
         public int $scannedFiles,
@@ -49,6 +51,8 @@ final readonly class RenameSummaryCounters
         public int $plannedMoves,
         public int $plannedSkips,
         public int $crossGroupVideoReviewCount = 0,
+        public int $runtimeErrors = 0,
+        public int $runtimeFallbacks = 0,
     ) {
     }
 }
