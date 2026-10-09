@@ -19,6 +19,7 @@ use MagicSunday\Renamer\Regex\RegexMatchResult;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\Dedup\DedupOriginalMatcher;
 use MagicSunday\Renamer\Service\Dedup\DedupReportFormatter;
+use MagicSunday\Renamer\Service\Dedup\DuplicateDeletionGuard;
 use MagicSunday\Renamer\Service\Dedup\OriginalCandidateIndex;
 use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
 use MagicSunday\Renamer\Service\Filesystem\FileCollector;
@@ -38,6 +39,7 @@ use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\WarningOutputSkipRe
 use MagicSunday\Renamer\Service\Output\SummaryRow;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
+use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
@@ -79,6 +81,8 @@ use const PHP_EOL;
 #[UsesClass(MediaCompatibilityPolicy::class)]
 #[UsesClass(DedupOriginalMatcher::class)]
 #[UsesClass(DedupReportFormatter::class)]
+#[UsesClass(DuplicateDeletionGuard::class)]
+#[UsesClass(SafeHashCalculator::class)]
 #[UsesClass(OriginalCandidateIndex::class)]
 #[UsesClass(FormatPriorityResolver::class)]
 #[UsesClass(RenameOutputRenderer::class)]
@@ -264,11 +268,11 @@ final class DedupCommandTest extends TestCase
     }
 
     /**
-     * Verifies that using the "--delete" option actually removes duplicate files from
-     * the source directory instead of moving them to a target folder.
+     * Verifies that a duplicate marker cannot authorize deletion of different
+     * bytes, even after the operator explicitly confirms the delete command.
      */
     #[Test]
-    public function executeDeleteDuplicates(): void
+    public function executeDeleteRejectsDifferentContent(): void
     {
         $workspace = $this->createWorkspace();
 
@@ -288,18 +292,73 @@ final class DedupCommandTest extends TestCase
                 '--delete' => true,
             ]);
 
-            self::assertSame(Command::SUCCESS, $exitCode);
+            self::assertSame(Command::FAILURE, $exitCode);
 
-            $output = $tester->getDisplay();
-            self::assertStringContainsString(
-                '[D] 2025-04-13_17-29-26-411-duplicate-001.jpg' . PHP_EOL
-                . '     → Deleted',
-                $output,
-            );
-
-            // Duplicate should be deleted, original should remain
-            self::assertFileDoesNotExist($duplicatePath);
+            self::assertStringContainsString('Deletion blocked', $tester->getDisplay());
+            self::assertFileExists($duplicatePath);
             self::assertFileExists($originalPath);
+        } finally {
+            $this->cleanupWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Checks real deletion and dry-run against identical bytes. Dry-run must
+     * expose verified evidence while retaining both files; execution retains
+     * the original and removes only the matching duplicate.
+     */
+    #[Test]
+    public function executeDeleteRequiresVerifiedBytesAndHonorsDryRun(): void
+    {
+        $workspace = $this->createWorkspace();
+        $original  = $workspace . '/photo.jpg';
+        $duplicate = $workspace . '/photo-duplicate-001.jpg';
+        file_put_contents($original, 'identical-content');
+        file_put_contents($duplicate, 'identical-content');
+
+        try {
+            $tester = new CommandTester($this->createCommand());
+            self::assertSame(Command::SUCCESS, $tester->execute([
+                'source' => $workspace, '--delete' => true, '--dry-run' => true,
+            ]));
+            self::assertStringContainsString('fresh byte identity verified', $tester->getDisplay());
+            self::assertFileExists($duplicate);
+
+            $tester->setInputs(['yes']);
+            self::assertSame(Command::SUCCESS, $tester->execute([
+                'source' => $workspace, '--delete' => true,
+            ]));
+            self::assertFileDoesNotExist($duplicate);
+            self::assertFileExists($original);
+        } finally {
+            $this->cleanupWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Rejects a cross-format original in another directory when its bytes differ.
+     * Neither a global name match nor format preference supplies deletion evidence,
+     * and dry-run must describe the block without modifying either file.
+     */
+    #[Test]
+    public function executeDeleteDryRunBlocksCrossDirectoryCrossFormatCandidate(): void
+    {
+        $workspace = $this->createWorkspace();
+        mkdir($workspace . '/import');
+        $original  = $workspace . '/import/photo.heic';
+        $duplicate = $workspace . '/photo-duplicate-001.jpg';
+        file_put_contents($original, 'original');
+        file_put_contents($duplicate, 'modified');
+
+        try {
+            $tester = new CommandTester($this->createCommand());
+            self::assertSame(Command::FAILURE, $tester->execute([
+                'source' => $workspace, '--delete' => true, '--dry-run' => true,
+            ]));
+            self::assertStringContainsString('Deletion blocked', $tester->getDisplay());
+            self::assertStringNotContainsString('Would delete', $tester->getDisplay());
+            self::assertFileExists($duplicate);
+            self::assertFileExists($original);
         } finally {
             $this->cleanupWorkspace($workspace);
         }
@@ -513,6 +572,7 @@ final class DedupCommandTest extends TestCase
             new DedupReportFormatter(),
             $renderer,
             new Filesystem(),
+            new DuplicateDeletionGuard(new SafeHashCalculator()),
         );
     }
 }
