@@ -16,6 +16,7 @@ use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Service\Dedup\DedupOriginalMatcher;
 use MagicSunday\Renamer\Service\Dedup\DedupReportFormatter;
+use MagicSunday\Renamer\Service\Dedup\DuplicateDeletionGuard;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use Override;
@@ -42,8 +43,8 @@ use const DIRECTORY_SEPARATOR;
 
 /**
  * Finds files with "-duplicate-" in their name and either moves them to
- * a configurable target directory or deletes them. Purely filename-based,
- * no metadata pipeline needed.
+ * a configurable target directory or deletes freshly verified byte duplicates.
+ * Filename matching selects candidates without needing the metadata pipeline.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -59,6 +60,7 @@ final class DedupCommand extends Command
      * @param DedupReportFormatter       $dedupReportFormatter Formatter for dedup overviews, action blocks, and footer rows
      * @param RenameOutputRenderer       $renderer             Service to render output in a consistent format
      * @param Filesystem                 $filesystem           Symfony Filesystem component for file operations
+     * @param DuplicateDeletionGuard     $deletionGuard        Fresh byte-identity check for permanent removal
      */
     public function __construct(
         private readonly FileSystemServiceInterface $fileSystemService,
@@ -66,6 +68,7 @@ final class DedupCommand extends Command
         private readonly DedupReportFormatter $dedupReportFormatter,
         private readonly RenameOutputRenderer $renderer,
         private readonly Filesystem $filesystem,
+        private readonly DuplicateDeletionGuard $deletionGuard,
     ) {
         parent::__construct();
     }
@@ -94,7 +97,7 @@ final class DedupCommand extends Command
                 'delete',
                 null,
                 InputOption::VALUE_NONE,
-                'Delete duplicate files instead of moving them.',
+                'Delete only freshly verified byte-identical duplicates instead of moving candidates.',
             )
             ->addOption(
                 'target',
@@ -218,6 +221,7 @@ final class DedupCommand extends Command
         $duplicatesFound  = 0;
         $orphanedCount    = 0;
         $spaceReclaimable = 0;
+        $blockedCount     = 0;
 
         foreach ($duplicates as $entry) {
             $file         = $entry['file'];
@@ -234,6 +238,16 @@ final class DedupCommand extends Command
                 continue;
             }
 
+            if ($delete && !$this->deletionGuard->permitsDeletion($file, $entry['original'])) {
+                ++$blockedCount;
+                $io->text(sprintf(
+                    '<fg=yellow>[!]</> %s <fg=cyan>→</> Deletion blocked: fresh byte identity not verified; use quarantine for review.',
+                    $relativePath,
+                ));
+
+                continue;
+            }
+
             ++$duplicatesFound;
             $spaceReclaimable += $file->getSize();
 
@@ -243,7 +257,7 @@ final class DedupCommand extends Command
                         $io,
                         'cyan',
                         $relativePath,
-                        'Would delete',
+                        'Would delete (fresh byte identity verified)',
                     );
                 } else {
                     $targetRelativePath = $target . DIRECTORY_SEPARATOR . $relativePath;
@@ -299,7 +313,11 @@ final class DedupCommand extends Command
         $io->newLine();
         $this->renderSummary($io, count($files), $duplicatesFound, $orphanedCount, $spaceReclaimable);
 
-        return self::SUCCESS;
+        if ($blockedCount > 0) {
+            $io->warning(sprintf('Deletion blocked for %d candidate(s); files retained.', $blockedCount));
+        }
+
+        return $blockedCount > 0 ? self::FAILURE : self::SUCCESS;
     }
 
     /**

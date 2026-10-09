@@ -232,11 +232,11 @@ renamer rename:dedup --dry-run ~/Photos
 # Step 12: Move duplicates (prompts for confirmation)
 renamer rename:dedup ~/Photos
 
-# Or delete them directly
+# Or delete freshly verified byte-identical duplicates
 renamer rename:dedup --delete ~/Photos
 ```
 
-After renaming, files with identical content receive `-duplicate-NNN` suffixes. This step moves (or deletes) those duplicates, keeping only the originals. Orphaned duplicates (whose original no longer exists) are skipped with a warning.
+Files with `-duplicate-NNN` suffixes are cleanup candidates; a suffix alone does not prove identical content. The default action moves candidates to quarantine for review. `--delete` requires fresh SHA-256 equality with a retained original and unchanged file state during verification, after confirmation. Different contents, cross-format conversions and unavailable evidence block deletion and produce a nonzero exit code. `--delete --dry-run` applies the same verification without deleting files. Orphaned candidates are skipped with a warning. State checks do not provide an atomic transaction against concurrent external writers; keep other media writers stopped during cleanup.
 
 ## 💡 Additional Commands
 
