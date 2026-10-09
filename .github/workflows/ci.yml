@@ -34,10 +34,14 @@ jobs:
             - name: Verify runtime image and native decoder
               run: bash scripts/check-runtime-image
 
+            - id: image-name
+              name: Resolve runtime image name
+              run: echo "name=$(docker compose config --images | grep 'buildbox$' | head -n 1)" >> "$GITHUB_OUTPUT"
+
             - name: Scan runtime image advisories
               uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
               with:
-                  image-ref: renamer-buildbox
+                  image-ref: ${{ steps.image-name.outputs.name }}
                   format: table
                   vuln-type: os
                   ignore-unfixed: true

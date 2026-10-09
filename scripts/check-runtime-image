@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 MIN_FFMPEG_VERSION="${MIN_FFMPEG_VERSION:-8.1.2-r0}"
-IMAGE_NAME="$(docker compose config --images | head -n 1)"
+IMAGE_NAME="$(docker compose config --images | grep 'buildbox$' | head -n 1)"
 IMAGE_ID="$(docker image inspect "${IMAGE_NAME}" --format '{{.Id}}')"
 
 if [ "${IMAGE_NAME}" = "" ] || [ "${IMAGE_ID}" = "" ]; then
