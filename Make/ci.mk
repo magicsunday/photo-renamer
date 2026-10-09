@@ -4,7 +4,7 @@
 
 #### CI
 
-.PHONY: test lint cgl-check rector-check stan deptrac templates unit coverage cpd audit mutation
+.PHONY: test lint cgl-check rector-check stan deptrac templates unit coverage cpd audit mutation no-dev-smoke
 
 test: .logo ## Runs the full CI pipeline (lint, cgl, rector, phpstan, deptrac, templates, phpunit, cpd).
 	$(COMPOSE_BUILD) composer ci:test
@@ -41,6 +41,9 @@ audit: .logo ## Checks for known security vulnerabilities in dependencies.
 
 mutation: .logo ## Runs mutation testing with Infection.
 	-$(COMPOSE_BUILD) composer ci:test:php:mutation
+
+no-dev-smoke: .logo ## Verifies the isolated production vendor tree and runtime Process dependencies.
+	$(COMPOSE_BUILD) bash scripts/check-no-dev-runtime
 
 
 #### Fix

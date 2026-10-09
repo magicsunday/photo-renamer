@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+PHP_BIN="${PHP_BIN:-php}"
+COMPOSER_BIN="${COMPOSER_BIN:-composer}"
+PHP_BIN="$(command -v "${PHP_BIN}")"
+COMPOSER_BIN="$(command -v "${COMPOSER_BIN}")"
+SMOKE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/photo-renamer-no-dev.XXXXXX")"
+
+cleanup() {
+    rm -rf "${SMOKE_ROOT}"
+}
+
+trap cleanup EXIT
+
+mkdir -p "${SMOKE_ROOT}/.build"
+cp composer.json version "${SMOKE_ROOT}/"
+cp -r src config "${SMOKE_ROOT}/"
+
+echo "Installing an isolated --no-dev vendor tree"
+COMPOSER_HOME="${SMOKE_ROOT}/composer-home" \
+COMPOSER_CACHE_DIR="${SMOKE_ROOT}/composer-cache" \
+"${COMPOSER_BIN}" install \
+    --working-dir="${SMOKE_ROOT}" \
+    --no-dev \
+    --no-scripts \
+    --no-cache \
+    --prefer-dist \
+    --classmap-authoritative \
+    --no-ansi \
+    --no-interaction \
+    --no-progress
+
+VENDOR_DIR="${SMOKE_ROOT}/.build/vendor"
+
+test -f "${VENDOR_DIR}/autoload.php"
+test -d "${VENDOR_DIR}/symfony/process"
+test ! -d "${VENDOR_DIR}/magicsunday/coding-standard"
+
+echo "Starting the CLI from the isolated vendor tree"
+(
+    cd "${SMOKE_ROOT}"
+    "${PHP_BIN}" src/Renamer.php --version >/dev/null
+)
+
+VIDEO_FILE="${SMOKE_ROOT}/2024-01-01_00-00-00.mov"
+ffmpeg -y -f lavfi -i color=black:s=16x16:d=0.1 -frames:v 1 -c:v libx264 "${VIDEO_FILE}" >/dev/null 2>&1
+
+SMOKE_ROOT="${SMOKE_ROOT}" "${PHP_BIN}" -r '
+declare(strict_types=1);
+
+$root = getenv("SMOKE_ROOT");
+
+if (!is_string($root) || ($root === "")) {
+    fwrite(STDERR, "SMOKE_ROOT is missing.\n");
+    exit(1);
+}
+
+require $root . "/.build/vendor/autoload.php";
+
+$process = new Symfony\Component\Process\Process([PHP_BINARY, "-r", "echo \"process-ok\";"]);
+$process->run();
+
+if (!$process->isSuccessful() || (trim($process->getOutput()) !== "process-ok")) {
+    fwrite(STDERR, "Symfony Process smoke test failed.\n");
+    exit(1);
+}
+
+$finder = new Symfony\Component\Process\ExecutableFinder();
+
+if ($finder->find("ffmpeg") === null) {
+    fwrite(STDERR, "ffmpeg is unavailable to the no-dev runtime.\n");
+    exit(1);
+}
+
+$matcher = new MagicSunday\Renamer\Service\Video\VideoStreamFingerprintMatcher();
+$file = new SplFileInfo($root . "/2024-01-01_00-00-00.mov");
+$match = $matcher->match($file, $file);
+
+if (!$match->isExactDuplicate()) {
+    fwrite(STDERR, "Video stream fingerprint smoke test failed.\n");
+    exit(1);
+}
+'
+
+IMAGE_FILE="${SMOKE_ROOT}/2024-01-01_00-00-00-000.jpg"
+ffmpeg -y -f lavfi -i color=white:s=16x16 -frames:v 1 "${IMAGE_FILE}" >/dev/null 2>&1
+
+echo "Running write-date with exiftool from the isolated vendor tree"
+WRITE_DATE_OUTPUT="${SMOKE_ROOT}/write-date.txt"
+
+set +e
+printf 'yes\n' | (
+    cd "${SMOKE_ROOT}"
+    "${PHP_BIN}" src/Renamer.php rename:write-date "${IMAGE_FILE}" --reason=nodata
+) >"${WRITE_DATE_OUTPUT}" 2>&1
+write_date_status=$?
+set -e
+
+if [ "${write_date_status}" -ne 0 ]; then
+    cat "${WRITE_DATE_OUTPUT}" >&2
+    echo "write-date exited with status ${write_date_status}" >&2
+    exit 1
+fi
+
+NO_TOOLS_DIR="${SMOKE_ROOT}/no-tools"
+mkdir "${NO_TOOLS_DIR}"
+NO_TOOL_OUTPUT="${SMOKE_ROOT}/missing-exiftool.txt"
+
+if PATH="${NO_TOOLS_DIR}" "${PHP_BIN}" "${SMOKE_ROOT}/src/Renamer.php" rename:write-date "${IMAGE_FILE}" --dry-run >"${NO_TOOL_OUTPUT}" 2>&1; then
+    echo "Missing exiftool unexpectedly returned success." >&2
+    exit 1
+fi
+
+if ! grep -q 'exiftool is not installed or not found in PATH' "${NO_TOOL_OUTPUT}"; then
+    cat "${NO_TOOL_OUTPUT}" >&2
+    echo "Missing-exiftool diagnostic did not contain the expected capability hint." >&2
+    exit 1
+fi
+
+echo "No-dev runtime smoke passed"

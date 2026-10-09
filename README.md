@@ -397,6 +397,8 @@ make test
 - Unit and integration tests (`phpunit`)
 - Copy/paste detection (`jscpd`)
 
+The production dependency tree can be checked separately with `make no-dev-smoke`. It installs the application into a temporary isolated `--no-dev` vendor tree, starts the CLI, exercises the runtime process and video fingerprinting paths, and verifies the Write-Date and missing-`exiftool` diagnostics without inheriting development packages.
+
 The tooling configuration is shared with the other `magicsunday/*` projects through
 [`magicsunday/coding-standard`](https://github.com/magicsunday/coding-standard), the only
 quality-tool entry in `require-dev` besides Infection: it delivers php-cs-fixer, PHPStan and
@@ -440,6 +442,7 @@ Test the CLI:
 | `make unit`    | Run PHPUnit tests.                   |
 | `make coverage` | Run PHPUnit with HTML + Clover coverage report (`.build/coverage/`). |
 | `make cpd`     | Run copy-paste detection.            |
+| `make no-dev-smoke` | Verify the isolated production vendor tree and runtime dependencies. |
 
 ### Test images
 

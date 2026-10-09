@@ -48,6 +48,10 @@ jobs:
                   composer validate
                   composer install --prefer-dist --no-ansi --no-interaction --no-progress --no-scripts
 
+            - name: No-dev runtime smoke
+              if: ${{ always() && steps.install.conclusion == 'success' }}
+              run: bash scripts/check-no-dev-runtime
+
             - name: Lint
               if: ${{ always() && steps.install.conclusion == 'success' }}
               run: composer ci:test:php:lint
