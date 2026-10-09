@@ -15,6 +15,7 @@ use Closure;
 use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
 use MagicSunday\Renamer\Command\Concern\ResolvesSourcePath;
 use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Exception\ExiftoolWriteException;
 use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Model\LinkConfig;
@@ -28,6 +29,7 @@ use Override;
 use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -235,7 +237,9 @@ final class WriteDateCommand extends Command
         $pendingWrites = $scanResult->pendingWrites;
 
         // Post-scan summary before listing individual entries
-        $overviewLines = $this->writeDateReportFormatter->formatOverviewLines($scannedFiles, $pendingWrites);
+        $overviewLines = (($pendingWrites === []) && ($readErrors > 0))
+            ? ['<fg=yellow>No writes planned; metadata read errors require review.</>']
+            : $this->writeDateReportFormatter->formatOverviewLines($scannedFiles, $pendingWrites);
 
         if ($overviewLines !== []) {
             $io->text($overviewLines);
@@ -278,9 +282,9 @@ final class WriteDateCommand extends Command
                 ++$wouldWrite;
             } else {
                 $fileInfo = new SplFileInfo($entry->path);
-                $success  = $this->exiftoolWriter->writeDateTime($fileInfo, $entry->writeDateTime, $entry->isVideo, $entry->preserveCreateDate);
 
-                if ($success) {
+                try {
+                    $this->exiftoolWriter->writeDateTime($fileInfo, $entry->writeDateTime, $entry->isVideo, $entry->preserveCreateDate);
                     $io->text($this->writeDateReportFormatter->formatEntry(
                         '<fg=green>[W]</>',
                         $linkedPath,
@@ -290,12 +294,12 @@ final class WriteDateCommand extends Command
                         $entry->reasonLabel,
                     ));
                     ++$written;
-                } else {
+                } catch (ExiftoolWriteException $exception) {
                     $io->text($this->writeDateReportFormatter->formatEntry(
                         '<fg=red>[E]</>',
                         $linkedPath,
                         $padding,
-                        'FAILED to write: ' . $entry->writeDateTime->format('Y:m:d H:i:s'),
+                        'FAILED to write: ' . OutputFormatter::escape($exception->getMessage()),
                     ));
                     ++$writeFailed;
                 }
@@ -310,7 +314,7 @@ final class WriteDateCommand extends Command
         $io->newLine();
         $this->renderSummary($io, $scannedFiles, $alreadyCorrect, $wouldWrite, $written, $writeFailed, $noDateInName, $readErrors, $unsupportedWrite, $dryRun);
 
-        return self::SUCCESS;
+        return (($writeFailed > 0) || ($readErrors > 0)) ? self::FAILURE : self::SUCCESS;
     }
 
     /**

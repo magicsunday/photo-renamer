@@ -17,6 +17,7 @@ use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
 use MagicSunday\Renamer\Model\Execution\ExecutionResult;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
+use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use Override;
 use RecursiveIterator;
@@ -44,9 +45,11 @@ final class SpyVirtualFileSystemService implements FileSystemServiceInterface
     private int $executePlanCalls = 0;
 
     /**
-     * @param RecursiveIteratorIterator<RecursiveIterator<string, SplFileInfo>> $iterator Iterator returned to the command scan phase
+     * @param RecursiveIteratorIterator<RecursiveIterator<string, SplFileInfo>> $iterator        Iterator returned to the command scan phase
+     * @param ExecutionResult                                                   $executionResult Observed counters to return at the execution boundary
+     * @param ExecutionPlanExecutor|null                                        $executor        Optional real executor for filesystem failure integration tests
      */
-    public function __construct(private readonly RecursiveIteratorIterator $iterator)
+    public function __construct(private readonly RecursiveIteratorIterator $iterator, private readonly ExecutionResult $executionResult = new ExecutionResult(), private readonly ?ExecutionPlanExecutor $executor = null)
     {
     }
 
@@ -98,7 +101,7 @@ final class SpyVirtualFileSystemService implements FileSystemServiceInterface
      * @param ExecutionPlan $plan   Execution plan passed by the command
      * @param bool          $dryRun Whether the command requested dry-run mode
      *
-     * @return ExecutionResult Empty runtime result because no file operations run
+     * @return ExecutionResult Configured observed counts, or no operations for dry-run
      */
     #[Override]
     public function executePlan(ExecutionPlan $plan, bool $dryRun = false): ExecutionResult
@@ -107,7 +110,11 @@ final class SpyVirtualFileSystemService implements FileSystemServiceInterface
         $this->capturedDryRun        = $dryRun;
         ++$this->executePlanCalls;
 
-        return new ExecutionResult();
+        if ($this->executor instanceof ExecutionPlanExecutor) {
+            return $this->executor->executePlan($plan, $dryRun);
+        }
+
+        return $dryRun ? new ExecutionResult() : $this->executionResult;
     }
 
     /**

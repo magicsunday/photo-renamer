@@ -13,11 +13,19 @@ namespace MagicSunday\Renamer\Test\Unit\Service;
 
 use DateTimeImmutable;
 use DateTimeZone;
+use MagicSunday\Renamer\Exception\ExiftoolWriteException;
 use MagicSunday\Renamer\Service\ExiftoolWriter;
+use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
+
+use function chmod;
+use function file_put_contents;
+use function str_repeat;
+use function strlen;
 
 /**
  * Tests for the ExiftoolWriter service. Verifies argument building for
@@ -30,6 +38,52 @@ use SplFileInfo;
 #[CoversClass(ExiftoolWriter::class)]
 final class ExiftoolWriterTest extends TestCase
 {
+    use WorkspaceTrait;
+
+    /**
+     * Exercises real subprocesses so exit status, stderr bounds and timeout
+     * conversion cannot be accidentally replaced with a boolean success flag.
+     *
+     * @param string $script     Body of a deterministic executable fixture
+     * @param float  $timeout    Maximum runtime in seconds
+     * @param string $diagnostic Expected failure description
+     */
+    #[Test]
+    #[DataProvider('failedProcessCases')]
+    public function failedProcessesPreserveBoundedDiagnostics(string $script, float $timeout, string $diagnostic): void
+    {
+        $workspace = $this->createTempWorkspace();
+        $binary    = $workspace . '/exiftool-fixture';
+        file_put_contents($binary, "#!/bin/sh\n" . $script);
+        chmod($binary, 0700);
+
+        try {
+            try {
+                new ExiftoolWriter($binary, $timeout)->writeDateTime(new SplFileInfo($workspace . '/photo.jpg'), new DateTimeImmutable('2024-01-01'), false);
+                self::fail('A failed subprocess must not report success.');
+            } catch (ExiftoolWriteException $exception) {
+                self::assertStringContainsString($diagnostic, $exception->getMessage());
+                self::assertLessThan(2200, strlen($exception->getMessage()));
+            }
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Includes silent failure and excessive stderr as well as ordinary failure
+     * and a timeout; stdout is irrelevant to the diagnostic contract.
+     *
+     * @return iterable<string, array{string, float, string}> Process failure cases
+     */
+    public static function failedProcessCases(): iterable
+    {
+        yield 'nonzero with stderr' => ["echo 'synthetic write failure' >&2\nexit 9\n", 5.0, 'Exiftool exited with code 9: synthetic write failure'];
+        yield 'silent nonzero' => ["exit 8\n", 5.0, 'Exiftool exited with code 8: No error output.'];
+        yield 'large stderr' => ["echo '" . str_repeat('x', 10000) . "' >&2\nexit 7\n", 5.0, 'Exiftool exited with code 7: xxx'];
+        yield 'timeout' => ["exec sleep 5\n", 0.05, 'Exiftool timed out after 0.05 seconds.'];
+    }
+
     /**
      * Verifies that buildArguments for a still image produces DateTimeOriginal
      * and CreateDate tags.

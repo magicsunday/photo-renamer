@@ -21,6 +21,7 @@ use MagicSunday\Renamer\Model\Execution\ExecutionItem;
 use MagicSunday\Renamer\Model\Execution\ExecutionItemType;
 use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
 use MagicSunday\Renamer\Model\Execution\ExecutionPreview;
+use MagicSunday\Renamer\Model\Execution\ExecutionResult;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\OutputEntry;
 use MagicSunday\Renamer\Model\OutputEntryTag;
@@ -460,16 +461,18 @@ final readonly class RenameOutputRenderer
      * RenameResult analysis data. Delegates to the shared
      * {@see renderSummary()} method.
      *
-     * @param ExecutionPlan    $plan    The execution plan
-     * @param RenameResult     $result  Scan/analysis summary data
-     * @param ExecutionPreview $preview Plan-time counts from renderPlanEntries()
-     * @param bool             $dryRun  Whether the run is dry-run mode
+     * @param ExecutionPlan    $plan            The execution plan
+     * @param RenameResult     $result          Scan/analysis summary data
+     * @param ExecutionPreview $preview         Plan-time counts from renderPlanEntries()
+     * @param bool             $dryRun          Whether the run is dry-run mode
+     * @param ExecutionResult  $executionResult Observed execution counts, distinct from the preview
      */
     public function renderPlanSummary(
         ExecutionPlan $plan,
         RenameResult $result,
         ExecutionPreview $preview,
         bool $dryRun,
+        ExecutionResult $executionResult,
     ): void {
         $skippedCount = 0;
         $errorCount   = 0;
@@ -488,11 +491,13 @@ final readonly class RenameOutputRenderer
             errorCount: $errorCount,
             livePhotoGroups: $plan->livePhotoGroupCount(),
             namingCollisions: $result->namingCollisions,
-            fileCount: $preview->plannedMoves,
+            fileCount: $dryRun ? $preview->plannedMoves : $executionResult->executedMoves,
             duplicateCount: $preview->duplicateCount,
             plannedMoves: $preview->plannedMoves,
             plannedSkips: $preview->plannedSkips,
             crossGroupVideoReviewCount: $result->crossGroupVideoReviewCount,
+            runtimeErrors: $executionResult->runtimeErrors,
+            runtimeFallbacks: $executionResult->runtimeFallbacks,
         ), $dryRun);
     }
 

@@ -18,12 +18,17 @@ use MagicSunday\Renamer\Model\Execution\ExecutionGroup;
 use MagicSunday\Renamer\Model\Execution\ExecutionItem;
 use MagicSunday\Renamer\Model\Execution\ExecutionItemType;
 use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
+use MagicSunday\Renamer\Model\Execution\ExecutionResult;
 use MagicSunday\Renamer\Model\Pipeline\VideoDuplicateCandidate;
 use MagicSunday\Renamer\Model\PipelineContext;
+use MagicSunday\Renamer\Model\SkippedFile;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\CanonicalScorer;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilderInterface;
+use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
+use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
+use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
 use MagicSunday\Renamer\Service\HashSubGroupingServiceInterface;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
 use MagicSunday\Renamer\Service\Pipeline\AssetGroupPipeline;
@@ -34,12 +39,14 @@ use MagicSunday\Renamer\Service\Pipeline\RoleAssignerInterface;
 use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifierInterface;
 use MagicSunday\Renamer\Service\Pipeline\TargetNameResolverInterface;
 use MagicSunday\Renamer\Service\RenamePlanValidator;
+use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\VirtualFlow\FlatSplFileInfoRecursiveIterator;
 use MagicSunday\Renamer\Test\Fixtures\VirtualFlow\SpyVirtualFileSystemService;
+use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
@@ -54,14 +61,17 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Tester\CommandTester;
 use Symfony\Component\Filesystem\Filesystem;
 
+use function file_get_contents;
+use function file_put_contents;
+
 /**
  * Verifies the virtual command-orchestration flow for `rename:exif`.
  *
  * Unlike the pipeline-only harness, these tests exercise the command's own
- * preview, review, "nothing to do", and execution-boundary behavior while still
- * avoiding real filesystem mutation. The pipeline-facing collaborators are
- * stubbed at clear boundaries and the filesystem is replaced by a spy that
- * records the final `executePlan()` call.
+ * preview, review, "nothing to do", and execution-boundary behavior. The
+ * pipeline-facing collaborators are stubbed at clear boundaries. A filesystem
+ * spy records the final `executePlan()` call and can delegate to the real
+ * executor for failure and collision tests against temporary files.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -70,6 +80,109 @@ use Symfony\Component\Filesystem\Filesystem;
 #[CoversNothing]
 final class VirtualRenameExifCommandFlowTest extends TestCase
 {
+    use WorkspaceTrait;
+
+    /**
+     * A scan failure remains a failed run even when no moves can be planned;
+     * operators must see the read-error count instead of a successful footer.
+     */
+    #[Test]
+    public function readFailureProducesNonzeroExitAndSummary(): void
+    {
+        [$command, , $output] = $this->createCommandHarness(
+            static function (PipelineContext $context): void {
+                $context->setScannedFileCount(1);
+                $context->addSkippedFile(new SkippedFile(new SplFileInfo('/virtual/source/broken.jpg'), 'synthetic read failure', true));
+            },
+            new ExecutionPlan([]),
+        );
+        $tester = new CommandTester($command);
+        self::assertSame(Command::FAILURE, $tester->execute(['source' => '/virtual/source', '--dry-run' => true]));
+        self::assertMatchesRegularExpression('/Skipped \(read errors\)\s+1/', $output->fetch());
+        self::assertStringNotContainsString('[OK] done', $tester->getDisplay());
+    }
+
+    /**
+     * Executes real moves around a missing source and a runtime target collision.
+     * The command must report the successful fallback, preserve both contents,
+     * continue after failure and return nonzero with observed summary counts.
+     */
+    #[Test]
+    public function realMoveFailureAndFallbackAreReportedByCommand(): void
+    {
+        $workspace = $this->createTempWorkspace();
+        file_put_contents($workspace . '/a.jpg', 'first');
+        file_put_contents($workspace . '/b.jpg', 'second');
+        $runtimeOutput = new BufferedOutput();
+        $reporter      = new ConsoleProgressReporter(new SymfonyStyle(new ArrayInput([]), $runtimeOutput));
+        $executor      = new ExecutionPlanExecutor($reporter, new RuntimeFileMoveExecutor($reporter, new Filesystem(), new RuntimeCollisionPathAllocator()));
+        $items         = [
+            new ExecutionItem($workspace . '/a.jpg', $workspace . '/shared.jpg', ExecutionItemType::Canonical, true, false, 'group'),
+            new ExecutionItem($workspace . '/missing.jpg', $workspace . '/failed.jpg', ExecutionItemType::Canonical, true, false, 'group'),
+            new ExecutionItem($workspace . '/b.jpg', $workspace . '/shared.jpg', ExecutionItemType::Canonical, true, false, 'group'),
+        ];
+
+        try {
+            [$command, , $output] = $this->createCommandHarness(
+                static function (PipelineContext $context): void {
+                    $context->setScannedFileCount(3);
+                },
+                new ExecutionPlan([new ExecutionGroup('group', false, null, $items)]),
+                executor: $executor,
+            );
+            $tester = new CommandTester($command);
+            $tester->setInputs(['yes']);
+            self::assertSame(Command::FAILURE, $tester->execute(['source' => $workspace]));
+            $summary = $output->fetch();
+            self::assertMatchesRegularExpression('/Files processed\s+2/', $summary);
+            self::assertMatchesRegularExpression('/Runtime errors\s+1/', $summary);
+            self::assertMatchesRegularExpression('/Runtime fallbacks\s+1/', $summary);
+            self::assertSame('first', file_get_contents($workspace . '/shared.jpg'));
+            self::assertSame('second', file_get_contents($workspace . '/shared-duplicate-001.jpg'));
+            self::assertFileDoesNotExist($workspace . '/a.jpg');
+            self::assertFileDoesNotExist($workspace . '/b.jpg');
+            self::assertFileDoesNotExist($workspace . '/failed.jpg');
+            $diagnostics = $runtimeOutput->fetch();
+            self::assertStringContainsString('Source file', $diagnostics);
+            self::assertStringContainsString('b.jpg → shared-duplicate-001.jpg (planned: shared.jpg)', $diagnostics);
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * A mixed executor result must reach the command exit status and summary:
+     * two successful moves, one collision fallback and one failed operation
+     * cannot be reported as three successfully processed files.
+     */
+    #[Test]
+    public function mixedExecutionResultProducesFailureAndObservedCounts(): void
+    {
+        $items = [];
+
+        foreach (['a', 'b', 'c'] as $name) {
+            $items[] = new ExecutionItem('/virtual/source/' . $name . '.jpg', '/virtual/source/renamed-' . $name . '.jpg', ExecutionItemType::Canonical, true, false, 'group');
+        }
+
+        [$command, , $output] = $this->createCommandHarness(
+            static function (PipelineContext $context): void {
+                $context->setScannedFileCount(3);
+            },
+            new ExecutionPlan([new ExecutionGroup('group', false, null, $items)]),
+            new ExecutionResult(executedMoves: 2, runtimeFallbacks: 1, runtimeErrors: 1),
+        );
+        $tester = new CommandTester($command);
+        $tester->setInputs(['yes']);
+
+        self::assertSame(Command::FAILURE, $tester->execute(['source' => '/virtual/source']));
+        self::assertStringNotContainsString('[OK] done', $tester->getDisplay());
+        $summary = $output->fetch();
+        self::assertMatchesRegularExpression('/Files processed\s+2/', $summary);
+        self::assertMatchesRegularExpression('/Runtime errors\s+1/', $summary);
+        self::assertMatchesRegularExpression('/Runtime fallbacks\s+1/', $summary);
+        self::assertMatchesRegularExpression('/Planned moves\s+3/', $summary);
+    }
+
     /**
      * Verifies that the command-level virtual harness maps review entries and
      * reaches the execution boundary in dry-run mode.
@@ -195,10 +308,12 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
      *
      * @param callable(PipelineContext): void $configureContext Callback that mutates the fresh pipeline context
      * @param ExecutionPlan                   $executionPlan    Execution plan returned by the builder stub
+     * @param ExecutionResult                 $executionResult  Observed result returned by the filesystem spy
+     * @param ExecutionPlanExecutor|null      $executor         Optional real executor for filesystem integration cases
      *
      * @return array{RenameByExifDateCommand, SpyVirtualFileSystemService, BufferedOutput} Command, filesystem spy, and captured output
      */
-    private function createCommandHarness(callable $configureContext, ExecutionPlan $executionPlan): array
+    private function createCommandHarness(callable $configureContext, ExecutionPlan $executionPlan, ExecutionResult $executionResult = new ExecutionResult(), ?ExecutionPlanExecutor $executor = null): array
     {
         $output = new BufferedOutput();
         $style  = new SymfonyStyle(new ArrayInput([]), $output);
@@ -210,7 +325,7 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
         /** @var RecursiveIteratorIterator<RecursiveIterator<string, SplFileInfo>> $iterator */
         $iterator = new RecursiveIteratorIterator($flatIterator);
 
-        $fileSystemService = new SpyVirtualFileSystemService($iterator);
+        $fileSystemService = new SpyVirtualFileSystemService($iterator, $executionResult, $executor);
 
         $captureGroupBuilder = new readonly class($configureContext) implements CaptureGroupBuilderInterface {
             /**

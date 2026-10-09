@@ -76,6 +76,14 @@ final class OutputSummaryRowBuilder
             $rows[] = new SummaryRow('Cross-group video review', (string) $counters->crossGroupVideoReviewCount);
         }
 
+        if ($counters->runtimeErrors > 0) {
+            $rows[] = new SummaryRow('Runtime errors', (string) $counters->runtimeErrors);
+        }
+
+        if ($counters->runtimeFallbacks > 0) {
+            $rows[] = new SummaryRow('Runtime fallbacks', (string) $counters->runtimeFallbacks);
+        }
+
         $rows[] = new SummaryRow($dryRun ? 'Files to process' : 'Files processed', (string) $counters->fileCount);
 
         return $rows;
