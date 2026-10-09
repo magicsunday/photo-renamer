@@ -12,6 +12,8 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service\Execution;
 
 use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Helper\DateDriftCalculator;
+use MagicSunday\Renamer\Helper\FilenameDateParser;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
@@ -45,8 +47,36 @@ use SplFileInfo;
 #[UsesClass(ExecutionPlan::class)]
 #[UsesClass(PipelineContext::class)]
 #[UsesClass(Constants::class)]
+#[UsesClass(DateDriftCalculator::class)]
+#[UsesClass(FilenameDateParser::class)]
 final class ExecutionPlanBuilderTest extends TestCase
 {
+    /**
+     * Confirms that the plan itself carries the drift block and its reason for
+     * both the still and its companion, before any renderer has observed it.
+     * Capture dates inherited by companions use the same filename drift policy.
+     */
+    #[Test]
+    public function driftBlocksCanonicalAndCompanionInExecutionPlan(): void
+    {
+        $canonical = new AssetItem(new SplFileInfo('/photos/2024-01-01_10-00-00.heic'), ItemRole::Canonical)
+            ->withProposedName('/photos/2024-06-01_10-00-00-000.heic');
+        $companion = new AssetItem(new SplFileInfo('/photos/2024-01-01_10-00-00.mov'), ItemRole::Companion)
+            ->withProposedName('/photos/2024-06-01_10-00-00-000.mov');
+        $groups = new AssetGroupCollection();
+        $groups->set('capture', $this->createGroup('capture', [$canonical, $companion]));
+
+        $plan = new ExecutionPlanBuilder()->build($groups, new PipelineContext('/photos'), 7);
+
+        self::assertTrue($plan->groups[0]->isLivePhotoGroup);
+
+        foreach ($plan->groups[0]->items as $item) {
+            self::assertFalse($item->isExecutable);
+            self::assertNotNull($item->executionBlockReason);
+            self::assertStringContainsString('Date drift:', $item->executionBlockReason);
+        }
+    }
+
     /**
      * Canonical item is projected with correct type, paths, and flags.
      */

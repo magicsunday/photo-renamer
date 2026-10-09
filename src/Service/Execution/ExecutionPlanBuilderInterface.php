@@ -17,8 +17,8 @@ use MagicSunday\Renamer\Model\PipelineContext;
 
 /**
  * Projects an AssetGroupCollection into an ExecutionPlan for the runtime
- * execution phase. Pure projection — no new business logic, no re-detection,
- * no collision resolution.
+ * execution phase, applying quality and date-drift eligibility without repeating
+ * content detection or collision resolution.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -29,16 +29,18 @@ interface ExecutionPlanBuilderInterface
     /**
      * Projects an AssetGroupCollection into an ExecutionPlan.
      *
-     * This is a pure projection with no new business logic, re-detection, or
-     * collision resolution. It prepares the data for the final execution phase.
+     * Final eligibility belongs to this plan so preview and filesystem execution
+     * consume the same blocking decisions.
      *
-     * @param AssetGroupCollection $groups  The analysed asset groups to project.
-     * @param PipelineContext      $context The pipeline state containing quality flags.
+     * @param AssetGroupCollection $groups       The analysed asset groups to project.
+     * @param PipelineContext      $context      The pipeline state containing quality flags.
+     * @param int|null             $maxDateDrift Maximum permitted filename-date drift; null or zero disables the limit.
      *
      * @return ExecutionPlan The resulting execution plan.
      */
     public function build(
         AssetGroupCollection $groups,
         PipelineContext $context,
+        ?int $maxDateDrift = null,
     ): ExecutionPlan;
 }

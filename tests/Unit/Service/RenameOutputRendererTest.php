@@ -1712,10 +1712,11 @@ final class RenameOutputRendererTest extends TestCase
     }
 
     /**
-     * Verifies that date drift detection works on ExecutionPlan entries.
+     * Verifies that rendering does not invent a drift block absent from the
+     * execution plan, even when display options carry a stricter limit.
      */
     #[Test]
-    public function buildOutputEntriesFromPlanDetectsDateDrift(): void
+    public function buildOutputEntriesFromPlanHonorsExecutionEligibility(): void
     {
         [$renderer] = $this->createRenderer();
 
@@ -1742,12 +1743,11 @@ final class RenameOutputRendererTest extends TestCase
         )->entries;
 
         self::assertCount(1, $entries);
-        self::assertSame(OutputEntryTag::Warning, $entries[0]->tag);
-        self::assertTrue($entries[0]->shouldSkip);
+        self::assertSame(OutputEntryTag::Rename, $entries[0]->tag);
+        self::assertFalse($entries[0]->shouldSkip);
+        self::assertTrue($entries[0]->shouldPerformOperation);
 
-        /** @var string $warningReason */
-        $warningReason = $entries[0]->warningReason;
-        self::assertStringContainsString('Date drift:', $warningReason);
+        self::assertNull($entries[0]->warningReason);
     }
 
     /**

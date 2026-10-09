@@ -314,6 +314,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
         $executionPlan = $this->executionPlanBuilder->build(
             $pipelineResult->groups,
             $pipelineResult->context,
+            $this->maxDateDrift,
         );
 
         // Build RenameResult from pipeline context

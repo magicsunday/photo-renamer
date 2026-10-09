@@ -248,7 +248,7 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
             ) {
             }
 
-            public function build(AssetGroupCollection $groups, PipelineContext $context): ExecutionPlan
+            public function build(AssetGroupCollection $groups, PipelineContext $context, ?int $maxDateDrift = null): ExecutionPlan
             {
                 return $this->executionPlan;
             }

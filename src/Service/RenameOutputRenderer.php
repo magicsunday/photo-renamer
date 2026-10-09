@@ -380,27 +380,21 @@ final readonly class RenameOutputRenderer
 
                 $tag = $this->resolveItemTag($item);
 
-                $tagResolution = $this->applyDateDriftCheck(
-                    $tag,
-                    $item->warningReason ?? $item->executionBlockReason,
-                    $sourcePath,
-                    $targetPath,
-                    $options,
-                );
-                $skipFlags = $this->computeSkipFlags($tagResolution->tag, $item->isNoOp, $item->isExecutable);
+                $warningReason = $item->warningReason ?? $item->executionBlockReason;
+                $skipFlags     = $this->computeSkipFlags($tag, $item->isNoOp, $item->isExecutable);
 
                 $outputEntries[] = OutputEntry::rename(
                     sortKey: $item->sourcePath,
                     sourcePath: $sourcePath,
                     targetPath: $targetPath,
-                    tag: $tagResolution->tag,
+                    tag: $tag,
                     isDuplicateTarget: $item->isDuplicateTarget,
                     shouldSkip: $skipFlags->shouldSkip,
                     shouldPerformOperation: $skipFlags->shouldPerformOperation,
-                    warningReason: $tagResolution->warningReason,
+                    warningReason: $warningReason,
                 );
 
-                if (($tagResolution->tag === OutputEntryTag::Duplicate) && !$item->isNoOp && ($canonicalTargetPath !== null)) {
+                if (($tag === OutputEntryTag::Duplicate) && !$item->isNoOp && ($canonicalTargetPath !== null)) {
                     $this->appendDuplicateReferenceEntry(
                         $outputEntries,
                         $item->sourcePath,
@@ -548,20 +542,12 @@ final readonly class RenameOutputRenderer
             $warningReason = 'Ambiguous timezone: QuickTime UTC without offset — use --timezone or rename:write-date --reason=timezone';
         }
 
-        if (
-            (($tag === OutputEntryTag::Rename) || ($tag === OutputEntryTag::Fallback))
-            && ($options->maxDateDrift !== null)
-            && ($options->maxDateDrift > 0)
-        ) {
-            $driftDays = DateDriftCalculator::computeDateDrift($sourcePath, $targetPath);
+        if (($tag === OutputEntryTag::Rename) || ($tag === OutputEntryTag::Fallback)) {
+            $driftReason = DateDriftCalculator::excessiveDriftReason($sourcePath, $targetPath, $options->maxDateDrift);
 
-            if (($driftDays !== null) && ($driftDays > $options->maxDateDrift)) {
+            if ($driftReason !== null) {
                 $tag           = OutputEntryTag::Warning;
-                $warningReason = sprintf(
-                    'Date drift: %d days between filename and metadata (max %d) — verify EXIF date or use rename:write-date',
-                    $driftDays,
-                    $options->maxDateDrift,
-                );
+                $warningReason = $driftReason;
             }
         }
 
@@ -740,6 +726,10 @@ final readonly class RenameOutputRenderer
 
         if ($item->isFallbackDate && !$item->isNoOp) {
             return OutputEntryTag::Fallback;
+        }
+
+        if (!$item->isExecutable && !$item->isNoOp && ($item->executionBlockReason !== null)) {
+            return OutputEntryTag::Warning;
         }
 
         if ($item->isDuplicateTarget && !$item->isNoOp) {
