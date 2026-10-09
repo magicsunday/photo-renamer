@@ -3,7 +3,7 @@ FROM php:8.5-cli-alpine AS dev
 
 RUN apk add --no-cache \
     bash \
-    ffmpeg \
+    'ffmpeg>=8.1.2-r0' \
     git \
     imagemagick \
     libheif-tools \

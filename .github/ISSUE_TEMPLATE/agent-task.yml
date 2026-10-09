@@ -9,7 +9,7 @@ body:
       attributes:
           value: |
               ## Agent Instructions (Read First)
-              This repo is governed by `CLAUDE.md` and `AGENTS.md`.
+              This repo is governed by `AGENTS.md`.
               If you would need to guess, expand scope, or relax guards: **STOP** and ask.
 
               **TDD workflow:** Write a failing test first, then implement the minimal code to make it pass.

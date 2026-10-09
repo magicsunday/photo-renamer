@@ -33,6 +33,7 @@ make cgl            # Fix code style
 make rector         # Apply rector rules
 make install        # Composer install
 make no-dev-smoke   # Verify the isolated production vendor tree and runtime dependencies
+make runtime-image-check # Verify the runtime image and native media decoder contract
 make binary         # Build SPC binary (always via Docker)
 make cache-clear    # Clear persistent metadata cache
 ```
