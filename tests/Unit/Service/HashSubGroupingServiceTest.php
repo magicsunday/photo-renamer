@@ -649,11 +649,11 @@ final class HashSubGroupingServiceTest extends TestCase
     }
 
     /**
-     * Verifies that simple two-file format backups are merged even when the
-     * perceptual pre-classifier downgrades them to edited variants.
+     * Verifies that a cross-format name match cannot override an edited-variant
+     * classification; format context alone does not prove duplicate content.
      */
     #[Test]
-    public function applyMergesSimpleFormatBackupEditedVariantWithoutMetadata(): void
+    public function applyKeepsFormatBackupEditedVariantSeparate(): void
     {
         $sourceDirectory = $this->createTempDirectory();
         $targetDirectory = $this->createTempDirectory();
@@ -691,7 +691,7 @@ final class HashSubGroupingServiceTest extends TestCase
             $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
         );
 
-        self::assertNull($result, 'HEIC/JPG backup pairs with the same target basename should stay in one sub-group.');
+        self::assertIsArray($result, 'An edited HEIC/JPG pair must retain separate sub-groups.');
     }
 
     /**
