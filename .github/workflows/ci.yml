@@ -16,6 +16,48 @@ jobs:
         permissions:
             contents: read
 
+    runtime-image:
+        if: github.event_name != 'pull_request'
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+
+            - name: Build runtime image
+              run: |
+                  for attempt in 1 2 3; do
+                      if docker compose build buildbox; then
+                          exit 0
+                      fi
+                      if [ "${attempt}" -lt 3 ]; then
+                          sleep $((attempt * 20))
+                      fi
+                  done
+                  exit 1
+
+            - name: Install runtime dependencies
+              run: docker compose run --rm --user root buildbox composer install --no-dev --no-scripts --classmap-authoritative --no-ansi --no-interaction --no-progress
+
+            - name: Verify runtime image and native decoder
+              run: bash scripts/check-runtime-image
+
+            - id: image-name
+              name: Resolve runtime image name
+              run: echo "name=$(docker compose config --images | grep 'buildbox$' | head -n 1)" >> "$GITHUB_OUTPUT"
+
+            - name: Scan runtime image advisories
+              uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+              with:
+                  image-ref: ${{ steps.image-name.outputs.name }}
+                  format: table
+                  vuln-type: os
+                  ignore-unfixed: true
+                  severity: CRITICAL,HIGH
+                  exit-code: '1'
+
     build:
         runs-on: ubuntu-latest
 

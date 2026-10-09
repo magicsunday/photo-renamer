@@ -443,6 +443,7 @@ Test the CLI:
 | `make coverage` | Run PHPUnit with HTML + Clover coverage report (`.build/coverage/`). |
 | `make cpd`     | Run copy-paste detection.            |
 | `make no-dev-smoke` | Verify the isolated production vendor tree and runtime dependencies. |
+| `make runtime-image-check` | Build the runtime image and verify its native media decoder contract. |
 
 ### Test images
 
