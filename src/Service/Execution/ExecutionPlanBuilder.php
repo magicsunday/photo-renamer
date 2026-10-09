@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service\Execution;
 
 use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
@@ -30,9 +31,9 @@ use function str_contains;
 use function usort;
 
 /**
- * Projects an AssetGroupCollection into an ExecutionPlan. Pure projection —
- * maps domain models to execution DTOs without re-running detection,
- * making new choices, resolving collisions, or inventing grouping.
+ * Projects classified asset groups into an ExecutionPlan and applies execution
+ * eligibility, including the configured date-drift limit. Detection, grouping
+ * and collision resolution remain the responsibility of preceding phases.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -55,8 +56,9 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
     /**
      * Builds the execution-layer projection for the already classified asset groups.
      *
-     * @param AssetGroupCollection $groups  Asset groups to project into execution DTOs
-     * @param PipelineContext      $context Pipeline context carrying quality and conflict flags
+     * @param AssetGroupCollection $groups       Asset groups to project into execution DTOs
+     * @param PipelineContext      $context      Pipeline context carrying quality and conflict flags
+     * @param int|null             $maxDateDrift Maximum permitted filename-date drift; null or zero disables the limit
      *
      * @return ExecutionPlan Execution-ready projection of the input groups
      */
@@ -64,11 +66,12 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
     public function build(
         AssetGroupCollection $groups,
         PipelineContext $context,
+        ?int $maxDateDrift = null,
     ): ExecutionPlan {
         $executionGroups = [];
 
         foreach ($groups as $group) {
-            $executionGroups[] = $this->projectGroup($group, $context);
+            $executionGroups[] = $this->projectGroup($group, $context, $maxDateDrift);
         }
 
         return new ExecutionPlan($executionGroups);
@@ -80,19 +83,21 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
      * Items are ordered canonically, quality flags are mapped onto execution entries,
      * and the group's decision log is carried over without introducing new decisions.
      *
-     * @param AssetGroup      $group   Source asset group to project
-     * @param PipelineContext $context Current pipeline context with quality flags
+     * @param AssetGroup      $group        Source asset group to project
+     * @param PipelineContext $context      Current pipeline context with quality flags
+     * @param int|null        $maxDateDrift Maximum permitted filename-date drift
      *
      * @return ExecutionGroup Execution-layer view of the source group
      */
     private function projectGroup(
         AssetGroup $group,
         PipelineContext $context,
+        ?int $maxDateDrift = null,
     ): ExecutionGroup {
         $orderedItems = $this->orderItems($group->getItems());
 
         $executionItems = array_map(
-            fn (AssetItem $item): ExecutionItem => $this->projectItem($item, $group->groupKey, $context),
+            fn (AssetItem $item): ExecutionItem => $this->projectItem($item, $group->groupKey, $context, $maxDateDrift),
             $orderedItems,
         );
 
@@ -124,9 +129,10 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
      * execution decisions. Items can be blocked here due to Live Photo conflicts,
      * ambiguous timezones, fallback dates, or because the rename is a no-op.
      *
-     * @param AssetItem       $item     Source asset item
-     * @param string          $groupKey Group key the item belongs to
-     * @param PipelineContext $context  Current pipeline context with quality flags
+     * @param AssetItem       $item         Source asset item
+     * @param string          $groupKey     Group key the item belongs to
+     * @param PipelineContext $context      Current pipeline context with quality flags
+     * @param int|null        $maxDateDrift Maximum permitted filename-date drift
      *
      * @return ExecutionItem Execution-layer representation of the item
      */
@@ -134,6 +140,7 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
         AssetItem $item,
         string $groupKey,
         PipelineContext $context,
+        ?int $maxDateDrift = null,
     ): ExecutionItem {
         $sourcePath     = $item->file->getPathname();
         $targetPath     = $item->proposedName ?? $sourcePath;
@@ -164,6 +171,11 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
         } elseif ($isFallbackDate) {
             $isExecutable         = false;
             $executionBlockReason = 'Fallback date: DateTime (0x0132) used instead of DateTimeOriginal — use rename:write-date --reason=fallback';
+        }
+
+        if ($isExecutable && !$this->isDuplicateTarget($targetPath)) {
+            $executionBlockReason = DateDriftCalculator::excessiveDriftReason($sourcePath, $targetPath, $maxDateDrift);
+            $isExecutable         = $executionBlockReason === null;
         }
 
         return new ExecutionItem(

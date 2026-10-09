@@ -142,6 +142,7 @@ use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubPerceptualHashCalculator;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
@@ -160,6 +161,7 @@ use function file_put_contents;
 use function mkdir;
 use function preg_replace;
 use function rtrim;
+use function str_contains;
 use function str_starts_with;
 use function strpos;
 use function substr;
@@ -743,7 +745,7 @@ final class RenameByExifDateCommandTest extends TestCase
                 ),
             );
 
-            $output = $this->runDryRunOutput($workspace, $metadataExtractor);
+            $output = $this->runCommandOutput($workspace, $metadataExtractor);
             $clean  = preg_replace('/<[^>]+>/', '', $output) ?? $output;
 
             self::assertNotFalse(
@@ -790,7 +792,7 @@ final class RenameByExifDateCommandTest extends TestCase
             $metadataExtractor->withResponse($fileA, new TemporalMetadata($dateTime, null));
             $metadataExtractor->withResponse($fileB, new TemporalMetadata($dateTime, null));
 
-            $output = $this->runDryRunOutput($workspace, $metadataExtractor);
+            $output = $this->runCommandOutput($workspace, $metadataExtractor);
             $clean  = preg_replace('/<[^>]+>/', '', $output) ?? $output;
 
             self::assertStringContainsString(
@@ -872,6 +874,64 @@ final class RenameByExifDateCommandTest extends TestCase
         }
     }
 
+    /**
+     * Checks the real command's source and destination after both preview and
+     * confirmed execution. A displayed drift warning must prevent the rename.
+     *
+     * @param string $sourceName Source filename with or without a date
+     * @param int    $limit      Explicit maximum permitted calendar-day drift
+     * @param bool   $blocked    Whether the proposed rename must remain blocked
+     */
+    #[Test]
+    #[DataProvider('dateDriftExecutionCases')]
+    public function dateDriftPreviewMatchesActualExecution(string $sourceName, int $limit, bool $blocked): void
+    {
+        $workspace = $this->createTempWorkspace();
+        $source    = $workspace . '/' . $sourceName;
+        $target    = $workspace . '/2024-01-09_10-00-00-000.jpg';
+        file_put_contents($source, 'synthetic media fixture');
+        $metadata = new StubMetadataExtractor();
+        $metadata->withResponse($source, new TemporalMetadata(new DateTimeImmutable('2024-01-09 10:00:00'), null));
+
+        try {
+            $preview = $this->runCommandOutput($workspace, $metadata, true, $limit);
+            self::assertFileExists($source);
+            self::assertSame($blocked, str_contains($preview, 'Date drift:'));
+
+            $output = $this->runCommandOutput($workspace, $metadata, false, $limit);
+            self::assertSame($blocked, str_contains($output, 'Date drift:'));
+
+            if ($blocked) {
+                self::assertFileExists($source);
+                self::assertFileDoesNotExist($target);
+            } else {
+                self::assertFileExists($target);
+
+                if ($source !== $target) {
+                    self::assertFileDoesNotExist($source);
+                }
+            }
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Covers strict greater-than semantics, the disabled limit, missing filename
+     * dates and already-correct names without relying on wall-clock time.
+     *
+     * @return iterable<string, array{string, int, bool}> Source and drift-policy scenarios
+     */
+    public static function dateDriftExecutionCases(): iterable
+    {
+        yield 'exceeds limit' => ['2024-01-01_10-00-00.jpg', 7, true];
+        yield 'equals limit' => ['2024-01-02_10-00-00.jpg', 7, false];
+        yield 'within limit' => ['2024-01-03_10-00-00.jpg', 7, false];
+        yield 'disabled' => ['2024-01-01_10-00-00.jpg', 0, false];
+        yield 'no filename date' => ['IMG_0001.jpg', 7, false];
+        yield 'already named' => ['2024-01-09_10-00-00-000.jpg', 7, false];
+    }
+
     // ---- Validation warnings for unsafe plans ----
     // Circular swap warnings are impractical to trigger with real fixtures because
     // they require two files whose source names are each other's target — a situation
@@ -886,12 +946,23 @@ final class RenameByExifDateCommandTest extends TestCase
      */
     private function runDryRun(string $workspace, StubMetadataExtractor $metadataExtractor): array
     {
-        $output = $this->runDryRunOutput($workspace, $metadataExtractor);
+        $output = $this->runCommandOutput($workspace, $metadataExtractor);
 
         return $this->extractRenameMappings($output, $workspace);
     }
 
-    private function runDryRunOutput(string $workspace, StubMetadataExtractor $metadataExtractor): string
+    /**
+     * Runs the real EXIF command with controlled metadata and explicit execution
+     * options so tests can compare preview decisions with actual file outcomes.
+     *
+     * @param string                $workspace         Isolated media directory
+     * @param StubMetadataExtractor $metadataExtractor Controlled capture metadata
+     * @param bool                  $dryRun            Whether to preview without mutation
+     * @param int|null              $maxDateDrift      Explicit drift limit, or the command default
+     *
+     * @return string Renderer output captured from the command's collaborators
+     */
+    private function runCommandOutput(string $workspace, StubMetadataExtractor $metadataExtractor, bool $dryRun = true, ?int $maxDateDrift = null): string
     {
         $output           = new BufferedOutput();
         $style            = new SymfonyStyle(new ArrayInput([]), $output);
@@ -954,12 +1025,20 @@ final class RenameByExifDateCommandTest extends TestCase
             new TargetBasenameStrategy(),
         );
 
-        $tester   = new CommandTester($command);
-        $exitCode = $tester->execute([
+        $tester = new CommandTester($command);
+        $tester->setInputs(['yes']);
+
+        $arguments = [
             'source'     => $workspace,
-            '--dry-run'  => true,
+            '--dry-run'  => $dryRun,
             '--list-all' => true,
-        ]);
+        ];
+
+        if ($maxDateDrift !== null) {
+            $arguments['--max-date-drift'] = (string) $maxDateDrift;
+        }
+
+        $exitCode = $tester->execute($arguments);
 
         self::assertSame(Command::SUCCESS, $exitCode);
 

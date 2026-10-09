@@ -14,16 +14,47 @@ namespace MagicSunday\Renamer\Helper;
 use DateTimeImmutable;
 use DateTimeInterface;
 
+use function sprintf;
+
 /**
  * Computes whole-day drift between filename-derived timestamps and metadata
  * timestamps.
  *
- * This helper intentionally stays mechanical. It centralizes the existing
- * filename-date drift math so callers can share the same day-difference
- * semantics without embedding duplicate extraction logic in unrelated classes.
+ * Centralizes filename-date drift math and the operator-selected drift limit
+ * so execution planning and legacy output share one blocking decision.
  */
 final class DateDriftCalculator
 {
+    /**
+     * Returns the shared blocking explanation when filename drift exceeds the
+     * configured limit. Null or zero disables the policy; missing dates cannot
+     * establish a drift violation. Both execution paths use this same decision.
+     *
+     * @param string   $sourcePath   Source path whose basename may contain a date
+     * @param string   $targetPath   Target path derived from capture metadata
+     * @param int|null $maxDateDrift Maximum permitted whole-day drift
+     *
+     * @return string|null Blocking reason, or null when the limit is not exceeded
+     */
+    public static function excessiveDriftReason(string $sourcePath, string $targetPath, ?int $maxDateDrift): ?string
+    {
+        if (($maxDateDrift === null) || ($maxDateDrift <= 0)) {
+            return null;
+        }
+
+        $driftDays = self::computeDateDrift($sourcePath, $targetPath);
+
+        if (($driftDays === null) || ($driftDays <= $maxDateDrift)) {
+            return null;
+        }
+
+        return sprintf(
+            'Date drift: %d days between filename and metadata (max %d) — verify EXIF date or use rename:write-date',
+            $driftDays,
+            $maxDateDrift,
+        );
+    }
+
     /**
      * Calculates the absolute day drift between two date values extracted from paths.
      *
