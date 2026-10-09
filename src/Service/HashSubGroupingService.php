@@ -670,20 +670,6 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
                     );
                 }
 
-                if (
-                    !$shouldMerge
-                    && $allowExactFormatBackupWindow
-                ) {
-                    $renameA = $hashGroups[$hashes[$indexA]][0];
-                    $renameB = $hashGroups[$hashes[$indexB]][0];
-
-                    $shouldMerge = $this->shouldMergeSimpleFormatBackup(
-                        $renameA,
-                        $renameB,
-                        $result,
-                    );
-                }
-
                 if ($shouldMerge) {
                     $components->union($indexA, $indexB);
                 }
@@ -821,47 +807,6 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
         $this->debugMergeDecision($fileA, $fileB, $similarity, $diff, $merge, $reason, $elapsed);
 
         return $merge;
-    }
-
-    /**
-     * Merges simple HEIC/JPG backup pairs based on pipeline context.
-     *
-     * @param Rename           $renameA    First rename to compare.
-     * @param Rename           $renameB    Second rename to compare.
-     * @param SimilarityResult $similarity The pre-calculated similarity.
-     */
-    private function shouldMergeSimpleFormatBackup(
-        Rename $renameA,
-        Rename $renameB,
-        SimilarityResult $similarity,
-    ): bool {
-        if (!$this->isStillFormatBackupPair($renameA, $renameB)) {
-            return false;
-        }
-
-        $fileA = $renameA->getSource();
-        $fileB = $renameB->getSource();
-
-        $this->debugMergeDecision($fileA, $fileB, $similarity, null, true, 'simple format backup');
-
-        return true;
-    }
-
-    private function isStillFormatBackupPair(Rename $renameA, Rename $renameB): bool
-    {
-        $fileA = $renameA->getSource();
-        $fileB = $renameB->getSource();
-
-        if (!$this->mediaTypeClassifier->isLivePhotoStill($fileA) || !$this->mediaTypeClassifier->isLivePhotoStill($fileB)) {
-            return false;
-        }
-
-        if (strtolower($fileA->getExtension()) === strtolower($fileB->getExtension())) {
-            return false;
-        }
-
-        return FileHelper::basenameWithoutExtension($renameA->getTarget())
-            === FileHelper::basenameWithoutExtension($renameB->getTarget());
     }
 
     /**
