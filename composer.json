@@ -50,6 +50,7 @@
         "symfony/console": "^8.0",
         "symfony/dependency-injection": "^8.0",
         "symfony/filesystem": "^8.0",
+        "symfony/process": "^8.0",
         "symfony/yaml": "^8.0"
     },
     "require-dev": {

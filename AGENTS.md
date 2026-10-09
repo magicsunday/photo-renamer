@@ -32,6 +32,7 @@ make coverage       # PHPUnit with HTML + Clover coverage (.build/coverage/)
 make cgl            # Fix code style
 make rector         # Apply rector rules
 make install        # Composer install
+make no-dev-smoke   # Verify the isolated production vendor tree and runtime dependencies
 make binary         # Build SPC binary (always via Docker)
 make cache-clear    # Clear persistent metadata cache
 ```
@@ -39,6 +40,8 @@ make cache-clear    # Clear persistent metadata cache
 Local pipeline order of `composer ci:test`: phplint → php-cs-fixer (dry-run) → rector (dry-run) → phpstan → deptrac → templates → phpunit → jscpd
 
 `composer ci:test:php:cpd` runs the installed `node_modules/.bin/jscpd`, so the Node dependencies must be installed first (`make install` runs `npm ci`). jscpd is pinned to an exact version in `package.json`. CI runs it as its own job through the shared `cpd.yml` workflow of the `.github` repository, reported as `cpd / Copy-paste detection`.
+
+`make no-dev-smoke` builds a temporary `--no-dev` Composer tree and starts the CLI with it. The smoke test also exercises the production `symfony/process` dependency, video fingerprinting, Write-Date, and the missing-`exiftool` capability diagnostic without using the repository's normal development vendor tree.
 
 ### Shared tooling (`magicsunday/coding-standard`)
 
