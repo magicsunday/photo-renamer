@@ -26,7 +26,16 @@ jobs:
                   persist-credentials: false
 
             - name: Build runtime image
-              run: docker compose build buildbox
+              run: |
+                  for attempt in 1 2 3; do
+                      if docker compose build buildbox; then
+                          exit 0
+                      fi
+                      if [ "${attempt}" -lt 3 ]; then
+                          sleep $((attempt * 20))
+                      fi
+                  done
+                  exit 1
 
             - name: Install runtime dependencies
               run: docker compose run --rm --user root buildbox composer install --no-dev --no-scripts --classmap-authoritative --no-ansi --no-interaction --no-progress
