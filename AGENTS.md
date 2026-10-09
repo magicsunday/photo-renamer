@@ -43,11 +43,36 @@ Local pipeline order of `composer ci:test`: phplint â†’ php-cs-fixer (dry-run) â
 
 `make no-dev-smoke` builds a temporary `--no-dev` Composer tree and starts the CLI with it. The smoke test also exercises the production `symfony/process` dependency, video fingerprinting, Write-Date, and the missing-`exiftool` capability diagnostic without using the repository's normal development vendor tree.
 
+### Focused commands
+
+Run focused checks inside the Docker buildbox:
+
+```bash
+# Run one test method or file
+docker compose run --rm buildbox .build/bin/phpunit --filter testMethodName tests/Unit/Path/To/TestFile.php
+
+# Run PHPStan for one file
+docker compose run --rm buildbox .build/bin/phpstan analyze src/Path/To/File.php --memory-limit=-1
+
+# Inspect Deptrac layer assignments
+docker compose run --rm buildbox .build/bin/deptrac debug:unassigned
+docker compose run --rm buildbox .build/bin/deptrac debug:layer Metadata
+
+# Run one CLI command
+make run CMD="rename:exif /path --dry-run"
+```
+
 ### Shared tooling (`magicsunday/coding-standard`)
 
 - `require-dev` holds `magicsunday/coding-standard` (delivers php-cs-fixer, PHPStan + rule packs, Rector, phplint, PHPUnit, Deptrac) and `infection/infection` only. Do not add those tools individually.
 - `.php-cs-fixer.dist.php`, `phpstan.neon` and `rector.php` wrap the shared `php-cs-fixer/base.php`, `phpstan/base.neon` and `rector/base.php` (PHP floor `80500`). Change a shared rule upstream, not here.
 - `phpunit.xml`, `.phplint.yml`, `.editorconfig`, `.jscpd.json` are adapted template copies; `composer ci:test:php:templates` (`check-consumer-config.php .`) fails when a strict flag is dropped.
+
+### Dependency injection container
+
+Symfony DI uses autowiring from `config/Services.yaml`. All `src/` classes are auto-registered except `Renamer.php`, `Dependencies.php`, `Constants.php`, and `Model/`; service interfaces are bound explicitly, and `MetadataReader` is created through its static factory. The compiled container is cached at `.build/cache/DependencyContainer.php`, so remove that file after changing `Services.yaml`.
+
+Constructor parameters must not default to `new Foo()`. New collaborators are wired by the container and supplied explicitly by tests; `tests/Unit/Architecture/ConstructorWiringArchitectureTest` enforces this contract.
 
 ## Code Style
 
