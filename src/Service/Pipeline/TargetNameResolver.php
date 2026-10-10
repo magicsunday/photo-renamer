@@ -72,9 +72,9 @@ final readonly class TargetNameResolver implements TargetNameResolverInterface
      *
      * When classification is degraded (isClassificationDegraded()), all items have null
      * clusterIds, so hasMultipleSubgroups() returns false and the group naturally falls
-     * through to the simple flat-naming path with sequential duplicate suffixes. This is
-     * the safe conservative behavior: no subgroup suffixes are assigned when classification
-     * data is unreliable.
+     * through to the flat-naming proposal. Such proposals are diagnostic only:
+     * ExecutionPlanBuilder blocks mutations in degraded groups. Coherent existing
+     * subgroup names can still be preserved as no-ops.
      *
      * @param AssetGroup $group                      Group to resolve
      * @param bool       $useFileExtensionFromSource Whether to preserve source extension

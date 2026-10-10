@@ -212,6 +212,7 @@ This is an intentional bounded exception (End State B). These commands are too s
 - **`hasReliableDateTime()`** — single source of truth for metadata quality. Used by rename:exif, rename:verify, rename:write-date. A date is reliable when: (a) not fallback AND not ambiguous, OR (b) raw metadata matches filename date.
 - **Live Photo pairing** — MOV companions always inherit the paired still's date, never their own. Videos with Content Identifiers are deferred in the first grouping pass.
 - **Canonical scoring** — format-dominant weighted scoring: format priority (configurable via `CANONICAL_FORMAT_PRIORITY`) dominates all other signals. A preferred format (HEIC) always beats a correctly-named lower-priority format (JPG). Idempotency (1000 pts) only wins within the same format tier.
+- **Degraded classification** — `ExecutionPlanBuilder` blocks all mutations in the affected group with the analysis failure reason and projects unproven duplicate roles as Ambiguous. Existing-name no-ops and unrelated groups remain safe. `SubgroupClassifier` catches runtime exceptions; logic exceptions and PHP errors propagate.
 - **Idempotency** — re-running any command on already-processed files produces identical results.
 - **Symfony Filesystem** — all file operations (`rename`, `mkdir`, `remove`, `dumpFile`, `readFile`) use `Symfony\Component\Filesystem\Filesystem`. Never use procedural PHP functions for file I/O in production code.
 
