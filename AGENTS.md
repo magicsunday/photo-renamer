@@ -120,7 +120,7 @@ Constructor parameters must not default to `new Foo()`. New collaborators are wi
 - The pull-request body closes the issue with `Closes #<N>` — the `GH-<N>: ` subject prefix is not a GitHub link and closes nothing.
 - Never add a `Co-Authored-By:` trailer or any other AI attribution.
 - Granular commits — one concern per commit
-- Merge pull requests exclusively with **squash** (`gh pr merge --squash`); the squash commit subject must satisfy the shared commit convention. Never create a "Merge pull request" commit. Merge only after all issue acceptance criteria are fulfilled, evidenced and checked, own code review is complete, and relevant GitHub checks pass for the exact reviewed head.
+- Merge pull requests exclusively with **squash** (`gh pr merge --squash`); the squash commit subject must satisfy the shared commit convention. Write a dedicated title and body describing the final implemented changes, their purpose and relevant validation; supply the body with `--body-file` rather than concatenating the branch commit messages. Preserve the required DCO `Signed-off-by:` trailer. Never create a "Merge pull request" commit. Merge only after all issue acceptance criteria are fulfilled, evidenced and checked, own code review is complete, and relevant GitHub checks pass for the exact reviewed head.
 - **Always** run `make test` before committing
 
 ## Design Principles
