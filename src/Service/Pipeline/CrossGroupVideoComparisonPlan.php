@@ -14,8 +14,8 @@ namespace MagicSunday\Renamer\Service\Pipeline;
 /**
  * Immutable comparison plan entry for one cross-group video pair.
  *
- * The reconciler expands duration buckets into a flat ordered list of pairs that
- * may be compared via stream fingerprints. Keeping that plan in a DTO makes the
+ * The reconciler streams one eligible duration-bucket pair at a time without
+ * retaining a quadratic list. Keeping each pair in a DTO makes the
  * left/right group and pathname semantics explicit across the execution loop.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>

@@ -39,6 +39,8 @@ make binary         # Build SPC binary (always via Docker)
 make cache-clear    # Purge current-user JSON caches, owned legacy files and DI cache
 make runtime-cache-clear # Purge runtime-volume JSON only, preserving immutable DI
 make cache-permissions-check # Verify real two-UID cache privacy in disposable Docker
+make comparison-benchmark # Compare cold/warm stream-cache planning with 1,000 tiny synthetic videos
+make mixed-collection-benchmark COUNT=70000 # Real synthetic JPG/HEIC+MOV: pipeline, cache, mutation, idempotency
 ```
 
 Local pipeline order of `composer ci:test`: phplint → php-cs-fixer (dry-run) → rector (dry-run) → phpstan → deptrac → templates → phpunit → jscpd
@@ -48,6 +50,8 @@ Local pipeline order of `composer ci:test`: phplint → php-cs-fixer (dry-run) �
 `make no-dev-smoke` builds a temporary `--no-dev` Composer tree and starts the CLI with it. The smoke test also exercises the production `symfony/process` dependency, video fingerprinting, Write-Date, and the missing-`exiftool` capability diagnostic without using the repository's normal development vendor tree.
 
 `make cache-permissions-check` uses root only inside a disposable Docker container to launch children that permanently drop to UID/GID 1000 and 1001. It checks actual denied access to synthetic GPS/path JSON and foreign-owner rejection. The runtime-image CI lane runs this check with production dependencies.
+
+`make mixed-collection-benchmark` requires a rebuilt production image. It mounts only `scripts/` read-only, generates real 64×64 JPEG/HEIC and one-second MOV files with synthetic Apple IDs/dates, and profiles the real scanner/parser/pipeline/executor in fresh cold/warm/mutate/idempotency workers. Profile limits: 4 GiB container RAM/no extra swap, 1 CPU, 128 PIDs, 1 GiB non-executable media/cache tmpfs, 3072 MiB worker PHP, 20 minutes per worker; a separate 1 MiB executable tmpfs holds only fixed native-launch counters. These increased profiling limits do not change production defaults; retain failed lower-budget measurements. Counts must be multiples of four from 4 to 100000. Report Linux worker peak RSS, PHP peak, 100-ms sampled temporary disk, consumed comparison plans and positively validated native-launch counts. The LP-heavy profile uses distinct known IDs and cannot represent unknown-ID worst cases, camera-size decoding or arbitrary collection throughput. Never run it on original media or mark missing measurements as passed.
 
 ### Focused commands
 
@@ -223,6 +227,7 @@ This is an intentional bounded exception (End State B). These commands are too s
 - **Degraded classification** — `ExecutionPlanBuilder` blocks all mutations in the affected group with the analysis failure reason and projects unproven duplicate roles as Ambiguous. Existing-name no-ops and unrelated groups remain safe. `SubgroupClassifier` catches runtime exceptions; logic exceptions and PHP errors propagate.
 - **Merge evidence** — `HashSubGroupingService::apply()` optionally streams immutable `MergeDecision` values through `onDecision`: Exact classification hash, Perceptual accepted analysis, Different veto, or Uncertain unavailable evidence. Matching companion hashes and filenames never override a rejected/unavailable still analysis. `SimilarityResult::analysisAvailable` distinguishes missing signals from measured dissimilarity. The active classifier retains one example/count per finite reason in its Decision Log; never retain a complete pair history. Classification evidence is not permanent-deletion authority; the fresh SHA-256 guard remains independent.
 - **Video stream identity** — Cross-group exact matching accepts one video stream and at most one audio stream. Additional AV tracks veto automatic merging and produce a review reason when primary video matches. Non-AV container tracks remain ignored.
+- **Comparison work limits** — `ComparisonWorkLimit` validates positive integer `MAX_COMPARISON_PAIRS` (default 100000), shared by cross-group video analysis and per-capture perceptual analysis with local counters. Cross-group pairs are generated lazily in stable bucket/path order. Count visited inner-loop group/membership exclusions too; index conflicting known content IDs out without pair walks, while unknown IDs retain comparisons against every identity. Merge sorted identifier/unknown index lists to preserve pathname order. Skip stale left rows and single-original-group buckets. Exhaustion is explicit, never duplicate evidence: cross-group failure aborts before execution; capture-group failure blocks that group while safe unrelated groups may proceed. EXIF returns failure for degraded classification, including dry-run. Native Stage B images are released in `finally`. Benchmark only synthetic media under finite Docker resources; document cold/warm measurements and their limits.
 - **Idempotency** — re-running any command on already-processed files produces identical results.
 - **Symfony Filesystem** — all file operations (`rename`, `mkdir`, `remove`, `dumpFile`, `readFile`) use `Symfony\Component\Filesystem\Filesystem`. Never use procedural PHP functions for file I/O in production code.
 - **Private media caches** — `PrivateCacheStorage` creates `CACHE_DIR/private-<effective UID>/` with `0700`, JSON/temporary files with `0600`. Correct only owned dedicated paths, never shared parent modes; reject foreign-owned paths and symlink/hardlink leaves. Flat legacy JSON is not imported: `make cache-clear` purges owned legacy/current-user files and the separate executable DI cache. No automatic TTL or forensic-erasure guarantee. Configured parents must be trusted; checks are not atomic against hostile directory writers.
@@ -284,6 +289,7 @@ scripts/               # Build and utility scripts
 | `USERID` / `GROUPID` | Docker container UID/GID mapping | `1000` |
 | `TIMEZONE` | Convert UTC video timestamps to local time | `Europe/Berlin` |
 | `MAX_DATE_DRIFT` | Max days drift between filename and metadata date | `7` |
+| `MAX_COMPARISON_PAIRS` | Finite pair visits per capture group and entire cross-group video batch | `100000` |
 | `CACHE_DIR` | Dev/standalone JSON base; runtime uses `/cache` volume (0700/0600); DI separate | `.build/cache` |
 | `MEDIA_DIR` / `MEDIA_READ_ONLY` | Existing host collection mounted at `/media`, optional read-only analysis | `./images` / `false` |
 | `PHP_MEMORY_LIMIT` | Positive finite PHP budget, invalid/unlimited overrides rejected | `1024M` |

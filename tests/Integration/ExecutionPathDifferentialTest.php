@@ -23,6 +23,7 @@ use MagicSunday\Renamer\Model\RenameResult;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\AssetGroupAdapter;
 use MagicSunday\Renamer\Service\CanonicalScorer;
+use MagicSunday\Renamer\Service\ComparisonWorkLimit;
 use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilder;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetector;
@@ -272,6 +273,7 @@ final class ExecutionPathDifferentialTest extends TestCase
             $perceptualHashCalculator,
             new LocalDifferenceAnalyzer(),
             $imageLoader,
+            new ComparisonWorkLimit(100000),
         );
 
         $livePhotoConflictDetector = new LivePhotoConflictDetector($mediaTypeClassifier);

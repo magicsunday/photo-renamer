@@ -32,6 +32,7 @@ use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
 use MagicSunday\Renamer\Model\SkippedFile;
 use MagicSunday\Renamer\Model\TargetFileResult;
+use MagicSunday\Renamer\Service\ComparisonWorkLimit;
 use MagicSunday\Renamer\Service\ContentIdentifierCacheEntry;
 use MagicSunday\Renamer\Service\DisjointSetUnion;
 use MagicSunday\Renamer\Service\DuplicateCanonicalRenameSelector;
@@ -120,6 +121,7 @@ use function sprintf;
 use const DIRECTORY_SEPARATOR;
 
 #[CoversClass(DuplicateDetectionService::class)]
+#[UsesClass(ComparisonWorkLimit::class)]
 #[UsesClass(DuplicateCanonicalRenameSelector::class)]
 #[UsesClass(DuplicateCanonicalSelection::class)]
 #[UsesClass(DuplicateSuffixAssigner::class)]
@@ -1417,7 +1419,7 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         $progressReporter       = new ConsoleProgressReporter($io);
         $mediaTypeClassifier    = new MediaTypeClassifier();
-        $hashSubGroupingService = new HashSubGroupingService($hashCalculator, $progressReporter, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier()));
+        $hashSubGroupingService = new HashSubGroupingService($hashCalculator, $progressReporter, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier()), new ComparisonWorkLimit(100000));
         $service                = DuplicateDetectionServiceFactory::create($progressReporter, $hashSubGroupingService, $mediaTypeClassifier);
 
         $targetFile = $sourceDirectory . DIRECTORY_SEPARATOR . 'target.jpg';
@@ -1473,7 +1475,7 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         $progressReporter       = new ConsoleProgressReporter($io);
         $mediaTypeClassifier    = new MediaTypeClassifier();
-        $hashSubGroupingService = new HashSubGroupingService($hashCalculator, $progressReporter, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier()));
+        $hashSubGroupingService = new HashSubGroupingService($hashCalculator, $progressReporter, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier()), new ComparisonWorkLimit(100000));
         $service                = DuplicateDetectionServiceFactory::create($progressReporter, $hashSubGroupingService, $mediaTypeClassifier);
 
         $sourceDirectory = $this->createTempDirectory();
@@ -1541,7 +1543,7 @@ final class DuplicateDetectionServiceTest extends TestCase
 
         $progressReporter       = new ConsoleProgressReporter($io);
         $mediaTypeClassifier    = new MediaTypeClassifier();
-        $hashSubGroupingService = new HashSubGroupingService($hashCalculator, $progressReporter, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier()));
+        $hashSubGroupingService = new HashSubGroupingService($hashCalculator, $progressReporter, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier()), new ComparisonWorkLimit(100000));
         $service                = DuplicateDetectionServiceFactory::create($progressReporter, $hashSubGroupingService, $mediaTypeClassifier);
 
         $sourceDirectory = $this->createTempDirectory();
@@ -2940,7 +2942,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         $hashCalculator         = new SafeHashCalculator();
         $progressReporter       = new ConsoleProgressReporter($io);
         $mediaTypeClassifier    = new MediaTypeClassifier();
-        $hashSubGroupingService = new HashSubGroupingService($hashCalculator, $progressReporter, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier()));
+        $hashSubGroupingService = new HashSubGroupingService($hashCalculator, $progressReporter, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier()), new ComparisonWorkLimit(100000));
         $service                = DuplicateDetectionServiceFactory::create($progressReporter, $hashSubGroupingService, $mediaTypeClassifier);
 
         return [$service, $output, $fileSystemService];

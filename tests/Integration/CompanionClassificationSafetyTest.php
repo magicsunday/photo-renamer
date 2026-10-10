@@ -23,6 +23,7 @@ use MagicSunday\Renamer\Model\MergeDecision;
 use MagicSunday\Renamer\Model\MergeDecisionKind;
 use MagicSunday\Renamer\Model\MergeDecisionReason;
 use MagicSunday\Renamer\Model\Rename;
+use MagicSunday\Renamer\Service\ComparisonWorkLimit;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
@@ -102,7 +103,7 @@ final class CompanionClassificationSafetyTest extends TestCase
             $group->setTarget($renames['a.jpg']->getTarget());
             $media   = new MediaTypeClassifier();
             $loader  = new ImagickImageLoader($media);
-            $service = new HashSubGroupingService(new SafeHashCalculator(), new NullProgressReporter(), $media, new PerceptualHashCalculator($loader, new PerceptualHashMath()), new LocalDifferenceAnalyzer(), $loader);
+            $service = new HashSubGroupingService(new SafeHashCalculator(), new NullProgressReporter(), $media, new PerceptualHashCalculator($loader, new PerceptualHashMath()), new LocalDifferenceAnalyzer(), $loader, new ComparisonWorkLimit(100000));
             $service->setMaxMergeRmse(0.0);
             /** @var list<MergeDecision> $decisions */
             $decisions = [];
@@ -267,7 +268,7 @@ final class CompanionClassificationSafetyTest extends TestCase
             $visual = self::createMock(PerceptualHashCalculatorInterface::class);
             $visual->expects(self::never())->method('similarityScore');
             $media   = new MediaTypeClassifier();
-            $service = new HashSubGroupingService($hashing, new NullProgressReporter(), $media, $visual, new LocalDifferenceAnalyzer(), new ImagickImageLoader($media));
+            $service = new HashSubGroupingService($hashing, new NullProgressReporter(), $media, $visual, new LocalDifferenceAnalyzer(), new ImagickImageLoader($media), new ComparisonWorkLimit(100000));
             /** @var list<MergeDecision> $decisions */
             $decisions = [];
             $result    = $service->apply($group, $canonical, null, [], static fn (SplFileInfo $file, string $name): string => $file->getPath() . '/' . $name, onDecision: static function (MergeDecision $decision) use (&$decisions): void {
@@ -316,7 +317,7 @@ final class CompanionClassificationSafetyTest extends TestCase
             $loader = new ImagickImageLoader($media);
             $visual = new PerceptualHashCalculator($loader, new PerceptualHashMath());
             $visual->setSignalCache($cache);
-            $service = new HashSubGroupingService(new SafeHashCalculator(), new NullProgressReporter(), $media, $visual, new LocalDifferenceAnalyzer(), $loader);
+            $service = new HashSubGroupingService(new SafeHashCalculator(), new NullProgressReporter(), $media, $visual, new LocalDifferenceAnalyzer(), $loader, new ComparisonWorkLimit(100000));
             /** @var list<MergeDecision> $decisions */
             $decisions = [];
             $result    = $service->apply($group, $canonical, null, [], static fn (SplFileInfo $file, string $name): string => $file->getPath() . '/' . $name, onDecision: static function (MergeDecision $decision) use (&$decisions): void {
@@ -381,7 +382,7 @@ final class CompanionClassificationSafetyTest extends TestCase
         $media  = new MediaTypeClassifier();
         $loader = new ImagickImageLoader($media);
 
-        return new HashSubGroupingService(new SafeHashCalculator(), new NullProgressReporter(), $media, new PerceptualHashCalculator($loader, new PerceptualHashMath()), new LocalDifferenceAnalyzer(), $loader);
+        return new HashSubGroupingService(new SafeHashCalculator(), new NullProgressReporter(), $media, new PerceptualHashCalculator($loader, new PerceptualHashMath()), new LocalDifferenceAnalyzer(), $loader, new ComparisonWorkLimit(100000));
     }
 
     /**

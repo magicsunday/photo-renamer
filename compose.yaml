@@ -27,6 +27,7 @@ services:
             PHP_MEMORY_LIMIT: ${PHP_MEMORY_LIMIT:-1024M}
             TIMEZONE: ${TIMEZONE:-Europe/Berlin}
             MAX_DATE_DRIFT: ${MAX_DATE_DRIFT:-7}
+            MAX_COMPARISON_PAIRS: ${MAX_COMPARISON_PAIRS:-100000}
             MERGE_THRESHOLD: ${MERGE_THRESHOLD:-0.06}
             CANONICAL_FORMAT_PRIORITY: ${CANONICAL_FORMAT_PRIORITY:-}
             FILE_LINK_ROOT: ${FILE_LINK_ROOT:-}
@@ -47,6 +48,7 @@ services:
             - SSH_AUTH_SOCK=/ssh-agent
             - TIMEZONE=${TIMEZONE:-}
             - MAX_DATE_DRIFT=${MAX_DATE_DRIFT:-}
+            - MAX_COMPARISON_PAIRS=${MAX_COMPARISON_PAIRS:-100000}
             - CACHE_DIR=${CACHE_DIR:-}
             - FILE_LINK_ROOT=${FILE_LINK_ROOT:-}
             - FILE_LINK_BASE=${FILE_LINK_BASE:-}

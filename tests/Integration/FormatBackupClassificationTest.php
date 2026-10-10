@@ -21,6 +21,7 @@ use MagicSunday\Renamer\Model\MergeDecision;
 use MagicSunday\Renamer\Model\MergeDecisionKind;
 use MagicSunday\Renamer\Model\MergeDecisionReason;
 use MagicSunday\Renamer\Model\Rename;
+use MagicSunday\Renamer\Service\ComparisonWorkLimit;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
@@ -101,6 +102,7 @@ final class FormatBackupClassificationTest extends TestCase
                 $similarity,
                 new LocalDifferenceAnalyzer(),
                 new ImagickImageLoader($media),
+                new ComparisonWorkLimit(100000),
             );
             $service->setMaxMergeRmse($threshold);
 

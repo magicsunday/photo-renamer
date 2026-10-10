@@ -22,6 +22,7 @@ use MagicSunday\Renamer\Model\MergeDecision;
 use MagicSunday\Renamer\Model\MergeDecisionKind;
 use MagicSunday\Renamer\Model\MergeDecisionReason;
 use MagicSunday\Renamer\Model\Rename;
+use MagicSunday\Renamer\Service\ComparisonWorkLimit;
 use MagicSunday\Renamer\Service\DisjointSetUnion;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
@@ -29,6 +30,7 @@ use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
 use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzer;
 use MagicSunday\Renamer\Service\PerceptualHash\LocalDiffResult;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
+use MagicSunday\Renamer\Service\PerceptualHash\SimilarityClassification;
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityResult;
 use MagicSunday\Renamer\Service\Reporting\NullProgressReporter;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
@@ -39,6 +41,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 use SplFileInfo;
 
 use function file_put_contents;
@@ -71,6 +74,7 @@ use const DIRECTORY_SEPARATOR;
 #[CoversClass(FileDuplicate::class)]
 #[CoversClass(RenameList::class)]
 #[CoversClass(Rename::class)]
+#[UsesClass(ComparisonWorkLimit::class)]
 #[UsesClass(DisjointSetUnion::class)]
 #[UsesClass(FileHelper::class)]
 #[UsesClass(FileList::class)]
@@ -901,6 +905,49 @@ final class HashSubGroupingServiceTest extends TestCase
         self::assertIsArray($result, 'Failed dHash should result in separate sub-groups (conservative)');
     }
 
+    /**
+     * Three distinct content hashes exceed a two-pair budget. Exhaustion must
+     * happen before the third perceptual analysis or any target assignment, so
+     * unfinished classification cannot silently become duplicate evidence.
+     */
+    #[Test]
+    public function budgetExhaustionPreservesRenameTargetsAndSourceBytes(): void
+    {
+        $directory = $this->createTempDirectory();
+        $group     = new FileDuplicate();
+        $renames   = [];
+
+        foreach (['a', 'b', 'c'] as $name) {
+            $path = $directory . '/' . $name . '.jpg';
+            file_put_contents($path, 'synthetic-' . $name);
+            $rename = new Rename(new SplFileInfo($path), new SplFileInfo($directory . '/target.jpg'));
+            $group->addFile($rename->getSource());
+            $group->addRename($rename);
+            $renames[] = $rename;
+        }
+
+        $calculator = $this->createMock(PerceptualHashCalculatorInterface::class);
+        $calculator->expects(self::exactly(2))->method('similarityScore')->willReturn(
+            new SimilarityResult(0, 64, 64, 1.0, 1.0, null, SimilarityClassification::Different),
+        );
+        $service = $this->createHashSubGroupingServiceWithCalculator(new SafeHashCalculator(), $calculator, 2);
+        $failure = null;
+
+        try {
+            $service->apply($group, $renames[0], null, [], $this->createTargetPathnameResolver($directory, $directory));
+        } catch (RuntimeException $exception) {
+            $failure = $exception;
+        }
+
+        self::assertInstanceOf(RuntimeException::class, $failure);
+        self::assertStringContainsString('MAX_COMPARISON_PAIRS=2', $failure->getMessage());
+
+        foreach ($renames as $rename) {
+            self::assertSame($directory . '/target.jpg', $rename->getTarget()->getPathname());
+            self::assertFileExists($rename->getSource()->getPathname());
+        }
+    }
+
     private function createHashSubGroupingService(): HashSubGroupingService
     {
         return $this->createHashSubGroupingServiceWithStub(new StubPerceptualHashCalculator());
@@ -914,9 +961,20 @@ final class HashSubGroupingServiceTest extends TestCase
         );
     }
 
+    /**
+     * Wires real hash grouping and Stage B collaborators around a controlled
+     * perceptual calculator; a configurable tiny budget exercises fail-closed paths.
+     *
+     * @param SafeHashCalculatorInterface       $hashCalculator           Content hash source
+     * @param PerceptualHashCalculatorInterface $perceptualHashCalculator Controlled visual evidence
+     * @param int                               $maximumPairs             Finite pair visits permitted in this fixture
+     *
+     * @return HashSubGroupingService Explicitly wired analysis service
+     */
     private function createHashSubGroupingServiceWithCalculator(
         SafeHashCalculatorInterface $hashCalculator,
         PerceptualHashCalculatorInterface $perceptualHashCalculator,
+        int $maximumPairs = 100000,
     ): HashSubGroupingService {
         $imageLoader = new ImagickImageLoader(new MediaTypeClassifier());
 
@@ -927,6 +985,7 @@ final class HashSubGroupingServiceTest extends TestCase
             $perceptualHashCalculator,
             new LocalDifferenceAnalyzer(),
             $imageLoader,
+            new ComparisonWorkLimit($maximumPairs),
         );
     }
 

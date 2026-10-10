@@ -42,6 +42,7 @@ use MagicSunday\Renamer\Model\LinkConfig;
 use MagicSunday\Renamer\Model\OutputEntry;
 use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\OutputEntryType;
+use MagicSunday\Renamer\Model\Pipeline\VideoFingerprintMatch;
 use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Model\RenameOptions;
@@ -51,6 +52,7 @@ use MagicSunday\Renamer\Regex\RegexMatchResult;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\CanonicalScore;
 use MagicSunday\Renamer\Service\CanonicalScorer;
+use MagicSunday\Renamer\Service\ComparisonWorkLimit;
 use MagicSunday\Renamer\Service\ContentIdentifierCacheEntry;
 use MagicSunday\Renamer\Service\DisjointSetUnion;
 use MagicSunday\Renamer\Service\DuplicateDetectionService;
@@ -114,6 +116,10 @@ use MagicSunday\Renamer\Service\Pipeline\CaptureGroupQualityTracker;
 use MagicSunday\Renamer\Service\Pipeline\CollisionResolver;
 use MagicSunday\Renamer\Service\Pipeline\CompanionDetector;
 use MagicSunday\Renamer\Service\Pipeline\CompanionPathSet;
+use MagicSunday\Renamer\Service\Pipeline\CrossGroupVideoComparisonPlan;
+use MagicSunday\Renamer\Service\Pipeline\CrossGroupVideoDuplicateReconciler;
+use MagicSunday\Renamer\Service\Pipeline\CrossGroupVideoDuplicateReconcilerInterface;
+use MagicSunday\Renamer\Service\Pipeline\DurationBucketedVideoCandidate;
 use MagicSunday\Renamer\Service\Pipeline\ExifRenamePipelineResult;
 use MagicSunday\Renamer\Service\Pipeline\ExistingCompanionVideoCandidate;
 use MagicSunday\Renamer\Service\Pipeline\FlatGroupNameResolver;
@@ -128,10 +134,12 @@ use MagicSunday\Renamer\Service\Pipeline\TargetNameResolver;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\RenamePlanValidator;
 use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
+use MagicSunday\Renamer\Service\Reporting\NullProgressReporter;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Service\TargetFileResolver;
 use MagicSunday\Renamer\Service\TargetPathResolver;
 use MagicSunday\Renamer\Service\ValidationResult;
+use MagicSunday\Renamer\Service\Video\VideoStreamFingerprintMatcherInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use MagicSunday\Renamer\Test\Fixtures\CaptureGroupBuilderFactory;
@@ -158,6 +166,7 @@ use function array_filter;
 use function array_keys;
 use function array_search;
 use function array_values;
+use function file_get_contents;
 use function file_put_contents;
 use function mkdir;
 use function preg_replace;
@@ -185,6 +194,12 @@ use const DIRECTORY_SEPARATOR;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(RenameByExifDateCommand::class)]
+#[UsesClass(ComparisonWorkLimit::class)]
+#[UsesClass(CrossGroupVideoDuplicateReconciler::class)]
+#[UsesClass(CrossGroupVideoComparisonPlan::class)]
+#[UsesClass(DurationBucketedVideoCandidate::class)]
+#[UsesClass(NullProgressReporter::class)]
+#[UsesClass(VideoFingerprintMatch::class)]
 #[UsesClass(AssetGroup::class)]
 #[UsesClass(AssetItem::class)]
 #[UsesClass(AssetGroupCollection::class)]
@@ -954,24 +969,90 @@ final class RenameByExifDateCommandTest extends TestCase
     }
 
     /**
+     * A tiny comparison budget must block every mutation in the incomplete
+     * capture group, expose the limit and return failure even without dry-run.
+     * Tiny synthetic byte strings exercise the real planning/execution boundary.
+     */
+    #[Test]
+    public function exhaustedComparisonBudgetLeavesAllSourceFilesUnchanged(): void
+    {
+        $workspace = $this->createTempWorkspace();
+        $metadata  = new StubMetadataExtractor();
+
+        try {
+            foreach (['a', 'b', 'c'] as $name) {
+                $source = $workspace . '/' . $name . '.jpg';
+                file_put_contents($source, 'synthetic-' . $name);
+                $metadata->withResponse($source, new TemporalMetadata(new DateTimeImmutable('2024-01-01 12:00:00'), null));
+            }
+
+            $output = $this->runCommandOutput($workspace, $metadata, false, maximumPairs: 2, expectedExitCode: Command::FAILURE);
+            self::assertStringContainsString('MAX_COMPARISON_PAIRS=2', $output);
+
+            foreach (['a', 'b', 'c'] as $name) {
+                self::assertSame('synthetic-' . $name, file_get_contents($workspace . '/' . $name . '.jpg'));
+            }
+
+            self::assertFileDoesNotExist($workspace . '/2024-01-01_12-00-00-000.jpg');
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Distinct capture timestamps with equal video durations exceed a two-pair
+     * batch budget. The real command must abort before any filesystem execution,
+     * report incomplete analysis and preserve every tiny source byte-for-byte.
+     */
+    #[Test]
+    public function crossGroupBudgetFailureAbortsBeforeSourceMutation(): void
+    {
+        $workspace = $this->createTempWorkspace();
+        $metadata  = new StubMetadataExtractor();
+        $matcher   = $this->createMock(VideoStreamFingerprintMatcherInterface::class);
+        $matcher->expects(self::exactly(2))->method('match')->willReturn(new VideoFingerprintMatch(false, false, false, false, false));
+        $reconciler = new CrossGroupVideoDuplicateReconciler(new MediaCompatibilityPolicy(new MediaTypeClassifier()), $matcher, new NullProgressReporter(), new ComparisonWorkLimit(2));
+
+        try {
+            foreach (['a', 'b', 'c'] as $index => $name) {
+                $source = $workspace . '/' . $name . '.mov';
+                file_put_contents($source, 'synthetic-' . $name);
+                $metadata->withResponse($source, new TemporalMetadata(new DateTimeImmutable('2024-01-0' . ($index + 1) . ' 12:00:00'), null, false, false, null, null, null, null, null, null, 2.0));
+            }
+
+            $output = $this->runCommandOutput($workspace, $metadata, false, maximumPairs: 2, expectedExitCode: Command::FAILURE, crossGroupReconciler: $reconciler);
+            self::assertStringContainsString('MAX_COMPARISON_PAIRS=2', $output);
+
+            foreach (['a', 'b', 'c'] as $name) {
+                self::assertSame('synthetic-' . $name, file_get_contents($workspace . '/' . $name . '.mov'));
+            }
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
      * Runs the real EXIF command with controlled metadata and explicit execution
      * options so tests can compare preview decisions with actual file outcomes.
      *
-     * @param string                $workspace         Isolated media directory
-     * @param StubMetadataExtractor $metadataExtractor Controlled capture metadata
-     * @param bool                  $dryRun            Whether to preview without mutation
-     * @param int|null              $maxDateDrift      Explicit drift limit, or the command default
+     * @param string                                           $workspace            Isolated media directory
+     * @param StubMetadataExtractor                            $metadataExtractor    Controlled capture metadata
+     * @param bool                                             $dryRun               Whether to preview without mutation
+     * @param int|null                                         $maxDateDrift         Explicit drift limit, or the command default
+     * @param int                                              $maximumPairs         Comparison visits allowed per capture group
+     * @param int                                              $expectedExitCode     Required command outcome, including fail-closed analysis
+     * @param CrossGroupVideoDuplicateReconcilerInterface|null $crossGroupReconciler Optional batch analysis boundary for video failure tests
      *
      * @return string Renderer output captured from the command's collaborators
      */
-    private function runCommandOutput(string $workspace, StubMetadataExtractor $metadataExtractor, bool $dryRun = true, ?int $maxDateDrift = null): string
+    private function runCommandOutput(string $workspace, StubMetadataExtractor $metadataExtractor, bool $dryRun = true, ?int $maxDateDrift = null, int $maximumPairs = 100000, int $expectedExitCode = Command::SUCCESS, ?CrossGroupVideoDuplicateReconcilerInterface $crossGroupReconciler = null): string
     {
         $output           = new BufferedOutput();
         $style            = new SymfonyStyle(new ArrayInput([]), $output);
         $progressReporter = new ConsoleProgressReporter($style);
 
         $mediaTypeClassifier       = new MediaTypeClassifier();
-        $hashSubGroupingService    = new HashSubGroupingService(new SafeHashCalculator(), $progressReporter, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier()));
+        $hashSubGroupingService    = new HashSubGroupingService(new SafeHashCalculator(), $progressReporter, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier()), new ComparisonWorkLimit($maximumPairs));
         $livePhotoConflictDetector = new LivePhotoConflictDetector($mediaTypeClassifier);
 
         $captureGroupBuilder = CaptureGroupBuilderFactory::create(
@@ -1002,6 +1083,7 @@ final class RenameByExifDateCommandTest extends TestCase
             $targetNameResolver,
             $collisionResolver,
             $renamePlanValidator,
+            $crossGroupReconciler,
         );
 
         $renderer = OutputRendererFactory::create($style);
@@ -1042,9 +1124,10 @@ final class RenameByExifDateCommandTest extends TestCase
 
         $exitCode = $tester->execute($arguments);
 
-        self::assertSame(Command::SUCCESS, $exitCode);
+        $captured = $output->fetch() . $tester->getDisplay();
+        self::assertSame($expectedExitCode, $exitCode, $captured);
 
-        return $output->fetch();
+        return $captured;
     }
 
     /**

@@ -19,6 +19,7 @@ use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\Pipeline\VideoFingerprintMatch;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Service\CanonicalScorer;
+use MagicSunday\Renamer\Service\ComparisonWorkLimit;
 use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilder;
 use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
@@ -507,7 +508,7 @@ final class VirtualRenameExifPipelineFlowTest extends TestCase
         $captureGroupBuilder       = CaptureGroupBuilderFactory::create($progressReporter, $mediaTypeClassifier);
         $companionDetector         = new CompanionDetector($mediaCompatibilityPolicy);
         $roleAssigner              = new RoleAssigner($canonicalScorer, $companionDetector, $mediaCompatibilityPolicy);
-        $crossGroupVideoReconciler = new CrossGroupVideoDuplicateReconciler($mediaCompatibilityPolicy, $videoFingerprintMatcher, $progressReporter);
+        $crossGroupVideoReconciler = new CrossGroupVideoDuplicateReconciler($mediaCompatibilityPolicy, $videoFingerprintMatcher, $progressReporter, new ComparisonWorkLimit(100000));
 
         $videoFingerprintMatcher
             ->method('match')

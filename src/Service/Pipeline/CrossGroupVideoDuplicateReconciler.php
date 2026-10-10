@@ -11,19 +11,24 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Pipeline;
 
+use Generator;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\Pipeline\VideoDuplicateCandidate;
 use MagicSunday\Renamer\Model\PipelineContext;
+use MagicSunday\Renamer\Service\ComparisonWorkLimit;
 use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use MagicSunday\Renamer\Service\Video\VideoStreamFingerprintMatcherInterface;
 
 use function count;
+use function intdiv;
 use function round;
 use function sprintf;
 use function usort;
+
+use const PHP_INT_MAX;
 
 /**
  * Reconciles exact-content videos that were split into different capture groups.
@@ -44,11 +49,13 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
      * @param MediaCompatibilityPolicy               $mediaCompatibilityPolicy      Distinguishes video/still families consistently with the rest of the project
      * @param VideoStreamFingerprintMatcherInterface $videoStreamFingerprintMatcher Stream-level exact-content matcher for videos
      * @param ProgressReporterInterface              $progressReporter              Narrow reporting boundary for progress headings and diagnostics
+     * @param ComparisonWorkLimit                    $comparisonWorkLimit           Finite pair-visit budget for the entire cross-group batch
      */
     public function __construct(
         private MediaCompatibilityPolicy $mediaCompatibilityPolicy,
         private VideoStreamFingerprintMatcherInterface $videoStreamFingerprintMatcher,
         private ProgressReporterInterface $progressReporter,
+        private ComparisonWorkLimit $comparisonWorkLimit,
     ) {
     }
 
@@ -65,60 +72,62 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
     public function reconcile(AssetGroupCollection $groups, PipelineContext $context): void
     {
         $candidateVideos = $this->collectCandidateVideos($groups);
-        $comparisons     = $this->buildComparisons($candidateVideos);
-        $comparisonCount = count($comparisons);
+        $started         = false;
 
-        if ($comparisonCount === 0) {
-            return;
+        try {
+            foreach ($this->buildComparisons($candidateVideos, $groups) as $comparison) {
+                if (!$started) {
+                    $this->progressReporter->section('<fg=cyan>Reconciling cross-group videos</>');
+                    $this->progressReporter->startProgress(0);
+                    $started = true;
+                }
+
+                $leftGroup  = $groups->get($comparison->leftGroupKey);
+                $rightGroup = $groups->get($comparison->rightGroupKey);
+
+                if (!$leftGroup instanceof AssetGroup || !$rightGroup instanceof AssetGroup) {
+                    $this->progressReporter->advance();
+
+                    continue;
+                }
+
+                $leftItem  = $leftGroup->getItemByPath($comparison->leftPath);
+                $rightItem = $rightGroup->getItemByPath($comparison->rightPath);
+
+                if (!$leftItem instanceof AssetItem || !$rightItem instanceof AssetItem) {
+                    $this->progressReporter->advance();
+
+                    continue;
+                }
+
+                if (!$this->shouldCompare($leftItem, $rightItem)) {
+                    $this->progressReporter->advance();
+
+                    continue;
+                }
+
+                $match = $this->videoStreamFingerprintMatcher->match($leftItem->file, $rightItem->file);
+                $this->progressReporter->advance();
+
+                if ($match->isExactDuplicate()) {
+                    $this->mergeExactDuplicate($groups, $leftGroup, $leftItem, $rightGroup, $rightItem);
+
+                    continue;
+                }
+
+                if ($match->isCandidate()) {
+                    $context->addVideoDuplicateCandidate(new VideoDuplicateCandidate(
+                        $leftItem->file->getPathname(),
+                        $rightItem->file->getPathname(),
+                        $match->reviewReason ?? 'cross-group video review required',
+                    ));
+                }
+            }
+        } finally {
+            if ($started) {
+                $this->progressReporter->finish();
+            }
         }
-
-        $this->progressReporter->section('<fg=cyan>Reconciling cross-group videos</>');
-        $this->progressReporter->startProgress($comparisonCount);
-
-        foreach ($comparisons as $comparison) {
-            $leftGroup  = $groups->get($comparison->leftGroupKey);
-            $rightGroup = $groups->get($comparison->rightGroupKey);
-
-            if (!$leftGroup instanceof AssetGroup || !$rightGroup instanceof AssetGroup) {
-                $this->progressReporter->advance();
-
-                continue;
-            }
-
-            $leftItem  = $leftGroup->getItemByPath($comparison->leftPath);
-            $rightItem = $rightGroup->getItemByPath($comparison->rightPath);
-
-            if (!$leftItem instanceof AssetItem || !$rightItem instanceof AssetItem) {
-                $this->progressReporter->advance();
-
-                continue;
-            }
-
-            if (!$this->shouldCompare($leftItem, $rightItem)) {
-                $this->progressReporter->advance();
-
-                continue;
-            }
-
-            $match = $this->videoStreamFingerprintMatcher->match($leftItem->file, $rightItem->file);
-            $this->progressReporter->advance();
-
-            if ($match->isExactDuplicate()) {
-                $this->mergeExactDuplicate($groups, $leftGroup, $leftItem, $rightGroup, $rightItem);
-
-                continue;
-            }
-
-            if ($match->isCandidate()) {
-                $context->addVideoDuplicateCandidate(new VideoDuplicateCandidate(
-                    $leftItem->file->getPathname(),
-                    $rightItem->file->getPathname(),
-                    $match->reviewReason ?? 'cross-group video review required',
-                ));
-            }
-        }
-
-        $this->progressReporter->finish();
     }
 
     /**
@@ -196,36 +205,148 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
     }
 
     /**
-     * Builds the flat comparison plan the reconciler will execute.
+     * Streams eligible pairs in the original bucket/path order using linear storage.
+     *
+     * Removed or moved left candidates skip an entire stale row. Every remaining
+     * inner-loop visit consumes budget, including cheap group/membership exclusions.
+     * A linear content-ID index excludes conflicting known identities without
+     * visiting their pairs. Unknown IDs still compare against every identity;
+     * indexed right-hand candidates preserve the original nested pathname order.
      *
      * @param array<string, list<DurationBucketedVideoCandidate>> $candidateVideos Videos bucketed by normalized duration
+     * @param AssetGroupCollection                                $groups          Live collection reflecting earlier exact merges
      *
-     * @return list<CrossGroupVideoComparisonPlan> Flat cross-group comparison plan
+     * @return Generator<int, CrossGroupVideoComparisonPlan> Lazily generated eligible comparisons
      */
-    private function buildComparisons(array $candidateVideos): array
+    private function buildComparisons(array $candidateVideos, AssetGroupCollection $groups): Generator
     {
-        $comparisons = [];
+        $visitedPairs = 0;
 
         foreach ($candidateVideos as $bucketEntries) {
-            $entryCount = count($bucketEntries);
+            $entryCount        = count($bucketEntries);
+            $groupKeys         = [];
+            $identifierIndexes = [];
+            $unknownIndexes    = [];
+
+            foreach ($bucketEntries as $index => $entry) {
+                $groupKeys[$entry->groupKey] = true;
+
+                if ($entry->item->contentIdentifier === null) {
+                    $unknownIndexes[] = $index;
+                } else {
+                    $identifierIndexes['id:' . $entry->item->contentIdentifier][] = $index;
+                }
+            }
+
+            if (count($groupKeys) < 2) {
+                continue;
+            }
 
             for ($leftIndex = 0; $leftIndex < $entryCount; ++$leftIndex) {
-                for ($rightIndex = $leftIndex + 1; $rightIndex < $entryCount; ++$rightIndex) {
-                    if ($bucketEntries[$leftIndex]->groupKey === $bucketEntries[$rightIndex]->groupKey) {
+                $left      = $bucketEntries[$leftIndex];
+                $leftGroup = $groups->get($left->groupKey);
+
+                if ((!$leftGroup instanceof AssetGroup) || (!$leftGroup->getItemByPath($left->item->file->getPathname()) instanceof AssetItem)) {
+                    continue;
+                }
+
+                foreach ($this->rightCandidateIndexes($left->item->contentIdentifier, $identifierIndexes, $unknownIndexes, $leftIndex, $entryCount) as $rightIndex) {
+                    $this->comparisonWorkLimit->assertWithinLimit(++$visitedPairs, 'cross-group video batch');
+                    $right = $bucketEntries[$rightIndex];
+
+                    if (($left->groupKey === $right->groupKey) || !$this->shouldCompare($left->item, $right->item)) {
                         continue;
                     }
 
-                    $comparisons[] = new CrossGroupVideoComparisonPlan(
-                        $bucketEntries[$leftIndex]->groupKey,
-                        $bucketEntries[$leftIndex]->item->file->getPathname(),
-                        $bucketEntries[$rightIndex]->groupKey,
-                        $bucketEntries[$rightIndex]->item->file->getPathname(),
+                    $rightGroup = $groups->get($right->groupKey);
+
+                    if ((!$rightGroup instanceof AssetGroup) || (!$rightGroup->getItemByPath($right->item->file->getPathname()) instanceof AssetItem)) {
+                        continue;
+                    }
+
+                    yield new CrossGroupVideoComparisonPlan(
+                        $left->groupKey,
+                        $left->item->file->getPathname(),
+                        $right->groupKey,
+                        $right->item->file->getPathname(),
                     );
                 }
             }
         }
+    }
 
-        return $comparisons;
+    /**
+     * Streams right-side indices allowed by the existing content-ID policy.
+     *
+     * Known IDs compare only to equal IDs and unknown IDs. Merge those two sorted
+     * index lists rather than concatenating them, preserving original pair order.
+     * An unknown left ID retains every later candidate, exactly as before.
+     *
+     * @param string|null              $contentIdentifier Left candidate's normalized content ID
+     * @param array<string, list<int>> $identifierIndexes Sorted indices per prefixed known ID
+     * @param list<int>                $unknownIndexes    Sorted indices lacking a content ID
+     * @param int                      $leftIndex         Left candidate's index in pathname order
+     * @param int                      $entryCount        Total duration-bucket candidates
+     *
+     * @return Generator<int, int> Eligible right indices in ascending order
+     */
+    private function rightCandidateIndexes(?string $contentIdentifier, array $identifierIndexes, array $unknownIndexes, int $leftIndex, int $entryCount): Generator
+    {
+        if ($contentIdentifier === null) {
+            for ($index = $leftIndex + 1; $index < $entryCount; ++$index) {
+                yield $index;
+            }
+
+            return;
+        }
+
+        $matchingIndexes  = $identifierIndexes['id:' . $contentIdentifier];
+        $matchingPosition = $this->firstPositionAfter($matchingIndexes, $leftIndex);
+        $unknownPosition  = $this->firstPositionAfter($unknownIndexes, $leftIndex);
+
+        while (true) {
+            $matchingIndex = $matchingIndexes[$matchingPosition] ?? PHP_INT_MAX;
+            $unknownIndex  = $unknownIndexes[$unknownPosition] ?? PHP_INT_MAX;
+
+            if (($matchingIndex === PHP_INT_MAX) && ($unknownIndex === PHP_INT_MAX)) {
+                return;
+            }
+
+            if ($matchingIndex < $unknownIndex) {
+                yield $matchingIndex;
+                ++$matchingPosition;
+            } else {
+                yield $unknownIndex;
+                ++$unknownPosition;
+            }
+        }
+    }
+
+    /**
+     * Finds the first later candidate in logarithmic work, avoiding repeated
+     * linear prefix scans when many Live Photos share the same duration.
+     *
+     * @param list<int> $indexes   Sorted indices in a content-ID partition
+     * @param int       $leftIndex Current candidate's index
+     *
+     * @return int Position of the first later index, or the list length
+     */
+    private function firstPositionAfter(array $indexes, int $leftIndex): int
+    {
+        $lower = 0;
+        $upper = count($indexes);
+
+        while ($lower < $upper) {
+            $middle = $lower + intdiv($upper - $lower, 2);
+
+            if ($indexes[$middle] <= $leftIndex) {
+                $lower = $middle + 1;
+            } else {
+                $upper = $middle;
+            }
+        }
+
+        return $lower;
     }
 
     /**
