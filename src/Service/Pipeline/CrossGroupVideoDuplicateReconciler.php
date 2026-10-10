@@ -23,9 +23,12 @@ use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use MagicSunday\Renamer\Service\Video\VideoStreamFingerprintMatcherInterface;
 
 use function count;
+use function intdiv;
 use function round;
 use function sprintf;
 use function usort;
+
+use const PHP_INT_MAX;
 
 /**
  * Reconciles exact-content videos that were split into different capture groups.
@@ -205,9 +208,10 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
      * Streams eligible pairs in the original bucket/path order using linear storage.
      *
      * Removed or moved left candidates skip an entire stale row. Every remaining
-     * inner-loop visit consumes budget, including cheap exclusions, so rejecting
-     * pairs cannot hide unbounded quadratic CPU work. Live Photo identity and live
-     * group membership are checked before allocating a plan or invoking ffmpeg.
+     * inner-loop visit consumes budget, including cheap group/membership exclusions.
+     * A linear content-ID index excludes conflicting known identities without
+     * visiting their pairs. Unknown IDs still compare against every identity;
+     * indexed right-hand candidates preserve the original nested pathname order.
      *
      * @param array<string, list<DurationBucketedVideoCandidate>> $candidateVideos Videos bucketed by normalized duration
      * @param AssetGroupCollection                                $groups          Live collection reflecting earlier exact merges
@@ -219,11 +223,19 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
         $visitedPairs = 0;
 
         foreach ($candidateVideos as $bucketEntries) {
-            $entryCount = count($bucketEntries);
-            $groupKeys  = [];
+            $entryCount        = count($bucketEntries);
+            $groupKeys         = [];
+            $identifierIndexes = [];
+            $unknownIndexes    = [];
 
-            foreach ($bucketEntries as $entry) {
+            foreach ($bucketEntries as $index => $entry) {
                 $groupKeys[$entry->groupKey] = true;
+
+                if ($entry->item->contentIdentifier === null) {
+                    $unknownIndexes[] = $index;
+                } else {
+                    $identifierIndexes['id:' . $entry->item->contentIdentifier][] = $index;
+                }
             }
 
             if (count($groupKeys) < 2) {
@@ -238,7 +250,7 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
                     continue;
                 }
 
-                for ($rightIndex = $leftIndex + 1; $rightIndex < $entryCount; ++$rightIndex) {
+                foreach ($this->rightCandidateIndexes($left->item->contentIdentifier, $identifierIndexes, $unknownIndexes, $leftIndex, $entryCount) as $rightIndex) {
                     $this->comparisonWorkLimit->assertWithinLimit(++$visitedPairs, 'cross-group video batch');
                     $right = $bucketEntries[$rightIndex];
 
@@ -261,6 +273,80 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
                 }
             }
         }
+    }
+
+    /**
+     * Streams right-side indices allowed by the existing content-ID policy.
+     *
+     * Known IDs compare only to equal IDs and unknown IDs. Merge those two sorted
+     * index lists rather than concatenating them, preserving original pair order.
+     * An unknown left ID retains every later candidate, exactly as before.
+     *
+     * @param string|null              $contentIdentifier Left candidate's normalized content ID
+     * @param array<string, list<int>> $identifierIndexes Sorted indices per prefixed known ID
+     * @param list<int>                $unknownIndexes    Sorted indices lacking a content ID
+     * @param int                      $leftIndex         Left candidate's index in pathname order
+     * @param int                      $entryCount        Total duration-bucket candidates
+     *
+     * @return Generator<int, int> Eligible right indices in ascending order
+     */
+    private function rightCandidateIndexes(?string $contentIdentifier, array $identifierIndexes, array $unknownIndexes, int $leftIndex, int $entryCount): Generator
+    {
+        if ($contentIdentifier === null) {
+            for ($index = $leftIndex + 1; $index < $entryCount; ++$index) {
+                yield $index;
+            }
+
+            return;
+        }
+
+        $matchingIndexes  = $identifierIndexes['id:' . $contentIdentifier];
+        $matchingPosition = $this->firstPositionAfter($matchingIndexes, $leftIndex);
+        $unknownPosition  = $this->firstPositionAfter($unknownIndexes, $leftIndex);
+
+        while (true) {
+            $matchingIndex = $matchingIndexes[$matchingPosition] ?? PHP_INT_MAX;
+            $unknownIndex  = $unknownIndexes[$unknownPosition] ?? PHP_INT_MAX;
+
+            if (($matchingIndex === PHP_INT_MAX) && ($unknownIndex === PHP_INT_MAX)) {
+                return;
+            }
+
+            if ($matchingIndex < $unknownIndex) {
+                yield $matchingIndex;
+                ++$matchingPosition;
+            } else {
+                yield $unknownIndex;
+                ++$unknownPosition;
+            }
+        }
+    }
+
+    /**
+     * Finds the first later candidate in logarithmic work, avoiding repeated
+     * linear prefix scans when many Live Photos share the same duration.
+     *
+     * @param list<int> $indexes   Sorted indices in a content-ID partition
+     * @param int       $leftIndex Current candidate's index
+     *
+     * @return int Position of the first later index, or the list length
+     */
+    private function firstPositionAfter(array $indexes, int $leftIndex): int
+    {
+        $lower = 0;
+        $upper = count($indexes);
+
+        while ($lower < $upper) {
+            $middle = $lower + intdiv($upper - $lower, 2);
+
+            if ($indexes[$middle] <= $leftIndex) {
+                $lower = $middle + 1;
+            } else {
+                $upper = $middle;
+            }
+        }
+
+        return $lower;
     }
 
     /**

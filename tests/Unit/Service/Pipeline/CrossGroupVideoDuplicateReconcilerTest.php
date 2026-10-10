@@ -29,6 +29,7 @@ use MagicSunday\Renamer\Service\Pipeline\DurationBucketedVideoCandidate;
 use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use MagicSunday\Renamer\Service\Video\VideoStreamFingerprintMatcherInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -39,6 +40,7 @@ use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
+use function array_values;
 use function implode;
 use function intdiv;
 use function memory_get_usage;
@@ -362,6 +364,41 @@ final class CrossGroupVideoDuplicateReconcilerTest extends TestCase
     }
 
     /**
+     * Interleaved known and unknown IDs retain the old nested pathname order;
+     * unknown IDs compare to every identity and equal known IDs remain eligible.
+     */
+    #[Test]
+    public function preservesComparisonOrderForInterleavedContentIdentifiers(): void
+    {
+        $groups      = $this->createDistinctGroups(5);
+        $identifiers = ['a', 'b', null, 'a', null];
+
+        foreach (array_values($groups->asArray()) as $index => $group) {
+            $item = $group->getItems()[0];
+            $group->replaceItem($item, new AssetItem($item->file, metadata: $item->metadata, contentIdentifier: $identifiers[$index]));
+        }
+
+        $visited = [];
+        $this->matcher->expects(self::exactly(8))->method('match')->willReturnCallback(static function (SplFileInfo $left, SplFileInfo $right) use (&$visited): VideoFingerprintMatch {
+            $visited[] = [$left->getBasename(), $right->getBasename()];
+
+            return new VideoFingerprintMatch(false, false, false, false, false);
+        });
+        $this->reconciler->reconcile($groups, new PipelineContext('/synthetic'));
+        self::assertSame([
+            ['video-0000.mov', 'video-0002.mov'],
+            ['video-0000.mov', 'video-0003.mov'],
+            ['video-0000.mov', 'video-0004.mov'],
+            ['video-0001.mov', 'video-0002.mov'],
+            ['video-0001.mov', 'video-0004.mov'],
+            ['video-0002.mov', 'video-0003.mov'],
+            ['video-0002.mov', 'video-0004.mov'],
+            ['video-0003.mov', 'video-0004.mov'],
+        ], $visited);
+        self::assertCount(5, $groups);
+    }
+
+    /**
      * Separate duration buckets share one batch budget, rather than resetting
      * it for every bucket and allowing unbounded aggregate work.
      */
@@ -376,13 +413,17 @@ final class CrossGroupVideoDuplicateReconcilerTest extends TestCase
     }
 
     /**
-     * Even pairs excluded by conflicting Live Photo identifiers consume work
-     * budget; otherwise cheap rejection would leave quadratic CPU work unbounded.
+     * A large duration bucket with distinct known Live Photo identifiers has no
+     * eligible stream pairs. Indexing must exclude these in linear work instead
+     * of walking every impossible pair and exhausting a one-pair budget.
+     *
+     * @param int $count Synthetic known-ID candidates, without real files or decoding
      */
     #[Test]
-    public function boundsCheapExclusionsBeforeAnyFingerprinting(): void
+    #[DataProvider('knownIdentifierBucketSizes')]
+    public function excludesDistinctKnownContentIdentifiersWithoutWalkingTheirPairs(int $count): void
     {
-        $groups = $this->createDistinctGroups(3);
+        $groups = $this->createDistinctGroups($count);
 
         foreach ($groups as $group) {
             $item = $group->getItems()[0];
@@ -391,9 +432,18 @@ final class CrossGroupVideoDuplicateReconcilerTest extends TestCase
 
         $this->matcher->expects(self::never())->method('match');
         $reconciler = new CrossGroupVideoDuplicateReconciler(new MediaCompatibilityPolicy(new MediaTypeClassifier()), $this->matcher, new ConsoleProgressReporter(new SymfonyStyle(new ArrayInput([]), $this->output)), new ComparisonWorkLimit(1));
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessageMatches('/MAX_COMPARISON_PAIRS=1/');
         $reconciler->reconcile($groups, new PipelineContext('/synthetic'));
+        self::assertCount($count, $groups);
+        self::assertSame('', $this->output->fetch());
+    }
+
+    /**
+     * @return iterable<string, array{int}> Small regression and large metadata-only collection scale
+     */
+    public static function knownIdentifierBucketSizes(): iterable
+    {
+        yield '1000 known identifiers' => [1000];
+        yield '70000 known identifiers' => [70000];
     }
 
     /**
