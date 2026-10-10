@@ -13,12 +13,16 @@ namespace MagicSunday\Renamer\Test\Integration;
 
 use DateTimeImmutable;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
+use MagicSunday\Renamer\Model\Execution\ExecutionItemType;
 use MagicSunday\Renamer\Model\OutputEntry;
 use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\Pipeline\VideoFingerprintMatch;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Service\CanonicalScorer;
 use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilder;
+use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
+use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
+use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
 use MagicSunday\Renamer\Service\HashSubGroupingServiceInterface;
 use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
@@ -41,18 +45,25 @@ use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\TargetNameResolverFactory;
 use MagicSunday\Renamer\Test\Fixtures\VirtualFlow\FlatSplFileInfoRecursiveIterator;
 use MagicSunday\Renamer\Test\Fixtures\VirtualFlow\StubMetadataAwareLivePhotoRenameStrategy;
+use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use RecursiveIteratorIterator;
+use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Filesystem\Filesystem;
 
 use function array_filter;
 use function array_map;
+use function basename;
 use function count;
+use function file_get_contents;
+use function file_put_contents;
 use function implode;
 use function sprintf;
 
@@ -61,7 +72,8 @@ use function sprintf;
  *
  * The test deliberately wires the real AssetGroup pipeline, real execution-plan
  * projection, real review mapping, and real output projection together while
- * stopping at the filesystem boundary. This gives Wave 2 a fast regression harness
+ * normally stopping at the filesystem boundary. Failure regressions also use
+ * temporary files and the real executor. This gives Wave 2 a fast regression harness
  * for role assignment, naming, warnings, fallback handling, duplicate rendering,
  * review entries, and skipped-file projection without depending on a temp workspace
  * or a real photo corpus.
@@ -73,6 +85,113 @@ use function sprintf;
 #[CoversNothing]
 final class VirtualRenameExifPipelineFlowTest extends TestCase
 {
+    use WorkspaceTrait;
+
+    /**
+     * Injects a runtime failure at the hash-grouping boundary, then runs real
+     * grouping, naming, plan projection, preview and filesystem execution. Raw
+     * files cannot acquire duplicate names, coherent prior subgroup names stay
+     * intact, and an unrelated single-file rename still executes.
+     *
+     * @param bool $existingNames Whether the affected group already has coherent subgroup names
+     */
+    #[Test]
+    #[DataProvider('classificationFailureScenarios')]
+    public function classificationFailureBlocksOnlyAffectedGroup(bool $existingNames): void
+    {
+        $workspace = $this->createTempWorkspace();
+        $groupKey  = '2024-01-01_10-00-00-000';
+        $names     = $existingNames ? [$groupKey . '.jpg', $groupKey . '-002.jpg'] : ['camera-a.jpg', 'camera-b.jpg'];
+        $files     = [];
+        $strategy  = new StubMetadataAwareLivePhotoRenameStrategy();
+
+        try {
+            foreach ($names as $index => $name) {
+                $path = $workspace . '/' . $name;
+                file_put_contents($path, 'distinct-content-' . $index);
+                $files[$name] = new SplFileInfo($path);
+                $strategy->withFile($path, $groupKey . '.jpg', new TemporalMetadata(new DateTimeImmutable('2024-01-01T10:00:00+00:00'), null));
+            }
+
+            $independentPath   = $workspace . '/independent.jpg';
+            $independentTarget = $workspace . '/2024-01-02_10-00-00-000.jpg';
+            file_put_contents($independentPath, 'independent-content');
+            $files['independent'] = new SplFileInfo($independentPath);
+            $strategy->withFile($independentPath, '2024-01-02_10-00-00-000.jpg', new TemporalMetadata(new DateTimeImmutable('2024-01-02T10:00:00+00:00'), null));
+            $hashService = $this->createMock(HashSubGroupingServiceInterface::class);
+            $hashService->expects(self::once())->method('apply')->willThrowException(new RuntimeException('synthetic analysis failure'));
+            $hashService->expects(self::once())->method('clearCache');
+            $pipeline = $this->createPipeline($workspace, '', '', $hashService);
+            $result   = $pipeline->run($this->createFileIterator($files), $strategy, new TargetBasenameStrategy(), $workspace, true);
+            self::assertTrue($result->validationResult->isValid());
+            $plan = new ExecutionPlanBuilder()->build($result->groups, $result->context);
+            self::assertSame(1, $plan->executableItemCount());
+            self::assertSame($existingNames ? 0 : 2, $plan->nonExecutableItemCount());
+            $entries = $this->createRenderer()->buildOutputEntriesFromPlan($plan, new RenameOptions(), $result->context->toRenameResult(), $workspace)->entries;
+            self::assertCount(3, $entries, 'Failed classification must not generate Duplicate-of explanations.');
+
+            foreach ($plan->groups as $group) {
+                foreach ($group->items as $item) {
+                    if ($item->sourcePath === $independentPath) {
+                        self::assertTrue($item->isExecutable);
+
+                        continue;
+                    }
+
+                    self::assertFalse($item->isExecutable);
+                    self::assertNotSame(ExecutionItemType::Duplicate, $item->type);
+
+                    if (!$existingNames) {
+                        self::assertStringContainsString('synthetic analysis failure', $item->executionBlockReason ?? '');
+                        self::assertSame($item->executionBlockReason, $this->findRenameEntry($entries, basename($item->sourcePath))->warningReason);
+                    }
+                }
+            }
+
+            foreach ($names as $name) {
+                $entry = $this->findRenameEntry($entries, $name);
+                self::assertSame($existingNames ? OutputEntryTag::Original : OutputEntryTag::Warning, $entry->tag);
+                self::assertFalse($entry->shouldPerformOperation);
+            }
+
+            $reporter = new NullProgressReporter();
+            $executor = new ExecutionPlanExecutor($reporter, new RuntimeFileMoveExecutor($reporter, new Filesystem(), new RuntimeCollisionPathAllocator()));
+            $executor->executePlan($plan, true);
+            self::assertFileExists($independentPath);
+            self::assertFileDoesNotExist($independentTarget);
+            $execution = $executor->executePlan($plan);
+            self::assertSame(1, $execution->executedMoves);
+            self::assertSame(0, $execution->runtimeErrors);
+            self::assertSame('independent-content', file_get_contents($independentTarget));
+            self::assertFileDoesNotExist($independentPath);
+
+            foreach ($names as $index => $name) {
+                self::assertSame('distinct-content-' . $index, file_get_contents($workspace . '/' . $name));
+            }
+
+            foreach ($plan->groups as $group) {
+                foreach ($group->items as $item) {
+                    if (!$item->isExecutable && !$item->isNoOp) {
+                        self::assertFileDoesNotExist($item->targetPath);
+                    }
+                }
+            }
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Covers both previously unprocessed captures and stable subgroup filenames.
+     *
+     * @return iterable<string, array{bool}> Existing-name preservation scenarios
+     */
+    public static function classificationFailureScenarios(): iterable
+    {
+        yield 'raw camera names' => [false];
+        yield 'existing subgroup names' => [true];
+    }
+
     /**
      * Verifies that the virtual `rename:exif` harness exercises the real semantic flow:
      *
@@ -360,19 +479,26 @@ final class VirtualRenameExifPipelineFlowTest extends TestCase
      * real role assignment, real naming, real collision resolution, and real review
      * mapping, while the expensive hash and stream boundaries stay deterministic.
      *
-     * @param string $sourceDirectory Virtual source root used by CanonicalScorer
-     * @param string $reviewLeftPath  First video of the review-only pair
-     * @param string $reviewRightPath Second video of the review-only pair
+     * @param string                               $sourceDirectory Virtual source root used by CanonicalScorer
+     * @param string                               $reviewLeftPath  First video of the review-only pair
+     * @param string                               $reviewRightPath Second video of the review-only pair
+     * @param HashSubGroupingServiceInterface|null $hashService     Injected analysis failure boundary, or null for normal grouping
      */
     private function createPipeline(
         string $sourceDirectory,
         string $reviewLeftPath,
         string $reviewRightPath,
+        ?HashSubGroupingServiceInterface $hashService = null,
     ): AssetGroupPipeline {
+        if (!$hashService instanceof HashSubGroupingServiceInterface) {
+            $hashService = self::createStub(HashSubGroupingServiceInterface::class);
+            $hashService->method('apply')->willReturn(null);
+        }
+
         $progressReporter          = new NullProgressReporter();
         $mediaTypeClassifier       = new MediaTypeClassifier();
         $mediaCompatibilityPolicy  = new MediaCompatibilityPolicy($mediaTypeClassifier);
-        $hashSubGroupingService    = self::createStub(HashSubGroupingServiceInterface::class);
+        $hashSubGroupingService    = $hashService;
         $perceptualHashCalculator  = self::createStub(PerceptualHashCalculatorInterface::class);
         $videoFingerprintMatcher   = self::createStub(VideoStreamFingerprintMatcherInterface::class);
         $canonicalScorer           = new CanonicalScorer();
@@ -382,10 +508,6 @@ final class VirtualRenameExifPipelineFlowTest extends TestCase
         $companionDetector         = new CompanionDetector($mediaCompatibilityPolicy);
         $roleAssigner              = new RoleAssigner($canonicalScorer, $companionDetector, $mediaCompatibilityPolicy);
         $crossGroupVideoReconciler = new CrossGroupVideoDuplicateReconciler($mediaCompatibilityPolicy, $videoFingerprintMatcher, $progressReporter);
-
-        $hashSubGroupingService
-            ->method('apply')
-            ->willReturn(null);
 
         $videoFingerprintMatcher
             ->method('match')

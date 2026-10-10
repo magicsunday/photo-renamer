@@ -22,8 +22,8 @@ use MagicSunday\Renamer\Service\HashSubGroupingServiceInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
 use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use Override;
+use RuntimeException;
 use SplFileInfo;
-use Throwable;
 
 use function sprintf;
 
@@ -108,8 +108,9 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
      * Classifies a single group by bridging to HashSubGroupingService.
      *
      * Atomic per group: clusterId assignments are collected in a temporary map and
-     * applied to items only after the entire mapping step succeeds. If any step throws,
-     * no items are modified and the group is marked as classification-degraded.
+     * applied to items only after the entire mapping step succeeds. Runtime failures
+     * mark the group as classification-degraded before any cluster assignments are
+     * applied. Logic exceptions and PHP errors propagate.
      *
      * @param AssetGroup $group The group to classify
      */
@@ -241,9 +242,11 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
             }
 
             $group->markClassificationSucceeded();
-        } catch (Throwable $exception) {
+        } catch (RuntimeException $exception) {
             // Atomic guarantee: no partial clusterIds were applied because assignments
             // are collected in a temporary map and only applied after full success.
+            // Runtime analysis failures degrade this group. Logic exceptions and PHP
+            // errors deliberately propagate rather than masquerading as media failures.
             $group->markClassificationFailed($exception->getMessage());
             $group->addDecision(sprintf('Subgroup classification failed: %s', $exception->getMessage()));
         }

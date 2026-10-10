@@ -13,6 +13,8 @@ namespace MagicSunday\Renamer\Test\Unit\Service\Pipeline;
 
 use Closure;
 use DateTimeImmutable;
+use Error;
+use LogicException;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\AssetGroup;
@@ -31,6 +33,7 @@ use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifier;
 use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifierInterface;
 use MagicSunday\Renamer\Service\Reporting\NullProgressReporter;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -508,5 +511,51 @@ final class SubgroupClassifierTest extends TestCase
 
         // Verify group was marked degraded (exception was caught, not re-thrown)
         self::assertTrue($group->isClassificationDegraded());
+    }
+
+    /**
+     * Ensures PHP engine errors are not converted into a recoverable media
+     * degradation. A TypeError or other Error indicates a programming defect
+     * and must remain visible to the caller after cache cleanup.
+     *
+     * @param Error|LogicException $failure Programming failure injected at the analysis boundary
+     */
+    #[Test]
+    #[DataProvider('programmingFailures')]
+    public function programmingErrorsPropagateAfterCacheCleanup(Error|LogicException $failure): void
+    {
+        $item1 = new AssetItem(new SplFileInfo('/photos/IMG_0001.jpg'));
+        $item2 = new AssetItem(new SplFileInfo('/photos/IMG_0002.jpg'));
+
+        $group = new AssetGroup('2024-01-01_12-00-00');
+        $group->addItem($item1);
+        $group->addItem($item2);
+
+        $groups = new AssetGroupCollection();
+        $groups->set('2024-01-01_12-00-00', $group);
+
+        $this->hashSubGroupingService
+            ->expects(self::once())
+            ->method('apply')
+            ->willThrowException($failure);
+
+        $this->hashSubGroupingService
+            ->expects(self::once())
+            ->method('clearCache');
+
+        $this->expectExceptionObject($failure);
+
+        $this->classifier->classify($groups);
+    }
+
+    /**
+     * Provides both PHP engine failures and explicit programming-contract failures.
+     *
+     * @return iterable<string, array{Error|LogicException}> Failures that must escape classification
+     */
+    public static function programmingFailures(): iterable
+    {
+        yield 'engine error' => [new Error('unexpected programming error')];
+        yield 'logic exception' => [new LogicException('unexpected programming error')];
     }
 }

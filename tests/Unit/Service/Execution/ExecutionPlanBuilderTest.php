@@ -364,7 +364,9 @@ final class ExecutionPlanBuilderTest extends TestCase
     }
 
     /**
-     * Degraded group is still projected, with a warning in the decision log.
+     * A degraded multi-item group remains visible in the plan, but every
+     * proposed mutation is blocked with the classification cause. This prevents
+     * duplicate or subgroup names from being treated as proven identity.
      */
     #[Test]
     public function degradedGroupStillProjectedWithWarning(): void
@@ -372,9 +374,11 @@ final class ExecutionPlanBuilderTest extends TestCase
         $builder = new ExecutionPlanBuilder();
         $context = new PipelineContext('/photos');
 
-        $item = new AssetItem(new SplFileInfo('/photos/IMG_0001.heic'), ItemRole::Canonical)
+        $canonical = new AssetItem(new SplFileInfo('/photos/IMG_0001.heic'), ItemRole::Canonical)
             ->withProposedName('/photos/2024-01-01_12-00-00-000.heic');
-        $group = $this->createGroup('g1', [$item]);
+        $duplicate = new AssetItem(new SplFileInfo('/photos/IMG_0002.jpg'), ItemRole::Duplicate)
+            ->withProposedName('/photos/2024-01-01_12-00-00-000-duplicate-001.jpg');
+        $group = $this->createGroup('g1', [$canonical, $duplicate]);
         $group->markClassificationFailed('Imagick not available');
 
         $groups = new AssetGroupCollection();
@@ -389,6 +393,49 @@ final class ExecutionPlanBuilderTest extends TestCase
         self::assertNotEmpty($decisionLog);
         self::assertStringContainsString('degraded', $decisionLog[0]);
         self::assertStringContainsString('Imagick not available', $decisionLog[0]);
+
+        foreach ($plan->groups[0]->items as $executionItem) {
+            self::assertFalse($executionItem->isExecutable);
+            self::assertNotNull($executionItem->executionBlockReason);
+            self::assertStringContainsString('Subgroup classification failed', $executionItem->executionBlockReason);
+            self::assertStringContainsString('Imagick not available', $executionItem->executionBlockReason);
+        }
+
+        self::assertSame(0, $plan->executableItemCount());
+        self::assertSame(2, $plan->nonExecutableItemCount());
+        self::assertTrue($plan->groups[0]->items[1]->isDuplicateTarget);
+        self::assertSame(ExecutionItemType::Ambiguous, $plan->groups[0]->items[1]->type);
+    }
+
+    /**
+     * A no-op from the existing-subgroup-name preservation path stays harmless,
+     * while a separate successfully classified group remains executable.
+     */
+    #[Test]
+    public function degradedNoOpsAndIndependentGroupsRemainSafe(): void
+    {
+        $degradedNoOp = new AssetItem(
+            new SplFileInfo('/photos/2024-01-01_12-00-00-000-002.jpg'),
+            ItemRole::Duplicate,
+        );
+        $degraded = $this->createGroup('degraded', [$degradedNoOp]);
+        $degraded->markClassificationFailed('analysis unavailable');
+
+        $independent = new AssetItem(new SplFileInfo('/photos/IMG_0003.heic'), ItemRole::Canonical)
+            ->withProposedName('/photos/2024-01-02_12-00-00-000.heic');
+        $healthy = $this->createGroup('healthy', [$independent]);
+        $healthy->markClassificationSucceeded();
+
+        $groups = new AssetGroupCollection();
+        $groups->set('degraded', $degraded);
+        $groups->set('healthy', $healthy);
+
+        $plan = new ExecutionPlanBuilder()->build($groups, new PipelineContext('/photos'));
+
+        self::assertTrue($plan->groups[0]->items[0]->isNoOp);
+        self::assertFalse($plan->groups[0]->items[0]->isExecutable);
+        self::assertTrue($plan->groups[1]->items[0]->isExecutable);
+        self::assertSame(1, $plan->executableItemCount());
     }
 
     /**

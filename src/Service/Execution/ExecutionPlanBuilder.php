@@ -94,10 +94,19 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
         PipelineContext $context,
         ?int $maxDateDrift = null,
     ): ExecutionGroup {
-        $orderedItems = $this->orderItems($group->getItems());
+        $orderedItems                = $this->orderItems($group->getItems());
+        $classificationFailureReason = $group->isClassificationDegraded()
+            ? ($group->getClassificationFailureReason() ?? 'unknown')
+            : null;
 
         $executionItems = array_map(
-            fn (AssetItem $item): ExecutionItem => $this->projectItem($item, $group->groupKey, $context, $maxDateDrift),
+            fn (AssetItem $item): ExecutionItem => $this->projectItem(
+                $item,
+                $group->groupKey,
+                $context,
+                $maxDateDrift,
+                $classificationFailureReason,
+            ),
             $orderedItems,
         );
 
@@ -105,10 +114,9 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
         $companions  = $group->getCompanions();
         $decisionLog = $group->getDecisionLog();
 
-        if ($group->isClassificationDegraded()) {
-            $reason      = $group->getClassificationFailureReason() ?? 'unknown';
+        if ($classificationFailureReason !== null) {
             $decisionLog = [
-                sprintf('Classification degraded: %s', $reason),
+                sprintf('Classification degraded: %s', $classificationFailureReason),
                 ...$decisionLog,
             ];
         }
@@ -127,12 +135,16 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
      *
      * This is the final step where pipeline state flags are translated into runtime
      * execution decisions. Items can be blocked here due to Live Photo conflicts,
-     * ambiguous timezones, fallback dates, or because the rename is a no-op.
+     * ambiguous timezones, fallback dates, degraded subgroup classification, or
+     * because the rename is a no-op. A degraded group keeps no-op preservation
+     * and cannot block unrelated groups; every mutation in the affected group
+     * remains blocked until classification succeeds.
      *
-     * @param AssetItem       $item         Source asset item
-     * @param string          $groupKey     Group key the item belongs to
-     * @param PipelineContext $context      Current pipeline context with quality flags
-     * @param int|null        $maxDateDrift Maximum permitted filename-date drift
+     * @param AssetItem       $item                        Source asset item
+     * @param string          $groupKey                    Group key the item belongs to
+     * @param PipelineContext $context                     Current pipeline context with quality flags
+     * @param int|null        $maxDateDrift                Maximum permitted filename-date drift
+     * @param string|null     $classificationFailureReason Group-level classification failure, if any
      *
      * @return ExecutionItem Execution-layer representation of the item
      */
@@ -141,6 +153,7 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
         string $groupKey,
         PipelineContext $context,
         ?int $maxDateDrift = null,
+        ?string $classificationFailureReason = null,
     ): ExecutionItem {
         $sourcePath     = $item->file->getPathname();
         $targetPath     = $item->proposedName ?? $sourcePath;
@@ -160,8 +173,14 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
         $executionBlockReason = null;
 
         if ($isNoOp) {
+            // No reason needed — it is already at the requested path.
             $isExecutable = false;
-        // No reason needed — it's a no-op, not a block
+        } elseif ($classificationFailureReason !== null) {
+            $isExecutable         = false;
+            $executionBlockReason = sprintf(
+                'Subgroup classification failed: %s; rename withheld until analysis succeeds',
+                $classificationFailureReason,
+            );
         } elseif ($isLivePhotoConflict) {
             $isExecutable         = false;
             $executionBlockReason = 'Live Photo conflict: conflicting content identifiers across groups';
@@ -181,7 +200,9 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
         return new ExecutionItem(
             sourcePath: $sourcePath,
             targetPath: $targetPath,
-            type: $this->mapItemType($item->role),
+            type: (($classificationFailureReason !== null) && ($item->role === ItemRole::Duplicate))
+                ? ExecutionItemType::Ambiguous
+                : $this->mapItemType($item->role),
             renameRequired: $renameRequired,
             isNoOp: $isNoOp,
             groupKey: $groupKey,
