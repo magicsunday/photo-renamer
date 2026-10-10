@@ -11,9 +11,8 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\PerceptualHash;
 
+use MagicSunday\Renamer\Helper\PrivateCacheStorage;
 use SplFileInfo;
-use Symfony\Component\Filesystem\Exception\IOException;
-use Symfony\Component\Filesystem\Filesystem;
 
 use function is_array;
 use function json_decode;
@@ -60,20 +59,14 @@ final class PerceptualSignalCache
     private bool $dirty = false;
 
     /**
-     * Symfony Filesystem component for disk operations.
-     */
-    private readonly Filesystem $filesystem;
-
-    /**
-     * @param string     $cacheFile  The full path to the JSON cache file. The file
-     *                               does not need to exist yet; it will be created on flush().
-     * @param Filesystem $filesystem Symfony Filesystem component for disk operations.
+     * @param string              $cacheFile The full path to the JSON cache file. The file
+     *                                       does not need to exist yet; it will be created on flush().
+     * @param PrivateCacheStorage $storage   Private atomic cache storage boundary
      */
     public function __construct(
         private readonly string $cacheFile,
-        ?Filesystem $filesystem = null,
+        private readonly PrivateCacheStorage $storage,
     ) {
-        $this->filesystem = $filesystem ?? new Filesystem();
         $this->load();
     }
 
@@ -147,7 +140,7 @@ final class PerceptualSignalCache
             return;
         }
 
-        $this->filesystem->dumpFile(
+        $this->storage->write(
             $this->cacheFile,
             json_encode(
                 ['_version' => self::CACHE_VERSION, 'entries' => $this->entries],
@@ -166,13 +159,9 @@ final class PerceptualSignalCache
      */
     private function load(): void
     {
-        if (!$this->filesystem->exists($this->cacheFile)) {
-            return;
-        }
+        $contents = $this->storage->read($this->cacheFile);
 
-        try {
-            $contents = $this->filesystem->readFile($this->cacheFile);
-        } catch (IOException) {
+        if ($contents === null) {
             return;
         }
 

@@ -11,9 +11,11 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service\PerceptualHash;
 
+use MagicSunday\Renamer\Helper\PrivateCacheStorage;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualSignalCache;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
 use Symfony\Component\Filesystem\Filesystem;
@@ -50,6 +52,7 @@ use const DIRECTORY_SEPARATOR;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(PerceptualSignalCache::class)]
+#[UsesClass(PrivateCacheStorage::class)]
 final class PerceptualSignalCacheTest extends TestCase
 {
     private string $workspace;
@@ -276,13 +279,13 @@ final class PerceptualSignalCacheTest extends TestCase
     }
 
     /**
-     * Verifies that non-container callers can still construct the cache without
-     * passing a filesystem collaborator explicitly.
+     * Verifies that manual callers supply the private storage boundary explicitly
+     * and a missing file still starts with an empty cache.
      */
     #[Test]
-    public function constructionWithoutFilesystemUsesDefaultFilesystem(): void
+    public function constructionWithExplicitPrivateStorageStartsEmpty(): void
     {
-        $cache = new PerceptualSignalCache($this->cacheFile);
+        $cache = new PerceptualSignalCache($this->cacheFile, new PrivateCacheStorage(new Filesystem()));
 
         self::assertNull($cache->get(new SplFileInfo('/any/file.jpg')));
     }
@@ -297,6 +300,6 @@ final class PerceptualSignalCacheTest extends TestCase
      */
     private function createCache(): PerceptualSignalCache
     {
-        return new PerceptualSignalCache($this->cacheFile, new Filesystem());
+        return new PerceptualSignalCache($this->cacheFile, new PrivateCacheStorage(new Filesystem()));
     }
 }

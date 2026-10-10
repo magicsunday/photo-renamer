@@ -18,6 +18,7 @@ use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\FilenameDateParser;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Helper\PathHelper;
+use MagicSunday\Renamer\Helper\PrivateCacheStorage;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\MetadataCache;
 use MagicSunday\Renamer\Metadata\MetadataCacheEntry;
@@ -284,6 +285,7 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(ConsoleProgressReporter::class)]
 #[UsesClass(TargetFileResolver::class)]
 #[UsesClass(TargetPathResolver::class)]
+#[UsesClass(PrivateCacheStorage::class)]
 final class RenameByExifDateCommandTest extends TestCase
 {
     /**

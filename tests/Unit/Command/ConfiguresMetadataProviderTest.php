@@ -14,6 +14,7 @@ namespace MagicSunday\Renamer\Test\Unit\Command;
 use DateTimeZone;
 use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\PrivateCacheStorage;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\MetadataCache;
 use MagicSunday\Renamer\Metadata\MetadataCacheEntry;
@@ -33,6 +34,7 @@ use Symfony\Component\Filesystem\Filesystem;
 use function dirname;
 use function getenv;
 use function is_string;
+use function posix_geteuid;
 use function putenv;
 use function realpath;
 use function str_starts_with;
@@ -52,6 +54,7 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(MetadataCacheEntry::class)]
 #[UsesClass(PerceptualSignalCache::class)]
 #[UsesClass(ExifMetadataProvider::class)]
+#[UsesClass(PrivateCacheStorage::class)]
 final class ConfiguresMetadataProviderTest extends TestCase
 {
     /**
@@ -72,6 +75,7 @@ final class ConfiguresMetadataProviderTest extends TestCase
             $expectedPrefix = $projectRoot
                 . DIRECTORY_SEPARATOR . '.build'
                 . DIRECTORY_SEPARATOR . 'cache'
+                . DIRECTORY_SEPARATOR . 'private-' . posix_geteuid()
                 . DIRECTORY_SEPARATOR;
             $sourcePrefix = $projectRoot
                 . DIRECTORY_SEPARATOR . 'src'

@@ -15,6 +15,7 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Helper\FilenameDateParser;
+use MagicSunday\Renamer\Helper\PrivateCacheStorage;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\MetadataCache;
 use MagicSunday\Renamer\Metadata\MetadataCacheEntry;
@@ -57,6 +58,7 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(TemporalMetadata::class)]
 #[UsesClass(MetadataCache::class)]
 #[UsesClass(MetadataCacheEntry::class)]
+#[UsesClass(PrivateCacheStorage::class)]
 final class ExifMetadataProviderTest extends TestCase
 {
     /**
@@ -218,7 +220,7 @@ final class ExifMetadataProviderTest extends TestCase
             $file = new SplFileInfo($filePath);
 
             // Pre-populate the persistent cache
-            $cache = new MetadataCache($cacheFile, new Filesystem());
+            $cache = new MetadataCache($cacheFile, new PrivateCacheStorage(new Filesystem()));
             $cache->set($file, new TemporalMetadata(
                 new DateTimeImmutable('2024-05-05T12:34:56+02:00'),
                 'uuid-1234',
@@ -226,7 +228,7 @@ final class ExifMetadataProviderTest extends TestCase
             $cache->flush();
 
             // Create a fresh cache instance that loads from disk
-            $freshCache = new MetadataCache($cacheFile, new Filesystem());
+            $freshCache = new MetadataCache($cacheFile, new PrivateCacheStorage(new Filesystem()));
 
             // The extractor should NOT be called — we verify by not registering a response
             $metadataExtractor = new StubMetadataExtractor();
@@ -287,7 +289,7 @@ final class ExifMetadataProviderTest extends TestCase
                 ),
             );
 
-            $cache    = new MetadataCache($cacheFile, new Filesystem());
+            $cache    = new MetadataCache($cacheFile, new PrivateCacheStorage(new Filesystem()));
             $provider = new ExifMetadataProvider($metadataExtractor);
             $provider->setCache($cache);
 
@@ -299,7 +301,7 @@ final class ExifMetadataProviderTest extends TestCase
             $cache->flush();
 
             // Load from disk — the entry should be present
-            $freshCache = new MetadataCache($cacheFile, new Filesystem());
+            $freshCache = new MetadataCache($cacheFile, new PrivateCacheStorage(new Filesystem()));
             $entry      = $freshCache->get($file);
 
             self::assertNotNull($entry);
@@ -347,7 +349,7 @@ final class ExifMetadataProviderTest extends TestCase
                 ),
             );
 
-            $cache    = new MetadataCache($cacheFile, new Filesystem());
+            $cache    = new MetadataCache($cacheFile, new PrivateCacheStorage(new Filesystem()));
             $provider = new ExifMetadataProvider($metadataExtractor);
             $provider->setCache($cache);
 

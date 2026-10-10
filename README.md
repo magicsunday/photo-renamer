@@ -307,10 +307,20 @@ cp .env.dist .env
 | `TIMEZONE` | `Europe/Berlin` | Default timezone for video files without timezone metadata (see above).      |
 | `MAX_DATE_DRIFT` | `7`     | Maximum date drift in days between source filename date and target date. Set to `0` to disable. |
 | `MERGE_THRESHOLD` | `0.06`  | Maximum RMSE (0.0–1.0) for merging visually similar files. Internal safe limits still cap the effective threshold. See `--merge-threshold`. |
-| `CACHE_DIR` | `.build/cache` | Directory for the persistent metadata cache. Speeds up subsequent runs by skipping unchanged files. |
+| `CACHE_DIR` | `.build/cache` | Base for private per-UID metadata and perceptual caches. Speeds up subsequent runs by skipping unchanged files. |
 | `FILE_LINK_ROOT` | *(empty)* | Source path as seen inside Docker/NAS (e.g. `/srv/photos`). |
 | `FILE_LINK_BASE` | *(empty)* | Same path as seen from the terminal host (e.g. `Z:\Photos`). |
 | `FILE_LINK_PROTOCOL` | *(empty)* | URI scheme for clickable links: empty = `file://` (opens directory), `photo-select` = custom protocol (opens Explorer with file selected). |
+
+### Private caches and migration
+
+Metadata caches contain absolute media paths, capture times and possibly GPS/device information. Both JSON caches live in `CACHE_DIR/private-<effective UID>/`, using the actual container UID (`USERID`) and GID (`GROUPID`). On Unix filesystems the directory is `0700` and files are `0600`, including the populated temporary file used for atomic replacement, independently of `umask 0022`. Existing owned private directories and files have their permissions corrected. Shared parents are not chmodded; each user needs permission to create their own child. Changing UID starts a separate cold cache.
+
+Old flat `metadata-cache.json` and `perceptual-signal-cache.json` files are **not imported**. Before upgrading, run `make cache-clear` with the old `CACHE_DIR` and original UID to remove owned legacy copies. Repeat for any previous cache bases; merely upgrading does not remove old files. The command also purges the current user's private JSON caches and the owned `.build/cache/DependencyContainer.php`. Other users' private children and unrelated files remain untouched. Foreign-owned files, symlinks and hardlinks are rejected; resolve these explicitly as the owner instead of broadening permissions.
+
+Caches have no automatic expiration. Keep them only while repeated analysis needs them, and run `make cache-clear` after processing when the retained paths/locations are no longer needed. Purging removes files; it does not promise forensic erasure from disks, snapshots or backups. Cache freshness, growth and concurrent-writer consistency are separate concerns.
+
+The executable DI cache stays in `.build/cache/DependencyContainer.php`, outside the private JSON child, and must be protected like application code. Keep the project and cache parents under trusted control: permission/ownership checks do not provide atomic protection against a hostile process replacing directories. Network filesystems and ACL policies must enforce the same owner-only access. `make cache-permissions-check` verifies synthetic GPS/path isolation between two real unprivileged UIDs in a disposable Docker container; it does not use your media.
 
 ### Clickable file paths in terminal output
 
