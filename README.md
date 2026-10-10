@@ -276,6 +276,7 @@ After processing, a summary table shows scanned files, skipped files (no metadat
 ## 🔒 Behaviour & guarantees
 
 - **Failed subgroup analysis:** `rename:exif` skips mutations in the affected capture group and shows the failure reason as a warning. Coherent existing subgroup names remain unchanged; unrelated groups can still be renamed. Retry after resolving the analysis failure. A proposed duplicate filename in a blocked entry is not proof of duplicate identity.
+- **Multi-track videos:** Cross-group exact-video matching supports one video stream and at most one audio stream. A matching primary video with additional AV tracks remains a review candidate with an explicit reason; it is not automatically merged.
 - **Dry-run first:** All commands support `--dry-run` to preview changes before touching files.
 - **Idempotent:** Running the same command twice produces the same result. Files already carrying the correct name keep their name. Duplicate suffixes and hash sub-group numbers are stable across re-runs.
 - **Smart time formatting:** When a file's EXIF date has no time information (midnight with zero subseconds), the time portion is omitted from the filename (e.g. `2011-09-09.jpg` instead of `2011-09-09_00-00-00-000.jpg`). Works with any `--target-filename-pattern`.

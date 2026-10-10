@@ -25,14 +25,16 @@ namespace MagicSunday\Renamer\Service\Video;
 final readonly class VideoStreamFingerprint
 {
     /**
-     * @param string|null $videoHash SHA-256 of the first video stream, or null when unavailable
-     * @param string|null $audioHash SHA-256 of the first audio stream, or null when unavailable
-     * @param bool        $hasAudio  Indicates whether an audio stream was observed at all
+     * @param string|null $videoHash              SHA-256 of the first video stream, or null when unavailable
+     * @param string|null $audioHash              SHA-256 of the first audio stream, or null when unavailable
+     * @param bool        $hasAudio               Indicates whether an audio stream was observed at all
+     * @param bool        $hasAdditionalAvStreams More than one video or audio stream was observed; primary hashes cannot prove full equality
      */
     public function __construct(
         public ?string $videoHash,
         public ?string $audioHash,
         public bool $hasAudio,
+        public bool $hasAdditionalAvStreams = false,
     ) {
     }
 }

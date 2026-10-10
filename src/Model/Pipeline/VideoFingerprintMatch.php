@@ -26,12 +26,13 @@ namespace MagicSunday\Renamer\Model\Pipeline;
 final readonly class VideoFingerprintMatch
 {
     /**
-     * @param bool        $videoStreamMatched    True when the primary video streams are byte-identical after container metadata is ignored.
-     * @param bool        $audioStreamMatched    True when both sides have an audio stream and those streams are byte-identical.
-     * @param bool        $bothWithoutAudio      True when neither side exposes an audio stream.
-     * @param bool        $missingAudioOnOneSide True when exactly one side lacks audio.
-     * @param bool        $audioMismatch         True when both sides have audio but the hashes differ.
-     * @param string|null $reviewReason          Human-readable reason used for review-only cases.
+     * @param bool        $videoStreamMatched     True when the primary video streams are byte-identical after container metadata is ignored.
+     * @param bool        $audioStreamMatched     True when both sides have an audio stream and those streams are byte-identical.
+     * @param bool        $bothWithoutAudio       True when neither side exposes an audio stream.
+     * @param bool        $missingAudioOnOneSide  True when exactly one side lacks audio.
+     * @param bool        $audioMismatch          True when both sides have audio but the hashes differ.
+     * @param string|null $reviewReason           Human-readable reason used for review-only cases.
+     * @param bool        $hasAdditionalAvStreams True when either file contains additional AV streams whose full equality is unproven.
      */
     public function __construct(
         public bool $videoStreamMatched,
@@ -40,6 +41,7 @@ final readonly class VideoFingerprintMatch
         public bool $missingAudioOnOneSide,
         public bool $audioMismatch,
         public ?string $reviewReason = null,
+        public bool $hasAdditionalAvStreams = false,
     ) {
     }
 
@@ -48,13 +50,14 @@ final readonly class VideoFingerprintMatch
      *
      * Exact duplicate policy allows either matching video+audio streams or
      * matching video streams on both-audio-less files. Any asymmetric or mismatched
-     * audio situation stays review-only.
+     * audio situation stays review-only. Additional AV streams veto exact matching
+     * because primary-stream hashes alone cannot establish their equality.
      *
      * @return bool True when the matcher produced exact-content duplicate evidence.
      */
     public function isExactDuplicate(): bool
     {
-        return $this->videoStreamMatched && ($this->audioStreamMatched || $this->bothWithoutAudio);
+        return !$this->hasAdditionalAvStreams && $this->videoStreamMatched && ($this->audioStreamMatched || $this->bothWithoutAudio);
     }
 
     /**
@@ -67,6 +70,6 @@ final readonly class VideoFingerprintMatch
      */
     public function isCandidate(): bool
     {
-        return $this->videoStreamMatched && ($this->missingAudioOnOneSide || $this->audioMismatch);
+        return $this->videoStreamMatched && ($this->missingAudioOnOneSide || $this->audioMismatch || $this->hasAdditionalAvStreams);
     }
 }

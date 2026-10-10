@@ -60,7 +60,8 @@ final class VideoStreamFingerprintMatcher implements VideoStreamFingerprintMatch
      * Compares two videos by hashing their primary video stream and optional audio stream.
      *
      * Non-A/V streams are deliberately ignored so container-only noise does not block
-     * a valid exact-content match. The returned DTO leaves the final merge policy to
+     * a valid exact-content match. Additional AV streams force review because their
+     * identity is not established by the primary hashes. The DTO leaves merge policy to
      * the calling reconciler.
      *
      * @param SplFileInfo $fileA First video file to compare
@@ -78,6 +79,18 @@ final class VideoStreamFingerprintMatcher implements VideoStreamFingerprintMatch
 
         if (!$videoStreamMatched) {
             return new VideoFingerprintMatch(false, false, false, false, false);
+        }
+
+        if ($fingerprintA->hasAdditionalAvStreams || $fingerprintB->hasAdditionalAvStreams) {
+            return new VideoFingerprintMatch(
+                true,
+                false,
+                false,
+                false,
+                false,
+                'primary video stream identical, additional audio/video streams require review',
+                hasAdditionalAvStreams: true,
+            );
         }
 
         if (!$fingerprintA->hasAudio && !$fingerprintB->hasAudio) {
@@ -155,8 +168,10 @@ final class VideoStreamFingerprintMatcher implements VideoStreamFingerprintMatch
             return $this->fingerprintCache[$cacheKey] = new VideoStreamFingerprint(null, null, false);
         }
 
-        $videoHash = null;
-        $audioHash = null;
+        $videoHash        = null;
+        $audioHash        = null;
+        $videoStreamCount = 0;
+        $audioStreamCount = 0;
 
         foreach (explode("\n", trim($process->getOutput())) as $line) {
             if ($line === '') {
@@ -169,12 +184,14 @@ final class VideoStreamFingerprintMatcher implements VideoStreamFingerprintMatch
                 continue;
             }
 
-            if (($parsedLine->type === StreamHashType::Video) && ($videoHash === null)) {
-                $videoHash = $parsedLine->hash;
+            if ($parsedLine->type === StreamHashType::Video) {
+                ++$videoStreamCount;
+                $videoHash ??= $parsedLine->hash;
             }
 
-            if (($parsedLine->type === StreamHashType::Audio) && ($audioHash === null)) {
-                $audioHash = $parsedLine->hash;
+            if ($parsedLine->type === StreamHashType::Audio) {
+                ++$audioStreamCount;
+                $audioHash ??= $parsedLine->hash;
             }
         }
 
@@ -182,6 +199,7 @@ final class VideoStreamFingerprintMatcher implements VideoStreamFingerprintMatch
             $videoHash,
             $audioHash,
             $audioHash !== null,
+            ($videoStreamCount > 1) || ($audioStreamCount > 1),
         );
     }
 
