@@ -18,6 +18,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 
 /**
  * Verifies the formatter used for dedup command output.
@@ -35,6 +36,19 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(SummaryRow::class)]
 final class DedupReportFormatterTest extends TestCase
 {
+    /**
+     * File-derived details must remain literal text rather than interpret a
+     * filename containing Console color markup as a styled success message.
+     */
+    #[Test]
+    public function formatQuarantineErrorEscapesFilenameMarkup(): void
+    {
+        self::assertSame(
+            'Quarantine blocked: symbolic link "<info>success</info>"',
+            new OutputFormatter()->format(new DedupReportFormatter()->formatQuarantineError('symbolic link "<info>success</info>"')),
+        );
+    }
+
     /**
      * Verifies that the overview reports duplicate/actionable/orphan counts and
      * includes the action line when duplicates can actually be processed.

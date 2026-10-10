@@ -17,6 +17,7 @@ use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Service\Dedup\DedupOriginalMatcher;
 use MagicSunday\Renamer\Service\Dedup\DedupReportFormatter;
 use MagicSunday\Renamer\Service\Dedup\DuplicateDeletionGuard;
+use MagicSunday\Renamer\Service\Dedup\QuarantineTargetGuard;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use Override;
@@ -29,6 +30,7 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\Filesystem\Path;
 
 use function array_filter;
 use function count;
@@ -61,6 +63,7 @@ final class DedupCommand extends Command
      * @param RenameOutputRenderer       $renderer             Service to render output in a consistent format
      * @param Filesystem                 $filesystem           Symfony Filesystem component for file operations
      * @param DuplicateDeletionGuard     $deletionGuard        Fresh byte-identity check for permanent removal
+     * @param QuarantineTargetGuard      $quarantineGuard      Confines quarantine paths to the selected source tree
      */
     public function __construct(
         private readonly FileSystemServiceInterface $fileSystemService,
@@ -69,6 +72,7 @@ final class DedupCommand extends Command
         private readonly RenameOutputRenderer $renderer,
         private readonly Filesystem $filesystem,
         private readonly DuplicateDeletionGuard $deletionGuard,
+        private readonly QuarantineTargetGuard $quarantineGuard,
     ) {
         parent::__construct();
     }
@@ -150,6 +154,18 @@ final class DedupCommand extends Command
             $target = '_duplicates';
         }
 
+        $quarantineRoot = '';
+
+        if (!$delete) {
+            try {
+                $quarantineRoot = $this->quarantineGuard->resolveDirectory($sourceDirectory, $target);
+            } catch (RuntimeException $exception) {
+                $io->error($this->dedupReportFormatter->formatQuarantineError($exception->getMessage()));
+
+                return self::FAILURE;
+            }
+        }
+
         $files = $isSingleFile
             ? [new SplFileInfo($resolved)]
             : $this->fileSystemService->collectFiles($sourceDirectory);
@@ -185,6 +201,25 @@ final class DedupCommand extends Command
 
         $progressBar?->finish();
         $io->newLine(2);
+
+        // Validate the entire batch before any action, including later nested
+        // destinations. An unsafe later path must not leave earlier files moved.
+        if (!$delete) {
+            try {
+                foreach ($duplicates as $entry) {
+                    if ($entry['original'] instanceof SplFileInfo) {
+                        $this->quarantineGuard->assertSafeTarget(
+                            $sourceDirectory,
+                            $quarantineRoot . DIRECTORY_SEPARATOR . Path::makeRelative($entry['file']->getPathname(), $sourceDirectory),
+                        );
+                    }
+                }
+            } catch (RuntimeException $exception) {
+                $io->error($this->dedupReportFormatter->formatQuarantineError($exception->getMessage()));
+
+                return self::FAILURE;
+            }
+        }
 
         // Post-scan summary
         $action          = $delete ? 'delete' : 'move';
@@ -222,6 +257,7 @@ final class DedupCommand extends Command
         $orphanedCount    = 0;
         $spaceReclaimable = 0;
         $blockedCount     = 0;
+        $quarantineErrors = 0;
 
         foreach ($duplicates as $entry) {
             $file         = $entry['file'];
@@ -249,7 +285,8 @@ final class DedupCommand extends Command
             }
 
             ++$duplicatesFound;
-            $spaceReclaimable += $file->getSize();
+            $fileSize = $file->getSize();
+            $spaceReclaimable += $fileSize;
 
             if ($dryRun) {
                 if ($delete) {
@@ -282,21 +319,21 @@ final class DedupCommand extends Command
                     'Deleted',
                 );
             } else {
-                $relativeDir = PathHelper::relativizePath($file->getPath(), $sourceDirectory);
+                $targetPath = $quarantineRoot . DIRECTORY_SEPARATOR . Path::makeRelative($file->getPathname(), $sourceDirectory);
 
-                // When the file is at the root of the source directory, relativizePath
-                // returns the absolute path unchanged. In that case use the target
-                // folder directly without appending a subdirectory.
-                if ($relativeDir === $file->getPath()) {
-                    $targetDir = $sourceDirectory . DIRECTORY_SEPARATOR . $target;
-                } else {
-                    $targetDir = $sourceDirectory . DIRECTORY_SEPARATOR . $target . DIRECTORY_SEPARATOR . $relativeDir;
+                try {
+                    $this->quarantineGuard->assertSafeTarget($sourceDirectory, $targetPath);
+                    $this->filesystem->mkdir(dirname($targetPath));
+                    $this->quarantineGuard->assertSafeTarget($sourceDirectory, $targetPath);
+                    $this->filesystem->rename($file->getPathname(), $targetPath);
+                } catch (RuntimeException $exception) {
+                    ++$quarantineErrors;
+                    --$duplicatesFound;
+                    $spaceReclaimable -= $fileSize;
+                    $io->error($this->dedupReportFormatter->formatQuarantineError($exception->getMessage()));
+
+                    continue;
                 }
-
-                $targetPath = $targetDir . DIRECTORY_SEPARATOR . $file->getBasename();
-
-                $this->filesystem->mkdir($targetDir);
-                $this->filesystem->rename($file->getPathname(), $targetPath);
 
                 $targetRelativePath = $target . DIRECTORY_SEPARATOR . $relativePath;
 
@@ -317,7 +354,7 @@ final class DedupCommand extends Command
             $io->warning(sprintf('Deletion blocked for %d candidate(s); files retained.', $blockedCount));
         }
 
-        return $blockedCount > 0 ? self::FAILURE : self::SUCCESS;
+        return (($blockedCount > 0) || ($quarantineErrors > 0)) ? self::FAILURE : self::SUCCESS;
     }
 
     /**

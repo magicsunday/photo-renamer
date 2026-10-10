@@ -21,6 +21,7 @@ use MagicSunday\Renamer\Service\Dedup\DedupOriginalMatcher;
 use MagicSunday\Renamer\Service\Dedup\DedupReportFormatter;
 use MagicSunday\Renamer\Service\Dedup\DuplicateDeletionGuard;
 use MagicSunday\Renamer\Service\Dedup\OriginalCandidateIndex;
+use MagicSunday\Renamer\Service\Dedup\QuarantineTargetGuard;
 use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
 use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Service\Filesystem\LegacyRenameExecutor;
@@ -44,6 +45,7 @@ use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
@@ -54,6 +56,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Tester\CommandTester;
 use Symfony\Component\Filesystem\Filesystem;
 
+use function dirname;
 use function file_put_contents;
 use function is_dir;
 use function mkdir;
@@ -72,6 +75,7 @@ use const PHP_EOL;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(DedupCommand::class)]
+#[CoversClass(QuarantineTargetGuard::class)]
 #[UsesClass(RecursiveRegexFileFilterIterator::class)]
 #[UsesClass(FileHelper::class)]
 #[UsesClass(RegexMatchResult::class)]
@@ -262,6 +266,190 @@ final class DedupCommandTest extends TestCase
             self::assertFileExists($movedPath);
             self::assertFileDoesNotExist($duplicatePath);
             self::assertFileExists($originalPath);
+        } finally {
+            $this->cleanupWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Existing links in the quarantine root, a nested configured target or a
+     * mirrored source subdirectory must reject the whole batch before any file
+     * moves. Both an ordinary root candidate and a nested candidate stay intact.
+     *
+     * @param string $linkedDirectory Target component redirected outside the source
+     * @param bool   $dryRun          Whether to verify the same boundary in preview mode
+     */
+    #[Test]
+    #[DataProvider('linkedQuarantineDirectories')]
+    public function executeRejectsSymlinkQuarantineBeforeAnyMove(string $linkedDirectory, bool $dryRun): void
+    {
+        $workspace  = $this->createWorkspace();
+        $filesystem = new Filesystem();
+        $source     = $workspace . '/source';
+        $outside    = $workspace . '/outside';
+        $filesystem->mkdir([$source . '/2025', $outside]);
+        file_put_contents($source . '/photo.jpg', 'original');
+        file_put_contents($source . '/photo-duplicate-001.jpg', 'root candidate');
+        file_put_contents($source . '/2025/clip.mov', 'original video');
+        file_put_contents($source . '/2025/clip-duplicate-001.mov', 'nested candidate');
+        file_put_contents($outside . '/sentinel', 'retained');
+        $filesystem->mkdir($source . '/' . dirname($linkedDirectory));
+        $filesystem->symlink($outside, $source . '/' . $linkedDirectory);
+
+        try {
+            $tester = new CommandTester($this->createCommand());
+            $tester->setInputs(['yes']);
+            $target = $linkedDirectory === 'review/_duplicates' ? 'review/_duplicates' : '_duplicates';
+
+            self::assertSame(Command::FAILURE, $tester->execute(['source' => $source, '--target' => $target, '--dry-run' => $dryRun]));
+            self::assertStringContainsString('Quarantine blocked', $tester->getDisplay());
+            self::assertFileExists($source . '/photo-duplicate-001.jpg');
+            self::assertFileExists($source . '/2025/clip-duplicate-001.mov');
+            self::assertFileDoesNotExist($outside . '/photo-duplicate-001.jpg');
+            self::assertFileDoesNotExist($outside . '/clip-duplicate-001.mov');
+            self::assertSame('retained', $filesystem->readFile($outside . '/sentinel'));
+        } finally {
+            $filesystem->remove($workspace);
+        }
+    }
+
+    /**
+     * Supplies link positions that cover both explicit target components and
+     * subdirectories derived from the source tree rather than CLI arguments.
+     *
+     * @return iterable<string, array{string, bool}> Linked relative directories and preview modes
+     */
+    public static function linkedQuarantineDirectories(): iterable
+    {
+        foreach ([false, true] as $dryRun) {
+            $mode = $dryRun ? ' preview' : ' execute';
+
+            yield 'root' . $mode => ['_duplicates', $dryRun];
+            yield 'mirrored source directory' . $mode => ['_duplicates/2025', $dryRun];
+            yield 'configured nested directory' . $mode => ['review/_duplicates', $dryRun];
+        }
+    }
+
+    /**
+     * Absolute, traversal and source-root target arguments cannot create a
+     * quarantine outside the selected tree or silently move back into itself.
+     * Invalid arguments must fail without creating even an empty target folder.
+     *
+     * @param string $target Unsafe target argument
+     */
+    #[Test]
+    #[DataProvider('invalidQuarantineTargets')]
+    public function executeRejectsInvalidQuarantineArgument(string $target): void
+    {
+        $workspace = $this->createWorkspace();
+        file_put_contents($workspace . '/photo.jpg', 'original');
+        file_put_contents($workspace . '/photo-duplicate-001.jpg', 'candidate');
+
+        try {
+            $tester = new CommandTester($this->createCommand());
+            $tester->setInputs(['yes']);
+
+            self::assertSame(Command::FAILURE, $tester->execute(['source' => $workspace, '--target' => $target]));
+            self::assertStringContainsString('Quarantine blocked', $tester->getDisplay());
+            self::assertFileExists($workspace . '/photo-duplicate-001.jpg');
+            self::assertDirectoryDoesNotExist($workspace . '/_duplicates');
+            self::assertDirectoryDoesNotExist($workspace . '/review');
+        } finally {
+            $this->cleanupWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Covers Unix, Windows and UNC absolute paths, traversal before and after
+     * normalization, embedded NULs, and empty/source-root destinations.
+     *
+     * @return iterable<string, array{string}> Unsafe target arguments
+     */
+    public static function invalidQuarantineTargets(): iterable
+    {
+        yield 'Unix absolute' => ['/outside'];
+        yield 'Windows absolute' => ['C:\\outside'];
+        yield 'Windows drive-relative' => ['C:outside'];
+        yield 'UNC absolute' => ['\\\\server\\share'];
+        yield 'parent' => ['../outside'];
+        yield 'nested parent' => ['review/../../outside'];
+        yield 'normalized parent' => ['review/../other'];
+        yield 'Windows parent' => ['..\\outside'];
+        yield 'empty' => [''];
+        yield 'source root' => ['.'];
+        yield 'dot root' => ['./'];
+        yield 'NUL' => ["bad\0target"];
+        yield 'home expansion' => ['~/outside'];
+    }
+
+    /**
+     * Replaces the target with a link at the controlled mkdir boundary, after
+     * scan and confirmation. The second check must prevent rename and retain
+     * the candidate; no timing sleeps or hostile external paths are involved.
+     */
+    #[Test]
+    public function executeRechecksQuarantineAfterDirectoryCreation(): void
+    {
+        $workspace      = $this->createWorkspace();
+        $realFilesystem = new Filesystem();
+        $source         = $workspace . '/source';
+        $outside        = $workspace . '/outside';
+        $realFilesystem->mkdir([$source, $outside]);
+        file_put_contents($source . '/photo.jpg', 'original');
+        file_put_contents($source . '/photo-duplicate-001.jpg', 'candidate');
+        $filesystem = $this->createMock(Filesystem::class);
+        $filesystem->expects(self::once())->method('mkdir')->willReturnCallback(
+            static function (string $directory) use ($outside, $realFilesystem): void {
+                $realFilesystem->symlink($outside, $directory);
+            },
+        );
+        $filesystem->expects(self::never())->method('rename');
+
+        try {
+            $tester = new CommandTester($this->createCommand($filesystem));
+            $tester->setInputs(['yes']);
+
+            self::assertSame(Command::FAILURE, $tester->execute(['source' => $source]));
+            self::assertStringContainsString('Quarantine blocked', $tester->getDisplay());
+            self::assertFileExists($source . '/photo-duplicate-001.jpg');
+            self::assertFileDoesNotExist($outside . '/photo-duplicate-001.jpg');
+            self::assertMatchesRegularExpression('/Duplicates found\s+0\R/', $tester->getDisplay());
+            self::assertMatchesRegularExpression('/Space reclaimable\s+0 B\R/', $tester->getDisplay());
+        } finally {
+            $realFilesystem->remove($workspace);
+        }
+    }
+
+    /**
+     * A nested relative target preserves the source layout in preview and
+     * execution, including native Unix backslashes in a source filename.
+     */
+    #[Test]
+    public function executeAllowsNestedRelativeQuarantineAndDryRun(): void
+    {
+        $workspace  = $this->createWorkspace();
+        $filesystem = new Filesystem();
+        $filesystem->mkdir($workspace . '/2025');
+
+        $original    = $workspace . '/2025/photo\\name.jpg';
+        $duplicate   = $workspace . '/2025/photo\\name-duplicate-001.jpg';
+        $destination = $workspace . '/review/duplicates/2025/photo\\name-duplicate-001.jpg';
+        file_put_contents($original, 'original');
+        file_put_contents($duplicate, 'candidate');
+
+        try {
+            $tester    = new CommandTester($this->createCommand());
+            $arguments = ['source' => $workspace, '--target' => './review/duplicates/'];
+            self::assertSame(Command::SUCCESS, $tester->execute([...$arguments, '--dry-run' => true]));
+            self::assertFileExists($duplicate);
+            self::assertDirectoryDoesNotExist($workspace . '/review');
+            self::assertStringContainsString('Would move', $tester->getDisplay());
+
+            $tester->setInputs(['yes']);
+            self::assertSame(Command::SUCCESS, $tester->execute($arguments));
+            self::assertFileDoesNotExist($duplicate);
+            self::assertSame('candidate', $filesystem->readFile($destination));
+            self::assertFileExists($original);
         } finally {
             $this->cleanupWorkspace($workspace);
         }
@@ -555,7 +743,15 @@ final class DedupCommandTest extends TestCase
         $this->removeWorkspace($workspace);
     }
 
-    private function createCommand(): DedupCommand
+    /**
+     * Wires the actual command collaborators, optionally replacing only the
+     * mutation filesystem for controlled interleaving tests.
+     *
+     * @param Filesystem|null $filesystem Mutation filesystem or the normal implementation
+     *
+     * @return DedupCommand Fully wired command under test
+     */
+    private function createCommand(?Filesystem $filesystem = null): DedupCommand
     {
         $output = new BufferedOutput();
         $style  = new SymfonyStyle(new ArrayInput([]), $output);
@@ -571,8 +767,9 @@ final class DedupCommandTest extends TestCase
             $matcher,
             new DedupReportFormatter(),
             $renderer,
-            new Filesystem(),
+            $filesystem ?? new Filesystem(),
             new DuplicateDeletionGuard(new SafeHashCalculator()),
+            new QuarantineTargetGuard(),
         );
     }
 }

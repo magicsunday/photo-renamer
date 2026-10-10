@@ -71,7 +71,7 @@ make run CMD="rename:exif /path --dry-run"
 
 ### Dependency injection container
 
-Symfony DI uses autowiring from `config/Services.yaml`. All `src/` classes are auto-registered except `Renamer.php`, `Dependencies.php`, `Constants.php`, and `Model/`; service interfaces are bound explicitly, and `MetadataReader` is created through its static factory. The compiled container is cached at `.build/cache/DependencyContainer.php`, so remove that file after changing `Services.yaml`.
+Symfony DI uses autowiring from `config/Services.yaml`. All `src/` classes are auto-registered except `Renamer.php`, `Dependencies.php`, `Constants.php`, and `Model/`; service interfaces are bound explicitly, and `MetadataReader` is created through its static factory. The compiled container is cached at `.build/cache/DependencyContainer.php`, so remove that file after changing `Services.yaml` or service constructor wiring.
 
 Constructor parameters must not default to `new Foo()`. New collaborators are wired by the container and supplied explicitly by tests; `tests/Unit/Architecture/ConstructorWiringArchitectureTest` enforces this contract.
 
@@ -216,6 +216,7 @@ This is an intentional bounded exception (End State B). These commands are too s
 - **Video stream identity** — Cross-group exact matching accepts one video stream and at most one audio stream. Additional AV tracks veto automatic merging and produce a review reason when primary video matches. Non-AV container tracks remain ignored.
 - **Idempotency** — re-running any command on already-processed files produces identical results.
 - **Symfony Filesystem** — all file operations (`rename`, `mkdir`, `remove`, `dumpFile`, `readFile`) use `Symfony\Component\Filesystem\Filesystem`. Never use procedural PHP functions for file I/O in production code.
+- **Quarantine boundaries** — `QuarantineTargetGuard` confines `rename:dedup` move destinations to relative subdirectories of the canonical source root; reject traversal, absolute paths and every existing symlink component (including dangling/internal links). Validate all actionable targets before any move and recheck around mkdir/before rename. Dry-run checks the same boundary; delete retains its independent fresh-byte guard. These checks require a tree without concurrent external directory writers and do not promise atomic symlink-race protection or rollback.
 
 ### Output Tags (OutputEntryTag enum)
 
