@@ -17,6 +17,7 @@ use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
+use MagicSunday\Renamer\Model\MergeDecision;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Service\HashSubGroupingServiceInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
@@ -175,6 +176,18 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
 
             $targetPathnameResolver = (static fn (SplFileInfo $source, string $targetFilename): string => $source->getPath() . DIRECTORY_SEPARATOR . $targetFilename);
 
+            // Keep one example and a count per finite reason, not every pair.
+            // Typed decisions remain available to service-level observers.
+            /** @var array<string, int> $decisionCounts */
+            $decisionCounts = [];
+            /** @var array<string, MergeDecision> $decisionExamples */
+            $decisionExamples = [];
+            $onDecision       = static function (MergeDecision $decision) use (&$decisionCounts, &$decisionExamples): void {
+                $key                  = $decision->reason->value;
+                $decisionCounts[$key] = ($decisionCounts[$key] ?? 0) + 1;
+                $decisionExamples[$key] ??= $decision;
+            };
+
             $clusterMap = $this->hashSubGroupingService->apply(
                 $fileDuplicate,
                 $canonicalRename,
@@ -182,7 +195,12 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
                 $contentIdMap,
                 $targetPathnameResolver,
                 $temporalMetaMap,
+                $onDecision,
             );
+
+            foreach ($decisionExamples as $key => $decision) {
+                $group->addDecision(sprintf('%s (%d comparison(s))', $decision->describe(), $decisionCounts[$key]));
+            }
 
             if ($clusterMap === null) {
                 // Single hash group or single file — no subgrouping needed
