@@ -38,7 +38,11 @@ jobs:
                   exit 1
 
             - name: Install runtime dependencies
-              run: docker compose run --rm --user root buildbox composer install --no-dev --no-scripts --classmap-authoritative --no-ansi --no-interaction --no-progress
+              run: |
+                  # Preserve runner ownership of the host-side fixture workspace
+                  # before Composer creates its root-owned .build/vendor tree.
+                  mkdir -p .build/tmp
+                  docker compose run --rm --user root buildbox composer install --no-dev --no-scripts --classmap-authoritative --no-ansi --no-interaction --no-progress
 
             - name: Verify runtime image and native decoder
               run: bash scripts/check-runtime-image.sh
