@@ -1,5 +1,9 @@
 .build/
 .git/
+.env
+.env.*
+!.env.dist
+docs/audit/
 .idea/
 coverage-report/
 coverage-report-xdebug/

@@ -12,6 +12,11 @@ use Symfony\Component\Filesystem\Filesystem;
 
 require dirname(__DIR__) . '/.build/vendor/autoload.php';
 
+$mode = $argv[1] ?? '';
+if (($argc > 2) || (($mode !== '') && ($mode !== '--media-only'))) {
+    throw new InvalidArgumentException('Usage: clear-cache.php [--media-only]');
+}
+
 $filesystem = new Filesystem();
 $storage = new PrivateCacheStorage($filesystem);
 $configuredBase = getenv('CACHE_DIR');
@@ -34,6 +39,8 @@ foreach (['metadata-cache.json', 'perceptual-signal-cache.json'] as $filename) {
     $storage->remove($base . '/' . $filename);
 }
 
-$storage->remove(dirname(__DIR__) . '/.build/cache/DependencyContainer.php');
+if ($mode !== '--media-only') {
+    $storage->remove(dirname(__DIR__) . '/.build/cache/DependencyContainer.php');
+}
 
-echo "Current user's media caches, owned legacy files and DI cache cleared.\n";
+echo "Selected current-user cache files cleared.\n";

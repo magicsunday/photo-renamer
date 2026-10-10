@@ -20,6 +20,8 @@ mkdir -p "${SMOKE_ROOT}/.build"
 cp composer.json version "${SMOKE_ROOT}/"
 cp -r src config "${SMOKE_ROOT}/"
 
+# GitDriver needs a cache; this invocation's empty private cache is disposable
+# and cannot reuse the repository's development vendor/cache tree.
 echo "Installing an isolated --no-dev vendor tree"
 COMPOSER_HOME="${SMOKE_ROOT}/composer-home" \
 COMPOSER_CACHE_DIR="${SMOKE_ROOT}/composer-cache" \
@@ -27,7 +29,6 @@ COMPOSER_CACHE_DIR="${SMOKE_ROOT}/composer-cache" \
     --working-dir="${SMOKE_ROOT}" \
     --no-dev \
     --no-scripts \
-    --no-cache \
     --prefer-dist \
     --classmap-authoritative \
     --no-ansi \

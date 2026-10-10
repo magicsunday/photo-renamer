@@ -115,22 +115,29 @@ Supported file types: `jpg`, `jpeg`, `heic`, `heif`, `avi`, `mov`, `mp4`, `m4v`.
 Prerequisites: Docker.
 
 ```bash
-git clone git@github.com:magicsunday/photo-renamer.git
+git clone https://github.com/magicsunday/photo-renamer.git
 cd photo-renamer
-make install
+cp .env.dist .env
+make runtime-build
 ```
 
 ### Run via Docker (recommended)
 
-No build step required — all commands run inside a Docker container via the wrapper script:
+Build the runtime image once, and rebuild it after code or dependency changes with `make runtime-build`. The wrapper and `make run` use the isolated production image. Set `MEDIA_DIR` to an existing host directory; the container sees only that directory at `/media`:
 
 ```bash
-./renamer.sh rename:exif --dry-run --list-all ~/Photos
-./renamer.sh rename:verify ~/Photos
-./renamer.sh rename:dedup --dry-run ~/Photos
+MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:exif --dry-run --list-all /media
+MEDIA_DIR="$HOME/Photos" MEDIA_READ_ONLY=true ./renamer.sh rename:verify /media
+MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:dedup --dry-run /media
 ```
 
-Alternatively, use `make run CMD="..."` directly.
+Alternatively, use `MEDIA_DIR="$HOME/Photos" make run CMD="rename:exif /media --dry-run"`. Paths with spaces work through the wrapper's quoted arguments. Host paths outside `MEDIA_DIR` are not exposed. For a single file, mount its parent and pass `/media/filename.mov`. Quarantine destinations must remain within the mounted collection.
+
+The runtime has no Composer authentication, SSH-agent mount, development repository mount or external network interface. Code, dependencies and the compiled DI container are read-only. Media are writable for rename/write-date/dedup; set `MEDIA_READ_ONLY=true` for analysis. The Docker `media-cache` volume stores the current UID's private JSON caches at `/cache/private-<UID>/`. `make runtime-cache-clear` purges these JSON files without removing the immutable DI artifact or mounting host media. Development/install commands retain their separate `buildbox` service and credential access.
+
+Default limits are 2 GiB container RAM with no additional swap, 2 CPUs, 128 processes and a 512 MiB `/tmp` tmpfs. PHP uses a configurable finite 1024 MiB budget. ImageMagick preserves 256 MiB memory, 512 MiB map and 30 seconds, and additionally bounds pixel-cache disk to 256 MiB, width/height to 32768 and list length to 64. Local JPEG/HEIC/HEIF and internal PNG coders are enabled; delegates, filters and other coders are disabled. Videos are decoded through ffmpeg/ffprobe with their existing timeouts. Networking is disabled by Docker; FFmpeg's default protocols remain unchanged, and loopback remains available inside the container. These limits bound resources; they do not promise completion within a fixed time or native-decoder recovery after an OOM kill.
+
+Increase `PHP_MEMORY_LIMIT` and `RUNTIME_MEMORY_LIMIT` together when measured collection needs justify it. Large panoramas/sequences may require editing the reviewed ImageMagick policy and rebuilding. The collection's overall comparison complexity is independent of these resource limits.
 
 Configure environment variables (timezone, cache directory, etc.) in `.env` — see [Configuration](#-configuration).
 
@@ -307,18 +314,25 @@ cp .env.dist .env
 | `TIMEZONE` | `Europe/Berlin` | Default timezone for video files without timezone metadata (see above).      |
 | `MAX_DATE_DRIFT` | `7`     | Maximum date drift in days between source filename date and target date. Set to `0` to disable. |
 | `MERGE_THRESHOLD` | `0.06`  | Maximum RMSE (0.0–1.0) for merging visually similar files. Internal safe limits still cap the effective threshold. See `--merge-threshold`. |
-| `CACHE_DIR` | `.build/cache` | Base for private per-UID metadata and perceptual caches. Speeds up subsequent runs by skipping unchanged files. |
+| `CACHE_DIR` | `.build/cache` | Development/standalone JSON cache base. Isolated Docker runtime uses `/cache` in the `media-cache` volume. |
+| `MEDIA_DIR` | `./images` | Existing host directory bound at `/media` for runtime commands. |
+| `MEDIA_READ_ONLY` | `false` | Read-only media mount for analysis; mutating commands need write access. |
+| `PHP_MEMORY_LIMIT` | `1024M` | Positive finite PHP byte quantity (optionally K/M/G); unlimited and malformed values fail before startup. |
+| `RUNTIME_MEMORY_LIMIT` | `2g` | Container RAM limit; swap limit equals RAM. |
+| `RUNTIME_CPUS` | `2.0` | Container CPU allocation limit. |
+| `RUNTIME_PIDS_LIMIT` | `128` | Container process/thread limit. |
+| `RUNTIME_TMP_SIZE` | `512m` | Bounded temporary tmpfs shared by native tools and PHP. |
 | `FILE_LINK_ROOT` | *(empty)* | Source path as seen inside Docker/NAS (e.g. `/srv/photos`). |
 | `FILE_LINK_BASE` | *(empty)* | Same path as seen from the terminal host (e.g. `Z:\Photos`). |
 | `FILE_LINK_PROTOCOL` | *(empty)* | URI scheme for clickable links: empty = `file://` (opens directory), `photo-select` = custom protocol (opens Explorer with file selected). |
 
 ### Private caches and migration
 
-Metadata caches contain absolute media paths, capture times and possibly GPS/device information. Both JSON caches live in `CACHE_DIR/private-<effective UID>/`, using the actual container UID (`USERID`) and GID (`GROUPID`). On Unix filesystems the directory is `0700` and files are `0600`, including the populated temporary file used for atomic replacement, independently of `umask 0022`. Existing owned private directories and files have their permissions corrected. Shared parents are not chmodded; each user needs permission to create their own child. Changing UID starts a separate cold cache.
+Metadata caches contain absolute media paths, capture times and possibly GPS/device information. Both JSON caches live in `<cache base>/private-<effective UID>/` (`/cache` in the runtime, `CACHE_DIR` in development/standalone), using the actual container UID (`USERID`) and GID (`GROUPID`). On Unix filesystems the directory is `0700` and files are `0600`, including the populated temporary file used for atomic replacement, independently of `umask 0022`. Existing owned private directories and files have their permissions corrected. Shared parents are not chmodded; each user needs permission to create their own child. Changing UID starts a separate cold cache.
 
-Old flat `metadata-cache.json` and `perceptual-signal-cache.json` files are **not imported**. Before upgrading, run `make cache-clear` with the old `CACHE_DIR` and original UID to remove owned legacy copies. Repeat for any previous cache bases; merely upgrading does not remove old files. The command also purges the current user's private JSON caches and the owned `.build/cache/DependencyContainer.php`. Other users' private children and unrelated files remain untouched. Foreign-owned files, symlinks and hardlinks are rejected; resolve these explicitly as the owner instead of broadening permissions.
+Old flat `metadata-cache.json` and `perceptual-signal-cache.json` files are **not imported**. After updating the code and before processing media, run the updated `make cache-clear` with the old `CACHE_DIR` and original UID to remove owned legacy copies. Repeat for any previous cache bases; merely upgrading does not remove old files. The command also purges the current user's private JSON caches and the owned `.build/cache/DependencyContainer.php`. Other users' private children and unrelated files remain untouched. Foreign-owned files, symlinks and hardlinks are rejected; resolve these explicitly as the owner instead of broadening permissions.
 
-Caches have no automatic expiration. Keep them only while repeated analysis needs them, and run `make cache-clear` after processing when the retained paths/locations are no longer needed. Purging removes files; it does not promise forensic erasure from disks, snapshots or backups. Cache freshness, growth and concurrent-writer consistency are separate concerns.
+Caches have no automatic expiration. Keep them only while repeated analysis needs them, and run `make runtime-cache-clear` (runtime volume) or `make cache-clear` (development/legacy base) after processing when the retained paths/locations are no longer needed. Purging removes files; it does not promise forensic erasure from disks, snapshots or backups. Cache freshness, growth and concurrent-writer consistency are separate concerns.
 
 The executable DI cache stays in `.build/cache/DependencyContainer.php`, outside the private JSON child, and must be protected like application code. Keep the project and cache parents under trusted control: permission/ownership checks do not provide atomic protection against a hostile process replacing directories. Network filesystems and ACL policies must enforce the same owner-only access. `make cache-permissions-check` verifies synthetic GPS/path isolation between two real unprivileged UIDs in a disposable Docker container; it does not use your media.
 
@@ -442,7 +456,7 @@ why each edge is allowed.
 Test the CLI:
 
 ```bash
-./renamer.sh rename:exif --dry-run --list-all ~/Photos
+MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:exif --dry-run --list-all /media
 ```
 
 ### Individual CI targets
@@ -467,7 +481,7 @@ Generate synthetic test files covering all renamer scenarios (duplicates, Live P
 
 ```bash
 docker compose run --rm buildbox php scripts/create-test-images.php
-./renamer.sh rename:exif --dry-run --list-all tests/Fixtures/Images
+MEDIA_DIR="$PWD/tests/Fixtures/Images" MEDIA_READ_ONLY=true ./renamer.sh rename:exif --dry-run --list-all /media
 ```
 
 ### Fix targets
@@ -489,6 +503,8 @@ make binary-clean   # Remove SPC build artifacts to free space
 | Target              | Description                                           |
 |---------------------|-------------------------------------------------------|
 | `make docker-build` | Build the Docker image.                               |
+| `make runtime-build` | Build immutable production code, vendor and DI container. |
+| `make runtime-cache-clear` | Purge current-UID media JSON in the runtime volume. |
 | `make bash`         | Open a bash shell inside the buildbox container.      |
 | `make update`       | Update Composer dependencies.                         |
 | `make version`      | Create a new version release.                         |

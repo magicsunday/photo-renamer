@@ -7,9 +7,9 @@ if [[ $# -eq 0 ]]; then
     echo "Usage: ./renamer.sh <command> [options] <source-directory>" >&2
     echo "" >&2
     echo "Examples:" >&2
-    echo "  ./renamer.sh rename:exif --dry-run ~/Photos" >&2
-    echo "  ./renamer.sh rename:verify ~/Photos" >&2
-    echo "  ./renamer.sh rename:dedup --dry-run ~/Photos" >&2
+    echo "  MEDIA_DIR=~/Photos ./renamer.sh rename:exif --dry-run /media" >&2
+    echo "  MEDIA_DIR=~/Photos ./renamer.sh rename:verify /media" >&2
+    echo "  MEDIA_DIR=~/Photos ./renamer.sh rename:dedup --dry-run /media" >&2
     exit 1
 fi
 
@@ -20,4 +20,4 @@ else
     COMPOSE_BIN="docker compose"
 fi
 
-$COMPOSE_BIN run --rm buildbox php -d memory_limit=-1 src/Renamer.php "$@"
+$COMPOSE_BIN run --rm runtime "$@"

@@ -26,6 +26,7 @@
         "discard-changes": true,
         "sort-packages": true,
         "optimize-autoloader": true,
+        "github-protocols": ["https"],
         "platform-check": false,
         "process-timeout": 0,
         "allow-plugins": {
@@ -34,8 +35,8 @@
     },
     "repositories": {
         "magicsunday/imagemeta": {
-            "type": "github",
-            "url": "git@github.com:magicsunday/imagemeta.git"
+            "type": "git",
+            "url": "https://github.com/magicsunday/imagemeta.git"
         }
     },
     "minimum-stability": "dev",
