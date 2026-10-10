@@ -34,8 +34,10 @@ make rector         # Apply rector rules
 make install        # Composer install
 make no-dev-smoke   # Verify the isolated production vendor tree and runtime dependencies
 make runtime-image-check # Verify the runtime image and native media decoder contract
+make runtime-build # Build immutable production code/vendor/DI artifact
 make binary         # Build SPC binary (always via Docker)
 make cache-clear    # Purge current-user JSON caches, owned legacy files and DI cache
+make runtime-cache-clear # Purge runtime-volume JSON only, preserving immutable DI
 make cache-permissions-check # Verify real two-UID cache privacy in disposable Docker
 ```
 
@@ -63,7 +65,7 @@ docker compose run --rm buildbox .build/bin/deptrac debug:unassigned
 docker compose run --rm buildbox .build/bin/deptrac debug:layer Metadata
 
 # Run one CLI command
-make run CMD="rename:exif /path --dry-run"
+MEDIA_DIR=/photos make run CMD="rename:exif /media --dry-run"
 ```
 
 ### Shared tooling (`magicsunday/coding-standard`)
@@ -77,6 +79,8 @@ make run CMD="rename:exif /path --dry-run"
 Symfony DI uses autowiring from `config/Services.yaml`. All `src/` classes are auto-registered except `Renamer.php`, `Dependencies.php`, `Constants.php`, and `Model/`; service interfaces are bound explicitly, and `MetadataReader` is created through its static factory. The compiled container is cached at `.build/cache/DependencyContainer.php`, so remove that file after changing `Services.yaml` or service constructor wiring.
 
 Constructor parameters must not default to `new Foo()`. New collaborators are wired by the container and supplied explicitly by tests; `tests/Unit/Architecture/ConstructorWiringArchitectureTest` enforces this contract.
+
+Normal media runs (`renamer.sh`, `make run`) use the separate `runtime` service: no dev credentials/mounts, network none, read-only root, media at `/media`, private JSON in the `media-cache` volume at `/cache`. Build with `make runtime-build` after code/vendor/config changes; its precompiled DI file is immutable. `buildbox` remains for installation/development. `make runtime-image-check` verifies the actual production image, default resource limits, dummy-host credential isolation, all supported formats and tiny-policy rejection (32 pixels, list length 2, separate 1-KiB disk budget). The check runs on PRs as well as pushes. New shell scripts use `.sh`.
 
 ## Code Style
 
@@ -120,7 +124,7 @@ Constructor parameters must not default to `new Foo()`. New collaborators are wi
 - The pull-request body closes the issue with `Closes #<N>` — the `GH-<N>: ` subject prefix is not a GitHub link and closes nothing.
 - Never add a `Co-Authored-By:` trailer or any other AI attribution.
 - Granular commits — one concern per commit
-- Merge pull requests exclusively with **squash** (`gh pr merge --squash`); the squash commit subject must satisfy the shared commit convention. Never create a "Merge pull request" commit. Merge only after all issue acceptance criteria are fulfilled, evidenced and checked, own code review is complete, and relevant GitHub checks pass for the exact reviewed head.
+- Merge pull requests exclusively with **squash** (`gh pr merge --squash`); the squash commit subject must satisfy the shared commit convention. Write a dedicated title and body describing the final implemented changes, their purpose and relevant validation; supply the body with `--body-file` rather than concatenating the branch commit messages. Preserve the required DCO `Signed-off-by:` trailer. Never create a "Merge pull request" commit. Merge only after all issue acceptance criteria are fulfilled, evidenced and checked, own code review is complete, and relevant GitHub checks pass for the exact reviewed head.
 - **Always** run `make test` before committing
 
 ## Design Principles
@@ -279,5 +283,9 @@ scripts/               # Build and utility scripts
 | `USERID` / `GROUPID` | Docker container UID/GID mapping | `1000` |
 | `TIMEZONE` | Convert UTC video timestamps to local time | `Europe/Berlin` |
 | `MAX_DATE_DRIFT` | Max days drift between filename and metadata date | `7` |
-| `CACHE_DIR` | Base for private-<effective UID>/ JSON caches (0700/0600); DI cache stays separate | `.build/cache` |
+| `CACHE_DIR` | Dev/standalone JSON base; runtime uses `/cache` volume (0700/0600); DI separate | `.build/cache` |
+| `MEDIA_DIR` / `MEDIA_READ_ONLY` | Existing host collection mounted at `/media`, optional read-only analysis | `./images` / `false` |
+| `PHP_MEMORY_LIMIT` | Positive finite PHP budget, invalid/unlimited overrides rejected | `1024M` |
+| `RUNTIME_MEMORY_LIMIT` / `RUNTIME_CPUS` | Container RAM (swap equal) and CPU budget | `2g` / `2.0` |
+| `RUNTIME_PIDS_LIMIT` / `RUNTIME_TMP_SIZE` | Process/thread bound and temporary tmpfs size | `128` / `512m` |
 | `CANONICAL_FORMAT_PRIORITY` | Comma-separated format priority for canonical selection | `heic,heif,dng,arw,...` |

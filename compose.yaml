@@ -1,4 +1,38 @@
 services:
+    runtime:
+        build:
+            context: .
+            target: runtime
+        profiles: [runtime]
+        user: "${USERID:-1000}:${GROUPID:-1000}"
+        read_only: true
+        network_mode: none
+        cap_drop: [ALL]
+        security_opt: [no-new-privileges:true]
+        mem_limit: ${RUNTIME_MEMORY_LIMIT:-2g}
+        memswap_limit: ${RUNTIME_MEMORY_LIMIT:-2g}
+        cpus: ${RUNTIME_CPUS:-2.0}
+        pids_limit: ${RUNTIME_PIDS_LIMIT:-128}
+        tmpfs:
+            - /tmp:size=${RUNTIME_TMP_SIZE:-512m},mode=1777,noexec,nosuid,nodev
+        volumes:
+            - type: bind
+              source: ${MEDIA_DIR:-./images}
+              target: /media
+              read_only: ${MEDIA_READ_ONLY:-false}
+              bind:
+                  create_host_path: false
+            - media-cache:/cache
+        environment:
+            PHP_MEMORY_LIMIT: ${PHP_MEMORY_LIMIT:-1024M}
+            TIMEZONE: ${TIMEZONE:-Europe/Berlin}
+            MAX_DATE_DRIFT: ${MAX_DATE_DRIFT:-7}
+            MERGE_THRESHOLD: ${MERGE_THRESHOLD:-0.06}
+            CANONICAL_FORMAT_PRIORITY: ${CANONICAL_FORMAT_PRIORITY:-}
+            FILE_LINK_ROOT: ${FILE_LINK_ROOT:-}
+            FILE_LINK_BASE: ${FILE_LINK_BASE:-}
+            FILE_LINK_PROTOCOL: ${FILE_LINK_PROTOCOL:-}
+
     buildbox:
         build:
             context: .
@@ -9,6 +43,7 @@ services:
             - ${SSH_AUTH_SOCK:-/dev/null}:/ssh-agent
         environment:
             - COMPOSER_AUTH
+            - PHP_MEMORY_LIMIT=${PHP_MEMORY_LIMIT:-1024M}
             - SSH_AUTH_SOCK=/ssh-agent
             - TIMEZONE=${TIMEZONE:-}
             - MAX_DATE_DRIFT=${MAX_DATE_DRIFT:-}
@@ -28,3 +63,6 @@ services:
             - ./:/renamer
         working_dir: /renamer
         user: "renamer"
+
+volumes:
+    media-cache:

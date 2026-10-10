@@ -124,6 +124,52 @@ final class CachePurgeTest extends TestCase
     }
 
     /**
+     * Runtime purge removes media JSON while preserving the precompiled immutable
+     * DI artifact. An invalid option fails before touching any selected file.
+     *
+     * @param string $option Requested script mode
+     * @param bool   $purged Whether the media cache must be removed
+     */
+    #[Test]
+    #[DataProvider('runtimePurgeModes')]
+    public function preservesCompiledContainerDuringRuntimePurge(string $option, bool $purged): void
+    {
+        $workspace  = $this->createTempWorkspace();
+        $filesystem = new Filesystem();
+        $script     = $this->preparePurgeScript($workspace, $filesystem);
+        $base       = $workspace . '/cache';
+        $mediaCache = $base . '/private-' . posix_geteuid() . '/metadata-cache.json';
+        $container  = $workspace . '/.build/cache/DependencyContainer.php';
+        $filesystem->dumpFile($mediaCache, 'synthetic metadata');
+        $filesystem->dumpFile($container, 'immutable container');
+
+        try {
+            $process = new Process([PHP_BINARY, $script, $option], $workspace, ['CACHE_DIR' => $base]);
+            $process->run();
+            self::assertSame('immutable container', $filesystem->readFile($container));
+
+            if ($purged) {
+                self::assertSame(0, $process->getExitCode());
+                self::assertFileDoesNotExist($mediaCache);
+            } else {
+                self::assertNotSame(0, $process->getExitCode());
+                self::assertSame('synthetic metadata', $filesystem->readFile($mediaCache));
+            }
+        } finally {
+            $filesystem->remove($workspace);
+        }
+    }
+
+    /**
+     * @return iterable<string, array{string, bool}> Runtime mode and a misspelled destructive option
+     */
+    public static function runtimePurgeModes(): iterable
+    {
+        yield 'media-only preserves executable DI' => ['--media-only', true];
+        yield 'typo must not purge anything' => ['--media-onyl', false];
+    }
+
+    /**
      * Copies the entry point into an isolated project with only its autoloader
      * referring back to the repository, so all paths selected for purge are fake.
      *

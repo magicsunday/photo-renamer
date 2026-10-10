@@ -39,7 +39,7 @@ echo "Download SPC extensions"
 "${SPC}" download --with-php=8.5 --for-extensions "${PHP_EXTENSIONS}" --prefer-pre-built --without-suggestions
 
 echo "Compile SPC"
-"${SPC}" build --build-cli --build-micro --with-micro-fake-cli --with-upx-pack "${PHP_EXTENSIONS}" -I "phar.readonly=Off" -I "memory_limit=-1" -I "error_reporting=-1"
+"${SPC}" build --build-cli --build-micro --with-micro-fake-cli --with-upx-pack "${PHP_EXTENSIONS}" -I "phar.readonly=Off" -I "memory_limit=1024M" -I "error_reporting=-1"
 
 ln -sf "../spc/buildroot/bin/php" "${BIN_DIR}/php"
 

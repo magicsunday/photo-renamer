@@ -17,7 +17,6 @@ jobs:
             contents: read
 
     runtime-image:
-        if: github.event_name != 'pull_request'
         runs-on: ubuntu-latest
 
         steps:
@@ -29,7 +28,7 @@ jobs:
             - name: Build runtime image
               run: |
                   for attempt in 1 2 3; do
-                      if docker compose build buildbox; then
+                      if docker compose build buildbox runtime; then
                           exit 0
                       fi
                       if [ "${attempt}" -lt 3 ]; then
@@ -39,17 +38,21 @@ jobs:
                   exit 1
 
             - name: Install runtime dependencies
-              run: docker compose run --rm --user root buildbox composer install --no-dev --no-scripts --classmap-authoritative --no-ansi --no-interaction --no-progress
+              run: |
+                  # Preserve runner ownership of the host-side fixture workspace
+                  # before Composer creates its root-owned .build/vendor tree.
+                  mkdir -p .build/tmp
+                  docker compose run --rm --user root buildbox composer install --no-dev --no-scripts --classmap-authoritative --no-ansi --no-interaction --no-progress
 
             - name: Verify runtime image and native decoder
-              run: bash scripts/check-runtime-image
+              run: bash scripts/check-runtime-image.sh
 
             - name: Verify cache user isolation
               run: make cache-permissions-check
 
             - id: image-name
               name: Resolve runtime image name
-              run: echo "name=$(docker compose config --images | grep 'buildbox$' | head -n 1)" >> "$GITHUB_OUTPUT"
+              run: echo "name=$(docker compose --profile runtime config --images | grep 'runtime$' | head -n 1)" >> "$GITHUB_OUTPUT"
 
             - name: Scan runtime image advisories
               uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0

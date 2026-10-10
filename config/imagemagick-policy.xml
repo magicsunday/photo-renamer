@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Local camera/phone media: finite pixel resources without web/document coders.
+     Area is a disk-spill threshold, not an input rejection boundary. Width,
+     height, list-length and disk are hard limits. Existing memory/map/time
+     limits match ImagickImageLoader. Review and rebuild for larger panoramas. -->
+<policymap>
+    <policy domain="resource" name="memory" value="256MiB"/>
+    <policy domain="resource" name="map" value="512MiB"/>
+    <policy domain="resource" name="time" value="30"/>
+    <policy domain="resource" name="thread" value="2"/>
+    <policy domain="resource" name="disk" value="256MiB"/>
+    <policy domain="resource" name="width" value="32768"/>
+    <policy domain="resource" name="height" value="32768"/>
+    <policy domain="resource" name="list-length" value="64"/>
+    <policy domain="delegate" rights="none" pattern="*"/>
+    <policy domain="filter" rights="none" pattern="*"/>
+    <policy domain="path" rights="none" pattern="@*"/>
+    <policy domain="coder" rights="none" pattern="*"/>
+    <!-- PNG is an internal normalized/composite format; videos use ffmpeg. -->
+    <policy domain="coder" rights="read|write" pattern="{JPEG,JPG,PNG,HEIC,HEIF}"/>
+</policymap>

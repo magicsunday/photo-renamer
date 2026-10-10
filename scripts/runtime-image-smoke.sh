@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# Verify the decoder and non-mutating CLI inside the production image.
+
 set -euo pipefail
 
 REQUIRED_FFMPEG_VERSION="${1:?A minimum ffmpeg version is required}"
