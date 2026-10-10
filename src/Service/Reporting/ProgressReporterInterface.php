@@ -33,7 +33,7 @@ interface ProgressReporterInterface
     /**
      * Starts a progress indicator for a workload with the given step count.
      *
-     * @param int $max Maximum number of steps the progress indicator represents
+     * @param int $max Maximum number of steps; zero denotes a streamed workload with unknown total
      */
     public function startProgress(int $max): void;
 

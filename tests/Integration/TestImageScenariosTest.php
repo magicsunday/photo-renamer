@@ -59,6 +59,7 @@ use MagicSunday\Renamer\Regex\RegexMatchResult;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\CanonicalScore;
 use MagicSunday\Renamer\Service\CanonicalScorer;
+use MagicSunday\Renamer\Service\ComparisonWorkLimit;
 use MagicSunday\Renamer\Service\ContentIdentifierCacheEntry;
 use MagicSunday\Renamer\Service\DisjointSetUnion;
 use MagicSunday\Renamer\Service\DuplicateDetectionService;
@@ -197,6 +198,7 @@ use const PREG_SET_ORDER;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(RenameByExifDateCommand::class)]
+#[UsesClass(ComparisonWorkLimit::class)]
 #[UsesClass(AssetGroup::class)]
 #[UsesClass(AssetItem::class)]
 #[UsesClass(AssetGroupCollection::class)]
@@ -1233,6 +1235,7 @@ final class TestImageScenariosTest extends TestCase
             $perceptualHashCalculator,
             new LocalDifferenceAnalyzer(),
             $imageLoader,
+            new ComparisonWorkLimit(100000),
         );
 
         $livePhotoConflictDetector = new LivePhotoConflictDetector($mediaTypeClassifier);

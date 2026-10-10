@@ -24,6 +24,7 @@ use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\AssetGroupAdapter;
 use MagicSunday\Renamer\Service\CanonicalScorer;
+use MagicSunday\Renamer\Service\ComparisonWorkLimit;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetector;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingService;
@@ -185,6 +186,7 @@ final class PipelineDifferentialTest extends TestCase
             $perceptualHashCalculator,
             new LocalDifferenceAnalyzer(),
             $imageLoader,
+            new ComparisonWorkLimit(100000),
         );
 
         $livePhotoConflictDetector = new LivePhotoConflictDetector($mediaTypeClassifier);
@@ -275,6 +277,7 @@ final class PipelineDifferentialTest extends TestCase
             $perceptualHashCalculator,
             new LocalDifferenceAnalyzer(),
             $imageLoader,
+            new ComparisonWorkLimit(100000),
         );
 
         $livePhotoConflictDetector = new LivePhotoConflictDetector($mediaTypeClassifier);

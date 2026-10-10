@@ -39,6 +39,7 @@ make binary         # Build SPC binary (always via Docker)
 make cache-clear    # Purge current-user JSON caches, owned legacy files and DI cache
 make runtime-cache-clear # Purge runtime-volume JSON only, preserving immutable DI
 make cache-permissions-check # Verify real two-UID cache privacy in disposable Docker
+make comparison-benchmark # Compare cold/warm stream-cache planning with 1,000 tiny synthetic videos
 ```
 
 Local pipeline order of `composer ci:test`: phplint → php-cs-fixer (dry-run) → rector (dry-run) → phpstan → deptrac → templates → phpunit → jscpd
@@ -222,6 +223,7 @@ This is an intentional bounded exception (End State B). These commands are too s
 - **Canonical scoring** — format-dominant weighted scoring: format priority (configurable via `CANONICAL_FORMAT_PRIORITY`) dominates all other signals. A preferred format (HEIC) always beats a correctly-named lower-priority format (JPG). Idempotency (1000 pts) only wins within the same format tier.
 - **Degraded classification** — `ExecutionPlanBuilder` blocks all mutations in the affected group with the analysis failure reason and projects unproven duplicate roles as Ambiguous. Existing-name no-ops and unrelated groups remain safe. `SubgroupClassifier` catches runtime exceptions; logic exceptions and PHP errors propagate.
 - **Video stream identity** — Cross-group exact matching accepts one video stream and at most one audio stream. Additional AV tracks veto automatic merging and produce a review reason when primary video matches. Non-AV container tracks remain ignored.
+- **Comparison work limits** — `ComparisonWorkLimit` validates positive integer `MAX_COMPARISON_PAIRS` (default 100000), shared by cross-group video analysis and per-capture perceptual analysis with local counters. Cross-group pairs are generated lazily in stable bucket/path order. Count cheap inner-loop exclusions too; skip stale left rows and single-original-group buckets. Exhaustion is explicit, never duplicate evidence: cross-group failure aborts before execution; capture-group failure blocks that group while safe unrelated groups may proceed. EXIF returns failure for degraded classification, including dry-run. Native Stage B images are released in `finally`. Benchmark only synthetic media under finite Docker resources; document cold/warm measurements and their limits.
 - **Idempotency** — re-running any command on already-processed files produces identical results.
 - **Symfony Filesystem** — all file operations (`rename`, `mkdir`, `remove`, `dumpFile`, `readFile`) use `Symfony\Component\Filesystem\Filesystem`. Never use procedural PHP functions for file I/O in production code.
 - **Private media caches** — `PrivateCacheStorage` creates `CACHE_DIR/private-<effective UID>/` with `0700`, JSON/temporary files with `0600`. Correct only owned dedicated paths, never shared parent modes; reject foreign-owned paths and symlink/hardlink leaves. Flat legacy JSON is not imported: `make cache-clear` purges owned legacy/current-user files and the separate executable DI cache. No automatic TTL or forensic-erasure guarantee. Configured parents must be trusted; checks are not atomic against hostile directory writers.
@@ -283,6 +285,7 @@ scripts/               # Build and utility scripts
 | `USERID` / `GROUPID` | Docker container UID/GID mapping | `1000` |
 | `TIMEZONE` | Convert UTC video timestamps to local time | `Europe/Berlin` |
 | `MAX_DATE_DRIFT` | Max days drift between filename and metadata date | `7` |
+| `MAX_COMPARISON_PAIRS` | Finite pair visits per capture group and entire cross-group video batch | `100000` |
 | `CACHE_DIR` | Dev/standalone JSON base; runtime uses `/cache` volume (0700/0600); DI separate | `.build/cache` |
 | `MEDIA_DIR` / `MEDIA_READ_ONLY` | Existing host collection mounted at `/media`, optional read-only analysis | `./images` / `false` |
 | `PHP_MEMORY_LIMIT` | Positive finite PHP budget, invalid/unlimited overrides rejected | `1024M` |

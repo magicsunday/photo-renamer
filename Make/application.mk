@@ -10,7 +10,10 @@ DI_CACHE       = .build/cache/DependencyContainer.php
 
 #### Application
 
-.PHONY: binary binary-init binary-clean cache-clear runtime-cache-clear cache-permissions-check version
+.PHONY: binary binary-init binary-clean cache-clear runtime-cache-clear cache-permissions-check comparison-benchmark version
+
+comparison-benchmark: .logo ## Benchmark 1,000 synthetic video candidates under finite Docker resource limits.
+	bash scripts/benchmark-video-comparisons.sh
 
 binary: .logo ## Build the self-contained renamer binary.
 	$(COMPOSE_BUILD) php scripts/clear-cache.php

@@ -19,6 +19,7 @@ use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\Pipeline\VideoDuplicateCandidate;
 use MagicSunday\Renamer\Model\Pipeline\VideoFingerprintMatch;
 use MagicSunday\Renamer\Model\PipelineContext;
+use MagicSunday\Renamer\Service\ComparisonWorkLimit;
 use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\Pipeline\CrossGroupVideoComparisonPlan;
@@ -53,6 +54,7 @@ use function sprintf;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(VideoStreamFingerprintMatcher::class)]
+#[UsesClass(ComparisonWorkLimit::class)]
 #[UsesClass(VideoFingerprintMatch::class)]
 #[UsesClass(StreamHashRecord::class)]
 #[UsesClass(StreamHashType::class)]
@@ -235,7 +237,7 @@ final class VideoStreamFingerprintMatcherTest extends TestCase
         }
 
         $context    = new PipelineContext($this->workspace);
-        $reconciler = new CrossGroupVideoDuplicateReconciler(new MediaCompatibilityPolicy(new MediaTypeClassifier()), $matcher, new NullProgressReporter());
+        $reconciler = new CrossGroupVideoDuplicateReconciler(new MediaCompatibilityPolicy(new MediaTypeClassifier()), $matcher, new NullProgressReporter(), new ComparisonWorkLimit(100000));
         $reconciler->reconcile($groups, $context);
         self::assertCount(2, $groups);
 

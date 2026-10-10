@@ -285,9 +285,9 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
      * 7. Execution plan building
      * 8. Output rendering and optional execution
      *
-     * @return bool Whether scanning and execution completed without errors
+     * @return bool Whether scanning, classification and execution completed without errors
      *
-     * @throws RuntimeException If circular swaps are detected
+     * @throws RuntimeException If cross-group analysis exceeds its budget or circular swaps are detected
      */
     private function processWithAssetGroups(): bool
     {
@@ -299,6 +299,15 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
             $this->sourceDirectory,
             $this->useFileExtensionFromSource,
         );
+        $analysisComplete = true;
+
+        foreach ($pipelineResult->groups as $group) {
+            if ($group->isClassificationDegraded()) {
+                $analysisComplete = false;
+
+                break;
+            }
+        }
 
         // Release metadata cache after pipeline
         $this->exifMetadataProvider->clearCache();
@@ -393,7 +402,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
             }
         }
 
-        return $executionResult->runtimeErrors === 0;
+        return $analysisComplete && ($executionResult->runtimeErrors === 0);
     }
 
     /**

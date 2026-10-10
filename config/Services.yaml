@@ -1,3 +1,6 @@
+parameters:
+    env(MAX_COMPARISON_PAIRS): '100000'
+
 services:
     _defaults:
         autowire: true      # Automatically injects dependencies in your services.
@@ -17,6 +20,11 @@ services:
     MagicSunday\Renamer\:
         resource: '../src/'
         exclude: ['../src/{Renamer,Dependencies,Constants}.php', '../src/Model/']
+
+    MagicSunday\Renamer\Service\ComparisonWorkLimit:
+        factory: ['MagicSunday\Renamer\Service\ComparisonWorkLimit', 'fromEnvironment']
+        arguments:
+            $maximumPairs: '%env(string:MAX_COMPARISON_PAIRS)%'
 
     MagicSunday\Renamer\Application:
         public: true

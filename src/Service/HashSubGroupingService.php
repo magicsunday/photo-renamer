@@ -102,6 +102,7 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
      * @param PerceptualHashCalculatorInterface $perceptualHashCalculator Multi-signal similarity scoring
      * @param LocalDifferenceAnalyzer           $localDiffAnalyzer        Stage B: local blob analysis for score ≥ 95 pairs
      * @param ImagickImageLoader                $imageLoader              Image loader for Stage B pixel extraction
+     * @param ComparisonWorkLimit               $comparisonWorkLimit      Finite pair-visit budget per capture group
      */
     public function __construct(
         private readonly SafeHashCalculatorInterface $hashCalculator,
@@ -110,6 +111,7 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
         private readonly PerceptualHashCalculatorInterface $perceptualHashCalculator,
         private readonly LocalDifferenceAnalyzer $localDiffAnalyzer,
         private readonly ImagickImageLoader $imageLoader,
+        private readonly ComparisonWorkLimit $comparisonWorkLimit,
     ) {
     }
 
@@ -640,45 +642,50 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
         // When comparing pairs (index,j) and (index,k), file index is loaded once instead of twice.
         /** @var array<string, Imagick|null> $stageBImageCache */
         $stageBImageCache = [];
+        $visitedPairs     = 0;
 
         // Pairwise comparison — 2-stage merge decision.
         // Stage A: multi-signal similarity score.
         // Stage B: local blob analysis for near-identical pairs (score ≥ 95).
-        for ($indexA = 0; $indexA < $count; ++$indexA) {
-            for ($indexB = $indexA + 1; $indexB < $count; ++$indexB) {
-                // Skip pairs already in the same union-find group
-                if ($components->find($indexA) === $components->find($indexB)) {
-                    continue;
-                }
+        try {
+            for ($indexA = 0; $indexA < $count; ++$indexA) {
+                for ($indexB = $indexA + 1; $indexB < $count; ++$indexB) {
+                    $this->comparisonWorkLimit->assertWithinLimit(++$visitedPairs, 'capture-group perceptual analysis');
 
-                $result = $this->perceptualHashCalculator->similarityScore(
-                    $representativeByHash[$hashes[$indexA]],
-                    $representativeByHash[$hashes[$indexB]],
-                    $durationByHash[$hashes[$indexA]],
-                    $durationByHash[$hashes[$indexB]],
-                );
+                    // Skip pairs already in the same union-find group
+                    if ($components->find($indexA) === $components->find($indexB)) {
+                        continue;
+                    }
 
-                $shouldMerge = false;
-
-                if ($result->isDuplicateLikely()) {
-                    $shouldMerge = $this->shouldMergePerceptually(
+                    $result = $this->perceptualHashCalculator->similarityScore(
                         $representativeByHash[$hashes[$indexA]],
                         $representativeByHash[$hashes[$indexB]],
-                        $result,
-                        $stageBImageCache,
-                        $allowExactFormatBackupWindow,
+                        $durationByHash[$hashes[$indexA]],
+                        $durationByHash[$hashes[$indexB]],
                     );
-                }
 
-                if ($shouldMerge) {
-                    $components->union($indexA, $indexB);
+                    $shouldMerge = false;
+
+                    if ($result->isDuplicateLikely()) {
+                        $shouldMerge = $this->shouldMergePerceptually(
+                            $representativeByHash[$hashes[$indexA]],
+                            $representativeByHash[$hashes[$indexB]],
+                            $result,
+                            $stageBImageCache,
+                            $allowExactFormatBackupWindow,
+                        );
+                    }
+
+                    if ($shouldMerge) {
+                        $components->union($indexA, $indexB);
+                    }
                 }
             }
-        }
-
-        // Release Stage B image cache
-        foreach ($stageBImageCache as $img) {
-            $img?->clear();
+        } finally {
+            // Release native images even when a work limit or analysis fails.
+            foreach ($stageBImageCache as $img) {
+                $img?->clear();
+            }
         }
 
         // Deterministic root selection: choose the lexicographically smallest hash

@@ -139,6 +139,12 @@ Default limits are 2 GiB container RAM with no additional swap, 2 CPUs, 128 proc
 
 Increase `PHP_MEMORY_LIMIT` and `RUNTIME_MEMORY_LIMIT` together when measured collection needs justify it. Large panoramas/sequences may require editing the reviewed ImageMagick policy and rebuilding. The collection's overall comparison complexity is independent of these resource limits.
 
+Cross-group video pairs are streamed in deterministic duration-bucket/path order, with Live Photo identity and current group membership checked before stream fingerprinting. Planning stores candidates plus one pair at a time. Worst-case comparisons remain quadratic when many distinct videos share a duration, and perceptual comparisons inside a capture group can also be quadratic. `MAX_COMPARISON_PAIRS` defaults to 100000 pair visits per capture group and across the entire cross-group video batch. Cheap exclusions consume budget too; stale left rows and buckets containing only one original group are skipped without walking every pair. A positive integer is required; fractions, overflow and unlimited values are rejected. This is a work bound, not a whole-run time guarantee or a promise about any collection size.
+
+Exhaustion reports incomplete analysis and returns a failing exit status. A cross-group failure aborts before file execution. A capture-group failure blocks mutations in that group; unrelated fully analyzed groups may still proceed. Existing-name no-ops remain safe. Split problematic input into smaller batches or review and increase the finite budget after measuring the workload. Avoid splitting paired Live Photos across batches.
+
+Run `make comparison-benchmark` for a reproducible synthetic planning/cache experiment using 1000 paths of one tiny video, one equal-duration bucket (499500 potential pairs), and the actual ffmpeg stream matcher. The second pass reuses its in-process fingerprint cache; persistent metadata/perceptual caches are not measured. The benchmark uses no original media and runs without networking, with a read-only repository, 384 MiB RAM/no extra swap, 256 MiB PHP memory, 0.5 CPU, 64 PIDs and 16 MiB temporary storage. See [benchmark results and limitations](docs/video-comparison-benchmark.md). Build the development image and install dependencies first.
+
 Configure environment variables (timezone, cache directory, etc.) in `.env` — see [Configuration](#-configuration).
 
 ### Build a standalone binary (optional)
@@ -313,6 +319,7 @@ cp .env.dist .env
 | `GROUPID`  | `1000`          | Group ID for the Docker container.                                          |
 | `TIMEZONE` | `Europe/Berlin` | Default timezone for video files without timezone metadata (see above).      |
 | `MAX_DATE_DRIFT` | `7`     | Maximum date drift in days between source filename date and target date. Set to `0` to disable. |
+| `MAX_COMPARISON_PAIRS` | `100000` | Positive finite pair-visit limit per capture group and cross-group video batch; excess reports incomplete analysis and fails. |
 | `MERGE_THRESHOLD` | `0.06`  | Maximum RMSE (0.0–1.0) for merging visually similar files. Internal safe limits still cap the effective threshold. See `--merge-threshold`. |
 | `CACHE_DIR` | `.build/cache` | Development/standalone JSON cache base. Isolated Docker runtime uses `/cache` in the `media-cache` volume. |
 | `MEDIA_DIR` | `./images` | Existing host directory bound at `/media` for runtime commands. |

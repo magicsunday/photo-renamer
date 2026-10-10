@@ -51,6 +51,7 @@ use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\CanonicalScore;
 use MagicSunday\Renamer\Service\CanonicalScorer;
 use MagicSunday\Renamer\Service\CanonicalScorerInterface;
+use MagicSunday\Renamer\Service\ComparisonWorkLimit;
 use MagicSunday\Renamer\Service\ContentIdentifierCacheEntry;
 use MagicSunday\Renamer\Service\DisjointSetUnion;
 use MagicSunday\Renamer\Service\DuplicateDetectionService;
@@ -173,6 +174,7 @@ use const DIRECTORY_SEPARATOR;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(RenameByExifDateCommand::class)]
+#[UsesClass(ComparisonWorkLimit::class)]
 #[UsesClass(AssetGroup::class)]
 #[UsesClass(AssetItem::class)]
 #[UsesClass(AssetGroupCollection::class)]
@@ -370,7 +372,7 @@ final class RenameByExifDateCommandTest extends TestCase
             $hashCalculator            = new SafeHashCalculator();
             $mediaTypeClassifier       = new MediaTypeClassifier();
             $progressReporter          = new ConsoleProgressReporter($style);
-            $hashSubGroupingService    = new HashSubGroupingService($hashCalculator, $progressReporter, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier()));
+            $hashSubGroupingService    = new HashSubGroupingService($hashCalculator, $progressReporter, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier()), new ComparisonWorkLimit(100000));
             $livePhotoConflictDetector = new LivePhotoConflictDetector($mediaTypeClassifier);
             $duplicateDetectionService = DuplicateDetectionServiceFactory::create(
                 $progressReporter,
