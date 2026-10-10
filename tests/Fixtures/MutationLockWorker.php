@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 use MagicSunday\Renamer\Application;
 use MagicSunday\Renamer\Service\Filesystem\BatchRunLock;
+use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
@@ -40,6 +41,6 @@ $command->setCode(static function (): int {
 
     return Command::SUCCESS;
 });
-$application = new Application([$command], new BatchRunLock(new Filesystem(), $directory));
+$application = new Application([$command], new BatchRunLock(new Filesystem(), $directory), FileSystemServiceFactory::createSourceIdentityGuard());
 $application->setAutoExit(false);
 exit($application->run(new ArrayInput(['command' => 'rename:lower']), new NullOutput()));

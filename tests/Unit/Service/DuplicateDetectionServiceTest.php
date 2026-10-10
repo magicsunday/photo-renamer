@@ -44,6 +44,7 @@ use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Service\Filesystem\LegacyRenameExecutor;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
 use MagicSunday\Renamer\Service\Filesystem\SortedFileIteratorCollector;
+use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
 use MagicSunday\Renamer\Service\LegacyContentIdentifierCoordinator;
@@ -120,6 +121,7 @@ use function sprintf;
 
 use const DIRECTORY_SEPARATOR;
 
+#[UsesClass(SourceIdentityGuard::class)]
 #[CoversClass(DuplicateDetectionService::class)]
 #[UsesClass(ComparisonWorkLimit::class)]
 #[UsesClass(DuplicateCanonicalRenameSelector::class)]

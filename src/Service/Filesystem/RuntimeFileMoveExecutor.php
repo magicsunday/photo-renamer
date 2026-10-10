@@ -42,11 +42,13 @@ final readonly class RuntimeFileMoveExecutor
      * @param ProgressReporterInterface     $progressReporter              Reporter used for runtime fallback diagnostics.
      * @param Filesystem                    $filesystem                    Symfony Filesystem used for mkdir/rename operations.
      * @param RuntimeCollisionPathAllocator $runtimeCollisionPathAllocator Allocates duplicate-suffix fallbacks when a target becomes occupied during execution.
+     * @param SourceIdentityGuard           $sourceIdentityGuard           Compares current bytes/inode against the CLI's pre-analysis source state
      */
     public function __construct(
         private ProgressReporterInterface $progressReporter,
         private Filesystem $filesystem,
         private RuntimeCollisionPathAllocator $runtimeCollisionPathAllocator,
+        private SourceIdentityGuard $sourceIdentityGuard,
     ) {
     }
 
@@ -110,6 +112,7 @@ final readonly class RuntimeFileMoveExecutor
                 throw new RuntimeException(sprintf('Target "%s" became occupied after planning; source retained.', $targetPath));
             }
 
+            $this->sourceIdentityGuard->assertUnchanged($sourcePath);
             $this->filesystem->rename($sourcePath, $targetPath);
         }
 

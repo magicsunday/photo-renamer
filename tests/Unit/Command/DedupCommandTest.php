@@ -26,6 +26,7 @@ use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
 use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Service\Filesystem\LegacyRenameExecutor;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
+use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\FormatPriorityResolver;
 use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
@@ -74,6 +75,7 @@ use const PHP_EOL;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
+#[UsesClass(SourceIdentityGuard::class)]
 #[CoversClass(DedupCommand::class)]
 #[CoversClass(QuarantineTargetGuard::class)]
 #[UsesClass(RecursiveRegexFileFilterIterator::class)]
@@ -770,6 +772,7 @@ final class DedupCommandTest extends TestCase
             $filesystem ?? new Filesystem(),
             new DuplicateDeletionGuard(new SafeHashCalculator()),
             new QuarantineTargetGuard(),
+            FileSystemServiceFactory::createSourceIdentityGuard(),
         );
     }
 }

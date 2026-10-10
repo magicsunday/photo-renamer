@@ -11,13 +11,17 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service\Filesystem;
 
+use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
+use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
 use MagicSunday\Renamer\Service\Reporting\NullProgressReporter;
+use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Symfony\Component\Filesystem\Filesystem;
@@ -32,6 +36,8 @@ use function readlink;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
+#[UsesClass(SourceIdentityGuard::class)]
+#[UsesClass(FileCollector::class)]
 #[CoversClass(RuntimeFileMoveExecutor::class)]
 #[CoversClass(RuntimeCollisionPathAllocator::class)]
 final class RuntimeFileMoveExecutorTest extends TestCase
@@ -52,6 +58,7 @@ final class RuntimeFileMoveExecutorTest extends TestCase
             new NullProgressReporter(),
             $filesystem,
             new RuntimeCollisionPathAllocator(),
+            FileSystemServiceFactory::createSourceIdentityGuard(),
         );
 
         $sourcePath    = '/photos/current.jpg';
@@ -94,7 +101,7 @@ final class RuntimeFileMoveExecutorTest extends TestCase
         }
 
         try {
-            $executor = new RuntimeFileMoveExecutor(new NullProgressReporter(), $filesystem, new RuntimeCollisionPathAllocator());
+            $executor = new RuntimeFileMoveExecutor(new NullProgressReporter(), $filesystem, new RuntimeCollisionPathAllocator(), FileSystemServiceFactory::createSourceIdentityGuard());
             $blocked  = false;
 
             try {
@@ -158,7 +165,7 @@ final class RuntimeFileMoveExecutorTest extends TestCase
         $occupiedPaths = [$source => true];
 
         try {
-            $executor = new RuntimeFileMoveExecutor(new NullProgressReporter(), $filesystem, new RuntimeCollisionPathAllocator());
+            $executor = new RuntimeFileMoveExecutor(new NullProgressReporter(), $filesystem, new RuntimeCollisionPathAllocator(), FileSystemServiceFactory::createSourceIdentityGuard());
             $blocked  = false;
 
             try {

@@ -43,6 +43,7 @@ use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
+use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\VirtualFlow\FlatSplFileInfoRecursiveIterator;
 use MagicSunday\Renamer\Test\Fixtures\VirtualFlow\SpyVirtualFileSystemService;
@@ -116,7 +117,7 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
         file_put_contents($workspace . '/b.jpg', 'second');
         $runtimeOutput = new BufferedOutput();
         $reporter      = new ConsoleProgressReporter(new SymfonyStyle(new ArrayInput([]), $runtimeOutput));
-        $executor      = new ExecutionPlanExecutor($reporter, new RuntimeFileMoveExecutor($reporter, new Filesystem(), new RuntimeCollisionPathAllocator()));
+        $executor      = new ExecutionPlanExecutor($reporter, new RuntimeFileMoveExecutor($reporter, new Filesystem(), new RuntimeCollisionPathAllocator(), FileSystemServiceFactory::createSourceIdentityGuard()));
         $items         = [
             new ExecutionItem($workspace . '/a.jpg', $workspace . '/shared.jpg', ExecutionItemType::Canonical, true, false, 'group'),
             new ExecutionItem($workspace . '/missing.jpg', $workspace . '/failed.jpg', ExecutionItemType::Canonical, true, false, 'group'),
@@ -174,7 +175,7 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
             ->method('rename')
             ->with($source, $target)
             ->willThrowException(new IOException('Synthetic storage failure', 0, null, $target));
-        $executor = new ExecutionPlanExecutor($reporter, new RuntimeFileMoveExecutor($reporter, $filesystem, new RuntimeCollisionPathAllocator()));
+        $executor = new ExecutionPlanExecutor($reporter, new RuntimeFileMoveExecutor($reporter, $filesystem, new RuntimeCollisionPathAllocator(), FileSystemServiceFactory::createSourceIdentityGuard()));
         $plan     = new ExecutionPlan([
             new ExecutionGroup('group', false, $source, [
                 new ExecutionItem($source, $target, ExecutionItemType::Canonical, true, false, 'group'),

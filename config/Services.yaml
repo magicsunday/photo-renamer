@@ -26,6 +26,14 @@ services:
         arguments:
             $stateDirectory: '%env(default:default_state_directory:string:CACHE_DIR)%'
 
+    # Source checks must not flush or reuse classification's hash cache.
+    renamer.source_hash_calculator:
+        class: MagicSunday\Renamer\Service\SafeHashCalculator
+
+    MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard:
+        arguments:
+            $hashCalculator: '@renamer.source_hash_calculator'
+
     MagicSunday\Renamer\Service\ComparisonWorkLimit:
         factory: ['MagicSunday\Renamer\Service\ComparisonWorkLimit', 'fromEnvironment']
         arguments:

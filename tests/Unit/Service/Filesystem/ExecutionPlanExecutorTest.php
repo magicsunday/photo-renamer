@@ -19,9 +19,12 @@ use MagicSunday\Renamer\Model\Execution\ExecutionItemType;
 use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
 use MagicSunday\Renamer\Model\Execution\ExecutionResult;
 use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
+use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
+use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
 use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
+use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -49,6 +52,8 @@ use const DIRECTORY_SEPARATOR;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
+#[UsesClass(SourceIdentityGuard::class)]
+#[UsesClass(FileCollector::class)]
 #[CoversClass(ExecutionPlanExecutor::class)]
 #[UsesClass(ExecutionPlan::class)]
 #[UsesClass(ExecutionGroup::class)]
@@ -574,6 +579,7 @@ final class ExecutionPlanExecutorTest extends TestCase
             new ConsoleProgressReporter($io),
             new Filesystem(),
             new RuntimeCollisionPathAllocator(),
+            FileSystemServiceFactory::createSourceIdentityGuard(),
         );
 
         return new ExecutionPlanExecutor(new ConsoleProgressReporter($io), $runtimeFileMoveExecutor);

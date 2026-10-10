@@ -18,6 +18,7 @@ use MagicSunday\Renamer\Service\Dedup\DedupOriginalMatcher;
 use MagicSunday\Renamer\Service\Dedup\DedupReportFormatter;
 use MagicSunday\Renamer\Service\Dedup\DuplicateDeletionGuard;
 use MagicSunday\Renamer\Service\Dedup\QuarantineTargetGuard;
+use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use Override;
@@ -33,9 +34,11 @@ use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Filesystem\Path;
 
 use function array_filter;
+use function clearstatcache;
 use function count;
 use function dirname;
 use function is_file;
+use function is_link;
 use function is_string;
 use function realpath;
 use function sprintf;
@@ -64,6 +67,7 @@ final class DedupCommand extends Command
      * @param Filesystem                 $filesystem           Symfony Filesystem component for file operations
      * @param DuplicateDeletionGuard     $deletionGuard        Fresh byte-identity check for permanent removal
      * @param QuarantineTargetGuard      $quarantineGuard      Confines quarantine paths to the selected source tree
+     * @param SourceIdentityGuard        $sourceIdentityGuard  Rejects delete/quarantine of sources changed since analysis began
      */
     public function __construct(
         private readonly FileSystemServiceInterface $fileSystemService,
@@ -73,6 +77,7 @@ final class DedupCommand extends Command
         private readonly Filesystem $filesystem,
         private readonly DuplicateDeletionGuard $deletionGuard,
         private readonly QuarantineTargetGuard $quarantineGuard,
+        private readonly SourceIdentityGuard $sourceIdentityGuard,
     ) {
         parent::__construct();
     }
@@ -310,7 +315,17 @@ final class DedupCommand extends Command
                     );
                 }
             } elseif ($delete) {
-                $this->filesystem->remove($file->getPathname());
+                try {
+                    $this->sourceIdentityGuard->assertUnchanged($file->getPathname());
+                    $this->filesystem->remove($file->getPathname());
+                } catch (RuntimeException $exception) {
+                    ++$quarantineErrors;
+                    --$duplicatesFound;
+                    $spaceReclaimable -= $fileSize;
+                    $io->error('Deletion failed; source retained: ' . $exception->getMessage());
+
+                    continue;
+                }
 
                 $this->renderIndentedAction(
                     $io,
@@ -325,6 +340,13 @@ final class DedupCommand extends Command
                     $this->quarantineGuard->assertSafeTarget($sourceDirectory, $targetPath);
                     $this->filesystem->mkdir(dirname($targetPath));
                     $this->quarantineGuard->assertSafeTarget($sourceDirectory, $targetPath);
+                    clearstatcache(true, $targetPath);
+
+                    if ($this->filesystem->exists($targetPath) || is_link($targetPath)) {
+                        throw new RuntimeException('Quarantine target became occupied after planning; source retained.');
+                    }
+
+                    $this->sourceIdentityGuard->assertUnchanged($file->getPathname());
                     $this->filesystem->rename($file->getPathname(), $targetPath);
                 } catch (RuntimeException $exception) {
                     ++$quarantineErrors;

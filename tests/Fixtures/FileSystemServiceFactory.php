@@ -17,9 +17,11 @@ use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Service\Filesystem\LegacyRenameExecutor;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
+use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
+use MagicSunday\Renamer\Service\SafeHashCalculator;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Filesystem\Filesystem;
 
@@ -54,6 +56,7 @@ final readonly class FileSystemServiceFactory
             $progressReporter,
             $filesystem,
             $runtimeCollisionPathAllocator,
+            self::createSourceIdentityGuard(),
         );
 
         return new FileSystemService(
@@ -61,5 +64,17 @@ final readonly class FileSystemServiceFactory
             new ExecutionPlanExecutor($progressReporter, $runtimeFileMoveExecutor),
             new LegacyRenameExecutor($progressReporter, $renderer, $runtimeFileMoveExecutor),
         );
+    }
+
+    /**
+     * Supplies a fresh run-scoped source guard with its own hash calculator.
+     * Tests exercising the application and mover together pass the same returned
+     * instance to both so pre-analysis identity cannot be captured too late.
+     *
+     * @return SourceIdentityGuard Explicitly wired, initially inactive source scope
+     */
+    public static function createSourceIdentityGuard(): SourceIdentityGuard
+    {
+        return new SourceIdentityGuard(new SafeHashCalculator(), new FileCollector(new SafeRegex()));
     }
 }

@@ -601,6 +601,7 @@ final class WriteDateFlowTest extends TestCase
                 new TimezoneRewritePlanner($metadataProvider),
             ),
             new WriteDateReportFormatter(),
+            FileSystemServiceFactory::createSourceIdentityGuard(),
             static fn (): bool => true,
         );
     }

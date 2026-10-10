@@ -14,6 +14,7 @@ namespace MagicSunday\Renamer\Test\Integration;
 use FilesystemIterator;
 use MagicSunday\Renamer\Application;
 use MagicSunday\Renamer\Service\Filesystem\BatchRunLock;
+use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -76,7 +77,7 @@ final class MutationLockTest extends TestCase
 
                 return Command::SUCCESS;
             });
-            $application = new Application([$command], $lockService);
+            $application = new Application([$command], $lockService, FileSystemServiceFactory::createSourceIdentityGuard());
             $application->setAutoExit(false);
             $output = new BufferedOutput();
 
@@ -127,7 +128,7 @@ final class MutationLockTest extends TestCase
             $command->addArgument('source', InputArgument::REQUIRED);
             $command->addOption('dry-run', 'd', InputOption::VALUE_NONE);
             $command->setCode(static fn (): int => Command::SUCCESS);
-            $application = new Application([$command], $lockService);
+            $application = new Application([$command], $lockService, FileSystemServiceFactory::createSourceIdentityGuard());
             $application->setAutoExit(false);
 
             self::assertSame($expectedCode, $application->run(new ArrayInput(['command' => $commandName, 'source' => $workspace, ...$options]), new BufferedOutput()));
@@ -167,7 +168,7 @@ final class MutationLockTest extends TestCase
         try {
             $secondCommand = new Command('rename:dedup');
             $secondCommand->setCode(static fn (): int => Command::SUCCESS);
-            $secondApplication = new Application([$secondCommand], $lockService);
+            $secondApplication = new Application([$secondCommand], $lockService, FileSystemServiceFactory::createSourceIdentityGuard());
             $secondApplication->setAutoExit(false);
             $command = new Command('rename:exif');
             $command->setCode(static function () use ($secondApplication): int {
@@ -175,7 +176,7 @@ final class MutationLockTest extends TestCase
 
                 throw new RuntimeException('Synthetic analysis failure.');
             });
-            $application = new Application([$command], $lockService);
+            $application = new Application([$command], $lockService, FileSystemServiceFactory::createSourceIdentityGuard());
             $application->setAutoExit(false);
             $output = new BufferedOutput();
 
@@ -210,7 +211,7 @@ final class MutationLockTest extends TestCase
 
             $command = new Command('rename:lower');
             $command->setCode(static fn (): int => Command::SUCCESS);
-            $application = new Application([$command], new BatchRunLock(new Filesystem(), $workspace));
+            $application = new Application([$command], new BatchRunLock(new Filesystem(), $workspace), FileSystemServiceFactory::createSourceIdentityGuard());
             $application->setAutoExit(false);
             self::assertSame(Command::FAILURE, $application->run(new ArrayInput(['command' => 'rename:lower']), new BufferedOutput()));
 
@@ -254,7 +255,7 @@ final class MutationLockTest extends TestCase
         try {
             $command = new Command('rename:lower');
             $command->setCode(static fn (): int => Command::SUCCESS);
-            $application = new Application([$command], new BatchRunLock($filesystem, $workspace));
+            $application = new Application([$command], new BatchRunLock($filesystem, $workspace), FileSystemServiceFactory::createSourceIdentityGuard());
             $application->setAutoExit(false);
             $output = new BufferedOutput();
 

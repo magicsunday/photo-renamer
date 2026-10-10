@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer;
 
 use MagicSunday\Renamer\Service\Filesystem\BatchRunLock;
+use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
 use Override;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -19,6 +20,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Filesystem\Exception\IOException;
 use Symfony\Component\Filesystem\Filesystem;
 
+use function is_string;
 use function str_starts_with;
 use function trim;
 
@@ -28,6 +30,10 @@ use const PHP_EOL;
  * Symfony Console application entry point. Registers all rename commands
  * injected via the DI container, reads the application version from the
  * version file and displays the ASCII art logo in help output.
+ * Mutation coordination lives at this boundary so every writing command,
+ * including dedup and write-date, is locked before its own analysis starts.
+ * Source identity is captured within that lock and released after cleanup;
+ * read-only commands and help remain available without a mutation scope.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -69,10 +75,11 @@ final class Application extends \Symfony\Component\Console\Application
      * are expected to be provided as an iterable, typically from a
      * service tag in the container configuration.
      *
-     * @param iterable<Command> $commands     The list of commands to register
-     * @param BatchRunLock      $batchRunLock Serializes mutating commands from before analysis until cleanup
+     * @param iterable<Command>   $commands            The list of commands to register
+     * @param BatchRunLock        $batchRunLock        Serializes mutating commands from before analysis until cleanup
+     * @param SourceIdentityGuard $sourceIdentityGuard Captures source state before analysis and releases it after execution
      */
-    public function __construct(iterable $commands, private readonly BatchRunLock $batchRunLock)
+    public function __construct(iterable $commands, private readonly BatchRunLock $batchRunLock, private readonly SourceIdentityGuard $sourceIdentityGuard)
     {
         parent::__construct(
             self::NAME,
@@ -114,8 +121,12 @@ final class Application extends \Symfony\Component\Console\Application
         $lock = $this->batchRunLock->acquire();
 
         try {
+            $source = $input->hasArgument('source') ? $input->getArgument('source') : null;
+            $this->sourceIdentityGuard->begin(is_string($source) ? $source : null);
+
             return parent::doRunCommand($command, $input, $output);
         } finally {
+            $this->sourceIdentityGuard->finish();
             $lock->release();
         }
     }

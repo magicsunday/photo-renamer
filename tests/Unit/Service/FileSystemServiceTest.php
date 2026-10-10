@@ -30,6 +30,7 @@ use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Service\Filesystem\LegacyRenameExecutor;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
+use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\Output\DiffHighlighter;
 use MagicSunday\Renamer\Service\Output\DiffTokenState;
@@ -79,6 +80,7 @@ use function unlink;
 
 use const DIRECTORY_SEPARATOR;
 
+#[UsesClass(SourceIdentityGuard::class)]
 #[CoversClass(FileSystemService::class)]
 #[CoversClass(RenameOutputRenderer::class)]
 #[CoversClass(FileDuplicateCollection::class)]
