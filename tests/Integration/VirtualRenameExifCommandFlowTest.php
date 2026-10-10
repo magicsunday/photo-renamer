@@ -59,6 +59,7 @@ use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Tester\CommandTester;
+use Symfony\Component\Filesystem\Exception\IOException;
 use Symfony\Component\Filesystem\Filesystem;
 
 use function file_get_contents;
@@ -145,6 +146,69 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
             $diagnostics = $runtimeOutput->fetch();
             self::assertStringContainsString('Source file', $diagnostics);
             self::assertStringContainsString('b.jpg → shared-duplicate-001.jpg (planned: shared.jpg)', $diagnostics);
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * A single planned move whose actual filesystem rename throws must finish
+     * with zero processed files, one runtime error and a nonzero command exit.
+     * The real executor handles the injected IOException against an existing
+     * temporary source; unchanged source bytes and an absent target prove that
+     * neither the summary nor the success footer can claim a completed move.
+     */
+    #[Test]
+    public function failedOnlyMoveReportsZeroProcessedAndPreservesSource(): void
+    {
+        $workspace = $this->createTempWorkspace();
+        $source    = $workspace . '/source.jpg';
+        $target    = $workspace . '/renamed.jpg';
+        $contents  = 'synthetic source that must survive a storage failure';
+        file_put_contents($source, $contents);
+
+        $runtimeOutput = new BufferedOutput();
+        $reporter      = new ConsoleProgressReporter(new SymfonyStyle(new ArrayInput([]), $runtimeOutput));
+        $filesystem    = self::createPartialMock(Filesystem::class, ['rename']);
+        $filesystem->expects(self::once())
+            ->method('rename')
+            ->with($source, $target)
+            ->willThrowException(new IOException('Synthetic storage failure', 0, null, $target));
+        $executor = new ExecutionPlanExecutor($reporter, new RuntimeFileMoveExecutor($reporter, $filesystem, new RuntimeCollisionPathAllocator()));
+        $plan     = new ExecutionPlan([
+            new ExecutionGroup('group', false, $source, [
+                new ExecutionItem($source, $target, ExecutionItemType::Canonical, true, false, 'group'),
+            ]),
+        ]);
+
+        try {
+            [$command, $fileSystemService, $output] = $this->createCommandHarness(
+                static function (PipelineContext $context): void {
+                    $context->setScannedFileCount(1);
+                },
+                $plan,
+                executor: $executor,
+            );
+            $tester = new CommandTester($command);
+            $tester->setInputs(['yes']);
+
+            self::assertSame(Command::FAILURE, $tester->execute(['source' => $workspace]));
+            self::assertSame(1, $fileSystemService->getExecutePlanCalls());
+            self::assertFalse($fileSystemService->getCapturedDryRun());
+            self::assertSame($plan, $fileSystemService->getCapturedExecutionPlan());
+            $summary = $output->fetch();
+            self::assertMatchesRegularExpression('/Planned moves\s+1/', $summary);
+            self::assertMatchesRegularExpression('/Files processed\s+0/', $summary);
+            self::assertMatchesRegularExpression('/Runtime errors\s+1/', $summary);
+            self::assertStringNotContainsString('[OK] done', $tester->getDisplay());
+            self::assertStringNotContainsString('[OK] done', $summary);
+            $diagnostics = $runtimeOutput->fetch();
+            self::assertStringContainsString('Failed to rename', $diagnostics);
+            self::assertStringContainsString('Synthetic storage failure', $diagnostics);
+            self::assertStringNotContainsString('[OK] done', $diagnostics);
+            self::assertFileExists($source);
+            self::assertSame($contents, file_get_contents($source));
+            self::assertFileDoesNotExist($target);
         } finally {
             $this->removeWorkspace($workspace);
         }
