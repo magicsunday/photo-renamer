@@ -18,6 +18,9 @@ use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\Collection\FileList;
 use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
+use MagicSunday\Renamer\Model\MergeDecision;
+use MagicSunday\Renamer\Model\MergeDecisionKind;
+use MagicSunday\Renamer\Model\MergeDecisionReason;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Service\DisjointSetUnion;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
@@ -62,6 +65,9 @@ use const DIRECTORY_SEPARATOR;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(HashSubGroupingService::class)]
+#[UsesClass(MergeDecision::class)]
+#[UsesClass(MergeDecisionKind::class)]
+#[UsesClass(MergeDecisionReason::class)]
 #[CoversClass(FileDuplicate::class)]
 #[CoversClass(RenameList::class)]
 #[CoversClass(Rename::class)]
@@ -361,12 +367,12 @@ final class HashSubGroupingServiceTest extends TestCase
     }
 
     /**
-     * Verifies that apply() returns null when companion videos (MOVs) all share
-     * the same hash, indicating the stills are semantic duplicates of the same
-     * capture (different JPG encoding/metadata, not different photos).
+     * Different, unavailable still contents must retain separate subgroups even
+     * when their companion bytes match. A shared motion clip identifies neither
+     * the still pixels nor a permitted edit/codec threshold.
      */
     #[Test]
-    public function applySkipsSubGroupingWhenCompanionVideosShareHash(): void
+    public function applyKeepsStillsSeparateWhenOnlyCompanionHashesMatch(): void
     {
         $service = $this->createHashSubGroupingService();
 
@@ -434,7 +440,8 @@ final class HashSubGroupingServiceTest extends TestCase
             $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory),
         );
 
-        self::assertNull($result);
+        self::assertIsArray($result);
+        self::assertNotSame($result[$jpgA], $result[$jpgB]);
     }
 
     /**

@@ -208,6 +208,10 @@ renamer rename:exif ~/Photos
 
 Renames all photos and videos to `YYYY-MM-DD_HH-MM-SS-mmm.ext`. Extensions are normalised automatically (e.g. `JPEG` → `jpg`). Live Photo pairs (still + video) receive the same base name. Files with distinct content sharing the same timestamp get sequential sub-group numbers (`-002`, `-003`, ...), while visually identical files (format conversions, re-imports) are merged via perceptual hashing. True duplicates get `-duplicate-NNN` suffixes.
 
+Classification distinguishes matching content hashes (`exact`), accepted visual similarity (`perceptual`), rejected comparisons (`different`) and unavailable evidence (`uncertain`). Decode/hash failures, color vetoes and the effective pixel-difference threshold cannot be overridden by a matching filename or an identical Live Photo companion clip. Companion identity keeps pairing intact while distinct still images retain separate subgroups. Classification hashes are analysis evidence; permanent deletion still requires the separate fresh SHA-256 check described below.
+
+Use `--list-all` to see classification reasons in the EXIF decision log. Each group retains one example and a comparison count per reason, rather than every pair. `-vvv` reports individual decisions with available measurements; missing signals are reported as unavailable, never as a measured zero distance. The public subgroup service can stream typed `MergeDecision` values through its optional `onDecision` callback for callers that need detailed evidence.
+
 ### Phase 3: Post-rename verification and drift fix
 
 ```bash
