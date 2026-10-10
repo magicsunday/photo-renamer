@@ -1,5 +1,6 @@
 parameters:
     env(MAX_COMPARISON_PAIRS): '100000'
+    default_state_directory: '.build/cache'
 
 services:
     _defaults:
@@ -20,6 +21,10 @@ services:
     MagicSunday\Renamer\:
         resource: '../src/'
         exclude: ['../src/{Renamer,Dependencies,Constants}.php', '../src/Model/']
+
+    MagicSunday\Renamer\Service\Filesystem\BatchRunLock:
+        arguments:
+            $stateDirectory: '%env(default:default_state_directory:string:CACHE_DIR)%'
 
     MagicSunday\Renamer\Service\ComparisonWorkLimit:
         factory: ['MagicSunday\Renamer\Service\ComparisonWorkLimit', 'fromEnvironment']

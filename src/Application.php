@@ -11,11 +11,15 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer;
 
+use MagicSunday\Renamer\Service\Filesystem\BatchRunLock;
 use Override;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Filesystem\Exception\IOException;
 use Symfony\Component\Filesystem\Filesystem;
 
+use function str_starts_with;
 use function trim;
 
 use const PHP_EOL;
@@ -65,9 +69,10 @@ final class Application extends \Symfony\Component\Console\Application
      * are expected to be provided as an iterable, typically from a
      * service tag in the container configuration.
      *
-     * @param iterable<Command> $commands The list of commands to register
+     * @param iterable<Command> $commands     The list of commands to register
+     * @param BatchRunLock      $batchRunLock Serializes mutating commands from before analysis until cleanup
      */
-    public function __construct(iterable $commands)
+    public function __construct(iterable $commands, private readonly BatchRunLock $batchRunLock)
     {
         parent::__construct(
             self::NAME,
@@ -76,6 +81,42 @@ final class Application extends \Symfony\Component\Console\Application
 
         foreach ($commands as $command) {
             $this->addCommand($command);
+        }
+    }
+
+    /**
+     * Holds the shared mutation lock throughout command analysis, confirmation,
+     * execution and cache cleanup. New rename commands are protected by default;
+     * verification and explicitly parsed dry runs do not mutate media.
+     *
+     * @param Command         $command Resolved command, including aliases
+     * @param InputInterface  $input   Raw command arguments and options
+     * @param OutputInterface $output  Console output used by Symfony's error handling
+     *
+     * @return int Exit status returned by the protected command
+     */
+    #[Override]
+    protected function doRunCommand(Command $command, InputInterface $input, OutputInterface $output): int
+    {
+        $name = $command->getName() ?? '';
+
+        if (!str_starts_with($name, 'rename:') || ($name === 'rename:verify')) {
+            return parent::doRunCommand($command, $input, $output);
+        }
+
+        $command->mergeApplicationDefinition();
+        $input->bind($command->getDefinition());
+
+        if ($input->hasOption('dry-run') && ($input->getOption('dry-run') === true)) {
+            return parent::doRunCommand($command, $input, $output);
+        }
+
+        $lock = $this->batchRunLock->acquire();
+
+        try {
+            return parent::doRunCommand($command, $input, $output);
+        } finally {
+            $lock->release();
         }
     }
 

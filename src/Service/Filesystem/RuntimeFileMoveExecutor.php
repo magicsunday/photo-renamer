@@ -17,7 +17,9 @@ use SplFileInfo;
 use Symfony\Component\Filesystem\Filesystem;
 
 use function basename;
+use function clearstatcache;
 use function dirname;
+use function is_link;
 use function sprintf;
 
 /**
@@ -55,7 +57,9 @@ final readonly class RuntimeFileMoveExecutor
      * If the requested target has become occupied by an earlier item in the same
      * run, the executor falls back to the next free duplicate-suffixed path to
      * prevent overwriting files. The occupied-path index is updated even in dry
-     * runs so later simulated items see the same path transitions.
+     * runs so later simulated items see the same path transitions. An external
+     * target observed on disk after planning blocks the move and retains the
+     * source, including unreadable files and dangling symbolic links.
      *
      * @param string              $sourcePath    Absolute source file path.
      * @param string              $targetPath    Intended absolute target file path.
@@ -95,6 +99,17 @@ final readonly class RuntimeFileMoveExecutor
             }
 
             $this->filesystem->mkdir(dirname($targetPath));
+
+            // Symfony's overwrite=false check tests readability and does not
+            // reject unreadable files or dangling links. Observe all existing
+            // leaves immediately before handing off, without claiming atomicity
+            // against an external writer racing the subsequent rename syscall.
+            clearstatcache(true, $targetPath);
+
+            if ($this->filesystem->exists($targetPath) || is_link($targetPath)) {
+                throw new RuntimeException(sprintf('Target "%s" became occupied after planning; source retained.', $targetPath));
+            }
+
             $this->filesystem->rename($sourcePath, $targetPath);
         }
 

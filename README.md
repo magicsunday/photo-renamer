@@ -341,6 +341,16 @@ cp .env.dist .env
 | `FILE_LINK_BASE` | *(empty)* | Same path as seen from the terminal host (e.g. `Z:\Photos`). |
 | `FILE_LINK_PROTOCOL` | *(empty)* | URI scheme for clickable links: empty = `file://` (opens directory), `photo-select` = custom protocol (opens Explorer with file selected). |
 
+### Concurrent mutations
+
+Mutating `rename:*` commands take one exclusive Symfony filesystem lock before analysis and hold it through confirmation, execution and cleanup. `rename:verify` and `--dry-run` remain available while a mutating run holds the lock. A second mutating run fails immediately instead of waiting with a potentially stale plan. The shared resource covers parent/child source trees and source-path aliases because it is independent of the selected media path.
+
+Cooperating processes must use the **same persistent state base**: `/cache` in the normal Docker runtime's shared `media-cache` volume, or `CACHE_DIR` in development/standalone (default `.build/cache`). Separate cache bases, independent Docker project volumes or hosts do not coordinate automatically. Share the same volume/base when operating on overlapping media. The dedicated `<state base>/locks` directory is owned by the current process UID with `0700` permissions; foreign ownership and symlink redirects fail closed. Keep its parent under trusted control and use a filesystem with working kernel `flock` semantics.
+
+The kernel releases the lock on normal exit, exceptions and process termination, including a forced kill. The lock file intentionally remains. **Do not delete lock files to unlock a run**: deleting a held inode can allow a second process to acquire a different lock. Cache-clear commands leave lock files intact. A lock does not undo changes already completed before an interruption.
+
+Importers, editors and other applications do not take this lock. Stop those writers while running mutations. The rename executor rejects observed external target leaves, including unreadable files and dangling symlinks, preserving its source; checks followed by Symfony rename do not provide atomic protection against a foreign writer creating or replacing a path between the final check and the operating-system rename.
+
 ### Private caches and migration
 
 Metadata caches contain absolute media paths, capture times and possibly GPS/device information. Both JSON caches live in `<cache base>/private-<effective UID>/` (`/cache` in the runtime, `CACHE_DIR` in development/standalone), using the actual container UID (`USERID`) and GID (`GROUPID`). On Unix filesystems the directory is `0700` and files are `0600`, including the populated temporary file used for atomic replacement, independently of `umask 0022`. Existing owned private directories and files have their permissions corrected. Shared parents are not chmodded; each user needs permission to create their own child. Changing UID starts a separate cold cache.
