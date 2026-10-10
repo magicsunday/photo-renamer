@@ -238,6 +238,10 @@ renamer rename:dedup --delete ~/Photos
 
 Files with `-duplicate-NNN` suffixes are cleanup candidates; a suffix alone does not prove identical content. The default action moves candidates to quarantine for review. `--delete` requires fresh SHA-256 equality with a retained original and unchanged file state during verification, after confirmation. Different contents, cross-format conversions and unavailable evidence block deletion and produce a nonzero exit code. `--delete --dry-run` applies the same verification without deleting files. Orphaned candidates are skipped with a warning. State checks do not provide an atomic transaction against concurrent external writers; keep other media writers stopped during cleanup.
 
+Quarantine uses `_duplicates` by default. `--target=review/duplicates` selects another relative subdirectory of the canonical source directory (the containing directory for a single-file source). Absolute paths, parent traversal and the source root itself are rejected. Existing symlinks in any destination component, including dangling links and links pointing inside the source tree, are rejected. The whole batch is checked before any move, with fresh checks around directory creation and before each rename; dry-run validates the same boundary without creating directories. A rejected boundary produces a nonzero exit code and retains affected source files. If a later boundary changes during execution, earlier successful moves remain in quarantine; there is no automatic rollback.
+
+These path checks detect unsafe paths observed at the check boundaries. They do **not** make mkdir/rename atomic against a hostile process swapping directories between a check and the filesystem call. Run cleanup in a directory tree that other users/processes cannot modify concurrently, and stop import/sync jobs for its duration. Application locking alone would not constrain such external writers.
+
 ## 💡 Additional Commands
 
 ```bash

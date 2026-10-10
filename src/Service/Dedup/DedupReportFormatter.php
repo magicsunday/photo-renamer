@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Service\Dedup;
 
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Service\Output\SummaryRow;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 
 use function sprintf;
 
@@ -30,6 +31,19 @@ use function sprintf;
  */
 final class DedupReportFormatter
 {
+    /**
+     * Formats the same quarantine diagnostic at validation and execution time.
+     * The detail can contain filenames, so Console markup must be escaped.
+     *
+     * @param string $detail Explanation from the boundary check or filesystem operation
+     *
+     * @return string Operator-facing diagnostic safe from Console markup injection
+     */
+    public function formatQuarantineError(string $detail): string
+    {
+        return 'Quarantine blocked: ' . OutputFormatter::escape($detail);
+    }
+
     /**
      * Builds the post-scan overview shown before individual dedup actions.
      *
