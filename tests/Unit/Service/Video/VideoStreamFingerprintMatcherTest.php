@@ -11,13 +11,27 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service\Video;
 
+use DateTimeImmutable;
+use MagicSunday\Renamer\Metadata\TemporalMetadata;
+use MagicSunday\Renamer\Model\AssetGroup;
+use MagicSunday\Renamer\Model\AssetItem;
+use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
+use MagicSunday\Renamer\Model\Pipeline\VideoDuplicateCandidate;
 use MagicSunday\Renamer\Model\Pipeline\VideoFingerprintMatch;
+use MagicSunday\Renamer\Model\PipelineContext;
+use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
+use MagicSunday\Renamer\Service\MediaTypeClassifier;
+use MagicSunday\Renamer\Service\Pipeline\CrossGroupVideoComparisonPlan;
+use MagicSunday\Renamer\Service\Pipeline\CrossGroupVideoDuplicateReconciler;
+use MagicSunday\Renamer\Service\Pipeline\DurationBucketedVideoCandidate;
+use MagicSunday\Renamer\Service\Reporting\NullProgressReporter;
 use MagicSunday\Renamer\Service\Video\StreamHashRecord;
 use MagicSunday\Renamer\Service\Video\StreamHashType;
 use MagicSunday\Renamer\Service\Video\VideoStreamFingerprint;
 use MagicSunday\Renamer\Service\Video\VideoStreamFingerprintMatcher;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
@@ -43,6 +57,18 @@ use function sprintf;
 #[UsesClass(StreamHashRecord::class)]
 #[UsesClass(StreamHashType::class)]
 #[UsesClass(VideoStreamFingerprint::class)]
+#[UsesClass(TemporalMetadata::class)]
+#[UsesClass(AssetGroup::class)]
+#[UsesClass(AssetItem::class)]
+#[UsesClass(AssetGroupCollection::class)]
+#[UsesClass(PipelineContext::class)]
+#[UsesClass(VideoDuplicateCandidate::class)]
+#[UsesClass(MediaCompatibilityPolicy::class)]
+#[UsesClass(MediaTypeClassifier::class)]
+#[UsesClass(CrossGroupVideoComparisonPlan::class)]
+#[UsesClass(CrossGroupVideoDuplicateReconciler::class)]
+#[UsesClass(DurationBucketedVideoCandidate::class)]
+#[UsesClass(NullProgressReporter::class)]
 final class VideoStreamFingerprintMatcherTest extends TestCase
 {
     use WorkspaceTrait;
@@ -160,6 +186,97 @@ final class VideoStreamFingerprintMatcherTest extends TestCase
         self::assertFalse($match->isExactDuplicate());
         self::assertFalse($match->isCandidate());
         self::assertFalse($match->videoStreamMatched);
+    }
+
+    /**
+     * Compares real MOVs whose primary AV streams are copied unchanged but which
+     * carry additional tracks. Neither differing secondary content nor a track
+     * present on only one side may be auto-merged. Even identical secondary tracks
+     * remain review-only until a complete multi-track comparison is supported.
+     * The real reconciler must keep both groups and expose the review reason.
+     *
+     * @param string $streamSelector Audio or video stream to append from the donor
+     * @param bool   $bothMultitrack Whether the other side also has an additional stream
+     * @param bool   $sameSecondary  Whether both secondary streams are byte-identical
+     */
+    #[Test]
+    #[DataProvider('multiTrackScenarios')]
+    public function additionalAvStreamsRequireReview(string $streamSelector, bool $bothMultitrack, bool $sameSecondary): void
+    {
+        $base       = $this->createVideoWithAudio('base.mov', 'blue', '440');
+        $donorA     = $this->createVideoWithAudio('donor-a.mov', 'red', '880');
+        $donorB     = $this->createVideoWithAudio('donor-b.mov', 'green', '1760');
+        $left       = $this->appendStream($base, $donorA, 'left.mov', $streamSelector);
+        $rightDonor = $sameSecondary ? $donorA : $donorB;
+        $right      = $bothMultitrack
+            ? $this->appendStream($base, $rightDonor, 'right.mov', $streamSelector)
+            : $base;
+        $matcher = new VideoStreamFingerprintMatcher();
+
+        foreach ([[$left, $right], [$right, $left]] as [$pathA, $pathB]) {
+            $match = $matcher->match(new SplFileInfo($pathA), new SplFileInfo($pathB));
+            self::assertTrue($match->videoStreamMatched);
+            self::assertTrue($match->hasAdditionalAvStreams);
+            self::assertFalse($match->isExactDuplicate());
+            self::assertTrue($match->isCandidate());
+            self::assertSame('primary video stream identical, additional audio/video streams require review', $match->reviewReason);
+        }
+
+        $groups = new AssetGroupCollection();
+
+        foreach ([$left, $right] as $index => $path) {
+            $group = new AssetGroup('2024-01-0' . ($index + 1) . '_10-00-00-000');
+            $group->addItem(new AssetItem(new SplFileInfo($path), metadata: new TemporalMetadata(
+                new DateTimeImmutable('2024-01-01T10:00:00+00:00'),
+                null,
+                videoDurationSeconds: 0.5,
+            )));
+            $groups->set($group->groupKey, $group);
+        }
+
+        $context    = new PipelineContext($this->workspace);
+        $reconciler = new CrossGroupVideoDuplicateReconciler(new MediaCompatibilityPolicy(new MediaTypeClassifier()), $matcher, new NullProgressReporter());
+        $reconciler->reconcile($groups, $context);
+        self::assertCount(2, $groups);
+
+        foreach ($groups as $group) {
+            self::assertCount(1, $group->getItems());
+        }
+
+        self::assertCount(1, $context->getVideoDuplicateCandidates());
+        self::assertStringContainsString('additional audio/video streams', $context->getVideoDuplicateCandidates()[0]->reason);
+    }
+
+    /**
+     * Supplies supported-primary-layout pairs with unsupported secondary tracks.
+     *
+     * @return iterable<string, array{string, bool, bool}> Stream selector and secondary-track layout
+     */
+    public static function multiTrackScenarios(): iterable
+    {
+        yield 'different second audio' => ['a:0', true, false];
+        yield 'extra audio on one side' => ['a:0', false, false];
+        yield 'different second video' => ['v:0', true, false];
+        yield 'extra video on one side' => ['v:0', false, false];
+        yield 'identical extra audio still requires review' => ['a:0', true, true];
+    }
+
+    /**
+     * Appends one donor track while preserving every original packet via stream-copy.
+     *
+     * @param string $source   Original single-video/single-audio MOV
+     * @param string $donor    MOV supplying the additional track
+     * @param string $filename Output filename in the temporary workspace
+     * @param string $selector Donor audio/video selector
+     *
+     * @return string Generated multi-track MOV pathname
+     */
+    private function appendStream(string $source, string $donor, string $filename, string $selector): string
+    {
+        $target = $this->workspace . '/' . $filename;
+        $this->runProcess(['ffmpeg', '-y', '-i', $source, '-i', $donor, '-map', '0', '-map', '1:' . $selector, '-c', 'copy', $target]);
+
+        return $target;
     }
 
     /**
