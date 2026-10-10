@@ -23,6 +23,7 @@ use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\FilenameDateParser;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Helper\PathHelper;
+use MagicSunday\Renamer\Helper\PrivateCacheStorage;
 use MagicSunday\Renamer\Metadata\CaptureTimestampExtraction;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\MetadataCache;
@@ -328,6 +329,7 @@ use const PREG_SET_ORDER;
 #[UsesClass(TargetPathResolver::class)]
 #[UsesClass(TargetBasenameStrategy::class)]
 #[UsesClass(ExifDateFilenameStrategy::class)]
+#[UsesClass(PrivateCacheStorage::class)]
 final class TestImageScenariosTest extends TestCase
 {
     use ConsoleOutputParserTrait;

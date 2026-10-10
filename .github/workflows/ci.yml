@@ -44,6 +44,9 @@ jobs:
             - name: Verify runtime image and native decoder
               run: bash scripts/check-runtime-image
 
+            - name: Verify cache user isolation
+              run: make cache-permissions-check
+
             - id: image-name
               name: Resolve runtime image name
               run: echo "name=$(docker compose config --images | grep 'buildbox$' | head -n 1)" >> "$GITHUB_OUTPUT"

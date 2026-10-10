@@ -45,6 +45,7 @@
         "ext-ctype": "*",
         "ext-imagick": "*",
         "ext-mbstring": "*",
+        "ext-posix": "*",
         "magicsunday/imagemeta": "dev-main",
         "symfony/config": "^8.0",
         "symfony/console": "^8.0",

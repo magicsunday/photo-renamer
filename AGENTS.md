@@ -35,7 +35,8 @@ make install        # Composer install
 make no-dev-smoke   # Verify the isolated production vendor tree and runtime dependencies
 make runtime-image-check # Verify the runtime image and native media decoder contract
 make binary         # Build SPC binary (always via Docker)
-make cache-clear    # Clear persistent metadata cache
+make cache-clear    # Purge current-user JSON caches, owned legacy files and DI cache
+make cache-permissions-check # Verify real two-UID cache privacy in disposable Docker
 ```
 
 Local pipeline order of `composer ci:test`: phplint → php-cs-fixer (dry-run) → rector (dry-run) → phpstan → deptrac → templates → phpunit → jscpd
@@ -43,6 +44,8 @@ Local pipeline order of `composer ci:test`: phplint → php-cs-fixer (dry-run) �
 `composer ci:test:php:cpd` runs the installed `node_modules/.bin/jscpd`, so the Node dependencies must be installed first (`make install` runs `npm ci`). jscpd is pinned to an exact version in `package.json`. CI runs it as its own job through the shared `cpd.yml` workflow of the `.github` repository, reported as `cpd / Copy-paste detection`.
 
 `make no-dev-smoke` builds a temporary `--no-dev` Composer tree and starts the CLI with it. The smoke test also exercises the production `symfony/process` dependency, video fingerprinting, Write-Date, and the missing-`exiftool` capability diagnostic without using the repository's normal development vendor tree.
+
+`make cache-permissions-check` uses root only inside a disposable Docker container to launch children that permanently drop to UID/GID 1000 and 1001. It checks actual denied access to synthetic GPS/path JSON and foreign-owner rejection. The runtime-image CI lane runs this check with production dependencies.
 
 ### Focused commands
 
@@ -117,6 +120,7 @@ Constructor parameters must not default to `new Foo()`. New collaborators are wi
 - The pull-request body closes the issue with `Closes #<N>` — the `GH-<N>: ` subject prefix is not a GitHub link and closes nothing.
 - Never add a `Co-Authored-By:` trailer or any other AI attribution.
 - Granular commits — one concern per commit
+- Merge pull requests exclusively with **squash** (`gh pr merge --squash`); the squash commit subject must satisfy the shared commit convention. Never create a "Merge pull request" commit. Merge only after all issue acceptance criteria are fulfilled, evidenced and checked, own code review is complete, and relevant GitHub checks pass for the exact reviewed head.
 - **Always** run `make test` before committing
 
 ## Design Principles
@@ -216,6 +220,7 @@ This is an intentional bounded exception (End State B). These commands are too s
 - **Video stream identity** — Cross-group exact matching accepts one video stream and at most one audio stream. Additional AV tracks veto automatic merging and produce a review reason when primary video matches. Non-AV container tracks remain ignored.
 - **Idempotency** — re-running any command on already-processed files produces identical results.
 - **Symfony Filesystem** — all file operations (`rename`, `mkdir`, `remove`, `dumpFile`, `readFile`) use `Symfony\Component\Filesystem\Filesystem`. Never use procedural PHP functions for file I/O in production code.
+- **Private media caches** — `PrivateCacheStorage` creates `CACHE_DIR/private-<effective UID>/` with `0700`, JSON/temporary files with `0600`. Correct only owned dedicated paths, never shared parent modes; reject foreign-owned paths and symlink/hardlink leaves. Flat legacy JSON is not imported: `make cache-clear` purges owned legacy/current-user files and the separate executable DI cache. No automatic TTL or forensic-erasure guarantee. Configured parents must be trusted; checks are not atomic against hostile directory writers.
 - **Quarantine boundaries** — `QuarantineTargetGuard` confines `rename:dedup` move destinations to relative subdirectories of the canonical source root; reject traversal, absolute paths and every existing symlink component (including dangling/internal links). Validate all actionable targets before any move and recheck around mkdir/before rename. Dry-run checks the same boundary; delete retains its independent fresh-byte guard. These checks require a tree without concurrent external directory writers and do not promise atomic symlink-race protection or rollback.
 
 ### Output Tags (OutputEntryTag enum)
@@ -261,7 +266,7 @@ tests/
 .build/
   bin/                 # Compiled binaries
   vendor/              # Composer dependencies
-  cache/               # PHPUnit cache, metadata cache
+  cache/               # Tool/DI caches + private-<UID>/ media JSON caches
   spc/                 # SPC build environment
 Make/                  # Modular Makefile targets
 scripts/               # Build and utility scripts
@@ -274,5 +279,5 @@ scripts/               # Build and utility scripts
 | `USERID` / `GROUPID` | Docker container UID/GID mapping | `1000` |
 | `TIMEZONE` | Convert UTC video timestamps to local time | `Europe/Berlin` |
 | `MAX_DATE_DRIFT` | Max days drift between filename and metadata date | `7` |
-| `CACHE_DIR` | Persistent cache directory | `.build/cache` |
+| `CACHE_DIR` | Base for private-<effective UID>/ JSON caches (0700/0600); DI cache stays separate | `.build/cache` |
 | `CANONICAL_FORMAT_PRIORITY` | Comma-separated format priority for canonical selection | `heic,heif,dng,arw,...` |

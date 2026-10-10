@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Metadata;
 
 use DateTimeImmutable;
+use MagicSunday\Renamer\Helper\PrivateCacheStorage;
 use MagicSunday\Renamer\Metadata\MetadataCache;
 use MagicSunday\Renamer\Metadata\MetadataCacheEntry;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
@@ -22,13 +23,16 @@ use PHPUnit\Framework\TestCase;
 use SplFileInfo;
 use Symfony\Component\Filesystem\Filesystem;
 
+use function clearstatcache;
 use function file_put_contents;
+use function fileperms;
 use function is_dir;
 use function is_file;
 use function mkdir;
 use function rmdir;
 use function sys_get_temp_dir;
 use function touch;
+use function umask;
 use function uniqid;
 use function unlink;
 
@@ -53,6 +57,7 @@ use const DIRECTORY_SEPARATOR;
 #[CoversClass(MetadataCache::class)]
 #[UsesClass(MetadataCacheEntry::class)]
 #[UsesClass(TemporalMetadata::class)]
+#[UsesClass(PrivateCacheStorage::class)]
 final class MetadataCacheTest extends TestCase
 {
     private string $workspace;
@@ -246,13 +251,13 @@ final class MetadataCacheTest extends TestCase
     }
 
     /**
-     * Verifies that non-container callers can still construct the cache without
-     * passing a filesystem collaborator explicitly.
+     * Verifies that manual callers supply the private storage boundary explicitly
+     * and a missing file still starts with an empty cache.
      */
     #[Test]
-    public function constructionWithoutFilesystemUsesDefaultFilesystem(): void
+    public function constructionWithExplicitPrivateStorageStartsEmpty(): void
     {
-        $cache = new MetadataCache($this->cacheFile);
+        $cache = new MetadataCache($this->cacheFile, new PrivateCacheStorage(new Filesystem()));
 
         self::assertNull($cache->get(new SplFileInfo('/any/file.jpg')));
     }
@@ -306,6 +311,38 @@ final class MetadataCacheTest extends TestCase
     }
 
     /**
+     * The metadata cache includes synthetic location data and absolute paths.
+     * Under a common permissive umask it must still create a private file and
+     * newly created cache directory instead of exposing those values to peers.
+     */
+    #[Test]
+    public function flushKeepsLocationCachePrivateWithPermissiveUmask(): void
+    {
+        new Filesystem()->chmod($this->workspace, 0o755);
+        $previousUmask = umask(0o022);
+
+        try {
+            $filePath = $this->workspace . '/photo.jpg';
+            file_put_contents($filePath, 'synthetic media');
+            $cache = $this->createCache();
+            $cache->set(new SplFileInfo($filePath), new TemporalMetadata(
+                new DateTimeImmutable('2024-01-01T12:00:00Z'),
+                null,
+                latitude: 12.345,
+                longitude: 67.89,
+            ));
+            $cache->flush();
+            clearstatcache(true);
+
+            self::assertSame(0o600, fileperms($this->cacheFile) & 0o777);
+            self::assertSame(0o700, fileperms($this->workspace . '/cache') & 0o777);
+            self::assertSame(0o755, fileperms($this->workspace) & 0o777);
+        } finally {
+            umask($previousUmask);
+        }
+    }
+
+    /**
      * Creates the cache under test with a concrete Symfony Filesystem instance.
      *
      * Production code now injects the filesystem dependency explicitly instead
@@ -316,6 +353,6 @@ final class MetadataCacheTest extends TestCase
      */
     private function createCache(): MetadataCache
     {
-        return new MetadataCache($this->cacheFile, new Filesystem());
+        return new MetadataCache($this->cacheFile, new PrivateCacheStorage(new Filesystem()));
     }
 }

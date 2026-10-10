@@ -2,8 +2,6 @@
 # Variables
 # =============================================================================
 
-METADATA_CACHE = $${CACHE_DIR:-.build/cache}/metadata-cache.json
-SIGNAL_CACHE   = $${CACHE_DIR:-.build/cache}/perceptual-signal-cache.json
 DI_CACHE       = .build/cache/DependencyContainer.php
 
 # =============================================================================
@@ -12,10 +10,10 @@ DI_CACHE       = .build/cache/DependencyContainer.php
 
 #### Application
 
-.PHONY: binary binary-init binary-clean cache-clear version
+.PHONY: binary binary-init binary-clean cache-clear cache-permissions-check version
 
 binary: .logo ## Build the self-contained renamer binary.
-	@rm -f $(METADATA_CACHE) $(SIGNAL_CACHE) $(DI_CACHE)
+	$(COMPOSE_BUILD) php scripts/clear-cache.php
 	@bash scripts/build
 
 binary-init: .logo ## Initialize SPC build environment (download + compile PHP).
@@ -24,9 +22,11 @@ binary-init: .logo ## Initialize SPC build environment (download + compile PHP).
 binary-clean: .logo ## Remove SPC build artifacts to free space.
 	@rm -rf .build/spc/pkgroot/ .build/spc/downloads/ .build/spc/source/
 
-cache-clear: .logo ## Clear all persistent caches (metadata + perceptual signals + DI container).
-	$(COMPOSE_BUILD) rm -f $(METADATA_CACHE) $(SIGNAL_CACHE) $(DI_CACHE)
-	@echo "Caches cleared (metadata + perceptual signals + DI container)."
+cache-clear: .logo ## Clear current-user media caches, owned legacy caches and DI container.
+	$(COMPOSE_BUILD) php scripts/clear-cache.php
+
+cache-permissions-check: .logo ## Verify synthetic cache isolation between two real Unix UIDs.
+	$(COMPOSE_BIN) run --rm --user 0:0 buildbox php scripts/check-cache-permissions.php
 
 version: .logo ## Create a new version release.
 	@bash scripts/create-version

@@ -7,7 +7,7 @@
 .PHONY: docker-build runtime-image-check bash
 
 docker-build: .logo ## Builds the Docker image.
-	@rm -f $(METADATA_CACHE) $(SIGNAL_CACHE) $(DI_CACHE)
+	@rm -f $(DI_CACHE)
 	$(COMPOSE_BIN) build
 
 runtime-image-check: .logo ## Builds and verifies the runtime image and native media decoder contract.

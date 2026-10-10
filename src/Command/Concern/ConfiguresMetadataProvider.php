@@ -14,6 +14,7 @@ namespace MagicSunday\Renamer\Command\Concern;
 use DateTimeZone;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\PathHelper;
+use MagicSunday\Renamer\Helper\PrivateCacheStorage;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\MetadataCache;
 use MagicSunday\Renamer\Service\FormatPriorityResolver;
@@ -115,7 +116,8 @@ trait ConfiguresMetadataProvider
      */
     protected function configureProviderCache(ExifMetadataProvider $provider): MetadataCache
     {
-        $cache = new MetadataCache($this->resolveCacheDir() . '/metadata-cache.json', $this->getCommandFilesystem());
+        $storage = new PrivateCacheStorage($this->getCommandFilesystem());
+        $cache   = new MetadataCache($storage->directory($this->resolveCacheDir()) . '/metadata-cache.json', $storage);
 
         $provider->setCache($cache);
 
@@ -132,7 +134,9 @@ trait ConfiguresMetadataProvider
      */
     protected function createPerceptualSignalCache(): PerceptualSignalCache
     {
-        return new PerceptualSignalCache($this->resolveCacheDir() . '/perceptual-signal-cache.json', $this->getCommandFilesystem());
+        $storage = new PrivateCacheStorage($this->getCommandFilesystem());
+
+        return new PerceptualSignalCache($storage->directory($this->resolveCacheDir()) . '/perceptual-signal-cache.json', $storage);
     }
 
     /**

@@ -11,9 +11,8 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Metadata;
 
+use MagicSunday\Renamer\Helper\PrivateCacheStorage;
 use SplFileInfo;
-use Symfony\Component\Filesystem\Exception\IOException;
-use Symfony\Component\Filesystem\Filesystem;
 
 use function is_array;
 use function json_decode;
@@ -47,20 +46,14 @@ final class MetadataCache
     private bool $dirty = false;
 
     /**
-     * Symfony Filesystem component for disk operations.
-     */
-    private readonly Filesystem $filesystem;
-
-    /**
-     * @param string          $cacheFile  Absolute path to the JSON cache file on disk. The file
-     *                                    does not need to exist yet; it will be created on flush().
-     * @param Filesystem|null $filesystem Symfony Filesystem component for disk operations.
+     * @param string              $cacheFile Absolute path to the JSON cache file on disk. The file
+     *                                       does not need to exist yet; it will be created on flush().
+     * @param PrivateCacheStorage $storage   Private atomic cache storage boundary
      */
     public function __construct(
         private readonly string $cacheFile,
-        ?Filesystem $filesystem = null,
+        private readonly PrivateCacheStorage $storage,
     ) {
-        $this->filesystem = $filesystem ?? new Filesystem();
         $this->load();
     }
 
@@ -126,8 +119,8 @@ final class MetadataCache
      *
      * To optimize performance, writes are only performed if the "dirty" flag is
      * set (i.e., entries were added, updated, or evicted). Uses atomic file
-     * operations via Symfony's dumpFile() to prevent corruption during concurrent
-     * writes or process interruptions.
+     * replacement via PrivateCacheStorage to prevent partial JSON during process
+     * interruptions. Atomic replacement does not merge concurrent writers.
      *
      * Entries are stored as a single JSON object, where keys are absolute file
      * pathnames and values are flat metadata arrays.
@@ -144,7 +137,7 @@ final class MetadataCache
             $serializedEntries[$pathname] = $entry->toArray();
         }
 
-        $this->filesystem->dumpFile(
+        $this->storage->write(
             $this->cacheFile,
             json_encode($serializedEntries, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE),
         );
@@ -155,23 +148,18 @@ final class MetadataCache
     /**
      * Loads the cache from disk into memory.
      *
-     * If the cache file does not exist, an empty index is initialized. If the
-     * file is not readable due to permission issues, the cache remains empty,
-     * essentially falling back to a "cold cache" state without interrupting
-     * the application flow.
+     * If the cache file does not exist, an empty index is initialized.
+     * An ordinary read failure starts a cold cache. Unsafe ownership, links or
+     * an inability to establish private permissions fail explicitly.
      *
      * Decodes the JSON content and reconstructs typed cache entries. Legacy JSON
      * payloads remain supported through MetadataCacheEntry::fromArray().
      */
     private function load(): void
     {
-        if (!$this->filesystem->exists($this->cacheFile)) {
-            return;
-        }
+        $contents = $this->storage->read($this->cacheFile);
 
-        try {
-            $contents = $this->filesystem->readFile($this->cacheFile);
-        } catch (IOException) {
+        if ($contents === null) {
             return;
         }
 
