@@ -19,6 +19,9 @@ use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
+use MagicSunday\Renamer\Model\MergeDecision;
+use MagicSunday\Renamer\Model\MergeDecisionKind;
+use MagicSunday\Renamer\Model\MergeDecisionReason;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
 use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzer;
@@ -31,9 +34,7 @@ use SplFileInfo;
 
 use function array_key_exists;
 use function array_keys;
-use function basename;
 use function count;
-use function microtime;
 use function min;
 use function spl_object_id;
 use function sprintf;
@@ -138,6 +139,7 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
      * @param array<string, string>                $contentIdentifierMap   map from source pathname to content identifier
      * @param Closure(SplFileInfo, string): string $targetPathnameResolver resolves (sourceFileInfo, targetFilename) to absolute target path
      * @param array<string, TemporalMetadata|null> $temporalMetadataMap    map from source pathname to temporal metadata (for video duration)
+     * @param Closure(MergeDecision): void|null    $onDecision             Optional streaming observer for typed decisions; no comparison history is retained
      *
      * @return array<string, string>|null Map from source pathname to cluster root hash key, or null when not needed
      */
@@ -149,6 +151,7 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
         array $contentIdentifierMap,
         Closure $targetPathnameResolver,
         array $temporalMetadataMap = [],
+        ?Closure $onDecision = null,
     ): ?array {
         /** @var list<Rename> $nonCompanionRenames */
         $nonCompanionRenames = [];
@@ -186,6 +189,8 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
         $renameToHash = [];
 
         $uniqueHashCounter = 0;
+        /** @var array<string, true> $unavailableHashes */
+        $unavailableHashes = [];
 
         foreach ($nonCompanionRenames as $rename) {
             $sourcePath = $rename->getSource()->getPathname();
@@ -194,13 +199,25 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
                 $hash = $this->hashCalculator->hashFile($rename->getSource(), 'xxh128');
             } catch (HashComputationException $exception) {
                 $this->progressReporter->error($exception->getMessage());
+                $this->reportDecision(new MergeDecision(MergeDecisionKind::Uncertain, MergeDecisionReason::HashReadFailed, $sourcePath, null), $onDecision);
 
                 // Treat as unique hash (own sub-group).
-                $hash = '__failed_' . $uniqueHashCounter;
+                $hash                     = '__failed_' . $uniqueHashCounter;
+                $unavailableHashes[$hash] = true;
                 ++$uniqueHashCounter;
             }
 
             $renameToHash[$sourcePath] = $hash;
+
+            if (isset($hashGroups[$hash])) {
+                $this->reportDecision(new MergeDecision(
+                    MergeDecisionKind::Exact,
+                    MergeDecisionReason::ContentHashMatch,
+                    $hashGroups[$hash][0]->getSource()->getPathname(),
+                    $sourcePath,
+                    contentHash: $hash,
+                ), $onDecision);
+            }
 
             $hashGroups[$hash] ??= [];
 
@@ -221,6 +238,8 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
             $hashGroups,
             $temporalMetadataMap,
             !$companionRename instanceof Rename,
+            $onDecision,
+            $unavailableHashes,
         );
 
         if (count($hashGroups) <= 1) {
@@ -234,31 +253,9 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
             $nonCompanionLookup[spl_object_id($nonCompanionRename)] = true;
         }
 
-        // Heuristic 1: If all companion videos share the same hash, the stills
-        // are semantic duplicates (same capture, different JPG encoding/metadata).
-        if ($companionRename instanceof Rename) {
-            $companionHashes = [];
-
-            foreach ($fileDuplicate->getRenames() as $rename) {
-                if (isset($nonCompanionLookup[spl_object_id($rename)])) {
-                    continue;
-                }
-
-                try {
-                    $hash = $this->hashCalculator->hashFile($rename->getSource(), 'xxh128');
-                } catch (HashComputationException) {
-                    $hash = null;
-                }
-
-                if ($hash !== null) {
-                    $companionHashes[$hash] = true;
-                }
-            }
-
-            if (count($companionHashes) === 1) {
-                return null;
-            }
-        }
+        // Companion identity describes the capture, not the still's pixels.
+        // Different/uncertain image decisions are terminal: even identical MOV
+        // bytes cannot turn a rejected still pair into a positive merge.
 
         // Multiple hashes: naming conflict. The canonical's sub-group keeps the
         // unsuffixed base name; other sub-groups get sequential numbers starting at 002.
@@ -605,6 +602,8 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
      * @param array<string, list<Rename>>          $hashGroups             Hash groups keyed by content hash.
      * @param array<string, TemporalMetadata|null> $temporalMetadataMap    Temporal metadata keyed by source pathname.
      * @param bool                                 $allowFormatBackupMerge Whether simple format-backup tolerance is allowed.
+     * @param Closure(MergeDecision): void|null    $onDecision             Optional streaming observer for the evidence actually used
+     * @param array<string, true>                  $unavailableHashes      Synthetic keys for unreadable contents that must remain independent
      *
      * @return array<string, list<Rename>>
      */
@@ -612,6 +611,8 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
         array $hashGroups,
         array $temporalMetadataMap,
         bool $allowFormatBackupMerge,
+        ?Closure $onDecision,
+        array $unavailableHashes,
     ): array {
         $hashes = array_keys($hashGroups);
         $count  = count($hashes);
@@ -657,6 +658,17 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
                         continue;
                     }
 
+                    if (isset($unavailableHashes[$hashes[$indexA]]) || isset($unavailableHashes[$hashes[$indexB]])) {
+                        $this->reportDecision(new MergeDecision(
+                            MergeDecisionKind::Uncertain,
+                            MergeDecisionReason::HashReadFailed,
+                            $representativeByHash[$hashes[$indexA]]->getPathname(),
+                            $representativeByHash[$hashes[$indexB]]->getPathname(),
+                        ), $onDecision);
+
+                        continue;
+                    }
+
                     $result = $this->perceptualHashCalculator->similarityScore(
                         $representativeByHash[$hashes[$indexA]],
                         $representativeByHash[$hashes[$indexB]],
@@ -664,19 +676,16 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
                         $durationByHash[$hashes[$indexB]],
                     );
 
-                    $shouldMerge = false;
+                    $decision = $this->decidePerceptualMerge(
+                        $representativeByHash[$hashes[$indexA]],
+                        $representativeByHash[$hashes[$indexB]],
+                        $result,
+                        $stageBImageCache,
+                        $allowExactFormatBackupWindow,
+                    );
+                    $this->reportDecision($decision, $onDecision);
 
-                    if ($result->isDuplicateLikely()) {
-                        $shouldMerge = $this->shouldMergePerceptually(
-                            $representativeByHash[$hashes[$indexA]],
-                            $representativeByHash[$hashes[$indexB]],
-                            $result,
-                            $stageBImageCache,
-                            $allowExactFormatBackupWindow,
-                        );
-                    }
-
-                    if ($shouldMerge) {
+                    if ($decision->permitsMerge()) {
                         $components->union($indexA, $indexB);
                     }
                 }
@@ -744,120 +753,94 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
     }
 
     /**
-     * Determines whether two perceptually similar files should be merged into
-     * the same cluster.
+     * Makes one explicit, terminal decision from the available visual evidence.
+     * Missing evidence stays uncertain; similarity, chroma and RMSE rejections
+     * cannot be upgraded by any later companion or naming heuristic.
      *
-     * Uses adaptive RMSE thresholds based on dHash distance to distinguish between
-     * negligible compression noise and actual image content differences.
+     * @param SplFileInfo                 $fileA                        First source
+     * @param SplFileInfo                 $fileB                        Second source
+     * @param SimilarityResult            $similarity                   Stage A evidence, including signal availability
+     * @param array<string, Imagick|null> $imageCache                   Per-group Stage B decode cache
+     * @param bool                        $allowExactFormatBackupWindow Whether the existing codec tolerance applies
      *
-     * @param SplFileInfo                 $fileA                        First file to compare.
-     * @param SplFileInfo                 $fileB                        Second file to compare.
-     * @param SimilarityResult            $similarity                   The pre-calculated similarity.
-     * @param array<string, Imagick|null> $imageCache                   Shared image cache for efficiency.
-     * @param bool                        $allowExactFormatBackupWindow Whether simple format-backup tolerance is allowed.
-     *
-     * @return bool True if the files should be merged.
+     * @return MergeDecision Verdict and evidence actually used by clustering
      */
-    private function shouldMergePerceptually(
+    private function decidePerceptualMerge(
         SplFileInfo $fileA,
         SplFileInfo $fileB,
         SimilarityResult $similarity,
         array &$imageCache,
         bool $allowExactFormatBackupWindow,
-    ): bool {
+    ): MergeDecision {
+        $leftPath  = $fileA->getPathname();
+        $rightPath = $fileB->getPathname();
+
+        if (!$similarity->analysisAvailable) {
+            return new MergeDecision(MergeDecisionKind::Uncertain, MergeDecisionReason::SignalUnavailable, $leftPath, $rightPath);
+        }
+
         if (!$similarity->isDuplicateLikely()) {
-            return false;
+            return new MergeDecision(
+                MergeDecisionKind::Different,
+                $similarity->isEditedVariant() ? MergeDecisionReason::EditedVariant : MergeDecisionReason::PerceptualRejected,
+                $leftPath,
+                $rightPath,
+                similarityScore: $similarity->score,
+                dhashDistance: $similarity->dhashDistance,
+            );
         }
 
-        // Both videos → merge (duration already validated by similarity scoring)
+        // This is perceptual video evidence, never exact audio/container identity.
         if ($this->mediaTypeClassifier->isVideo($fileA) && $this->mediaTypeClassifier->isVideo($fileB)) {
-            $this->debugMergeDecision($fileA, $fileB, $similarity, null, true, 'video pair');
-
-            return true;
+            return new MergeDecision(MergeDecisionKind::Perceptual, MergeDecisionReason::VideoMatch, $leftPath, $rightPath, similarityScore: $similarity->score, dhashDistance: $similarity->dhashDistance);
         }
 
-        $start   = microtime(true);
-        $diff    = $this->analyzeLocalDifferenceCached($fileA, $fileB, $imageCache);
-        $elapsed = microtime(true) - $start;
+        $diff = $this->analyzeLocalDifferenceCached($fileA, $fileB, $imageCache);
 
         if (!$diff->success) {
-            $this->debugMergeDecision($fileA, $fileB, $similarity, $diff, false, 'analysis failed', $elapsed);
-
-            return false;
+            return new MergeDecision(MergeDecisionKind::Uncertain, MergeDecisionReason::LocalAnalysisFailed, $leftPath, $rightPath, similarityScore: $similarity->score, dhashDistance: $similarity->dhashDistance);
         }
 
-        // Chroma veto: color→grayscale conversions have near-zero luma RMSE
-        // but large chroma difference. Reject merge regardless of RMSE zone.
         if ($diff->chromaDifference > self::MAX_CHROMA_DIFFERENCE) {
-            $reason = sprintf('chroma %.4f > %.4f (color change)', $diff->chromaDifference, self::MAX_CHROMA_DIFFERENCE);
-
-            $this->debugMergeDecision($fileA, $fileB, $similarity, $diff, false, $reason, $elapsed);
-
-            return false;
+            return new MergeDecision(MergeDecisionKind::Different, MergeDecisionReason::ChromaVeto, $leftPath, $rightPath, similarityScore: $similarity->score, dhashDistance: $similarity->dhashDistance, rmse: $diff->rmse, chromaDifference: $diff->chromaDifference);
         }
 
-        // dHash-adaptive RMSE threshold: fewer gradient flips → more likely codec noise → more permissive.
         $safeRmse = match (true) {
             $similarity->dhashDistance === 0 && $allowExactFormatBackupWindow => self::SAFE_MERGE_RMSE_EXACT_FORMAT_BACKUP,
             $similarity->dhashDistance === 0                                  => self::SAFE_MERGE_RMSE_EXACT,
             $similarity->dhashDistance <= 2                                   => self::SAFE_MERGE_RMSE_NEAR,
             default                                                           => self::SAFE_MERGE_RMSE_CHANGED,
         };
+        $threshold = min($safeRmse, $this->maxMergeRmse);
+        $merge     = $diff->rmse <= $threshold;
 
-        // When the user sets --merge-threshold below the safe threshold, respect their stricter setting.
-        $effectiveMergeThreshold = min($safeRmse, $this->maxMergeRmse);
-        $merge                   = $diff->rmse <= $effectiveMergeThreshold;
-        $reason                  = $merge
-            ? sprintf('rmse %.4f <= %.4f (safe zone, dHash=%d)', $diff->rmse, $effectiveMergeThreshold, $similarity->dhashDistance)
-            : sprintf('rmse %.4f > %.4f (dHash=%d)', $diff->rmse, $effectiveMergeThreshold, $similarity->dhashDistance);
-
-        $this->debugMergeDecision($fileA, $fileB, $similarity, $diff, $merge, $reason, $elapsed);
-
-        return $merge;
+        return new MergeDecision(
+            $merge ? MergeDecisionKind::Perceptual : MergeDecisionKind::Different,
+            $merge ? MergeDecisionReason::VisualMatch : MergeDecisionReason::RmseVeto,
+            $leftPath,
+            $rightPath,
+            similarityScore: $similarity->score,
+            dhashDistance: $similarity->dhashDistance,
+            rmse: $diff->rmse,
+            chromaDifference: $diff->chromaDifference,
+            mergeThreshold: $threshold,
+        );
     }
 
     /**
-     * Writes a detailed merge-decision debug line to the console.
+     * Streams one typed verdict to its observer and verbose diagnostics. Neither
+     * the service nor its reporter stores a quadratic comparison history.
      *
-     * Only outputs when the command is run with debugging enabled (-vvv).
-     * Includes perceptual similarity metrics, local difference results (RMSE, chroma),
-     * and the final merge verdict with its technical justification.
-     *
-     * @param SplFileInfo          $fileA      First file in the comparison.
-     * @param SplFileInfo          $fileB      Second file in the comparison.
-     * @param SimilarityResult     $similarity Perceptual similarity metrics (dHash, color, etc.).
-     * @param LocalDiffResult|null $diff       Pixel-level difference metrics or null for videos.
-     * @param bool                 $merge      Whether the decision was to merge the groups.
-     * @param string               $reason     Technical explanation for the decision.
-     * @param float|null           $elapsed    Time taken for the analysis in seconds.
+     * @param MergeDecision                     $decision   Final verdict and actual evidence
+     * @param Closure(MergeDecision): void|null $onDecision Optional caller-owned observer
      */
-    private function debugMergeDecision(
-        SplFileInfo $fileA,
-        SplFileInfo $fileB,
-        SimilarityResult $similarity,
-        ?LocalDiffResult $diff,
-        bool $merge,
-        string $reason,
-        ?float $elapsed = null,
-    ): void {
-        $nameA   = basename($fileA->getPathname());
-        $nameB   = basename($fileB->getPathname());
-        $verdict = $merge ? '<info>MERGE</info>' : '<comment>NO MERGE</comment>';
-        $time    = ($elapsed !== null) ? sprintf(' %.0fms', $elapsed * 1000) : '';
-        $rmse    = ($diff instanceof LocalDiffResult) ? sprintf(' rmse=%.4f chroma=%.4f', $diff->rmse, $diff->chromaDifference) : '';
+    private function reportDecision(MergeDecision $decision, ?Closure $onDecision): void
+    {
+        $this->progressReporter->debug('[classification] ' . $decision->describe());
 
-        $this->progressReporter->debug(sprintf(
-            '  [merge] %s <-> %s | score=%d dHash=%d color=%.3f |%s | %s (%s)%s',
-            $nameA,
-            $nameB,
-            $similarity->score,
-            $similarity->dhashDistance,
-            $similarity->colorDistance,
-            $rmse,
-            $verdict,
-            $reason,
-            $time,
-        ));
+        if ($onDecision instanceof Closure) {
+            $onDecision($decision);
+        }
     }
 
     /**

@@ -75,6 +75,7 @@ final class PerceptualHashCalculatorTest extends TestCase
         $result     = $calculator->similarityScore(new SplFileInfo($pathA), new SplFileInfo($pathB));
 
         self::assertSame(100, $result->score);
+        self::assertTrue($result->analysisAvailable);
         self::assertTrue($result->isDuplicateLikely());
         self::assertSame(0, $result->dhashDistance);
     }
@@ -95,6 +96,7 @@ final class PerceptualHashCalculatorTest extends TestCase
         );
 
         self::assertFalse($result->isDuplicateLikely());
+        self::assertFalse($result->analysisAvailable);
         self::assertSame(SimilarityClassification::Different, $result->classification);
     }
 

@@ -22,13 +22,14 @@ namespace MagicSunday\Renamer\Service\PerceptualHash;
 final readonly class SimilarityResult
 {
     /**
-     * @param int                      $score          Combined similarity score 0–100 (100 = identical)
-     * @param int                      $dhashDistance  dHash Hamming distance (0–64)
-     * @param int                      $whashDistance  wHash Hamming distance (0–64)
-     * @param float                    $hfEnergyDelta  High-frequency energy difference (0.0+)
-     * @param float                    $colorDistance  Color histogram L1 distance (0.0–1.0)
-     * @param float|null               $durationDelta  Video duration difference in seconds (null for images)
-     * @param SimilarityClassification $classification Semantic classification of the similarity
+     * @param int                      $score             Combined similarity score 0–100 (100 = identical)
+     * @param int                      $dhashDistance     dHash Hamming distance (0–64)
+     * @param int                      $whashDistance     wHash Hamming distance (0–64)
+     * @param float                    $hfEnergyDelta     High-frequency energy difference (0.0+)
+     * @param float                    $colorDistance     Color histogram L1 distance (0.0–1.0)
+     * @param float|null               $durationDelta     Video duration difference in seconds (null for images)
+     * @param SimilarityClassification $classification    Semantic classification of the similarity
+     * @param bool                     $analysisAvailable Whether required signals were available, distinguishing rejection from decode failure
      */
     public function __construct(
         public int $score,
@@ -38,6 +39,7 @@ final readonly class SimilarityResult
         public float $colorDistance,
         public ?float $durationDelta,
         public SimilarityClassification $classification,
+        public bool $analysisAvailable = true,
     ) {
     }
 

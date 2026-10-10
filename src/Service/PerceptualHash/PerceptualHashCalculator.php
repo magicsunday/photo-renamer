@@ -388,7 +388,7 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         if ($dhashDistance > 16) {
             $score = (int) round(max(0.0, 1.0 - ($dhashDistance / 64.0)) * 100);
 
-            return new SimilarityResult($score, $dhashDistance, 64, 1.0, 1.0, null, SimilarityClassification::Different);
+            return new SimilarityResult($score, $dhashDistance, 64, 1.0, 1.0, null, SimilarityClassification::Different, ($dhashA !== null) && ($dhashB !== null));
         }
 
         // Early exit: dHash = 0 AND not video → visually identical.
@@ -428,7 +428,12 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
             default      => SimilarityClassification::Different,
         };
 
-        return new SimilarityResult($score, $dhashDistance, $whashDistance, $hfEnergyDelta, $colorDistance, $durDelta, $classification);
+        $analysisAvailable = ($signalsA !== null) && ($signalsB !== null)
+            && ($signalsA['whash'] !== null) && ($signalsB['whash'] !== null)
+            && ($signalsA['hf'] !== null) && ($signalsB['hf'] !== null)
+            && ($signalsA['hist'] !== null) && ($signalsB['hist'] !== null);
+
+        return new SimilarityResult($score, $dhashDistance, $whashDistance, $hfEnergyDelta, $colorDistance, $durDelta, $classification, $analysisAvailable);
     }
 
     /**
