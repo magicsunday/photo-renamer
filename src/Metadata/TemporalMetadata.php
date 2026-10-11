@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Metadata;
 
+use DateTimeImmutable;
 use DateTimeInterface;
 
 use function strtolower;
@@ -24,7 +25,9 @@ use function trim;
  * reason about ambiguous still/video pairings without reparsing the file.
  *
  * Produced by MetadataExtractor and cached by ExifMetadataProvider for use
- * throughout the rename pipeline.
+ * throughout the rename pipeline. Mutable input timestamps are converted to
+ * immutable values at construction and capture-time replacement, preventing
+ * caller-owned DateTime objects from changing cached or grouped metadata.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -35,6 +38,19 @@ final readonly class TemporalMetadata
     use MetadataSignalAccessorsTrait;
 
     /**
+     * Immutable capture timestamp, detached from mutable caller-owned inputs.
+     */
+    private ?DateTimeImmutable $captureDateTime;
+
+    /**
+     * Immutable raw QuickTime provenance, independent of capture-time updates.
+     */
+    private ?DateTimeImmutable $rawQuickTimeCreateDate;
+
+    /**
+     * Stores metadata signals and snapshots mutable timestamps without changing
+     * their timezone or precision. Immutable timestamps are retained by identity.
+     *
      * @param DateTimeInterface|null $captureDateTime             Date and time the photo/video was captured, with
      *                                                            potential microsecond precision from EXIF SubSecTime
      * @param string|null            $livePhotoId                 Apple Live Photo content identifier linking the
@@ -60,7 +76,7 @@ final readonly class TemporalMetadata
      *                                                            the resolved Keys:CreationDate.
      */
     public function __construct(
-        private ?DateTimeInterface $captureDateTime,
+        ?DateTimeInterface $captureDateTime,
         private ?string $livePhotoId,
         private bool $isFallbackDateTime = false,
         private bool $isAmbiguousTimezone = false,
@@ -72,16 +88,18 @@ final readonly class TemporalMetadata
         private ?float $longitude = null,
         private ?float $videoDurationSeconds = null,
         private bool $hasQuickTimeLivePhotoMarker = false,
-        private ?DateTimeInterface $rawQuickTimeCreateDate = null,
+        ?DateTimeInterface $rawQuickTimeCreateDate = null,
     ) {
+        $this->captureDateTime        = $this->normalizeDateTime($captureDateTime);
+        $this->rawQuickTimeCreateDate = $this->normalizeDateTime($rawQuickTimeCreateDate);
     }
 
     /**
      * Returns the capture timestamp.
      *
-     * @return DateTimeInterface|null The capture date and time, or null if missing.
+     * @return DateTimeImmutable|null The immutable capture date and time, or null if missing.
      */
-    public function getCaptureDateTime(): ?DateTimeInterface
+    public function getCaptureDateTime(): ?DateTimeImmutable
     {
         return $this->captureDateTime;
     }
@@ -92,9 +110,9 @@ final readonly class TemporalMetadata
      * This value is returned without Keys:CreationDate resolution. Returns null
      * for non-QuickTime files or when not populated.
      *
-     * @return DateTimeInterface|null The raw QuickTime CreateDate.
+     * @return DateTimeImmutable|null The immutable raw QuickTime CreateDate.
      */
-    public function getRawQuickTimeCreateDate(): ?DateTimeInterface
+    public function getRawQuickTimeCreateDate(): ?DateTimeImmutable
     {
         return $this->rawQuickTimeCreateDate;
     }
@@ -127,7 +145,8 @@ final readonly class TemporalMetadata
      * Used when the original date is missing or needs manual correction.
      * Native clone-with preserves every independent field, including raw
      * QuickTime provenance and future metadata additions, without repeating the
-     * constructor's field list. The constructor currently performs no normalization.
+     * constructor's field list. Normalize the replacement explicitly because
+     * clone-with does not execute the constructor's timestamp normalization.
      *
      * @param DateTimeInterface $captureDateTime New capture date
      *
@@ -135,7 +154,27 @@ final readonly class TemporalMetadata
      */
     public function withCaptureDateTime(DateTimeInterface $captureDateTime): self
     {
-        return clone ($this, ['captureDateTime' => $captureDateTime]);
+        return clone ($this, ['captureDateTime' => $this->normalizeDateTime($captureDateTime)]);
+    }
+
+    /**
+     * Detaches mutable timestamps at the DTO boundary without reparsing dates,
+     * preserving named timezones and microseconds. Null and already immutable
+     * inputs are retained directly to avoid unnecessary allocations.
+     *
+     * @param DateTimeInterface|null $dateTime Timestamp supplied by a caller
+     *
+     * @return DateTimeImmutable|null Immutable snapshot, original immutable input, or null
+     */
+    private function normalizeDateTime(?DateTimeInterface $dateTime): ?DateTimeImmutable
+    {
+        if (!$dateTime instanceof DateTimeInterface) {
+            return null;
+        }
+
+        return $dateTime instanceof DateTimeImmutable
+            ? $dateTime
+            : DateTimeImmutable::createFromInterface($dateTime);
     }
 
     /**
