@@ -78,9 +78,10 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
     private array $loadCache = [];
 
     /**
-     * Cache for disk-based signal hits to avoid any Imagick interaction.
+     * Cache for persisted signals to avoid repeated Imagick calculations.
      * Maps file pathnames to the full set of perceptual signals retrieved from
-     * the persistent PerceptualSignalCache.
+     * the persistent PerceptualSignalCache, including newly computed entries.
+     * Remembering writes also prevents cleanup from downgrading complete signals.
      *
      * @var array<string, array{dhash: string|null, whash: string|null, hf: float|null, hist: list<float>|null}>
      */
@@ -440,6 +441,9 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
      * Returns cached signals from disk or computes them from the Imagick instance.
      * Also persists newly computed signals to the disk cache for future runs.
      *
+     * @param SplFileInfo  $file File identity used for persistent signal lookup
+     * @param Imagick|null $img  Already loaded image, or null after a disk cache hit
+     *
      * @return array{whash: string|null, hf: float|null, hist: list<float>|null}|null
      */
     private function getOrComputeRemainingSignals(SplFileInfo $file, ?Imagick $img): ?array
@@ -472,12 +476,14 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
 
         // Persist to disk cache for future runs
         if (($signals !== null) && ($this->signalCache instanceof PerceptualSignalCache)) {
-            $this->signalCache->set($file, [
+            $persisted = [
                 'dhash' => $this->loadCache[$pathname]['dhash'] ?? null,
                 'whash' => $signals['whash'],
                 'hf'    => $signals['hf'],
                 'hist'  => $signals['hist'],
-            ]);
+            ];
+            $this->signalCache->set($file, $persisted);
+            $this->diskCacheHits[$pathname] = $persisted;
         }
 
         return $signals;
@@ -515,6 +521,13 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
         }
     }
 
+    /**
+     * Releases native image buffers and local lookups after group analysis.
+     * Only previously unpersisted dHash results are written here; entries already
+     * enriched by Phase 2 keep their expensive signals for subsequent runs.
+     *
+     * @return void
+     */
     #[Override]
     public function clearCache(): void
     {
