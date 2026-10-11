@@ -11,10 +11,16 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Metadata;
 
+use Composer\InstalledVersions;
+use JsonException;
 use MagicSunday\Renamer\Helper\PrivateCacheStorage;
 use SplFileInfo;
 
+use function array_key_exists;
 use function is_array;
+use function is_float;
+use function is_int;
+use function is_string;
 use function json_decode;
 use function json_encode;
 
@@ -24,7 +30,8 @@ use const JSON_THROW_ON_ERROR;
 /**
  * Persistent disk cache for metadata extraction results. Keyed by file pathname,
  * entries are invalidated when a file's mtime or size changes. Uses PHP's native
- * JSON-based serialization for portable and safe disk storage.
+ * JSON-based serialization for portable and safe disk storage. A schema/meaning
+ * version and the installed parser revision invalidate incompatible snapshots.
  *
  * The cache is loaded eagerly on construction and flushed explicitly via flush().
  * Only writes to disk when entries have been added or invalidated (dirty tracking).
@@ -35,6 +42,17 @@ use const JSON_THROW_ON_ERROR;
  */
 final class MetadataCache
 {
+    /**
+     * Bump for incompatible metadata interpretation or serialization changes.
+     * Parser revisions are tracked separately so dependency updates also miss.
+     */
+    private const int CACHE_VERSION = 1;
+
+    /**
+     * Latest cold-cache diagnostic, without sensitive media paths.
+     */
+    private ?string $diagnostic = null;
+
     /**
      * @var array<string, MetadataCacheEntry> A map of file pathnames to their respective typed cache entries.
      */
@@ -122,8 +140,8 @@ final class MetadataCache
      * replacement via PrivateCacheStorage to prevent partial JSON during process
      * interruptions. Atomic replacement does not merge concurrent writers.
      *
-     * Entries are stored as a single JSON object, where keys are absolute file
-     * pathnames and values are flat metadata arrays.
+     * Entries are stored under a versioned envelope. Last snapshot wins for
+     * overlapping writers; no read-modify-write merge is promised.
      */
     public function flush(): void
     {
@@ -139,10 +157,47 @@ final class MetadataCache
 
         $this->storage->write(
             $this->cacheFile,
-            json_encode($serializedEntries, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE),
+            json_encode(
+                ['_version' => self::CACHE_VERSION, '_parser' => $this->parserVersion(), 'entries' => $serializedEntries],
+                JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE,
+            ),
         );
 
         $this->dirty = false;
+    }
+
+    /**
+     * Returns the latest version/format rejection for an observable cold cache.
+     *
+     * @return string|null Safe reason when a persisted snapshot was discarded
+     */
+    public function getDiagnostic(): ?string
+    {
+        return $this->diagnostic;
+    }
+
+    /**
+     * Explicitly evicts paths no longer visible as regular files. This affects
+     * only cache work, never media; inaccessible mounts can cause conservative
+     * cache misses too, so callers must opt in rather than prune on every run.
+     *
+     * @return int Number of removed cache entries
+     */
+    public function pruneMissing(): int
+    {
+        $removed = 0;
+
+        foreach ($this->entries as $pathname => $entry) {
+            if (new SplFileInfo($pathname)->isFile()) {
+                continue;
+            }
+
+            unset($this->entries[$pathname]);
+            ++$removed;
+            $this->dirty = true;
+        }
+
+        return $removed;
     }
 
     /**
@@ -152,29 +207,83 @@ final class MetadataCache
      * An ordinary read failure starts a cold cache. Unsafe ownership, links or
      * an inability to establish private permissions fail explicitly.
      *
-     * Decodes the JSON content and reconstructs typed cache entries. Legacy JSON
-     * payloads remain supported through MetadataCacheEntry::fromArray().
+     * Rejects corrupt, legacy and incompatible envelopes as a diagnosable cold
+     * cache. Privacy boundary failures remain explicit rather than suppressed.
      */
     private function load(): void
     {
         $contents = $this->storage->read($this->cacheFile);
 
         if ($contents === null) {
+            if (new SplFileInfo($this->cacheFile)->isFile()) {
+                $this->diagnostic = 'Metadata cache could not be read; starting cold.';
+            }
+
             return;
         }
 
-        $data = json_decode($contents, true);
+        try {
+            $data = json_decode($contents, true, flags: JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            $this->diagnostic = 'Metadata cache contains invalid JSON; starting cold.';
 
-        if (is_array($data)) {
-            /** @var array<string, mixed> $data */
-            foreach ($data as $pathname => $entry) {
-                if (!is_array($entry)) {
-                    continue;
-                }
-
-                /** @var array<string, mixed> $entry */
-                $this->entries[$pathname] = MetadataCacheEntry::fromArray($entry);
-            }
+            return;
         }
+
+        if (!is_array($data)
+            || (($data['_version'] ?? null) !== self::CACHE_VERSION)
+            || (($data['_parser'] ?? null) !== $this->parserVersion())
+            || !is_array($data['entries'] ?? null)
+        ) {
+            $this->diagnostic = 'Metadata cache format or parser version changed; starting cold.';
+
+            return;
+        }
+
+        foreach ($data['entries'] as $pathname => $entry) {
+            if (!is_string($pathname) || !is_array($entry)
+                || !is_int($entry['mtime'] ?? null) || !is_int($entry['size'] ?? null)
+            ) {
+                $this->entries    = [];
+                $this->diagnostic = 'Metadata cache contains invalid entries; starting cold.';
+
+                return;
+            }
+
+            /** @var array<string, mixed> $entry */
+            $typedEntry = MetadataCacheEntry::fromArray($entry);
+
+            // Current-version rows must satisfy their actual serialization
+            // contract. Permit JSON's integer encoding of floats, but reject
+            // missing fields, invalid dates and lossy scalar coercions.
+            foreach ($typedEntry->toArray() as $field => $expected) {
+                $actual = $entry[$field] ?? null;
+                $valid  = is_float($expected)
+                    ? ((is_int($actual) || is_float($actual)) && ((float) $actual === $expected))
+                    : $actual === $expected;
+
+                if (!array_key_exists($field, $entry) || !$valid) {
+                    $this->entries    = [];
+                    $this->diagnostic = 'Metadata cache contains invalid values; starting cold.';
+
+                    return;
+                }
+            }
+
+            $this->entries[$pathname] = $typedEntry;
+        }
+    }
+
+    /**
+     * Tracks the actually installed parser revision, including dev-main updates.
+     * The interpretation version above covers application-side rule changes.
+     *
+     * @return string Installed imagemeta reference or its declared version fallback
+     */
+    private function parserVersion(): string
+    {
+        return InstalledVersions::getReference('magicsunday/imagemeta')
+            ?? InstalledVersions::getPrettyVersion('magicsunday/imagemeta')
+            ?? 'unknown';
     }
 }

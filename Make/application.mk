@@ -10,10 +10,13 @@ DI_CACHE       = .build/cache/DependencyContainer.php
 
 #### Application
 
-.PHONY: binary binary-init binary-clean cache-clear runtime-cache-clear cache-permissions-check comparison-benchmark mixed-collection-benchmark version
+.PHONY: binary binary-init binary-clean cache-clear runtime-cache-clear cache-prune runtime-cache-prune cache-permissions-check comparison-benchmark metadata-cache-benchmark mixed-collection-benchmark version
 
 comparison-benchmark: .logo ## Benchmark 1,000 synthetic video candidates under finite Docker resource limits.
 	bash scripts/benchmark-video-comparisons.sh
+
+metadata-cache-benchmark: .logo ## Profile a large synthetic metadata snapshot under finite Docker limits.
+	bash scripts/benchmark-metadata-cache.sh $(or $(COUNT),100000)
 
 mixed-collection-benchmark: .logo ## Profile synthetic JPG/HEIC+MOV through the runtime pipeline (COUNT=70000 or 100000).
 	bash scripts/benchmark-mixed-collection.sh $(or $(COUNT),70000)
@@ -33,6 +36,12 @@ cache-clear: .logo ## Clear development/legacy media caches and owned DI contain
 
 runtime-cache-clear: .logo ## Clear the current UID's media cache in the isolated runtime volume.
 	$(COMPOSE_BIN) run --rm --volume /media --entrypoint php runtime /app/scripts/clear-cache.php --media-only
+
+cache-prune: .logo ## Prune missing development cache paths with expected media accessible.
+	$(COMPOSE_BUILD) php scripts/prune-cache.php
+
+runtime-cache-prune: .logo ## Prune missing runtime cache paths with MEDIA_DIR mounted read-only.
+	MEDIA_READ_ONLY=true $(COMPOSE_BIN) run --rm --entrypoint php runtime /app/scripts/prune-cache.php
 
 cache-permissions-check: .logo ## Verify synthetic cache isolation between two real Unix UIDs.
 	$(COMPOSE_BIN) run --rm --user 0:0 buildbox php scripts/check-cache-permissions.php

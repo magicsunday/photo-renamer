@@ -19,16 +19,21 @@ use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\MetadataCache;
 use MagicSunday\Renamer\Metadata\MetadataCacheEntry;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualSignalCache;
+use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use PHPUnit\Framework\Attributes\CoversTrait;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
+use RuntimeException;
+use SplFileInfo;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputDefinition;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Console\Output\BufferedOutput;
+use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Filesystem\Filesystem;
 
 use function dirname;
@@ -57,6 +62,113 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(PrivateCacheStorage::class)]
 final class ConfiguresMetadataProviderTest extends TestCase
 {
+    use WorkspaceTrait;
+
+    /**
+     * Supplies an unrepresentable floating-point signal to the real cache.
+     * JSON persistence must produce a warning through the command concern,
+     * while clean no-op flushes remain silent and create no cache file.
+     *
+     * @return void
+     */
+    #[Test]
+    public function cacheSerializationFailureIsDiagnosedWithoutThrowing(): void
+    {
+        $workspace = $this->createTempWorkspace('cache-serialization-');
+
+        try {
+            $filesystem = new Filesystem();
+            $source     = $workspace . '/synthetic.jpg';
+            $filesystem->dumpFile($source, 'synthetic bytes');
+            $cache = new PerceptualSignalCache($workspace . '/signals.json', new PrivateCacheStorage($filesystem));
+            self::assertSame('', $this->flushThroughConcern($cache));
+            self::assertFileDoesNotExist($workspace . '/signals.json');
+            $cache->set(new SplFileInfo($source), ['dhash' => null, 'whash' => null, 'hf' => INF, 'hist' => null]);
+            $output = $this->flushThroughConcern($cache);
+            self::assertStringContainsString('Cache persistence failed (JsonException)', $output);
+            self::assertStringContainsString('Completed media operations remain counted', $output);
+            self::assertFileDoesNotExist($workspace . '/signals.json');
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Replaces a selected cache leaf with a symlink after initialization.
+     * Optional-cache error handling must not suppress this storage-boundary
+     * violation or write into the unrelated target behind the link.
+     *
+     * @return void
+     */
+    #[Test]
+    public function cachePrivacyFailureRemainsExplicit(): void
+    {
+        $workspace = $this->createTempWorkspace('cache-privacy-');
+
+        try {
+            $filesystem = new Filesystem();
+            $source     = $workspace . '/synthetic.jpg';
+            $filesystem->dumpFile($source, 'synthetic bytes');
+            $filesystem->dumpFile($workspace . '/unrelated.json', 'retained');
+            $cache = new MetadataCache($workspace . '/metadata.json', new PrivateCacheStorage($filesystem));
+            $cache->set(new SplFileInfo($source), null);
+            $filesystem->symlink($workspace . '/unrelated.json', $workspace . '/metadata.json');
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessageMatches('/symbolic link/');
+
+            try {
+                $this->flushThroughConcern($cache);
+            } finally {
+                self::assertSame('retained', $filesystem->readFile($workspace . '/unrelated.json'));
+            }
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Invokes the production concern's persistence boundary with captured CLI
+     * output. The anonymous harness exposes only the protected method and
+     * supplies the existing filesystem contract explicitly.
+     *
+     * @param MetadataCache|PerceptualSignalCache $cache Real cache whose failure behavior is observed
+     *
+     * @return string Safe warning output, or an empty string for a successful flush
+     */
+    private function flushThroughConcern(MetadataCache|PerceptualSignalCache $cache): string
+    {
+        $harness = new class {
+            use ConfiguresMetadataProvider;
+
+            /**
+             * Exposes the protected cache boundary without duplicating its logic.
+             *
+             * @param MetadataCache|PerceptualSignalCache $cache Real cache instance
+             * @param SymfonyStyle                        $io    Captured test output
+             *
+             * @return void
+             */
+            public function persist(MetadataCache|PerceptualSignalCache $cache, SymfonyStyle $io): void
+            {
+                $this->flushCache($cache, $io);
+            }
+
+            /**
+             * Supplies the concern's required Symfony filesystem boundary.
+             *
+             * @return Filesystem Test-local filesystem collaborator
+             */
+            protected function getCommandFilesystem(): Filesystem
+            {
+                return new Filesystem();
+            }
+        };
+        $output = new BufferedOutput();
+        $harness->persist($cache, new SymfonyStyle(new ArrayInput([]), $output));
+
+        return $output->fetch();
+    }
+
     /**
      * Ensures default command caches are rooted in the project build directory,
      * not below `src/`, when no CACHE_DIR override is configured.

@@ -40,7 +40,9 @@ foreach (['metadata-cache.json', 'perceptual-signal-cache.json'] as $filename) {
 }
 
 if ($mode !== '--media-only') {
-    $storage->remove(dirname(__DIR__) . '/.build/cache/DependencyContainer.php');
+    foreach (['DependencyContainer.php', 'DependencyContainer.php.meta', 'DependencyContainer.php.meta.json'] as $filename) {
+        $storage->remove(dirname(__DIR__) . '/.build/cache/' . $filename);
+    }
 }
 
 echo "Selected current-user cache files cleared.\n";

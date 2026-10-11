@@ -12,8 +12,11 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer;
 
 use Exception;
+use Phar;
 use RuntimeException;
+use Symfony\Component\Config\ConfigCache;
 use Symfony\Component\Config\FileLocator;
+use Symfony\Component\Config\Resource\FileResource;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Dumper\PhpDumper;
@@ -28,20 +31,38 @@ use Symfony\Component\Filesystem\Filesystem;
  * improve startup performance in CLI environments.
  *
  * The cached container is stored in '.build/cache/DependencyContainer.php' and
- * is automatically regenerated whenever it is missing.
+ * is regenerated when Symfony's tracked YAML, class signatures or installed
+ * dependency resources become stale. Freshness checking remains enabled even
+ * outside debug runs; debug=false would accept every existing cache file.
  */
 require_once __DIR__ . '/../.build/vendor/autoload.php';
 
-$cachedContainer = __DIR__ . '/../.build/cache/DependencyContainer.php';
-$filesystem      = new Filesystem();
+$cachedContainer    = __DIR__ . '/../.build/cache/DependencyContainer.php';
+$filesystem         = new Filesystem();
+$configCache        = new ConfigCache($cachedContainer, true);
+$isImmutableArchive = Phar::running() !== '';
 
 // Ensure the build cache directory exists for the compiled container
 $filesystem->mkdir(__DIR__ . '/../.build/cache');
 
-// Create a cached container if it doesn't exist (e.g., after clean or first run)
-if (!$filesystem->exists($cachedContainer)) {
+// Check the actual framework resources rather than file existence alone.
+// PHAR resources refer to build paths; its code/config/container form one
+// immutable artifact and must never be recompiled inside the archive.
+$cacheFresh = $isImmutableArchive ? $filesystem->exists($cachedContainer) : $configCache->isFresh();
+
+if (!$cacheFresh) {
+    if ($isImmutableArchive) {
+        throw new RuntimeException('Packaged DI container is missing; rebuild the immutable archive.');
+    }
+
     // Create and configure the container builder
     $containerBuilder = new ContainerBuilder();
+    $containerBuilder->addResource(new FileResource(__FILE__));
+    $installedPackages = __DIR__ . '/../.build/vendor/composer/installed.php';
+
+    if ($filesystem->exists($installedPackages)) {
+        $containerBuilder->addResource(new FileResource($installedPackages));
+    }
 
     // Load services from YAML configuration (Services.yaml)
     try {
@@ -64,13 +85,13 @@ if (!$filesystem->exists($cachedContainer)) {
     // Dump the compiled container to a PHP file for high-performance reuse
     $dumper = new PhpDumper($containerBuilder);
 
-    $filesystem->dumpFile(
-        $cachedContainer,
+    $configCache->write(
         $dumper->dump(
             [
                 'class'     => 'DependencyContainer',
                 'namespace' => 'MagicSunday\Renamer',
             ]
         ),
+        $containerBuilder->getResources(),
     );
 }

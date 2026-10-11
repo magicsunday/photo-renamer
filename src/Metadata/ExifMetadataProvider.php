@@ -326,14 +326,17 @@ final class ExifMetadataProvider
      * @param MetadataCacheEntry $cached The cached metadata values.
      *
      * @return TemporalMetadata|null Reconstructed metadata, or null when the cache
-     *                               entry has no date or content ID.
+     *                               entry has no date, content ID or Live Photo markers.
      */
     private function reconstructFromCache(MetadataCacheEntry $cached): ?TemporalMetadata
     {
         $dateTime  = $cached->getCaptureDateTime();
         $contentId = $cached->getContentId();
 
-        if ((!$dateTime instanceof DateTimeImmutable) && ($contentId === null)) {
+        if ((!$dateTime instanceof DateTimeImmutable) && ($contentId === null)
+            && ($cached->getLivePhotoVideoIndex() === null)
+            && !$cached->hasQuickTimeLivePhotoMarker()
+        ) {
             return null;
         }
 

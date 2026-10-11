@@ -198,6 +198,7 @@ final class WriteDateCommand extends Command
         $this->configureProviderTimezone($this->exifMetadataProvider, $input);
 
         $cache = $this->configureProviderCache($this->exifMetadataProvider);
+        $this->reportCacheDiagnostic($cache, $io);
 
         $scannedFiles     = 0;
         $alreadyCorrect   = 0;
@@ -321,7 +322,7 @@ final class WriteDateCommand extends Command
         }
 
         // Flush metadata cache
-        $cache->flush();
+        $this->flushCache($cache, $io);
         $this->exifMetadataProvider->clearCache();
 
         // Render summary
