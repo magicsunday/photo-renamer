@@ -42,6 +42,7 @@ use MagicSunday\Renamer\Service\Reporting\NullProgressReporter;
 use MagicSunday\Renamer\Service\Video\VideoStreamFingerprintMatcherInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Test\Fixtures\CaptureGroupBuilderFactory;
+use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\TargetNameResolverFactory;
 use MagicSunday\Renamer\Test\Fixtures\VirtualFlow\FlatSplFileInfoRecursiveIterator;
@@ -156,7 +157,8 @@ final class VirtualRenameExifPipelineFlowTest extends TestCase
             }
 
             $reporter = new NullProgressReporter();
-            $executor = new ExecutionPlanExecutor($reporter, new RuntimeFileMoveExecutor($reporter, new Filesystem(), new RuntimeCollisionPathAllocator()));
+            $journal  = FileSystemServiceFactory::createMutationJournal();
+            $executor = new ExecutionPlanExecutor($reporter, new RuntimeFileMoveExecutor($reporter, new Filesystem(), new RuntimeCollisionPathAllocator(), FileSystemServiceFactory::createSourceIdentityGuard(), $journal), $journal);
             $executor->executePlan($plan, true);
             self::assertFileExists($independentPath);
             self::assertFileDoesNotExist($independentTarget);

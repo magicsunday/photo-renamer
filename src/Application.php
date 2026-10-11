@@ -11,11 +11,18 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer;
 
+use MagicSunday\Renamer\Service\Filesystem\BatchRunLock;
+use MagicSunday\Renamer\Service\Filesystem\MutationJournal;
+use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
 use Override;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Filesystem\Exception\IOException;
 use Symfony\Component\Filesystem\Filesystem;
 
+use function is_string;
+use function str_starts_with;
 use function trim;
 
 use const PHP_EOL;
@@ -24,6 +31,10 @@ use const PHP_EOL;
  * Symfony Console application entry point. Registers all rename commands
  * injected via the DI container, reads the application version from the
  * version file and displays the ASCII art logo in help output.
+ * Mutation coordination lives at this boundary so every writing command,
+ * including dedup and write-date, is locked before its own analysis starts.
+ * Source identity is captured within that lock and released after cleanup;
+ * read-only commands and help remain available without a mutation scope.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -65,9 +76,12 @@ final class Application extends \Symfony\Component\Console\Application
      * are expected to be provided as an iterable, typically from a
      * service tag in the container configuration.
      *
-     * @param iterable<Command> $commands The list of commands to register
+     * @param iterable<Command>   $commands            The list of commands to register
+     * @param BatchRunLock        $batchRunLock        Serializes mutating commands from before analysis until cleanup
+     * @param SourceIdentityGuard $sourceIdentityGuard Captures source state before analysis and releases it after execution
+     * @param MutationJournal     $mutationJournal     Persists mutation evidence throughout the protected CLI scope
      */
-    public function __construct(iterable $commands)
+    public function __construct(iterable $commands, private readonly BatchRunLock $batchRunLock, private readonly SourceIdentityGuard $sourceIdentityGuard, private readonly MutationJournal $mutationJournal)
     {
         parent::__construct(
             self::NAME,
@@ -77,6 +91,57 @@ final class Application extends \Symfony\Component\Console\Application
         foreach ($commands as $command) {
             $this->addCommand($command);
         }
+    }
+
+    /**
+     * Holds the shared mutation lock throughout command analysis, confirmation,
+     * execution and cache cleanup. New rename commands are protected by default;
+     * verification and explicitly parsed dry runs do not mutate media.
+     *
+     * @param Command         $command Resolved command, including aliases
+     * @param InputInterface  $input   Raw command arguments and options
+     * @param OutputInterface $output  Console output used by Symfony's error handling
+     *
+     * @return int Exit status returned by the protected command
+     */
+    #[Override]
+    protected function doRunCommand(Command $command, InputInterface $input, OutputInterface $output): int
+    {
+        $name = $command->getName() ?? '';
+
+        if (!str_starts_with($name, 'rename:') || ($name === 'rename:verify')) {
+            return parent::doRunCommand($command, $input, $output);
+        }
+
+        $command->mergeApplicationDefinition();
+        $input->bind($command->getDefinition());
+
+        if ($input->hasOption('dry-run') && ($input->getOption('dry-run') === true)) {
+            return parent::doRunCommand($command, $input, $output);
+        }
+
+        $lock   = $this->batchRunLock->acquire();
+        $status = Command::FAILURE;
+
+        try {
+            $this->mutationJournal->begin($name);
+            $source = $input->hasArgument('source') ? $input->getArgument('source') : null;
+            $this->sourceIdentityGuard->begin(is_string($source) ? $source : null);
+            $status = parent::doRunCommand($command, $input, $output);
+        } finally {
+            try {
+                $this->sourceIdentityGuard->finish();
+
+                if (!$this->mutationJournal->finish($status)) {
+                    $output->writeln('<error>Mutation journal incomplete; inspect persisted intents and actual files before retrying.</error>');
+                    $status = Command::FAILURE;
+                }
+            } finally {
+                $lock->release();
+            }
+        }
+
+        return $status;
     }
 
     /**

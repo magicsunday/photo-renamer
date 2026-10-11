@@ -15,11 +15,12 @@ use Closure;
 use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
 use MagicSunday\Renamer\Command\Concern\ResolvesSourcePath;
 use MagicSunday\Renamer\Constants;
-use MagicSunday\Renamer\Exception\ExiftoolWriteException;
 use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Model\LinkConfig;
 use MagicSunday\Renamer\Service\ExiftoolWriter;
+use MagicSunday\Renamer\Service\Filesystem\MutationJournal;
+use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateCandidateAnalyzer;
@@ -77,6 +78,8 @@ final class WriteDateCommand extends Command
      * @param Filesystem                 $filesystem                 Command-facing filesystem boundary reused by metadata-cache helpers
      * @param WriteDateCandidateAnalyzer $writeDateCandidateAnalyzer Scans files and produces pending metadata writes
      * @param WriteDateReportFormatter   $writeDateReportFormatter   Formats write-date summaries and per-file entries
+     * @param SourceIdentityGuard        $sourceIdentityGuard        Rejects metadata writes to a changed pre-analysis source
+     * @param MutationJournal            $mutationJournal            Records in-place write attempts and successful completion
      * @param (Closure(): bool)|null     $exiftoolAvailabilityCheck  Overrides the default exiftool check (for testing)
      */
     public function __construct(
@@ -87,6 +90,8 @@ final class WriteDateCommand extends Command
         private readonly Filesystem $filesystem,
         private readonly WriteDateCandidateAnalyzer $writeDateCandidateAnalyzer,
         private readonly WriteDateReportFormatter $writeDateReportFormatter,
+        private readonly SourceIdentityGuard $sourceIdentityGuard,
+        private readonly MutationJournal $mutationJournal,
         ?Closure $exiftoolAvailabilityCheck = null,
     ) {
         $this->exiftoolAvailabilityCheck = $exiftoolAvailabilityCheck ?? (static fn (): bool => new ExecutableFinder()->find('exiftool') !== null);
@@ -284,7 +289,10 @@ final class WriteDateCommand extends Command
                 $fileInfo = new SplFileInfo($entry->path);
 
                 try {
-                    $this->exiftoolWriter->writeDateTime($fileInfo, $entry->writeDateTime, $entry->isVideo, $entry->preserveCreateDate);
+                    $this->mutationJournal->perform('write_date', $entry->path, null, function () use ($fileInfo, $entry): void {
+                        $this->sourceIdentityGuard->assertUnchanged($entry->path);
+                        $this->exiftoolWriter->writeDateTime($fileInfo, $entry->writeDateTime, $entry->isVideo, $entry->preserveCreateDate);
+                    });
                     $io->text($this->writeDateReportFormatter->formatEntry(
                         '<fg=green>[W]</>',
                         $linkedPath,
@@ -294,7 +302,7 @@ final class WriteDateCommand extends Command
                         $entry->reasonLabel,
                     ));
                     ++$written;
-                } catch (ExiftoolWriteException $exception) {
+                } catch (RuntimeException $exception) {
                     $io->text($this->writeDateReportFormatter->formatEntry(
                         '<fg=red>[E]</>',
                         $linkedPath,
@@ -302,6 +310,12 @@ final class WriteDateCommand extends Command
                         'FAILED to write: ' . OutputFormatter::escape($exception->getMessage()),
                     ));
                     ++$writeFailed;
+                }
+
+                if ($this->mutationJournal->failure() !== null) {
+                    $io->error('Batch stopped: mutation journal incomplete; completed writes remain counted.');
+
+                    break;
                 }
             }
         }
@@ -314,7 +328,7 @@ final class WriteDateCommand extends Command
         $io->newLine();
         $this->renderSummary($io, $scannedFiles, $alreadyCorrect, $wouldWrite, $written, $writeFailed, $noDateInName, $readErrors, $unsupportedWrite, $dryRun);
 
-        return (($writeFailed > 0) || ($readErrors > 0)) ? self::FAILURE : self::SUCCESS;
+        return (($writeFailed > 0) || ($readErrors > 0) || ($this->mutationJournal->failure() !== null)) ? self::FAILURE : self::SUCCESS;
     }
 
     /**

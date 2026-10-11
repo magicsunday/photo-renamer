@@ -43,6 +43,7 @@ use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
+use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\VirtualFlow\FlatSplFileInfoRecursiveIterator;
 use MagicSunday\Renamer\Test\Fixtures\VirtualFlow\SpyVirtualFileSystemService;
@@ -84,6 +85,163 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
     use WorkspaceTrait;
 
     /**
+     * A real still move followed by a controlled companion storage failure must
+     * retain the MOV, count exactly one moved file and visibly identify the
+     * incomplete Live Photo in the command's observed summary.
+     *
+     * @return void
+     */
+    #[Test]
+    public function partiallyMovedLivePhotoIsVisibleInCommandSummary(): void
+    {
+        $workspace       = $this->createTempWorkspace();
+        $filesystem      = new Filesystem();
+        $still           = $workspace . '/camera.jpg';
+        $companion       = $workspace . '/camera.mov';
+        $stillTarget     = $workspace . '/capture.jpg';
+        $companionTarget = $workspace . '/capture.mov';
+        $filesystem->dumpFile($still, 'synthetic still');
+        $filesystem->dumpFile($companion, 'synthetic companion');
+
+        $failingFilesystem = self::createPartialMock(Filesystem::class, ['rename']);
+        $failingFilesystem->expects(self::exactly(2))->method('rename')->willReturnCallback(static function (string $source, string $target, bool $overwrite = false) use ($filesystem, $companion): void {
+            if ($source === $companion) {
+                throw new IOException('Controlled companion storage failure.');
+            }
+
+            $filesystem->rename($source, $target, $overwrite);
+        });
+        $reporter = new ConsoleProgressReporter(new SymfonyStyle(new ArrayInput([]), new BufferedOutput()));
+        $journal  = FileSystemServiceFactory::createMutationJournal($workspace . '/state');
+        $executor = new ExecutionPlanExecutor($reporter, new RuntimeFileMoveExecutor($reporter, $failingFilesystem, new RuntimeCollisionPathAllocator(), FileSystemServiceFactory::createSourceIdentityGuard(), $journal), $journal);
+        $plan     = new ExecutionPlan([new ExecutionGroup('synthetic pair', true, $still, [
+            new ExecutionItem($still, $stillTarget, ExecutionItemType::Canonical, true, false, 'synthetic pair'),
+            new ExecutionItem($companion, $companionTarget, ExecutionItemType::Companion, true, false, 'synthetic pair'),
+        ])]);
+
+        try {
+            $journal->begin('rename:exif');
+            [$command, , $output] = $this->createCommandHarness(static function (PipelineContext $context): void {
+                $context->setScannedFileCount(2);
+            }, $plan, executor: $executor);
+            $tester = new CommandTester($command);
+            $tester->setInputs(['yes']);
+            $status = $tester->execute(['source' => $workspace]);
+            self::assertTrue($journal->finish($status));
+            self::assertSame(Command::FAILURE, $status);
+            self::assertSame('synthetic still', $filesystem->readFile($stillTarget));
+            self::assertSame('synthetic companion', $filesystem->readFile($companion));
+            self::assertFileDoesNotExist($still);
+            self::assertFileDoesNotExist($companionTarget);
+            $summary = $output->fetch();
+            self::assertMatchesRegularExpression('/Files processed\s+1/', $summary);
+            self::assertMatchesRegularExpression('/Runtime errors\s+1/', $summary);
+            self::assertMatchesRegularExpression('/Partial Live Photo groups\s+1/', $summary);
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * A reserved MOV target makes the companion use a duplicate suffix after the
+     * still successfully moves. Both operations succeed, but the pair's resulting
+     * basenames diverge: the real command must return failure and expose that
+     * incomplete pair instead of reporting an entirely successful batch.
+     *
+     * @return void
+     */
+    #[Test]
+    public function separatedPairAfterSuccessfulFallbackStillReturnsFailure(): void
+    {
+        $workspace       = $this->createTempWorkspace();
+        $filesystem      = new Filesystem();
+        $still           = $workspace . '/camera.jpg';
+        $companion       = $workspace . '/camera.mov';
+        $stillTarget     = $workspace . '/capture.jpg';
+        $companionTarget = $workspace . '/capture.mov';
+        $filesystem->dumpFile($still, 'synthetic still');
+        $filesystem->dumpFile($companion, 'synthetic companion');
+        $filesystem->dumpFile($companionTarget, 'reserved video');
+
+        $reporter = new ConsoleProgressReporter(new SymfonyStyle(new ArrayInput([]), new BufferedOutput()));
+        $journal  = FileSystemServiceFactory::createMutationJournal();
+        $executor = new ExecutionPlanExecutor($reporter, new RuntimeFileMoveExecutor($reporter, $filesystem, new RuntimeCollisionPathAllocator(), FileSystemServiceFactory::createSourceIdentityGuard(), $journal), $journal);
+        $plan     = new ExecutionPlan([
+            new ExecutionGroup('reserved video', false, items: [
+                new ExecutionItem($companionTarget, $companionTarget, ExecutionItemType::Canonical, false, true, 'reserved video', isExecutable: false),
+            ]),
+            new ExecutionGroup('synthetic pair', true, $still, [
+                new ExecutionItem($still, $stillTarget, ExecutionItemType::Canonical, true, false, 'synthetic pair'),
+                new ExecutionItem($companion, $companionTarget, ExecutionItemType::Companion, true, false, 'synthetic pair'),
+            ]),
+        ]);
+
+        try {
+            [$command, , $output] = $this->createCommandHarness(static function (PipelineContext $context): void {
+                $context->setScannedFileCount(3);
+            }, $plan, executor: $executor);
+            $tester = new CommandTester($command);
+            $tester->setInputs(['yes']);
+            self::assertSame(Command::FAILURE, $tester->execute(['source' => $workspace]));
+            self::assertSame('reserved video', $filesystem->readFile($companionTarget));
+            self::assertSame('synthetic still', $filesystem->readFile($stillTarget));
+            self::assertSame('synthetic companion', $filesystem->readFile($workspace . '/capture-duplicate-001.mov'));
+            $summary = $output->fetch();
+            self::assertMatchesRegularExpression('/Files processed\s+2/', $summary);
+            self::assertMatchesRegularExpression('/Runtime fallbacks\s+1/', $summary);
+            self::assertMatchesRegularExpression('/Partial Live Photo groups\s+1/', $summary);
+            self::assertStringNotContainsString('Runtime errors', $summary);
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Naming preserves each component's source directory. A still and MOV in
+     * different subdirectories therefore remain a complete pair when both reach
+     * their matching basenames; the partial counter must not require relocation
+     * into one directory or turn this supported layout into a failed command.
+     *
+     * @return void
+     */
+    #[Test]
+    public function completePairInDifferentSourceDirectoriesRemainsSuccessful(): void
+    {
+        $workspace       = $this->createTempWorkspace();
+        $filesystem      = new Filesystem();
+        $still           = $workspace . '/stills/camera.jpg';
+        $companion       = $workspace . '/videos/camera.mov';
+        $stillTarget     = $workspace . '/stills/capture.jpg';
+        $companionTarget = $workspace . '/videos/capture.mov';
+        $filesystem->dumpFile($still, 'synthetic still');
+        $filesystem->dumpFile($companion, 'synthetic companion');
+
+        $reporter = new ConsoleProgressReporter(new SymfonyStyle(new ArrayInput([]), new BufferedOutput()));
+        $journal  = FileSystemServiceFactory::createMutationJournal();
+        $executor = new ExecutionPlanExecutor($reporter, new RuntimeFileMoveExecutor($reporter, $filesystem, new RuntimeCollisionPathAllocator(), FileSystemServiceFactory::createSourceIdentityGuard(), $journal), $journal);
+        $plan     = new ExecutionPlan([new ExecutionGroup('synthetic pair', true, $still, [
+            new ExecutionItem($still, $stillTarget, ExecutionItemType::Canonical, true, false, 'synthetic pair'),
+            new ExecutionItem($companion, $companionTarget, ExecutionItemType::Companion, true, false, 'synthetic pair'),
+        ])]);
+
+        try {
+            [$command, , $output] = $this->createCommandHarness(static function (PipelineContext $context): void {
+                $context->setScannedFileCount(2);
+            }, $plan, executor: $executor);
+            $tester = new CommandTester($command);
+            $tester->setInputs(['yes']);
+            self::assertSame(Command::SUCCESS, $tester->execute(['source' => $workspace]));
+            self::assertSame('synthetic still', $filesystem->readFile($stillTarget));
+            self::assertSame('synthetic companion', $filesystem->readFile($companionTarget));
+            $summary = $output->fetch();
+            self::assertMatchesRegularExpression('/Files processed\s+2/', $summary);
+            self::assertStringNotContainsString('Partial Live Photo groups', $summary);
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
      * A scan failure remains a failed run even when no moves can be planned;
      * operators must see the read-error count instead of a successful footer.
      */
@@ -116,7 +274,8 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
         file_put_contents($workspace . '/b.jpg', 'second');
         $runtimeOutput = new BufferedOutput();
         $reporter      = new ConsoleProgressReporter(new SymfonyStyle(new ArrayInput([]), $runtimeOutput));
-        $executor      = new ExecutionPlanExecutor($reporter, new RuntimeFileMoveExecutor($reporter, new Filesystem(), new RuntimeCollisionPathAllocator()));
+        $journal       = FileSystemServiceFactory::createMutationJournal();
+        $executor      = new ExecutionPlanExecutor($reporter, new RuntimeFileMoveExecutor($reporter, new Filesystem(), new RuntimeCollisionPathAllocator(), FileSystemServiceFactory::createSourceIdentityGuard(), $journal), $journal);
         $items         = [
             new ExecutionItem($workspace . '/a.jpg', $workspace . '/shared.jpg', ExecutionItemType::Canonical, true, false, 'group'),
             new ExecutionItem($workspace . '/missing.jpg', $workspace . '/failed.jpg', ExecutionItemType::Canonical, true, false, 'group'),
@@ -174,7 +333,8 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
             ->method('rename')
             ->with($source, $target)
             ->willThrowException(new IOException('Synthetic storage failure', 0, null, $target));
-        $executor = new ExecutionPlanExecutor($reporter, new RuntimeFileMoveExecutor($reporter, $filesystem, new RuntimeCollisionPathAllocator()));
+        $journal  = FileSystemServiceFactory::createMutationJournal();
+        $executor = new ExecutionPlanExecutor($reporter, new RuntimeFileMoveExecutor($reporter, $filesystem, new RuntimeCollisionPathAllocator(), FileSystemServiceFactory::createSourceIdentityGuard(), $journal), $journal);
         $plan     = new ExecutionPlan([
             new ExecutionGroup('group', false, $source, [
                 new ExecutionItem($source, $target, ExecutionItemType::Canonical, true, false, 'group'),

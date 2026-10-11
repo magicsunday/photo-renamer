@@ -25,7 +25,7 @@ use function sprintf;
 use function stat;
 
 /**
- * Applies the same private storage contract to both media JSON caches.
+ * Applies the same private storage contract to media JSON caches and journals.
  * Directory permissions are corrected only on the dedicated per-UID child;
  * arbitrary configured parents remain untouched. Atomic replacement starts with
  * a private temporary inode so a permissive umask never exposes cache contents.
@@ -120,6 +120,27 @@ final readonly class PrivateCacheStorage
         } finally {
             $this->filesystem->remove($temporary);
         }
+    }
+
+    /**
+     * Appends to an existing private journal without rewriting its history.
+     * A missing or replaced leaf is rejected rather than recreated; the caller
+     * must create a private inode before the first append. Trusted parent
+     * directories remain required, as for the cache replacement boundary.
+     *
+     * @param string $pathname Existing owner-only regular journal file
+     * @param string $contents Complete serialized record including its newline
+     *
+     * @return void
+     */
+    public function append(string $pathname, string $contents): void
+    {
+        if (!$this->isOwnedFile($pathname)) {
+            throw new RuntimeException('Mutation journal disappeared; refusing to recreate its history.');
+        }
+
+        $this->filesystem->chmod($pathname, 0o600);
+        $this->filesystem->appendToFile($pathname, $contents, true);
     }
 
     /**

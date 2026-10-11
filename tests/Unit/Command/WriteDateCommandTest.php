@@ -26,6 +26,7 @@ use MagicSunday\Renamer\Metadata\MetadataCache;
 use MagicSunday\Renamer\Metadata\MetadataCacheEntry;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\LinkConfig;
+use MagicSunday\Renamer\Model\SourceFileFingerprint;
 use MagicSunday\Renamer\Regex\RegexMatchResult;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\DateDriftAnalyzer;
@@ -33,7 +34,9 @@ use MagicSunday\Renamer\Service\ExiftoolWriter;
 use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
 use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Service\Filesystem\LegacyRenameExecutor;
+use MagicSunday\Renamer\Service\Filesystem\MutationJournal;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
+use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
@@ -46,6 +49,7 @@ use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\WarningOutputSkipRe
 use MagicSunday\Renamer\Service\Output\SummaryRow;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
+use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Service\WriteDate\TimezoneRewritePlan;
 use MagicSunday\Renamer\Service\WriteDate\TimezoneRewritePlanner;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateCandidateAnalyzer;
@@ -70,10 +74,13 @@ use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Tester\CommandTester;
+use Symfony\Component\Filesystem\Exception\IOException;
 use Symfony\Component\Filesystem\Filesystem;
 
 use function chmod;
+use function escapeshellarg;
 use function file_put_contents;
+use function str_contains;
 use function unlink;
 
 use const DIRECTORY_SEPARATOR;
@@ -85,6 +92,10 @@ use const DIRECTORY_SEPARATOR;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
+#[UsesClass(SourceIdentityGuard::class)]
+#[UsesClass(MutationJournal::class)]
+#[UsesClass(SourceFileFingerprint::class)]
+#[UsesClass(SafeHashCalculator::class)]
 #[CoversClass(WriteDateCommand::class)]
 #[UsesClass(RecursiveRegexFileFilterIterator::class)]
 #[UsesClass(DateDriftCalculator::class)]
@@ -129,6 +140,91 @@ use const DIRECTORY_SEPARATOR;
 final class WriteDateCommandTest extends TestCase
 {
     use WorkspaceTrait;
+
+    /**
+     * A real synthetic writer appends bytes to the first source before its
+     * completion receipt fails. The command must retain Written=1, return
+     * failure and never start the second write; journal persistence failure is
+     * not falsely reported as a failed metadata action.
+     *
+     * @return void
+     */
+    #[Test]
+    public function receiptFailureKeepsSuccessfulWriteCountAndStopsNextWriter(): void
+    {
+        $workspace  = $this->createTempWorkspace();
+        $filesystem = new Filesystem();
+        $first      = $workspace . '/media/2024-01-01.jpg';
+        $second     = $workspace . '/media/2024-01-02.jpg';
+        $binary     = $workspace . '/exiftool-fixture.sh';
+        $filesystem->dumpFile($first, 'first');
+        $filesystem->dumpFile($second, 'second');
+        $filesystem->dumpFile($binary, '#!/bin/sh' . "\n" . 'for media in "$@"; do :; done' . "\n" . 'printf written >> "$media"' . "\n");
+        $filesystem->chmod($binary, 0o700);
+
+        $failingFilesystem = self::createPartialMock(Filesystem::class, ['appendToFile']);
+        $failingFilesystem->expects(self::exactly(3))->method('appendToFile')->willReturnCallback(static function (string $path, string $contents, bool $lock) use ($filesystem): void {
+            if (str_contains($contents, '"event":"completed"')) {
+                throw new IOException('Controlled receipt failure.');
+            }
+
+            $filesystem->appendToFile($path, $contents, $lock);
+        });
+        $journal = FileSystemServiceFactory::createMutationJournal($workspace . '/state', $failingFilesystem);
+
+        try {
+            $journal->begin('rename:write-date');
+            $tester = new CommandTester($this->createCommand(exiftoolWriter: new ExiftoolWriter($binary), mutationJournal: $journal));
+            $tester->setInputs(['yes']);
+            self::assertSame(Command::FAILURE, $tester->execute(['source' => $workspace . '/media']));
+            self::assertSame('firstwritten', $filesystem->readFile($first));
+            self::assertSame('second', $filesystem->readFile($second));
+            self::assertMatchesRegularExpression('/Written\s+1/', $tester->getDisplay());
+            self::assertStringNotContainsString('Write failed', $tester->getDisplay());
+            self::assertStringContainsString('mutation journal incomplete', $tester->getDisplay());
+        } finally {
+            $journal->finish(Command::FAILURE);
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Replaces a dated filename after the initial source observation. A real
+     * synthetic executable would create a marker on invocation; the command must
+     * report a source-identity failure and never launch it or count a write.
+     *
+     * @return void
+     */
+    #[Test]
+    public function changedSourceBlocksExiftoolBeforeProcessLaunch(): void
+    {
+        $workspace  = $this->createTempWorkspace();
+        $filesystem = new Filesystem();
+        $source     = $workspace . '/media/2024-01-01.jpg';
+        $marker     = $workspace . '/exiftool-started';
+        $binary     = $workspace . '/exiftool-fixture.sh';
+        $filesystem->dumpFile($source, 'before');
+        $filesystem->dumpFile($binary, "#!/bin/sh\nprintf invoked > " . escapeshellarg($marker) . "\n");
+        $filesystem->chmod($binary, 0o700);
+
+        $guard = FileSystemServiceFactory::createSourceIdentityGuard();
+
+        try {
+            $guard->begin($workspace . '/media');
+            $filesystem->dumpFile($source, 'after!');
+            $tester = new CommandTester($this->createCommand(exiftoolWriter: new ExiftoolWriter($binary), sourceIdentityGuard: $guard));
+            $tester->setInputs(['yes']);
+            self::assertSame(Command::FAILURE, $tester->execute(['source' => $workspace . '/media']));
+            self::assertFileDoesNotExist($marker);
+            self::assertSame('after!', $filesystem->readFile($source));
+            self::assertStringContainsString('changed after analysis', $tester->getDisplay());
+            self::assertStringNotContainsString('Written', $tester->getDisplay());
+            self::assertMatchesRegularExpression('/Write failed\s+1/', $tester->getDisplay());
+        } finally {
+            $guard->finish();
+            $this->removeWorkspace($workspace);
+        }
+    }
 
     /**
      * Metadata extraction errors cannot turn into a successful empty preview.
@@ -768,11 +864,24 @@ final class WriteDateCommandTest extends TestCase
                 new TimezoneRewritePlanner($metadataProvider),
             ),
             new WriteDateReportFormatter(),
+            FileSystemServiceFactory::createSourceIdentityGuard(),
+            FileSystemServiceFactory::createMutationJournal(),
             static fn (): bool => false,
         );
     }
 
-    private function createCommand(?StubMetadataExtractor $metadataExtractor = null, ?ExiftoolWriter $exiftoolWriter = null): WriteDateCommand
+    /**
+     * Wires the command with explicit test collaborators, optionally sharing
+     * the pre-analysis guard used by source freshness regressions.
+     *
+     * @param StubMetadataExtractor|null $metadataExtractor   Synthetic metadata responses
+     * @param ExiftoolWriter|null        $exiftoolWriter      Real writer using a controlled test executable
+     * @param SourceIdentityGuard|null   $sourceIdentityGuard Pre-observed source scope, or a fresh inactive guard
+     * @param MutationJournal|null       $mutationJournal     Shared active journal, or an inactive internal-test scope
+     *
+     * @return WriteDateCommand Fully wired metadata-write command
+     */
+    private function createCommand(?StubMetadataExtractor $metadataExtractor = null, ?ExiftoolWriter $exiftoolWriter = null, ?SourceIdentityGuard $sourceIdentityGuard = null, ?MutationJournal $mutationJournal = null): WriteDateCommand
     {
         $output = new BufferedOutput();
         $style  = new SymfonyStyle(new ArrayInput([]), $output);
@@ -797,6 +906,8 @@ final class WriteDateCommandTest extends TestCase
                 new TimezoneRewritePlanner($metadataProvider),
             ),
             new WriteDateReportFormatter(),
+            $sourceIdentityGuard ?? FileSystemServiceFactory::createSourceIdentityGuard(),
+            $mutationJournal ?? FileSystemServiceFactory::createMutationJournal(),
             static fn (): bool => true,
         );
     }

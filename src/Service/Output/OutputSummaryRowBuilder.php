@@ -84,6 +84,10 @@ final class OutputSummaryRowBuilder
             $rows[] = new SummaryRow('Runtime fallbacks', (string) $counters->runtimeFallbacks);
         }
 
+        if ($counters->partialLivePhotoGroups > 0) {
+            $rows[] = new SummaryRow('Partial Live Photo groups', (string) $counters->partialLivePhotoGroups);
+        }
+
         $rows[] = new SummaryRow($dryRun ? 'Files to process' : 'Files processed', (string) $counters->fileCount);
 
         return $rows;

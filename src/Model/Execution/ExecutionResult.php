@@ -24,14 +24,16 @@ namespace MagicSunday\Renamer\Model\Execution;
 final readonly class ExecutionResult
 {
     /**
-     * @param int $executedMoves    Total number of files successfully moved or renamed.
-     * @param int $runtimeFallbacks Number of files renamed via collision fallback (with suffix).
-     * @param int $runtimeErrors    Number of file operations that failed during execution.
+     * @param int $executedMoves          Total number of files successfully moved or renamed.
+     * @param int $runtimeFallbacks       Number of files renamed via collision fallback (with suffix).
+     * @param int $runtimeErrors          Number of file operations that failed during execution.
+     * @param int $partialLivePhotoGroups Live Photo groups with a ready/moved component and an unprocessed or separated peer
      */
     public function __construct(
         public int $executedMoves = 0,
         public int $runtimeFallbacks = 0,
         public int $runtimeErrors = 0,
+        public int $partialLivePhotoGroups = 0,
     ) {
     }
 }

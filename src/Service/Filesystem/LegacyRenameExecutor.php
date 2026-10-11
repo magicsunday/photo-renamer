@@ -19,6 +19,7 @@ use MagicSunday\Renamer\Service\Output\OutputCounters;
 use MagicSunday\Renamer\Service\Output\RenameSummaryCounters;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
+use RuntimeException;
 use SplFileInfo;
 
 use function rtrim;
@@ -44,11 +45,13 @@ final readonly class LegacyRenameExecutor
      * @param ProgressReporterInterface $progressReporter        Reporter used for operator-facing section headings
      * @param RenameOutputRenderer      $renderer                Shared output renderer for entry projection and summary rendering
      * @param RuntimeFileMoveExecutor   $runtimeFileMoveExecutor Performs concrete move operations with runtime fallback handling
+     * @param MutationJournal           $mutationJournal         Stops legacy writes after a missing acknowledgement
      */
     public function __construct(
         private ProgressReporterInterface $progressReporter,
         private RenameOutputRenderer $renderer,
         private RuntimeFileMoveExecutor $runtimeFileMoveExecutor,
+        private MutationJournal $mutationJournal,
     ) {
     }
 
@@ -164,6 +167,10 @@ final readonly class LegacyRenameExecutor
                     $occupiedPaths,
                     $options->dryRun,
                 );
+
+                if ($this->mutationJournal->failure() !== null) {
+                    throw new RuntimeException('Batch stopped after a completed rename: mutation journal incomplete.');
+                }
             }
         }
 

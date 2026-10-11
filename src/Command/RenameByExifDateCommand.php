@@ -402,7 +402,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
             }
         }
 
-        return $analysisComplete && ($executionResult->runtimeErrors === 0);
+        return $analysisComplete && ($executionResult->runtimeErrors === 0) && ($executionResult->partialLivePhotoGroups === 0);
     }
 
     /**

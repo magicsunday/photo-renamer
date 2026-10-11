@@ -498,6 +498,7 @@ final readonly class RenameOutputRenderer
             crossGroupVideoReviewCount: $result->crossGroupVideoReviewCount,
             runtimeErrors: $executionResult->runtimeErrors,
             runtimeFallbacks: $executionResult->runtimeFallbacks,
+            partialLivePhotoGroups: $executionResult->partialLivePhotoGroups,
         ), $dryRun);
     }
 

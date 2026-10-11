@@ -17,7 +17,9 @@ use SplFileInfo;
 use Symfony\Component\Filesystem\Filesystem;
 
 use function basename;
+use function clearstatcache;
 use function dirname;
+use function is_link;
 use function sprintf;
 
 /**
@@ -40,11 +42,15 @@ final readonly class RuntimeFileMoveExecutor
      * @param ProgressReporterInterface     $progressReporter              Reporter used for runtime fallback diagnostics.
      * @param Filesystem                    $filesystem                    Symfony Filesystem used for mkdir/rename operations.
      * @param RuntimeCollisionPathAllocator $runtimeCollisionPathAllocator Allocates duplicate-suffix fallbacks when a target becomes occupied during execution.
+     * @param SourceIdentityGuard           $sourceIdentityGuard           Compares current bytes/inode against the CLI's pre-analysis source state
+     * @param MutationJournal               $mutationJournal               Persists actual selected paths before mutation and acknowledges success afterward
      */
     public function __construct(
         private ProgressReporterInterface $progressReporter,
         private Filesystem $filesystem,
         private RuntimeCollisionPathAllocator $runtimeCollisionPathAllocator,
+        private SourceIdentityGuard $sourceIdentityGuard,
+        private MutationJournal $mutationJournal,
     ) {
     }
 
@@ -55,7 +61,9 @@ final readonly class RuntimeFileMoveExecutor
      * If the requested target has become occupied by an earlier item in the same
      * run, the executor falls back to the next free duplicate-suffixed path to
      * prevent overwriting files. The occupied-path index is updated even in dry
-     * runs so later simulated items see the same path transitions.
+     * runs so later simulated items see the same path transitions. An external
+     * target observed on disk after planning blocks the move and retains the
+     * source, including unreadable files and dangling symbolic links.
      *
      * @param string              $sourcePath    Absolute source file path.
      * @param string              $targetPath    Intended absolute target file path.
@@ -95,7 +103,22 @@ final readonly class RuntimeFileMoveExecutor
             }
 
             $this->filesystem->mkdir(dirname($targetPath));
-            $this->filesystem->rename($sourcePath, $targetPath);
+
+            $this->mutationJournal->perform('rename', $sourcePath, $targetPath, function () use ($sourcePath, $targetPath): void {
+                $this->sourceIdentityGuard->assertUnchanged($sourcePath);
+
+                // Full source reads can be slow for videos. Check targets after
+                // that read and the journal intent, immediately before rename.
+                // Symfony's readability check misses unreadable files/links;
+                // this observation still cannot exclude a later foreign race.
+                clearstatcache(true, $targetPath);
+
+                if ($this->filesystem->exists($targetPath) || is_link($targetPath)) {
+                    throw new RuntimeException(sprintf('Target "%s" became occupied after planning; source retained.', $targetPath));
+                }
+
+                $this->filesystem->rename($sourcePath, $targetPath);
+            });
         }
 
         unset($occupiedPaths[$sourcePath]);

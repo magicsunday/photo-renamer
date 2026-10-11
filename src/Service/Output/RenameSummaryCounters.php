@@ -39,6 +39,7 @@ final readonly class RenameSummaryCounters
      * @param int $crossGroupVideoReviewCount Cross-group video review entries detected during reconciliation
      * @param int $runtimeErrors              Failed file operations observed during execution
      * @param int $runtimeFallbacks           Successful moves whose actual target differs from the plan
+     * @param int $partialLivePhotoGroups     Incomplete or separated Live Photo component groups after execution
      */
     public function __construct(
         public int $scannedFiles,
@@ -53,6 +54,7 @@ final readonly class RenameSummaryCounters
         public int $crossGroupVideoReviewCount = 0,
         public int $runtimeErrors = 0,
         public int $runtimeFallbacks = 0,
+        public int $partialLivePhotoGroups = 0,
     ) {
     }
 }

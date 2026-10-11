@@ -39,6 +39,7 @@ VENDOR_DIR="${SMOKE_ROOT}/.build/vendor"
 
 test -f "${VENDOR_DIR}/autoload.php"
 test -d "${VENDOR_DIR}/symfony/process"
+test -d "${VENDOR_DIR}/symfony/lock"
 test ! -d "${VENDOR_DIR}/magicsunday/coding-standard"
 
 echo "Starting the CLI from the isolated vendor tree"

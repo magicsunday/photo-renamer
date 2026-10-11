@@ -39,6 +39,7 @@ use MagicSunday\Renamer\Model\Execution\ExecutionPreview;
 use MagicSunday\Renamer\Model\Execution\ExecutionResult;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\LinkConfig;
+use MagicSunday\Renamer\Model\MergeDecision;
 use MagicSunday\Renamer\Model\OutputEntry;
 use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\OutputEntryType;
@@ -60,8 +61,10 @@ use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilder;
 use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
 use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Service\Filesystem\LegacyRenameExecutor;
+use MagicSunday\Renamer\Service\Filesystem\MutationJournal;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
 use MagicSunday\Renamer\Service\Filesystem\SortedFileIteratorCollector;
+use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\FormatPriorityResolver;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
@@ -122,6 +125,7 @@ use MagicSunday\Renamer\Service\Pipeline\CrossGroupVideoDuplicateReconcilerInter
 use MagicSunday\Renamer\Service\Pipeline\DurationBucketedVideoCandidate;
 use MagicSunday\Renamer\Service\Pipeline\ExifRenamePipelineResult;
 use MagicSunday\Renamer\Service\Pipeline\ExistingCompanionVideoCandidate;
+use MagicSunday\Renamer\Service\Pipeline\ExistingSubgroupNamePreserver;
 use MagicSunday\Renamer\Service\Pipeline\FlatGroupNameResolver;
 use MagicSunday\Renamer\Service\Pipeline\OrphanLivePhotoVideoReconciler;
 use MagicSunday\Renamer\Service\Pipeline\PendingLivePhotoVideoResolver;
@@ -193,6 +197,10 @@ use const DIRECTORY_SEPARATOR;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
+#[UsesClass(MutationJournal::class)]
+#[UsesClass(SourceIdentityGuard::class)]
+#[UsesClass(MergeDecision::class)]
+#[UsesClass(ExistingSubgroupNamePreserver::class)]
 #[CoversClass(RenameByExifDateCommand::class)]
 #[UsesClass(ComparisonWorkLimit::class)]
 #[UsesClass(CrossGroupVideoDuplicateReconciler::class)]
