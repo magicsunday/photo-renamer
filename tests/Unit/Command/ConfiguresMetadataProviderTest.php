@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Command;
 
 use DateTimeZone;
+use InvalidArgumentException;
 use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\PrivateCacheStorage;
@@ -22,6 +23,7 @@ use MagicSunday\Renamer\Service\PerceptualHash\PerceptualSignalCache;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use PHPUnit\Framework\Attributes\CoversTrait;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
@@ -42,7 +44,9 @@ use function is_string;
 use function posix_geteuid;
 use function putenv;
 use function realpath;
+use function str_replace;
 use function str_starts_with;
+use function strtoupper;
 
 use const DIRECTORY_SEPARATOR;
 
@@ -236,7 +240,8 @@ final class ConfiguresMetadataProviderTest extends TestCase
                 $harness->timezone($this->input(['--timezone' => 'Europe/Berlin']))?->getName(),
             );
             self::assertSame('UTC', $harness->timezone($this->input([]))?->getName());
-            self::assertNull($harness->timezone($this->input(['--timezone' => 'Invalid/Zone'])));
+            $this->expectException(InvalidArgumentException::class);
+            $harness->timezone($this->input(['--timezone' => 'Invalid/Zone']));
         } finally {
             $this->restoreEnv('TIMEZONE', $previousTimezone);
         }
@@ -277,6 +282,14 @@ final class ConfiguresMetadataProviderTest extends TestCase
             self::assertSame(12, $harness->maxDateDrift($this->input([])));
             self::assertSame(0.04, $harness->mergeThreshold($this->input(['--merge-threshold' => '0.04'])));
             self::assertSame(0.08, $harness->mergeThreshold($this->input([])));
+            self::assertSame(0, $harness->maxDateDrift($this->input(['--max-date-drift' => '0'])));
+            self::assertSame(0.0, $harness->mergeThreshold($this->input(['--merge-threshold' => '0'])));
+            self::assertSame(1.0, $harness->mergeThreshold($this->input(['--merge-threshold' => '1'])));
+
+            putenv('MAX_DATE_DRIFT=invalid');
+            putenv('MERGE_THRESHOLD=invalid');
+            self::assertSame(3, $harness->maxDateDrift($this->input(['--max-date-drift' => '3'])));
+            self::assertSame(0.04, $harness->mergeThreshold($this->input(['--merge-threshold' => '0.04'])));
 
             putenv('MAX_DATE_DRIFT');
             putenv('MERGE_THRESHOLD');
@@ -286,6 +299,96 @@ final class ConfiguresMetadataProviderTest extends TestCase
         } finally {
             $this->restoreEnv('MAX_DATE_DRIFT', $previousDateDrift);
             $this->restoreEnv('MERGE_THRESHOLD', $previousMerge);
+        }
+    }
+
+    /**
+     * Explicit malformed or out-of-range values must never become an absent
+     * timezone, disabled drift check or silently coerced merge policy. Test
+     * CLI and environment independently, with a valid environment fallback
+     * when the malformed value is supplied explicitly through the CLI.
+     *
+     * @param string $option  CLI option whose actual concern resolver is exercised
+     * @param string $value   Invalid explicit value
+     * @param bool   $fromCli Whether CLI precedence supplies the invalid value
+     *
+     * @return void
+     */
+    #[Test]
+    #[DataProvider('invalidExplicitSettings')]
+    public function invalidExplicitSettingsAreRejected(string $option, string $value, bool $fromCli): void
+    {
+        $environment = strtoupper(str_replace('-', '_', $option));
+        $previous    = getenv($environment);
+        $fallback    = match ($option) {
+            'timezone'       => 'UTC',
+            'max-date-drift' => '7',
+            default          => '0.06',
+        };
+        putenv($environment . '=' . ($fromCli ? $fallback : $value));
+
+        try {
+            $harness = new class {
+                use ConfiguresMetadataProvider;
+
+                /**
+                 * Exposes the three protected resolvers without reproducing
+                 * validation or adding a production configuration abstraction.
+                 *
+                 * @param string         $option Known option selected by the provider
+                 * @param InputInterface $input  Bound test input with CLI precedence
+                 *
+                 * @return DateTimeZone|int|float|null The selected runtime setting
+                 */
+                public function resolve(string $option, InputInterface $input): DateTimeZone|int|float|null
+                {
+                    return match ($option) {
+                        'timezone'       => $this->resolveTimezone($input),
+                        'max-date-drift' => $this->resolveMaxDateDrift($input),
+                        default          => $this->resolveMergeThreshold($input),
+                    };
+                }
+
+                /**
+                 * Supplies the concern's required filesystem boundary; none of
+                 * these configuration resolution calls performs filesystem I/O.
+                 *
+                 * @return Filesystem Test-local filesystem collaborator
+                 */
+                protected function getCommandFilesystem(): Filesystem
+                {
+                    return new Filesystem();
+                }
+            };
+            $this->expectException(InvalidArgumentException::class);
+            $harness->resolve($option, $this->input($fromCli ? ['--' . $option => $value] : []));
+        } finally {
+            $this->restoreEnv($environment, $previous);
+        }
+    }
+
+    /**
+     * @return iterable<string, array{string, string, bool}> Malformed values and range boundaries from both input sources
+     */
+    public static function invalidExplicitSettings(): iterable
+    {
+        $cases = [
+            ['timezone', 'Invalid/Zone'],
+            ['max-date-drift', 'abc'],
+            ['max-date-drift', '-1'],
+            ['max-date-drift', '1.5'],
+            ['max-date-drift', '999999999999999999999999999999'],
+            ['merge-threshold', 'abc'],
+            ['merge-threshold', '-0.01'],
+            ['merge-threshold', '1.01'],
+            ['merge-threshold', '1e9999'],
+            ['merge-threshold', 'NaN'],
+        ];
+
+        foreach ($cases as [$option, $value]) {
+            foreach ([false, true] as $fromCli) {
+                yield $option . ' ' . $value . ($fromCli ? ' CLI' : ' environment') => [$option, $value, $fromCli];
+            }
         }
     }
 
