@@ -157,7 +157,8 @@ final class VirtualRenameExifPipelineFlowTest extends TestCase
             }
 
             $reporter = new NullProgressReporter();
-            $executor = new ExecutionPlanExecutor($reporter, new RuntimeFileMoveExecutor($reporter, new Filesystem(), new RuntimeCollisionPathAllocator(), FileSystemServiceFactory::createSourceIdentityGuard()));
+            $journal  = FileSystemServiceFactory::createMutationJournal();
+            $executor = new ExecutionPlanExecutor($reporter, new RuntimeFileMoveExecutor($reporter, new Filesystem(), new RuntimeCollisionPathAllocator(), FileSystemServiceFactory::createSourceIdentityGuard(), $journal), $journal);
             $executor->executePlan($plan, true);
             self::assertFileExists($independentPath);
             self::assertFileDoesNotExist($independentTarget);

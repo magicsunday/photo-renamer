@@ -18,6 +18,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use SplFileInfo;
 use Symfony\Component\Filesystem\Exception\IOException;
 use Symfony\Component\Filesystem\Filesystem;
 
@@ -37,6 +38,43 @@ use function umask;
 final class PrivateCacheStorageTest extends TestCase
 {
     use WorkspaceTrait;
+
+    /**
+     * Journal appends retain the same private inode and existing bytes. Unlike
+     * cache replacement, a deleted journal must not be silently recreated with
+     * an incomplete history when the next record arrives.
+     *
+     * @return void
+     */
+    #[Test]
+    public function appendsRetainHistoryAndRejectMissingJournal(): void
+    {
+        $workspace  = $this->createTempWorkspace();
+        $filesystem = new Filesystem();
+        $storage    = new PrivateCacheStorage($filesystem);
+        $path       = $filesystem->tempnam($storage->directory($workspace), 'mutation-', '.jsonl');
+        $inode      = new SplFileInfo($path)->getInode();
+
+        try {
+            $storage->append($path, "first\n");
+            $storage->append($path, "second\n");
+            self::assertSame("first\nsecond\n", $filesystem->readFile($path));
+            clearstatcache(true);
+            self::assertSame($inode, new SplFileInfo($path)->getInode());
+            self::assertSame(0o600, fileperms($path) & 0o777);
+            $filesystem->remove($path);
+
+            try {
+                $storage->append($path, "third\n");
+                self::fail('Missing mutation history must never be recreated.');
+            } catch (RuntimeException $exception) {
+                self::assertStringContainsString('refusing to recreate', $exception->getMessage());
+                self::assertFileDoesNotExist($path);
+            }
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
 
     /**
      * A previously permissive per-user directory and file are corrected even

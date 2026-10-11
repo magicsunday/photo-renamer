@@ -12,8 +12,10 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
 use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\PathHelper;
+use MagicSunday\Renamer\Helper\PrivateCacheStorage;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\Collection\FileList;
 use MagicSunday\Renamer\Model\Collection\RenameList;
@@ -28,6 +30,7 @@ use MagicSunday\Renamer\Model\RenameResult;
 use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
 use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Service\Filesystem\LegacyRenameExecutor;
+use MagicSunday\Renamer\Service\Filesystem\MutationJournal;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
 use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
@@ -81,6 +84,9 @@ use function unlink;
 use const DIRECTORY_SEPARATOR;
 
 #[UsesClass(SourceIdentityGuard::class)]
+#[UsesClass(MutationJournal::class)]
+#[UsesClass(PrivateCacheStorage::class)]
+#[UsesClass(DateDriftCalculator::class)]
 #[CoversClass(FileSystemService::class)]
 #[CoversClass(RenameOutputRenderer::class)]
 #[CoversClass(FileDuplicateCollection::class)]

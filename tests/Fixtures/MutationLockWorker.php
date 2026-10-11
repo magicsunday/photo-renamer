@@ -41,6 +41,6 @@ $command->setCode(static function (): int {
 
     return Command::SUCCESS;
 });
-$application = new Application([$command], new BatchRunLock(new Filesystem(), $directory), FileSystemServiceFactory::createSourceIdentityGuard());
+$application = new Application([$command], new BatchRunLock(new Filesystem(), $directory), FileSystemServiceFactory::createSourceIdentityGuard(), FileSystemServiceFactory::createMutationJournal($directory));
 $application->setAutoExit(false);
 exit($application->run(new ArrayInput(['command' => 'rename:lower']), new NullOutput()));

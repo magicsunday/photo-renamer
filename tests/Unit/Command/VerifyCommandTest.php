@@ -31,6 +31,7 @@ use MagicSunday\Renamer\Service\DateDriftAnalyzer;
 use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
 use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Service\Filesystem\LegacyRenameExecutor;
+use MagicSunday\Renamer\Service\Filesystem\MutationJournal;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
 use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
 use MagicSunday\Renamer\Service\FileSystemService;
@@ -82,6 +83,7 @@ use const DIRECTORY_SEPARATOR;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[UsesClass(SourceIdentityGuard::class)]
+#[UsesClass(MutationJournal::class)]
 #[CoversClass(VerifyCommand::class)]
 #[UsesClass(RecursiveRegexFileFilterIterator::class)]
 #[UsesClass(DateDriftCalculator::class)]

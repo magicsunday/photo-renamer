@@ -11,10 +11,12 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Fixtures;
 
+use MagicSunday\Renamer\Helper\PrivateCacheStorage;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
 use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Service\Filesystem\LegacyRenameExecutor;
+use MagicSunday\Renamer\Service\Filesystem\MutationJournal;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
 use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
@@ -52,17 +54,19 @@ final readonly class FileSystemServiceFactory
         $progressReporter              = new ConsoleProgressReporter($io);
         $filesystem                    = new Filesystem();
         $runtimeCollisionPathAllocator = new RuntimeCollisionPathAllocator();
+        $journal                       = self::createMutationJournal();
         $runtimeFileMoveExecutor       = new RuntimeFileMoveExecutor(
             $progressReporter,
             $filesystem,
             $runtimeCollisionPathAllocator,
             self::createSourceIdentityGuard(),
+            $journal,
         );
 
         return new FileSystemService(
             new FileCollector(new SafeRegex()),
-            new ExecutionPlanExecutor($progressReporter, $runtimeFileMoveExecutor),
-            new LegacyRenameExecutor($progressReporter, $renderer, $runtimeFileMoveExecutor),
+            new ExecutionPlanExecutor($progressReporter, $runtimeFileMoveExecutor, $journal),
+            new LegacyRenameExecutor($progressReporter, $renderer, $runtimeFileMoveExecutor, $journal),
         );
     }
 
@@ -76,5 +80,21 @@ final readonly class FileSystemServiceFactory
     public static function createSourceIdentityGuard(): SourceIdentityGuard
     {
         return new SourceIdentityGuard(new SafeHashCalculator(), new FileCollector(new SafeRegex()));
+    }
+
+    /**
+     * Supplies an inactive journal for internal service tests, or a shared
+     * instance for application tests that explicitly begin the CLI scope.
+     *
+     * @param string          $stateDirectory Synthetic persistent state base used only when the scope begins
+     * @param Filesystem|null $filesystem     Optional filesystem boundary for controlled persistence failures
+     *
+     * @return MutationJournal Fresh journal with explicit storage collaborators
+     */
+    public static function createMutationJournal(string $stateDirectory = '.build/cache', ?Filesystem $filesystem = null): MutationJournal
+    {
+        $filesystem ??= new Filesystem();
+
+        return new MutationJournal($filesystem, new PrivateCacheStorage($filesystem), $stateDirectory);
     }
 }

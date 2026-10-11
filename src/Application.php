@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer;
 
 use MagicSunday\Renamer\Service\Filesystem\BatchRunLock;
+use MagicSunday\Renamer\Service\Filesystem\MutationJournal;
 use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
 use Override;
 use Symfony\Component\Console\Command\Command;
@@ -78,8 +79,9 @@ final class Application extends \Symfony\Component\Console\Application
      * @param iterable<Command>   $commands            The list of commands to register
      * @param BatchRunLock        $batchRunLock        Serializes mutating commands from before analysis until cleanup
      * @param SourceIdentityGuard $sourceIdentityGuard Captures source state before analysis and releases it after execution
+     * @param MutationJournal     $mutationJournal     Persists mutation evidence throughout the protected CLI scope
      */
-    public function __construct(iterable $commands, private readonly BatchRunLock $batchRunLock, private readonly SourceIdentityGuard $sourceIdentityGuard)
+    public function __construct(iterable $commands, private readonly BatchRunLock $batchRunLock, private readonly SourceIdentityGuard $sourceIdentityGuard, private readonly MutationJournal $mutationJournal)
     {
         parent::__construct(
             self::NAME,
@@ -118,17 +120,28 @@ final class Application extends \Symfony\Component\Console\Application
             return parent::doRunCommand($command, $input, $output);
         }
 
-        $lock = $this->batchRunLock->acquire();
+        $lock   = $this->batchRunLock->acquire();
+        $status = Command::FAILURE;
 
         try {
+            $this->mutationJournal->begin($name);
             $source = $input->hasArgument('source') ? $input->getArgument('source') : null;
             $this->sourceIdentityGuard->begin(is_string($source) ? $source : null);
-
-            return parent::doRunCommand($command, $input, $output);
+            $status = parent::doRunCommand($command, $input, $output);
         } finally {
-            $this->sourceIdentityGuard->finish();
-            $lock->release();
+            try {
+                $this->sourceIdentityGuard->finish();
+
+                if (!$this->mutationJournal->finish($status)) {
+                    $output->writeln('<error>Mutation journal incomplete; inspect persisted intents and actual files before retrying.</error>');
+                    $status = Command::FAILURE;
+                }
+            } finally {
+                $lock->release();
+            }
         }
+
+        return $status;
     }
 
     /**

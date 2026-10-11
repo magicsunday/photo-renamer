@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Test\Unit\Service\Filesystem;
 
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\PrivateCacheStorage;
 use MagicSunday\Renamer\Model\Execution\ExecutionGroup;
 use MagicSunday\Renamer\Model\Execution\ExecutionItem;
 use MagicSunday\Renamer\Model\Execution\ExecutionItemType;
@@ -20,6 +21,7 @@ use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
 use MagicSunday\Renamer\Model\Execution\ExecutionResult;
 use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
 use MagicSunday\Renamer\Service\Filesystem\FileCollector;
+use MagicSunday\Renamer\Service\Filesystem\MutationJournal;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
 use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
@@ -53,6 +55,8 @@ use const DIRECTORY_SEPARATOR;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[UsesClass(SourceIdentityGuard::class)]
+#[UsesClass(MutationJournal::class)]
+#[UsesClass(PrivateCacheStorage::class)]
 #[UsesClass(FileCollector::class)]
 #[CoversClass(ExecutionPlanExecutor::class)]
 #[UsesClass(ExecutionPlan::class)]
@@ -84,6 +88,38 @@ final class ExecutionPlanExecutorTest extends TestCase
         $this->removeWorkspace($this->workspace);
 
         parent::tearDown();
+    }
+
+    /**
+     * A duplicate-only failure does not split a successfully renamed still/MOV
+     * pair. This prevents the new partial-group counter from treating every
+     * failed item in a Live Photo capture group as a component failure.
+     *
+     * @return void
+     */
+    #[Test]
+    public function unrelatedDuplicateFailureDoesNotFlagCompleteLivePhoto(): void
+    {
+        $filesystem      = new Filesystem();
+        $still           = $this->workspace . '/camera.jpg';
+        $companion       = $this->workspace . '/camera.mov';
+        $stillTarget     = $this->workspace . '/capture.jpg';
+        $companionTarget = $this->workspace . '/capture.mov';
+        $filesystem->dumpFile($still, 'still');
+        $filesystem->dumpFile($companion, 'companion');
+
+        $plan = new ExecutionPlan([new ExecutionGroup('synthetic pair', true, $still, [
+            new ExecutionItem($still, $stillTarget, ExecutionItemType::Canonical, true, false, 'synthetic pair'),
+            new ExecutionItem($companion, $companionTarget, ExecutionItemType::Companion, true, false, 'synthetic pair'),
+            new ExecutionItem($this->workspace . '/missing.jpg', $this->workspace . '/capture-duplicate-001.jpg', ExecutionItemType::Duplicate, true, false, 'synthetic pair'),
+        ])]);
+        $result = $this->createExecutor()->executePlan($plan);
+
+        self::assertSame(2, $result->executedMoves);
+        self::assertSame(1, $result->runtimeErrors);
+        self::assertSame(0, $result->partialLivePhotoGroups);
+        self::assertSame('still', $filesystem->readFile($stillTarget));
+        self::assertSame('companion', $filesystem->readFile($companionTarget));
     }
 
     /**
@@ -575,13 +611,15 @@ final class ExecutionPlanExecutorTest extends TestCase
     private function createExecutor(?SymfonyStyle $io = null): ExecutionPlanExecutor
     {
         $io ??= new SymfonyStyle(new ArrayInput([]), new BufferedOutput());
+        $journal                 = FileSystemServiceFactory::createMutationJournal();
         $runtimeFileMoveExecutor = new RuntimeFileMoveExecutor(
             new ConsoleProgressReporter($io),
             new Filesystem(),
             new RuntimeCollisionPathAllocator(),
             FileSystemServiceFactory::createSourceIdentityGuard(),
+            $journal,
         );
 
-        return new ExecutionPlanExecutor(new ConsoleProgressReporter($io), $runtimeFileMoveExecutor);
+        return new ExecutionPlanExecutor(new ConsoleProgressReporter($io), $runtimeFileMoveExecutor, $journal);
     }
 }

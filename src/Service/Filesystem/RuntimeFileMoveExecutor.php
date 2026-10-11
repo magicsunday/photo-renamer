@@ -43,12 +43,14 @@ final readonly class RuntimeFileMoveExecutor
      * @param Filesystem                    $filesystem                    Symfony Filesystem used for mkdir/rename operations.
      * @param RuntimeCollisionPathAllocator $runtimeCollisionPathAllocator Allocates duplicate-suffix fallbacks when a target becomes occupied during execution.
      * @param SourceIdentityGuard           $sourceIdentityGuard           Compares current bytes/inode against the CLI's pre-analysis source state
+     * @param MutationJournal               $mutationJournal               Persists actual selected paths before mutation and acknowledges success afterward
      */
     public function __construct(
         private ProgressReporterInterface $progressReporter,
         private Filesystem $filesystem,
         private RuntimeCollisionPathAllocator $runtimeCollisionPathAllocator,
         private SourceIdentityGuard $sourceIdentityGuard,
+        private MutationJournal $mutationJournal,
     ) {
     }
 
@@ -102,18 +104,21 @@ final readonly class RuntimeFileMoveExecutor
 
             $this->filesystem->mkdir(dirname($targetPath));
 
-            // Symfony's overwrite=false check tests readability and does not
-            // reject unreadable files or dangling links. Observe all existing
-            // leaves immediately before handing off, without claiming atomicity
-            // against an external writer racing the subsequent rename syscall.
-            clearstatcache(true, $targetPath);
+            $this->mutationJournal->perform('rename', $sourcePath, $targetPath, function () use ($sourcePath, $targetPath): void {
+                $this->sourceIdentityGuard->assertUnchanged($sourcePath);
 
-            if ($this->filesystem->exists($targetPath) || is_link($targetPath)) {
-                throw new RuntimeException(sprintf('Target "%s" became occupied after planning; source retained.', $targetPath));
-            }
+                // Full source reads can be slow for videos. Check targets after
+                // that read and the journal intent, immediately before rename.
+                // Symfony's readability check misses unreadable files/links;
+                // this observation still cannot exclude a later foreign race.
+                clearstatcache(true, $targetPath);
 
-            $this->sourceIdentityGuard->assertUnchanged($sourcePath);
-            $this->filesystem->rename($sourcePath, $targetPath);
+                if ($this->filesystem->exists($targetPath) || is_link($targetPath)) {
+                    throw new RuntimeException(sprintf('Target "%s" became occupied after planning; source retained.', $targetPath));
+                }
+
+                $this->filesystem->rename($sourcePath, $targetPath);
+            });
         }
 
         unset($occupiedPaths[$sourcePath]);

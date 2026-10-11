@@ -15,6 +15,8 @@ use MagicSunday\Renamer\Command\DedupCommand;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Helper\PathHelper;
+use MagicSunday\Renamer\Helper\PrivateCacheStorage;
+use MagicSunday\Renamer\Model\SourceFileFingerprint;
 use MagicSunday\Renamer\Regex\RegexMatchResult;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\Dedup\DedupOriginalMatcher;
@@ -25,6 +27,7 @@ use MagicSunday\Renamer\Service\Dedup\QuarantineTargetGuard;
 use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
 use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Service\Filesystem\LegacyRenameExecutor;
+use MagicSunday\Renamer\Service\Filesystem\MutationJournal;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
 use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
 use MagicSunday\Renamer\Service\FileSystemService;
@@ -55,6 +58,7 @@ use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Tester\CommandTester;
+use Symfony\Component\Filesystem\Exception\IOException;
 use Symfony\Component\Filesystem\Filesystem;
 
 use function dirname;
@@ -62,6 +66,7 @@ use function file_put_contents;
 use function is_dir;
 use function mkdir;
 use function preg_quote;
+use function str_contains;
 use function str_repeat;
 
 use const DIRECTORY_SEPARATOR;
@@ -76,6 +81,9 @@ use const PHP_EOL;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[UsesClass(SourceIdentityGuard::class)]
+#[UsesClass(MutationJournal::class)]
+#[UsesClass(PrivateCacheStorage::class)]
+#[UsesClass(SourceFileFingerprint::class)]
 #[CoversClass(DedupCommand::class)]
 #[CoversClass(QuarantineTargetGuard::class)]
 #[UsesClass(RecursiveRegexFileFilterIterator::class)]
@@ -109,6 +117,115 @@ use const PHP_EOL;
 final class DedupCommandTest extends TestCase
 {
     use WorkspaceTrait;
+
+    /**
+     * A successful deletion whose receipt cannot be appended is still one
+     * removed duplicate. The command must stop before the next candidate, retain
+     * its surviving original and return failure without zeroing actual counters.
+     *
+     * @return void
+     */
+    #[Test]
+    public function receiptFailureKeepsActualDeletionCountAndRetainsNextCandidate(): void
+    {
+        $workspace  = $this->createTempWorkspace();
+        $filesystem = new Filesystem();
+        $source     = $workspace . '/media';
+        $original   = $source . '/photo.jpg';
+        $first      = $source . '/photo-duplicate-001.jpg';
+        $second     = $source . '/photo-duplicate-002.jpg';
+        $filesystem->dumpFile($original, 'same');
+        $filesystem->dumpFile($first, 'same');
+        $filesystem->dumpFile($second, 'same');
+
+        $failingFilesystem = self::createPartialMock(Filesystem::class, ['appendToFile']);
+        $failingFilesystem->expects(self::exactly(3))->method('appendToFile')->willReturnCallback(static function (string $path, string $contents, bool $lock) use ($filesystem): void {
+            if (str_contains($contents, '"event":"completed"')) {
+                throw new IOException('Controlled receipt failure.');
+            }
+
+            $filesystem->appendToFile($path, $contents, $lock);
+        });
+        $journal = FileSystemServiceFactory::createMutationJournal($workspace . '/state', $failingFilesystem);
+
+        try {
+            $journal->begin('rename:dedup');
+            $tester = new CommandTester($this->createCommand(mutationJournal: $journal));
+            $tester->setInputs(['yes']);
+            self::assertSame(Command::FAILURE, $tester->execute(['source' => $source, '--delete' => true]));
+            self::assertSame('same', $filesystem->readFile($original));
+            self::assertSame(1, (int) $filesystem->exists($first) + (int) $filesystem->exists($second));
+            self::assertMatchesRegularExpression('/Duplicates found\s+1\R/', $tester->getDisplay());
+            self::assertMatchesRegularExpression('/Space reclaimable\s+4 B\R/', $tester->getDisplay());
+            self::assertStringContainsString('completed action: mutation journal incomplete', $tester->getDisplay());
+        } finally {
+            $journal->finish(Command::FAILURE);
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Replaces a candidate after the pre-analysis identity observation. For
+     * delete, the original is replaced with the same new bytes so the independent
+     * fresh duplicate-byte guard still passes: only the stale-source guard can
+     * reject mutation. Quarantine must apply that guard as well.
+     *
+     * @param bool $delete Whether the candidate would be deleted or quarantined
+     *
+     * @return void
+     */
+    #[Test]
+    #[DataProvider('staleSourceOperations')]
+    public function changedCandidateIsRetainedEvenWhenCurrentBytesAuthorizeDeletion(bool $delete): void
+    {
+        $workspace  = $this->createTempWorkspace();
+        $filesystem = new Filesystem();
+        $source     = $workspace . '/media';
+        $original   = $source . '/photo.jpg';
+        $candidate  = $source . '/photo-duplicate-001.jpg';
+        $filesystem->dumpFile($original, 'before');
+        $filesystem->dumpFile($candidate, 'before');
+
+        $guard = FileSystemServiceFactory::createSourceIdentityGuard();
+
+        try {
+            $guard->begin($source);
+            $filesystem->dumpFile($candidate, 'after!');
+
+            if ($delete) {
+                $filesystem->dumpFile($original, 'after!');
+            }
+
+            $tester = new CommandTester($this->createCommand(sourceIdentityGuard: $guard));
+            $tester->setInputs(['yes']);
+            $options = ['source' => $source];
+
+            if ($delete) {
+                $options['--delete'] = true;
+            }
+
+            self::assertSame(Command::FAILURE, $tester->execute($options));
+            self::assertSame('after!', $filesystem->readFile($candidate));
+            self::assertFileDoesNotExist($source . '/duplicates/photo-duplicate-001.jpg');
+            self::assertStringContainsString('changed after analysis', $tester->getDisplay());
+            self::assertMatchesRegularExpression('/Duplicates found\s+0\R/', $tester->getDisplay());
+            self::assertMatchesRegularExpression('/Space reclaimable\s+0 B\R/', $tester->getDisplay());
+        } finally {
+            $guard->finish();
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Both destructive command branches must enforce the same source freshness.
+     *
+     * @return iterable<string, array{bool}> Dedup mutation modes
+     */
+    public static function staleSourceOperations(): iterable
+    {
+        yield 'quarantine' => [false];
+        yield 'permanent deletion with matching current original' => [true];
+    }
 
     /**
      * Verifies that the command registers under the name "rename:dedup".
@@ -749,11 +866,13 @@ final class DedupCommandTest extends TestCase
      * Wires the actual command collaborators, optionally replacing only the
      * mutation filesystem for controlled interleaving tests.
      *
-     * @param Filesystem|null $filesystem Mutation filesystem or the normal implementation
+     * @param Filesystem|null          $filesystem          Mutation filesystem or the normal implementation
+     * @param SourceIdentityGuard|null $sourceIdentityGuard Shared pre-analysis scope, or an inactive test guard
+     * @param MutationJournal|null     $mutationJournal     Shared active journal, or an inactive internal-test scope
      *
      * @return DedupCommand Fully wired command under test
      */
-    private function createCommand(?Filesystem $filesystem = null): DedupCommand
+    private function createCommand(?Filesystem $filesystem = null, ?SourceIdentityGuard $sourceIdentityGuard = null, ?MutationJournal $mutationJournal = null): DedupCommand
     {
         $output = new BufferedOutput();
         $style  = new SymfonyStyle(new ArrayInput([]), $output);
@@ -772,7 +891,8 @@ final class DedupCommandTest extends TestCase
             $filesystem ?? new Filesystem(),
             new DuplicateDeletionGuard(new SafeHashCalculator()),
             new QuarantineTargetGuard(),
-            FileSystemServiceFactory::createSourceIdentityGuard(),
+            $sourceIdentityGuard ?? FileSystemServiceFactory::createSourceIdentityGuard(),
+            $mutationJournal ?? FileSystemServiceFactory::createMutationJournal(),
         );
     }
 }

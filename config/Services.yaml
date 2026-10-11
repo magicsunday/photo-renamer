@@ -26,6 +26,10 @@ services:
         arguments:
             $stateDirectory: '%env(default:default_state_directory:string:CACHE_DIR)%'
 
+    MagicSunday\Renamer\Service\Filesystem\MutationJournal:
+        arguments:
+            $stateDirectory: '%env(default:default_state_directory:string:CACHE_DIR)%'
+
     # Source checks must not flush or reuse classification's hash cache.
     renamer.source_hash_calculator:
         class: MagicSunday\Renamer\Service\SafeHashCalculator

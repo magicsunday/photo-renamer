@@ -16,17 +16,23 @@ use MagicSunday\Renamer\Model\Execution\ExecutionGroup;
 use MagicSunday\Renamer\Model\Execution\ExecutionItem;
 use MagicSunday\Renamer\Model\Execution\ExecutionItemType;
 use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
+use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\Filesystem\BatchRunLock;
 use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
+use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
+use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
 use MagicSunday\Renamer\Service\Reporting\NullProgressReporter;
+use MagicSunday\Renamer\Service\SafeHashCalculator;
+use MagicSunday\Renamer\Service\SafeHashCalculatorInterface;
 use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -47,6 +53,58 @@ use function touch;
 final class StaleSourceMutationTest extends TestCase
 {
     use WorkspaceTrait;
+
+    /**
+     * A controlled hash callback creates an unreadable external target during
+     * the execution-time full source read. The final target guard must run after
+     * that read, or Symfony's readability-based check can overwrite the target.
+     * Both source and foreign bytes must survive with unchanged path occupancy.
+     *
+     * @return void
+     */
+    #[Test]
+    public function targetCreatedDuringSourceVerificationCannotBeOverwritten(): void
+    {
+        $workspace  = $this->createTempWorkspace();
+        $filesystem = new Filesystem();
+        $source     = $workspace . '/source.jpg';
+        $target     = $workspace . '/target.jpg';
+        $filesystem->dumpFile($source, 'synthetic source');
+        $reads          = 0;
+        $actualHasher   = new SafeHashCalculator();
+        $hashCalculator = self::createMock(SafeHashCalculatorInterface::class);
+        $hashCalculator->expects(self::exactly(2))->method('hashFile')->willReturnCallback(static function (SplFileInfo $file, string $algorithm) use ($filesystem, $target, $actualHasher, &$reads): string {
+            if (++$reads === 2) {
+                $filesystem->dumpFile($target, 'foreign bytes');
+                $filesystem->chmod($target, 0o000);
+            }
+
+            return $actualHasher->hashFile($file, $algorithm);
+        });
+        $guard = new SourceIdentityGuard($hashCalculator, new FileCollector(new SafeRegex()));
+
+        try {
+            $guard->begin($source);
+            $mover    = new RuntimeFileMoveExecutor(new NullProgressReporter(), $filesystem, new RuntimeCollisionPathAllocator(), $guard, FileSystemServiceFactory::createMutationJournal());
+            $occupied = [$source => true];
+            $blocked  = false;
+
+            try {
+                $mover->moveFileByPath($source, $target, $occupied, false);
+            } catch (RuntimeException) {
+                $blocked = true;
+            }
+
+            self::assertTrue($blocked);
+            self::assertSame('synthetic source', $filesystem->readFile($source));
+            $filesystem->chmod($target, 0o600);
+            self::assertSame('foreign bytes', $filesystem->readFile($target));
+            self::assertSame([$source => true], $occupied);
+        } finally {
+            $guard->finish();
+            $this->removeWorkspace($workspace);
+        }
+    }
 
     /**
      * The command body simulates analysis and then changes its source immediately
@@ -71,7 +129,8 @@ final class StaleSourceMutationTest extends TestCase
         $mtime    = new SplFileInfo($source)->getMTime();
         $reporter = new NullProgressReporter();
         $guard    = FileSystemServiceFactory::createSourceIdentityGuard();
-        $executor = new ExecutionPlanExecutor($reporter, new RuntimeFileMoveExecutor($reporter, $filesystem, new RuntimeCollisionPathAllocator(), $guard));
+        $journal  = FileSystemServiceFactory::createMutationJournal($workspace . '/state', $filesystem);
+        $executor = new ExecutionPlanExecutor($reporter, new RuntimeFileMoveExecutor($reporter, $filesystem, new RuntimeCollisionPathAllocator(), $guard, $journal), $journal);
         $result   = null;
         $command  = new Command('rename:exif');
         $command->addArgument('source', InputArgument::REQUIRED);
@@ -96,7 +155,7 @@ final class StaleSourceMutationTest extends TestCase
 
             return $result->runtimeErrors > 0 ? Command::FAILURE : Command::SUCCESS;
         });
-        $application = new Application([$command], new BatchRunLock($filesystem, $workspace . '/state'), $guard);
+        $application = new Application([$command], new BatchRunLock($filesystem, $workspace . '/state'), $guard, $journal);
         $application->setAutoExit(false);
 
         try {

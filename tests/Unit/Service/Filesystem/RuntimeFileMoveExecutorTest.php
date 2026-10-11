@@ -11,7 +11,9 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service\Filesystem;
 
+use MagicSunday\Renamer\Helper\PrivateCacheStorage;
 use MagicSunday\Renamer\Service\Filesystem\FileCollector;
+use MagicSunday\Renamer\Service\Filesystem\MutationJournal;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
 use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
@@ -37,6 +39,8 @@ use function readlink;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[UsesClass(SourceIdentityGuard::class)]
+#[UsesClass(MutationJournal::class)]
+#[UsesClass(PrivateCacheStorage::class)]
 #[UsesClass(FileCollector::class)]
 #[CoversClass(RuntimeFileMoveExecutor::class)]
 #[CoversClass(RuntimeCollisionPathAllocator::class)]
@@ -59,6 +63,7 @@ final class RuntimeFileMoveExecutorTest extends TestCase
             $filesystem,
             new RuntimeCollisionPathAllocator(),
             FileSystemServiceFactory::createSourceIdentityGuard(),
+            FileSystemServiceFactory::createMutationJournal(),
         );
 
         $sourcePath    = '/photos/current.jpg';
@@ -101,7 +106,7 @@ final class RuntimeFileMoveExecutorTest extends TestCase
         }
 
         try {
-            $executor = new RuntimeFileMoveExecutor(new NullProgressReporter(), $filesystem, new RuntimeCollisionPathAllocator(), FileSystemServiceFactory::createSourceIdentityGuard());
+            $executor = new RuntimeFileMoveExecutor(new NullProgressReporter(), $filesystem, new RuntimeCollisionPathAllocator(), FileSystemServiceFactory::createSourceIdentityGuard(), FileSystemServiceFactory::createMutationJournal());
             $blocked  = false;
 
             try {
@@ -165,7 +170,7 @@ final class RuntimeFileMoveExecutorTest extends TestCase
         $occupiedPaths = [$source => true];
 
         try {
-            $executor = new RuntimeFileMoveExecutor(new NullProgressReporter(), $filesystem, new RuntimeCollisionPathAllocator(), FileSystemServiceFactory::createSourceIdentityGuard());
+            $executor = new RuntimeFileMoveExecutor(new NullProgressReporter(), $filesystem, new RuntimeCollisionPathAllocator(), FileSystemServiceFactory::createSourceIdentityGuard(), FileSystemServiceFactory::createMutationJournal());
             $blocked  = false;
 
             try {

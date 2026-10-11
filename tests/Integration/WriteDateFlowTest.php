@@ -602,6 +602,7 @@ final class WriteDateFlowTest extends TestCase
             ),
             new WriteDateReportFormatter(),
             FileSystemServiceFactory::createSourceIdentityGuard(),
+            FileSystemServiceFactory::createMutationJournal(),
             static fn (): bool => true,
         );
     }

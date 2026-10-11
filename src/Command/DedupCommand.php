@@ -18,6 +18,7 @@ use MagicSunday\Renamer\Service\Dedup\DedupOriginalMatcher;
 use MagicSunday\Renamer\Service\Dedup\DedupReportFormatter;
 use MagicSunday\Renamer\Service\Dedup\DuplicateDeletionGuard;
 use MagicSunday\Renamer\Service\Dedup\QuarantineTargetGuard;
+use MagicSunday\Renamer\Service\Filesystem\MutationJournal;
 use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
@@ -68,6 +69,7 @@ final class DedupCommand extends Command
      * @param DuplicateDeletionGuard     $deletionGuard        Fresh byte-identity check for permanent removal
      * @param QuarantineTargetGuard      $quarantineGuard      Confines quarantine paths to the selected source tree
      * @param SourceIdentityGuard        $sourceIdentityGuard  Rejects delete/quarantine of sources changed since analysis began
+     * @param MutationJournal            $mutationJournal      Records destructive changes and stops writes if acknowledgement fails
      */
     public function __construct(
         private readonly FileSystemServiceInterface $fileSystemService,
@@ -78,6 +80,7 @@ final class DedupCommand extends Command
         private readonly DuplicateDeletionGuard $deletionGuard,
         private readonly QuarantineTargetGuard $quarantineGuard,
         private readonly SourceIdentityGuard $sourceIdentityGuard,
+        private readonly MutationJournal $mutationJournal,
     ) {
         parent::__construct();
     }
@@ -316,13 +319,19 @@ final class DedupCommand extends Command
                 }
             } elseif ($delete) {
                 try {
-                    $this->sourceIdentityGuard->assertUnchanged($file->getPathname());
-                    $this->filesystem->remove($file->getPathname());
+                    $this->mutationJournal->perform('delete', $file->getPathname(), null, function () use ($file): void {
+                        $this->sourceIdentityGuard->assertUnchanged($file->getPathname());
+                        $this->filesystem->remove($file->getPathname());
+                    });
                 } catch (RuntimeException $exception) {
                     ++$quarantineErrors;
                     --$duplicatesFound;
                     $spaceReclaimable -= $fileSize;
                     $io->error('Deletion failed; source retained: ' . $exception->getMessage());
+
+                    if ($this->mutationJournal->failure() !== null) {
+                        break;
+                    }
 
                     continue;
                 }
@@ -340,19 +349,26 @@ final class DedupCommand extends Command
                     $this->quarantineGuard->assertSafeTarget($sourceDirectory, $targetPath);
                     $this->filesystem->mkdir(dirname($targetPath));
                     $this->quarantineGuard->assertSafeTarget($sourceDirectory, $targetPath);
-                    clearstatcache(true, $targetPath);
+                    $this->mutationJournal->perform('quarantine', $file->getPathname(), $targetPath, function () use ($file, $sourceDirectory, $targetPath): void {
+                        $this->sourceIdentityGuard->assertUnchanged($file->getPathname());
+                        $this->quarantineGuard->assertSafeTarget($sourceDirectory, $targetPath);
+                        clearstatcache(true, $targetPath);
 
-                    if ($this->filesystem->exists($targetPath) || is_link($targetPath)) {
-                        throw new RuntimeException('Quarantine target became occupied after planning; source retained.');
-                    }
+                        if ($this->filesystem->exists($targetPath) || is_link($targetPath)) {
+                            throw new RuntimeException('Quarantine target became occupied after planning; source retained.');
+                        }
 
-                    $this->sourceIdentityGuard->assertUnchanged($file->getPathname());
-                    $this->filesystem->rename($file->getPathname(), $targetPath);
+                        $this->filesystem->rename($file->getPathname(), $targetPath);
+                    });
                 } catch (RuntimeException $exception) {
                     ++$quarantineErrors;
                     --$duplicatesFound;
                     $spaceReclaimable -= $fileSize;
                     $io->error($this->dedupReportFormatter->formatQuarantineError($exception->getMessage()));
+
+                    if ($this->mutationJournal->failure() !== null) {
+                        break;
+                    }
 
                     continue;
                 }
@@ -365,6 +381,13 @@ final class DedupCommand extends Command
                     $relativePath,
                     $targetRelativePath,
                 );
+            }
+
+            if ($this->mutationJournal->failure() !== null) {
+                ++$quarantineErrors;
+                $io->error('Batch stopped after the completed action: mutation journal incomplete.');
+
+                break;
             }
         }
 

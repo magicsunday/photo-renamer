@@ -31,6 +31,7 @@ use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\InputStream;
 use Symfony\Component\Process\Process;
 
+use function glob;
 use function is_file;
 use function str_contains;
 
@@ -77,7 +78,7 @@ final class MutationLockTest extends TestCase
 
                 return Command::SUCCESS;
             });
-            $application = new Application([$command], $lockService, FileSystemServiceFactory::createSourceIdentityGuard());
+            $application = new Application([$command], $lockService, FileSystemServiceFactory::createSourceIdentityGuard(), FileSystemServiceFactory::createMutationJournal($workspace));
             $application->setAutoExit(false);
             $output = new BufferedOutput();
 
@@ -128,10 +129,11 @@ final class MutationLockTest extends TestCase
             $command->addArgument('source', InputArgument::REQUIRED);
             $command->addOption('dry-run', 'd', InputOption::VALUE_NONE);
             $command->setCode(static fn (): int => Command::SUCCESS);
-            $application = new Application([$command], $lockService, FileSystemServiceFactory::createSourceIdentityGuard());
+            $application = new Application([$command], $lockService, FileSystemServiceFactory::createSourceIdentityGuard(), FileSystemServiceFactory::createMutationJournal($workspace));
             $application->setAutoExit(false);
 
             self::assertSame($expectedCode, $application->run(new ArrayInput(['command' => $commandName, 'source' => $workspace, ...$options]), new BufferedOutput()));
+            self::assertSame([], glob($workspace . '/private-*/mutation-*.jsonl'));
         } finally {
             $lock->release();
             $this->removeWorkspace($workspace);
@@ -168,7 +170,7 @@ final class MutationLockTest extends TestCase
         try {
             $secondCommand = new Command('rename:dedup');
             $secondCommand->setCode(static fn (): int => Command::SUCCESS);
-            $secondApplication = new Application([$secondCommand], $lockService, FileSystemServiceFactory::createSourceIdentityGuard());
+            $secondApplication = new Application([$secondCommand], $lockService, FileSystemServiceFactory::createSourceIdentityGuard(), FileSystemServiceFactory::createMutationJournal($workspace));
             $secondApplication->setAutoExit(false);
             $command = new Command('rename:exif');
             $command->setCode(static function () use ($secondApplication): int {
@@ -176,7 +178,7 @@ final class MutationLockTest extends TestCase
 
                 throw new RuntimeException('Synthetic analysis failure.');
             });
-            $application = new Application([$command], $lockService, FileSystemServiceFactory::createSourceIdentityGuard());
+            $application = new Application([$command], $lockService, FileSystemServiceFactory::createSourceIdentityGuard(), FileSystemServiceFactory::createMutationJournal($workspace));
             $application->setAutoExit(false);
             $output = new BufferedOutput();
 
@@ -211,7 +213,7 @@ final class MutationLockTest extends TestCase
 
             $command = new Command('rename:lower');
             $command->setCode(static fn (): int => Command::SUCCESS);
-            $application = new Application([$command], new BatchRunLock(new Filesystem(), $workspace), FileSystemServiceFactory::createSourceIdentityGuard());
+            $application = new Application([$command], new BatchRunLock(new Filesystem(), $workspace), FileSystemServiceFactory::createSourceIdentityGuard(), FileSystemServiceFactory::createMutationJournal($workspace));
             $application->setAutoExit(false);
             self::assertSame(Command::FAILURE, $application->run(new ArrayInput(['command' => 'rename:lower']), new BufferedOutput()));
 
@@ -255,7 +257,7 @@ final class MutationLockTest extends TestCase
         try {
             $command = new Command('rename:lower');
             $command->setCode(static fn (): int => Command::SUCCESS);
-            $application = new Application([$command], new BatchRunLock($filesystem, $workspace), FileSystemServiceFactory::createSourceIdentityGuard());
+            $application = new Application([$command], new BatchRunLock($filesystem, $workspace), FileSystemServiceFactory::createSourceIdentityGuard(), FileSystemServiceFactory::createMutationJournal($workspace));
             $application->setAutoExit(false);
             $output = new BufferedOutput();
 

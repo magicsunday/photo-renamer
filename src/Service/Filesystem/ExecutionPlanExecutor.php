@@ -11,12 +11,19 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Filesystem;
 
+use MagicSunday\Renamer\Model\Execution\ExecutionItemType;
 use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
 use MagicSunday\Renamer\Model\Execution\ExecutionResult;
 use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use RuntimeException;
 
+use function array_unique;
+use function count;
+use function dirname;
+use function pathinfo;
 use function sprintf;
+
+use const PATHINFO_FILENAME;
 
 /**
  * Executes runtime `ExecutionPlan` items against the filesystem while tracking
@@ -36,10 +43,12 @@ final readonly class ExecutionPlanExecutor
     /**
      * @param ProgressReporterInterface $progressReporter        Reporter used for runtime warnings and recoverable errors.
      * @param RuntimeFileMoveExecutor   $runtimeFileMoveExecutor Shared runtime mover for concrete filesystem mutations and duplicate-suffix fallback handling.
+     * @param MutationJournal           $mutationJournal         Stops the batch if evidence fails after a successful move
      */
     public function __construct(
         private ProgressReporterInterface $progressReporter,
         private RuntimeFileMoveExecutor $runtimeFileMoveExecutor,
+        private MutationJournal $mutationJournal,
     ) {
     }
 
@@ -61,17 +70,51 @@ final readonly class ExecutionPlanExecutor
     {
         $occupiedPaths = $this->buildOccupiedPathsFromPlan($plan);
 
-        $executedMoves    = 0;
-        $runtimeFallbacks = 0;
-        $runtimeErrors    = 0;
+        $executedMoves          = 0;
+        $runtimeFallbacks       = 0;
+        $runtimeErrors          = 0;
+        $partialLivePhotoGroups = 0;
+        $stopped                = false;
 
         foreach ($plan->groups as $group) {
+            $pairLocations       = [];
+            $pendingPairMoves    = 0;
+            $successfulPairMoves = 0;
+            $readyPairMembers    = 0;
+
+            if ($group->isLivePhotoGroup && !$dryRun) {
+                foreach ($group->items as $item) {
+                    if (($item->type !== ExecutionItemType::Canonical) && ($item->type !== ExecutionItemType::Companion)) {
+                        continue;
+                    }
+
+                    $pairLocations[$item->sourcePath] = dirname($item->sourcePath) . '/' . pathinfo($item->sourcePath, PATHINFO_FILENAME);
+
+                    if ($item->renameRequired && !$item->isNoOp) {
+                        ++$pendingPairMoves;
+                    } else {
+                        ++$readyPairMembers;
+                    }
+                }
+
+                try {
+                    $this->mutationJournal->planLivePhoto($group);
+                } catch (RuntimeException $exception) {
+                    ++$runtimeErrors;
+                    $this->progressReporter->error($exception->getMessage());
+
+                    break;
+                }
+            }
+
             foreach ($group->items as $item) {
                 if (!$item->isExecutable) {
                     $occupiedPaths[$item->sourcePath] = true;
 
                     continue;
                 }
+
+                $operationFailed = false;
 
                 try {
                     $actualTarget = $this->moveFileByPath(
@@ -84,16 +127,61 @@ final readonly class ExecutionPlanExecutor
                     if (!$dryRun) {
                         ++$executedMoves;
 
+                        if (isset($pairLocations[$item->sourcePath])) {
+                            ++$successfulPairMoves;
+                            ++$readyPairMembers;
+                            $pairLocations[$item->sourcePath] = dirname($actualTarget) . '/' . pathinfo($actualTarget, PATHINFO_FILENAME);
+                        }
+
                         if ($actualTarget !== $item->targetPath) {
                             ++$runtimeFallbacks;
                         }
                     }
                 } catch (RuntimeException $exception) {
+                    $operationFailed                  = true;
                     $occupiedPaths[$item->sourcePath] = true;
                     $this->progressReporter->error(sprintf('Failed to rename %s: %s', $item->sourcePath, $exception->getMessage()));
 
                     ++$runtimeErrors;
                 }
+
+                if ($this->mutationJournal->failure() !== null) {
+                    $this->progressReporter->error($this->mutationJournal->failure());
+
+                    if (!$operationFailed) {
+                        ++$runtimeErrors;
+                    }
+
+                    $stopped = true;
+
+                    break;
+                }
+            }
+
+            if ($group->isLivePhotoGroup && !$dryRun) {
+                $partial = ($readyPairMembers > 0)
+                    && (($successfulPairMoves < $pendingPairMoves) || (count(array_unique($pairLocations)) > 1));
+                $pairStatus = 'complete';
+
+                if ($partial) {
+                    ++$partialLivePhotoGroups;
+                    $pairStatus = 'partial';
+                    $this->progressReporter->error('Live Photo partially processed; inspect its still and companion before retrying.');
+                } elseif ($successfulPairMoves < $pendingPairMoves) {
+                    $pairStatus = 'unprocessed';
+                }
+
+                $this->mutationJournal->livePhotoResult($group->groupKey, $pairStatus);
+
+                if (!$stopped && ($this->mutationJournal->failure() !== null)) {
+                    ++$runtimeErrors;
+                    $this->progressReporter->error($this->mutationJournal->failure());
+                    $stopped = true;
+                }
+            }
+
+            if ($stopped) {
+                break;
             }
         }
 
@@ -101,6 +189,7 @@ final readonly class ExecutionPlanExecutor
             executedMoves: $executedMoves,
             runtimeFallbacks: $runtimeFallbacks,
             runtimeErrors: $runtimeErrors,
+            partialLivePhotoGroups: $partialLivePhotoGroups,
         );
     }
 
