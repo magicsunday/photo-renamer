@@ -13,6 +13,8 @@ namespace MagicSunday\Renamer\Command;
 
 use FilesystemIterator;
 use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Exception\AnalysisMemoryBudgetExceededException;
+use MagicSunday\Renamer\Helper\AnalysisMemoryBudget;
 use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Helper\PathHelper;
@@ -184,6 +186,8 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
         $this->canonicalScorer->setFormatPriority($this->resolveFormatPriority());
         $this->canonicalScorer->setSourceDirectory($this->sourceDirectory);
 
+        $memoryAborted = false;
+
         try {
             if (!$this->processWithAssetGroups()) {
                 $this->io->error('Completed with errors. See the summary for actual results.');
@@ -194,13 +198,24 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
             $this->io->success('done');
 
             return self::SUCCESS;
+        } catch (AnalysisMemoryBudgetExceededException $exception) {
+            $memoryAborted = true;
+            $this->exifMetadataProvider->clearCache();
+            $this->hashSubGroupingService->clearCache();
+            $this->io->error(ConsoleText::neutralize($exception->getMessage()));
+
+            return self::FAILURE;
         } catch (RuntimeException $exception) {
             $this->io->error(ConsoleText::neutralize($exception->getMessage()));
 
             return self::FAILURE;
         } finally {
-            $this->flushCache($metadataCache, $this->io);
-            $this->flushCache($signalCache, $this->io);
+            // Serializing an optional full snapshot would reintroduce growth
+            // after a planned low-memory stop; keep the previous disk cache.
+            if (!$memoryAborted) {
+                $this->flushCache($metadataCache, $this->io);
+                $this->flushCache($signalCache, $this->io);
+            }
         }
     }
 
@@ -290,7 +305,8 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
      *
      * @return bool Whether scanning, classification and execution completed without errors
      *
-     * @throws RuntimeException If cross-group analysis exceeds its budget or circular swaps are detected
+     * @throws RuntimeException                      If cross-group analysis exceeds its budget or circular swaps are detected
+     * @throws AnalysisMemoryBudgetExceededException When analysis cannot retain sufficient pre-mutation headroom
      */
     private function processWithAssetGroups(): bool
     {
@@ -385,6 +401,8 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
 
         // Execute file operations (may apply runtime fallback for edge cases
         // where CollisionResolver could not predict a conflict at plan time)
+        AnalysisMemoryBudget::assertHeadroom('pre-mutation execution gate');
+
         $executionResult = $this->fileSystemService->executePlan($executionPlan, $this->dryRun);
 
         // Render summary

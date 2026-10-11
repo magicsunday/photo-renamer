@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Command;
 
 use FilesystemIterator;
 use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
+use MagicSunday\Renamer\Exception\AnalysisMemoryBudgetExceededException;
 use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
@@ -405,6 +406,8 @@ abstract class AbstractRenameCommand extends Command
      * Executes the full pipeline: creates the file iterator, counts files, groups
      * them by duplicate identifier, assigns duplicate filenames and invokes the
      * file system service to perform the actual rename/copy operations.
+     *
+     * @throws AnalysisMemoryBudgetExceededException When retained files reach the pre-mutation budget
      */
     private function processAndRenameFiles(): void
     {
@@ -515,6 +518,8 @@ abstract class AbstractRenameCommand extends Command
      * @param RecursiveIteratorIterator<TInner> $iterator Iterator yielding candidate files
      *
      * @return FileDuplicateCollection Grouped duplicate collection
+     *
+     * @throws AnalysisMemoryBudgetExceededException When collected files reach the pre-mutation budget
      */
     protected function groupFilesByDuplicateIdentifier(RecursiveIteratorIterator $iterator): FileDuplicateCollection
     {

@@ -12,7 +12,10 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Benchmark;
 
 use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
+use RuntimeException;
 
+use function getrusage;
+use function memory_get_peak_usage;
 use function memory_get_usage;
 use function str_contains;
 
@@ -22,6 +25,16 @@ use function str_contains;
  */
 final class BenchmarkProgressReporter implements ProgressReporterInterface
 {
+    /**
+     * Fixed phase measurements; never retain per-file or per-pair history.
+     *
+     * @var array<string, array{php_current_bytes: int, php_allocated_bytes: int, php_peak_bytes: int, peak_rss_bytes: int}>
+     */
+    public array $measurements = [];
+
+    /** Current finite service phase used to label completion checkpoints. */
+    private string $phase = 'idle';
+
     /** Whether the current progress belongs to cross-group reconciliation. */
     private bool $crossGroup = false;
 
@@ -66,11 +79,12 @@ final class BenchmarkProgressReporter implements ProgressReporterInterface
      */
     public function finish(): void
     {
+        $this->measure($this->phase . '_finished');
         $this->crossGroup = false;
     }
 
     /**
-     * Discards informational output to avoid measuring buffered terminal text.
+     * Observes only the fixed scan heading without buffering terminal text.
      *
      * @param string $message Unretained informational message
      *
@@ -78,6 +92,10 @@ final class BenchmarkProgressReporter implements ProgressReporterInterface
      */
     public function text(string $message): void
     {
+        if (str_contains($message, 'Scanning files')) {
+            $this->phase = 'group_scan';
+            $this->measure('file_list_and_indexes');
+        }
     }
 
     /**
@@ -112,5 +130,42 @@ final class BenchmarkProgressReporter implements ProgressReporterInterface
     public function section(string $title): void
     {
         $this->crossGroup = str_contains($title, 'Reconciling cross-group videos');
+
+        if (str_contains($title, 'Pairing Live Photos')) {
+            $this->phase = 'pairing';
+            $this->measure('pairing_bridge');
+        } elseif (str_contains($title, 'Classifying subgroups')) {
+            $this->phase = 'classification';
+            $this->measure('groups_built');
+        } elseif ($this->crossGroup) {
+            $this->phase = 'cross_group';
+            $this->measure('before_cross_group');
+        }
+    }
+
+    /**
+     * Records live PHP allocation and cumulative peaks at a finite checkpoint.
+     * Existing reporting headings expose group/classification lifetimes without
+     * production profiling interfaces; the worker adds cache/plan/output points.
+     * Linux ru_maxrss is KiB, while JSON records bytes consistently.
+     *
+     * @param string $stage Fixed benchmark checkpoint, never a filename or pair key
+     *
+     * @return void
+     */
+    public function measure(string $stage): void
+    {
+        $usage = getrusage();
+
+        if ($usage === false) {
+            throw new RuntimeException('Linux worker RSS measurement is unavailable.');
+        }
+
+        $this->measurements[$stage] = [
+            'php_current_bytes'   => memory_get_usage(false),
+            'php_allocated_bytes' => memory_get_usage(true),
+            'php_peak_bytes'      => memory_get_peak_usage(true),
+            'peak_rss_bytes'      => $usage['ru_maxrss'] * 1024,
+        ];
     }
 }

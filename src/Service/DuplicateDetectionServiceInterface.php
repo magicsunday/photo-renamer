@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service;
 
+use MagicSunday\Renamer\Exception\AnalysisMemoryBudgetExceededException;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\SkippedFile;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
@@ -42,6 +43,8 @@ interface DuplicateDetectionServiceInterface
      * @param string                               $sourceDirectory             The absolute path to the source directory.
      *
      * @return FileDuplicateCollection The collection of grouped duplicates.
+     *
+     * @throws AnalysisMemoryBudgetExceededException When collected files reach the pre-mutation budget
      */
     public function groupFilesByDuplicateIdentifier(
         RecursiveIteratorIterator $iterator,

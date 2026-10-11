@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service\Pipeline;
 
+use MagicSunday\Renamer\Helper\AnalysisMemoryBudget;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Service\Pipeline\AssetGroupPipeline;
@@ -45,6 +46,7 @@ use SplFileInfo;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
+#[UsesClass(AnalysisMemoryBudget::class)]
 #[CoversClass(AssetGroupPipeline::class)]
 #[UsesClass(AssetGroupCollection::class)]
 #[UsesClass(PipelineContext::class)]

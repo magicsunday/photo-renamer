@@ -11,6 +11,8 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Pipeline;
 
+use MagicSunday\Renamer\Exception\AnalysisMemoryBudgetExceededException;
+use MagicSunday\Renamer\Helper\AnalysisMemoryBudget;
 use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Service\RenamePlanValidator;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
@@ -67,6 +69,8 @@ final readonly class AssetGroupPipeline
      * @param bool                                 $useFileExtensionFromSource  When true, preserve source extension
      *
      * @return ExifRenamePipelineResult The fully processed groups with proposed names, context, and validation result
+     *
+     * @throws AnalysisMemoryBudgetExceededException When retained analysis reaches its pre-mutation budget
      */
     public function run(
         RecursiveIteratorIterator $iterator,
@@ -85,21 +89,27 @@ final readonly class AssetGroupPipeline
             $context,
         );
 
+        AnalysisMemoryBudget::assertHeadroom('cross-group analysis');
         $this->crossGroupVideoDuplicateReconciler?->reconcile($groups, $context);
 
         // Step 2: Classify subgroups
+        AnalysisMemoryBudget::assertHeadroom('subgroup classification');
         $this->subgroupClassifier->classify($groups);
 
         // Step 3: Assign roles (scoring + companion detection)
+        AnalysisMemoryBudget::assertHeadroom('role assignment');
         $this->roleAssigner->assign($groups, $context);
 
         // Step 4: Compute target names
+        AnalysisMemoryBudget::assertHeadroom('target naming');
         $this->targetNameResolver->resolve($groups, $useFileExtensionFromSource);
 
         // Step 5: Resolve collisions
+        AnalysisMemoryBudget::assertHeadroom('collision resolution');
         $this->collisionResolver->resolve($groups, $context);
 
         // Step 6: Validate rename plan
+        AnalysisMemoryBudget::assertHeadroom('plan validation');
         $validationResult = $this->renamePlanValidator->validate($groups);
 
         return new ExifRenamePipelineResult($groups, $context, $validationResult);

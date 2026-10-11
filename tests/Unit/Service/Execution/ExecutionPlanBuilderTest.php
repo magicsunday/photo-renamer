@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service\Execution;
 
 use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Helper\AnalysisMemoryBudget;
 use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Helper\FilenameDateParser;
 use MagicSunday\Renamer\Model\AssetGroup;
@@ -38,6 +39,7 @@ use SplFileInfo;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
+#[UsesClass(AnalysisMemoryBudget::class)]
 #[CoversClass(ExecutionPlanBuilder::class)]
 #[UsesClass(AssetGroup::class)]
 #[UsesClass(AssetItem::class)]

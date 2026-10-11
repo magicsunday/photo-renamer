@@ -19,11 +19,16 @@ use InvalidArgumentException;
 use MagicSunday\Renamer\Helper\PrivateCacheStorage;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\MetadataCache;
+use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Service\CanonicalScorer;
 use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilder;
+use MagicSunday\Renamer\Service\Filesystem\BatchRunLock;
 use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
+use MagicSunday\Renamer\Service\Filesystem\MutationJournal;
+use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\Pipeline\AssetGroupPipeline;
+use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
@@ -48,6 +53,7 @@ use function getenv;
 use function getrusage;
 use function hrtime;
 use function in_array;
+use function ini_get;
 use function intdiv;
 use function json_decode;
 use function json_encode;
@@ -55,6 +61,7 @@ use function max;
 use function memory_get_peak_usage;
 use function pack;
 use function printf;
+use function putenv;
 use function random_bytes;
 use function register_shutdown_function;
 use function sprintf;
@@ -129,6 +136,12 @@ if ($mode === 'worker') {
     $phase     = $argv[4] ?? '';
     requireProfileInvariant($filesystem->readFile($workspace . '/synthetic.marker') === "photo-renamer-synthetic-profile\n", 'Refusing a non-synthetic workspace.');
     requireProfileInvariant(($phase === 'cold') || ($phase === 'warm') || ($phase === 'mutate') || ($phase === 'idempotency'), 'Unknown profile phase.');
+    $containerMemoryPath = $filesystem->exists('/sys/fs/cgroup/memory.max')
+        ? '/sys/fs/cgroup/memory.max'
+        : '/sys/fs/cgroup/memory/memory.limit_in_bytes';
+    requireProfileInvariant($filesystem->exists($containerMemoryPath), 'Actual container memory limit is unavailable.');
+    $containerMemoryLimit = trim($filesystem->readFile($containerMemoryPath));
+    requireProfileInvariant($containerMemoryLimit === '4294967296', 'Profile requires the documented finite 4-GiB container budget.');
     $start = hrtime(true);
     // Free a small emergency reserve before reporting a fatal worker failure.
     // Failed phases remain failures; an OOM is never counted as completed work.
@@ -142,88 +155,135 @@ if ($mode === 'worker') {
             printf("%s\n", json_encode(['phase' => $phase, 'files' => $count, 'completed' => false, 'seconds' => (hrtime(true) - $start) / 1e9, 'php_peak_bytes' => memory_get_peak_usage(true), 'peak_rss_bytes' => $usage['ru_maxrss'] * 1024, 'fatal_type' => $error['type']], JSON_THROW_ON_ERROR));
         }
     });
+    putenv('CACHE_DIR=' . $workspace . '/cache');
     $container = new ContainerBuilder();
     new YamlFileLoader($container, new FileLocator($project . '/config'))->load('Services.yaml');
     $container->register(SymfonyStyle::class)->setPublic(true)->setSynthetic(true);
     $container->register(ProgressReporterInterface::class, BenchmarkProgressReporter::class)->setPublic(true);
 
-    foreach ([AssetGroupPipeline::class, FileSystemService::class, ExecutionPlanBuilder::class, ExecutionPlanExecutor::class, ExifMetadataProvider::class, CanonicalScorer::class] as $service) {
+    foreach ([AssetGroupPipeline::class, FileSystemService::class, ExecutionPlanBuilder::class, ExecutionPlanExecutor::class, ExifMetadataProvider::class, CanonicalScorer::class, RenameOutputRenderer::class, BatchRunLock::class, SourceIdentityGuard::class, MutationJournal::class] as $service) {
         $container->getDefinition($service)->setPublic(true);
     }
     $container->compile(true);
     $container->set(SymfonyStyle::class, new SymfonyStyle(new ArrayInput([]), new NullOutput()));
     $media    = $workspace . '/media';
     $storage  = new PrivateCacheStorage($filesystem);
-    $cache    = new MetadataCache($storage->directory($workspace . '/cache') . '/metadata.json', $storage);
-    $provider = $container->get(ExifMetadataProvider::class);
-    requireProfileInvariant($provider instanceof ExifMetadataProvider, 'Invalid metadata provider.');
-    $provider->setDefaultTimezone(new DateTimeZone('UTC'));
-    $provider->setCache($cache);
-    $scorer = $container->get(CanonicalScorer::class);
-    requireProfileInvariant($scorer instanceof CanonicalScorer, 'Invalid scorer.');
-    $scorer->setSourceDirectory($media);
-    $files    = $container->get(FileSystemService::class);
-    $pipeline = $container->get(AssetGroupPipeline::class);
-    $builder  = $container->get(ExecutionPlanBuilder::class);
-    $executor = $container->get(ExecutionPlanExecutor::class);
-    requireProfileInvariant(($files instanceof FileSystemService) && ($pipeline instanceof AssetGroupPipeline) && ($builder instanceof ExecutionPlanBuilder) && ($executor instanceof ExecutionPlanExecutor), 'Invalid pipeline wiring.');
-    $result = $pipeline->run($files->createFileIterator($media), new ExifDateFilenameStrategy('Y-m-d_H-i-s-v', $provider), new TargetBasenameStrategy(), $media, true);
-    requireProfileInvariant($result->validationResult->isValid() && ($result->context->getSkippedFiles() === []), 'Real media parsing or plan validation failed.');
-    $plan = $builder->build($result->groups, $result->context);
-    requireProfileInvariant(($plan->totalItemCount() === $count) && ($plan->groupCount() === intdiv($count, 2)) && ($plan->livePhotoGroupCount() === intdiv($count, 2)), 'Live Photo pairing is incomplete.');
+    $reporter = $container->get(ProgressReporterInterface::class);
+    requireProfileInvariant($reporter instanceof BenchmarkProgressReporter, 'Invalid benchmark observer.');
+    $guard   = $container->get(SourceIdentityGuard::class);
+    $journal = $container->get(MutationJournal::class);
+    requireProfileInvariant(($guard instanceof SourceIdentityGuard) && ($journal instanceof MutationJournal), 'Invalid mutation scope wiring.');
+    $lock         = null;
+    $status       = 1;
+    $scopeStarted = false;
 
-    if ($plan->nonExecutableItemCount() > 0) {
-        foreach ($plan->groups as $plannedGroup) {
-            foreach ($plannedGroup->items as $plannedItem) {
-                if (!$plannedItem->isExecutable && !$plannedItem->isNoOp) {
-                    throw new RuntimeException('A unique synthetic item was blocked: ' . json_encode($plannedItem, JSON_THROW_ON_ERROR));
+    try {
+        if ($phase === 'mutate') {
+            $batchLock = $container->get(BatchRunLock::class);
+            requireProfileInvariant($batchLock instanceof BatchRunLock, 'Invalid batch lock wiring.');
+            $lock = $batchLock->acquire();
+            $journal->begin('rename:exif');
+            $scopeStarted = true;
+            $guard->begin($media);
+        }
+        $reporter->measure('source_scope_ready');
+        $reporter->measure('before_cache_load');
+        $cache = new MetadataCache($storage->directory($workspace . '/cache') . '/metadata.json', $storage);
+        $reporter->measure('cache_loaded');
+        $provider = $container->get(ExifMetadataProvider::class);
+        requireProfileInvariant($provider instanceof ExifMetadataProvider, 'Invalid metadata provider.');
+        $provider->setDefaultTimezone(new DateTimeZone('UTC'));
+        $provider->setCache($cache);
+        $scorer = $container->get(CanonicalScorer::class);
+        requireProfileInvariant($scorer instanceof CanonicalScorer, 'Invalid scorer.');
+        $scorer->setSourceDirectory($media);
+        $files    = $container->get(FileSystemService::class);
+        $pipeline = $container->get(AssetGroupPipeline::class);
+        $builder  = $container->get(ExecutionPlanBuilder::class);
+        $executor = $container->get(ExecutionPlanExecutor::class);
+        requireProfileInvariant(($files instanceof FileSystemService) && ($pipeline instanceof AssetGroupPipeline) && ($builder instanceof ExecutionPlanBuilder) && ($executor instanceof ExecutionPlanExecutor), 'Invalid pipeline wiring.');
+        $result = $pipeline->run($files->createFileIterator($media), new ExifDateFilenameStrategy('Y-m-d_H-i-s-v', $provider), new TargetBasenameStrategy(), $media, true);
+        requireProfileInvariant($result->validationResult->isValid() && ($result->context->getSkippedFiles() === []), 'Real media parsing or plan validation failed.');
+        $reporter->measure('pipeline_complete');
+        $plan = $builder->build($result->groups, $result->context);
+        $reporter->measure('plan_built');
+        requireProfileInvariant(($plan->totalItemCount() === $count) && ($plan->groupCount() === intdiv($count, 2)) && ($plan->livePhotoGroupCount() === intdiv($count, 2)), 'Live Photo pairing is incomplete.');
+
+        if ($plan->nonExecutableItemCount() > 0) {
+            foreach ($plan->groups as $plannedGroup) {
+                foreach ($plannedGroup->items as $plannedItem) {
+                    if (!$plannedItem->isExecutable && !$plannedItem->isNoOp) {
+                        throw new RuntimeException('A unique synthetic item was blocked: ' . json_encode($plannedItem, JSON_THROW_ON_ERROR));
+                    }
                 }
             }
         }
-    }
 
-    $identifiers  = [];
-    $formatCounts = ['jpg' => 0, 'heic' => 0, 'mov' => 0];
+        $identifiers  = [];
+        $formatCounts = ['jpg' => 0, 'heic' => 0, 'mov' => 0];
 
-    foreach ($result->groups as $group) {
-        requireProfileInvariant(!$group->isClassificationDegraded(), 'Synthetic group classification degraded.');
-        $canonical = $group->getCanonical();
-        requireProfileInvariant($canonical !== null, 'Missing canonical still.');
-        requireProfileInvariant($canonical->contentIdentifier !== null, 'Native still metadata did not expose its synthetic content ID.');
-        requireProfileInvariant(!isset($identifiers[$canonical->contentIdentifier]), 'Capture groups did not retain distinct synthetic IDs.');
-        $identifiers[$canonical->contentIdentifier] = true;
-        $expected                                   = $canonical->metadata?->getCaptureDateTime()?->format('Y-m-d_H-i-s-v');
-        requireProfileInvariant($expected !== null, 'Missing real parsed capture date.');
+        foreach ($result->groups as $group) {
+            requireProfileInvariant(!$group->isClassificationDegraded(), 'Synthetic group classification degraded.');
+            $canonical = $group->getCanonical();
+            requireProfileInvariant($canonical !== null, 'Missing canonical still.');
+            requireProfileInvariant($canonical->contentIdentifier !== null, 'Native still metadata did not expose its synthetic content ID.');
+            requireProfileInvariant(!isset($identifiers[$canonical->contentIdentifier]), 'Capture groups did not retain distinct synthetic IDs.');
+            $identifiers[$canonical->contentIdentifier] = true;
+            $expected                                   = $canonical->metadata?->getCaptureDateTime()?->format('Y-m-d_H-i-s-v');
+            requireProfileInvariant($expected !== null, 'Missing real parsed capture date.');
 
-        foreach ($group->getItems() as $item) {
-            requireProfileInvariant($item->contentIdentifier === $canonical->contentIdentifier, 'A mismatched Live Photo ID was joined.');
-            $extension = $item->extension();
-            requireProfileInvariant(isset($formatCounts[$extension]), 'Unexpected synthetic media format.');
-            ++$formatCounts[$extension];
+            foreach ($group->getItems() as $item) {
+                requireProfileInvariant($item->contentIdentifier === $canonical->contentIdentifier, 'A mismatched Live Photo ID was joined.');
+                $extension = $item->extension();
+                requireProfileInvariant(isset($formatCounts[$extension]), 'Unexpected synthetic media format.');
+                ++$formatCounts[$extension];
 
-            if ($extension === 'mov') {
-                requireProfileInvariant($item->metadata?->getVideoDurationSeconds() === 1.0, 'Native metadata did not expose the expected common video duration.');
+                if ($extension === 'mov') {
+                    requireProfileInvariant($item->metadata?->getVideoDurationSeconds() === 1.0, 'Native metadata did not expose the expected common video duration.');
+                }
+                requireProfileInvariant($item->proposedName === $media . '/' . $expected . '.' . $item->extension(), 'Unexpected still/companion naming result.');
             }
-            requireProfileInvariant($item->proposedName === $media . '/' . $expected . '.' . $item->extension(), 'Unexpected still/companion naming result.');
+        }
+        requireProfileInvariant((count($identifiers) === intdiv($count, 2)) && ($formatCounts === ['jpg' => intdiv($count, 4), 'heic' => intdiv($count, 4), 'mov' => intdiv($count, 2)]), 'The measured native media mix is incomplete.');
+
+        $renderer = $container->get(RenameOutputRenderer::class);
+        requireProfileInvariant($renderer instanceof RenameOutputRenderer, 'Invalid output renderer.');
+        $preview = $renderer->renderPlanEntries($plan, new RenameOptions(dryRun: $phase !== 'mutate', sourceBaseDirectory: $media), $media);
+        requireProfileInvariant($preview->plannedMoves === $plan->executableItemCount(), 'Rendered move count differs from the validated plan.');
+        $reporter->measure('output_rendered');
+
+        if ($phase === 'mutate') {
+            $executed = $executor->executePlan($plan);
+            requireProfileInvariant(($executed->executedMoves === $count) && ($executed->runtimeErrors === 0) && ($executed->runtimeFallbacks === 0), 'Synthetic media mutation was incomplete.');
+        } elseif ($phase === 'idempotency') {
+            requireProfileInvariant(($plan->noOpItemCount() === $count) && ($plan->executableItemCount() === 0), 'Second processing changed previously correct names.');
+        }
+        $reporter->measure('execution_complete');
+        $reporter->measure('before_cache_flush');
+        $cache->flush();
+        $reporter->measure('cache_flushed');
+        $status = 0;
+    } finally {
+        if ($scopeStarted) {
+            $guard->finish();
+
+            try {
+                requireProfileInvariant($journal->finish($status), 'Mutation journal did not finish successfully.');
+            } finally {
+                $lock?->release();
+            }
+        } else {
+            $lock?->release();
         }
     }
-    requireProfileInvariant((count($identifiers) === intdiv($count, 2)) && ($formatCounts === ['jpg' => intdiv($count, 4), 'heic' => intdiv($count, 4), 'mov' => intdiv($count, 2)]), 'The measured native media mix is incomplete.');
 
-    if ($phase === 'mutate') {
-        $executed = $executor->executePlan($plan);
-        requireProfileInvariant(($executed->executedMoves === $count) && ($executed->runtimeErrors === 0) && ($executed->runtimeFallbacks === 0), 'Synthetic media mutation was incomplete.');
-    } elseif ($phase === 'idempotency') {
-        requireProfileInvariant(($plan->noOpItemCount() === $count) && ($plan->executableItemCount() === 0), 'Second processing changed previously correct names.');
-    }
-    $cache->flush();
-    $reporter = $container->get(ProgressReporterInterface::class);
-    requireProfileInvariant($reporter instanceof BenchmarkProgressReporter, 'Invalid benchmark observer.');
     // Every known LP identifier is distinct; equal video streams cannot override it.
     requireProfileInvariant($reporter->comparisonPlans === 0, 'Distinct known IDs created an unnecessary pair plan.');
     $usage = getrusage();
     printf("%s\n", json_encode([
         'phase'            => $phase, 'files' => $count, 'groups' => $plan->groupCount(), 'live_photo_groups' => $plan->livePhotoGroupCount(),
         'seconds'          => (hrtime(true) - $start) / 1e9, 'php_peak_bytes' => memory_get_peak_usage(true), 'peak_rss_bytes' => $usage['ru_maxrss'] * 1024,
+        'measurements'     => $reporter->measurements, 'effective_php_memory_limit' => ini_get('memory_limit'), 'effective_container_memory_bytes' => $containerMemoryLimit, 'tmpfs_capacity_bytes' => disk_total_space('/tmp'), 'protected_mutation_scope' => $phase === 'mutate',
         'comparison_plans' => $reporter->comparisonPlans, 'first_comparison_php_bytes' => $reporter->firstComparisonBytes,
         'noops'            => $plan->noOpItemCount(), 'executables' => $plan->executableItemCount(),
     ], JSON_THROW_ON_ERROR));

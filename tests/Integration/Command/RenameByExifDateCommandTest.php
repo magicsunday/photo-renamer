@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Test\Integration\Command;
 
 use DateTimeImmutable;
 use MagicSunday\Renamer\Command\RenameByExifDateCommand;
+use MagicSunday\Renamer\Helper\AnalysisMemoryBudget;
 use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Helper\FileHelper;
@@ -205,6 +206,7 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(SourceIdentityGuard::class)]
 #[UsesClass(MergeDecision::class)]
 #[UsesClass(ExistingSubgroupNamePreserver::class)]
+#[UsesClass(AnalysisMemoryBudget::class)]
 #[CoversClass(RenameByExifDateCommand::class)]
 #[UsesClass(ComparisonWorkLimit::class)]
 #[UsesClass(CrossGroupVideoDuplicateReconciler::class)]

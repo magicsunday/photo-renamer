@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Execution;
 
+use MagicSunday\Renamer\Exception\AnalysisMemoryBudgetExceededException;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
 use MagicSunday\Renamer\Model\PipelineContext;
@@ -37,6 +38,8 @@ interface ExecutionPlanBuilderInterface
      * @param int|null             $maxDateDrift Maximum permitted filename-date drift; null or zero disables the limit.
      *
      * @return ExecutionPlan The resulting execution plan.
+     *
+     * @throws AnalysisMemoryBudgetExceededException When retained analysis reaches its pre-mutation budget
      */
     public function build(
         AssetGroupCollection $groups,

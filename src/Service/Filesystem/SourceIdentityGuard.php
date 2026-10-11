@@ -11,7 +11,9 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Filesystem;
 
+use MagicSunday\Renamer\Exception\AnalysisMemoryBudgetExceededException;
 use MagicSunday\Renamer\Exception\HashComputationException;
+use MagicSunday\Renamer\Helper\AnalysisMemoryBudget;
 use MagicSunday\Renamer\Model\SourceFileFingerprint;
 use MagicSunday\Renamer\Service\SafeHashCalculatorInterface;
 use RuntimeException;
@@ -61,6 +63,8 @@ final class SourceIdentityGuard
      * @param string|null $source Source argument, or null for a command without one
      *
      * @return void
+     *
+     * @throws AnalysisMemoryBudgetExceededException When retained fingerprints reach the pre-mutation budget
      */
     public function begin(?string $source): void
     {
@@ -85,6 +89,8 @@ final class SourceIdentityGuard
 
         /** @var SplFileInfo $file */
         foreach ($this->fileCollector->createFileIterator($resolved) as $file) {
+            AnalysisMemoryBudget::assertHeadroom('source identity collection');
+
             if ($file->isFile() || $file->isLink()) {
                 $this->observe($file->getPathname());
             }

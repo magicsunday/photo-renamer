@@ -11,6 +11,8 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Integration;
 
+use MagicSunday\Renamer\Helper\PrivateCacheStorage;
+use MagicSunday\Renamer\Service\Filesystem\BatchRunLock;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -20,6 +22,9 @@ use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
 
 use function dirname;
+use function glob;
+use function sprintf;
+use function str_contains;
 
 use const PHP_BINARY;
 
@@ -66,6 +71,91 @@ final class RuntimeMemoryLimitTest extends TestCase
         } finally {
             $filesystem->remove($workspace);
         }
+    }
+
+    /**
+     * A real collection exceeding a 32-MiB analysis budget must exit normally
+     * before renaming any media. The mutating run still takes its lock, captures
+     * fresh identities and records failure; dry-run must stop just as visibly.
+     * The previous disk snapshot is preserved rather than serialized on abort,
+     * and every source's bytes and pathname remain unchanged.
+     *
+     * @param bool $dryRun Whether the actual CLI is invoked as a preview
+     *
+     * @return void
+     */
+    #[Test]
+    #[DataProvider('analysisModes')]
+    public function plannedMemoryBoundaryStopsBeforeMutation(bool $dryRun): void
+    {
+        $workspace  = $this->createTempWorkspace();
+        $filesystem = new Filesystem();
+        $media      = $workspace . '/media';
+        $state      = $workspace . '/state';
+        $cacheFile  = new PrivateCacheStorage($filesystem)->directory($state) . '/metadata-cache.json';
+        $sentinel   = '{}';
+        $filesystem->dumpFile($cacheFile, $sentinel);
+        $sources = [];
+
+        try {
+            for ($index = 0; $index < 6000; ++$index) {
+                $source = $media . '/' . sprintf('synthetic-%06d.jpg', $index);
+                $filesystem->dumpFile($source, 'synthetic source bytes');
+                $sources[] = $source;
+            }
+
+            $arguments = [PHP_BINARY, dirname(__DIR__, 2) . '/src/Renamer.php', 'rename:exif', $media, '--no-ansi'];
+
+            if ($dryRun) {
+                $arguments[] = '--dry-run';
+            }
+
+            $process = new Process($arguments, dirname(__DIR__, 2), ['PHP_MEMORY_LIMIT' => '32M', 'CACHE_DIR' => $state]);
+            $process->setTimeout(60);
+            $process->setInput($dryRun ? '' : "yes\n");
+            $process->run();
+            $output = $process->getOutput() . $process->getErrorOutput();
+
+            self::assertSame(1, $process->getExitCode());
+            self::assertStringContainsString('Analysis incomplete during ', $output);
+            self::assertStringContainsString('No media mutation started', $output);
+            self::assertFalse(str_contains($output, 'Allowed memory size'));
+            self::assertFalse(str_contains($output, 'done'));
+            self::assertSame($sentinel, $filesystem->readFile($cacheFile));
+            $remaining = glob($media . '/*.jpg');
+            self::assertIsArray($remaining);
+            self::assertCount(6000, $remaining);
+
+            foreach ($sources as $source) {
+                self::assertSame('synthetic source bytes', $filesystem->readFile($source));
+            }
+
+            $journals = glob(new PrivateCacheStorage($filesystem)->directory($state) . '/mutation-*.jsonl');
+            self::assertIsArray($journals);
+
+            if ($dryRun) {
+                self::assertSame([], $journals);
+            } else {
+                self::assertCount(1, $journals);
+                $journal = $filesystem->readFile($journals[0]);
+                self::assertStringContainsString('"event":"run_finished","exit_code":1', $journal);
+                self::assertFalse(str_contains($journal, '"event":"intent"'));
+                $lock = new BatchRunLock($filesystem, $state)->acquire();
+                self::assertTrue($lock->isAcquired());
+                $lock->release();
+            }
+        } finally {
+            $filesystem->remove($workspace);
+        }
+    }
+
+    /**
+     * @return iterable<string, array{bool}> Mutation and preview command scopes
+     */
+    public static function analysisModes(): iterable
+    {
+        yield 'mutation with source identity and journal' => [false];
+        yield 'preview' => [true];
     }
 
     /**

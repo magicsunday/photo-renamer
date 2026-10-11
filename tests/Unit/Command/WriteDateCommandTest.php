@@ -15,6 +15,7 @@ use DateTimeImmutable;
 use DateTimeZone;
 use MagicSunday\Renamer\Command\WriteDateCommand;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
+use MagicSunday\Renamer\Helper\AnalysisMemoryBudget;
 use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Helper\FileHelper;
@@ -97,6 +98,7 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(MutationJournal::class)]
 #[UsesClass(SourceFileFingerprint::class)]
 #[UsesClass(SafeHashCalculator::class)]
+#[UsesClass(AnalysisMemoryBudget::class)]
 #[CoversClass(WriteDateCommand::class)]
 #[UsesClass(RecursiveRegexFileFilterIterator::class)]
 #[UsesClass(DateDriftCalculator::class)]

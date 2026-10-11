@@ -12,6 +12,8 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service\Execution;
 
 use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Exception\AnalysisMemoryBudgetExceededException;
+use MagicSunday\Renamer\Helper\AnalysisMemoryBudget;
 use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
@@ -61,6 +63,8 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
      * @param int|null             $maxDateDrift Maximum permitted filename-date drift; null or zero disables the limit
      *
      * @return ExecutionPlan Execution-ready projection of the input groups
+     *
+     * @throws AnalysisMemoryBudgetExceededException When retained plan entries reach the pre-mutation budget
      */
     #[Override]
     public function build(
@@ -71,6 +75,7 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
         $executionGroups = [];
 
         foreach ($groups as $group) {
+            AnalysisMemoryBudget::assertHeadroom('execution plan projection');
             $executionGroups[] = $this->projectGroup($group, $context, $maxDateDrift);
         }
 

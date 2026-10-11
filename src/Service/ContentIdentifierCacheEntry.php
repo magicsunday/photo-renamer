@@ -21,7 +21,11 @@ use SplFileInfo;
  * appear before their still image, or no still may be found at all, so this DTO
  * stores queued files, the resolved duplicate identifier once a still anchors
  * the group, and the fallback target used when resolution falls back to the
- * video's own date-based target.
+ * video's own date-based target. Computed targets retain only pathnames and
+ * create native SPL views on demand,
+ * avoiding a large retained target object per capture. Pending sources reuse
+ * their already collected objects; copying them would create a second native
+ * source representation without releasing the original sorted file list.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -36,7 +40,10 @@ final class ContentIdentifierCacheEntry
 
     private ?string $duplicateIdentifier = null;
 
-    private ?SplFileInfo $target = null;
+    /**
+     * A computed destination is a path value, not retained filesystem state.
+     */
+    private ?string $targetPath = null;
 
     /**
      * @return string|null The resolved duplicate identifier once a still anchored the content identifier.
@@ -56,7 +63,7 @@ final class ContentIdentifierCacheEntry
     public function rememberResolvedGroup(string $duplicateIdentifier, SplFileInfo $target): void
     {
         $this->duplicateIdentifier = $duplicateIdentifier;
-        $this->target              = $target;
+        $this->targetPath          = $target->getPathname();
     }
 
     /**
@@ -71,7 +78,7 @@ final class ContentIdentifierCacheEntry
     }
 
     /**
-     * @return list<SplFileInfo> Files currently queued for later resolution.
+     * @return list<SplFileInfo> Original collected source views in encounter order, without native object copies.
      */
     public function getPendingFiles(): array
     {
@@ -104,14 +111,14 @@ final class ContentIdentifierCacheEntry
      */
     public function rememberFallbackTarget(SplFileInfo $target): void
     {
-        $this->target ??= $target;
+        $this->targetPath ??= $target->getPathname();
     }
 
     /**
-     * @return SplFileInfo|null Fallback or resolved target associated with this content identifier.
+     * @return SplFileInfo|null Fresh view of the remembered target pathname, or null before resolution.
      */
     public function getTarget(): ?SplFileInfo
     {
-        return $this->target;
+        return $this->targetPath !== null ? new SplFileInfo($this->targetPath) : null;
     }
 }

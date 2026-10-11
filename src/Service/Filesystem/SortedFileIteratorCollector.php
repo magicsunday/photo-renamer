@@ -11,6 +11,8 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Filesystem;
 
+use MagicSunday\Renamer\Exception\AnalysisMemoryBudgetExceededException;
+use MagicSunday\Renamer\Helper\AnalysisMemoryBudget;
 use RecursiveIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
@@ -36,6 +38,8 @@ final class SortedFileIteratorCollector
      * @param RecursiveIteratorIterator<TInner> $iterator Iterator yielding candidate files
      *
      * @return list<SplFileInfo> Sorted file list
+     *
+     * @throws AnalysisMemoryBudgetExceededException When file retention reaches the pre-mutation budget
      */
     public static function collectAndSortFiles(RecursiveIteratorIterator $iterator): array
     {
@@ -44,8 +48,11 @@ final class SortedFileIteratorCollector
 
         /** @var SplFileInfo $fileInfo */
         foreach ($iterator as $fileInfo) {
+            AnalysisMemoryBudget::assertHeadroom('file collection');
             $files[] = $fileInfo;
         }
+
+        AnalysisMemoryBudget::assertHeadroom('file sorting');
 
         usort($files, static function (SplFileInfo $fileA, SplFileInfo $fileB): int {
             $depthA = self::pathDepth($fileA);
