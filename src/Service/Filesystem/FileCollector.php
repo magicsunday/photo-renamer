@@ -58,7 +58,10 @@ final readonly class FileCollector
                     $directory,
                     FilesystemIterator::SKIP_DOTS
                 ),
-                '/^.+$/',
+                // Linux filenames may contain line breaks; the default scan
+                // must include them so display safety cannot be bypassed by
+                // silently hiding files from the collected set.
+                '/\A.+\z/s',
                 $this->safeRegex,
             );
         }
