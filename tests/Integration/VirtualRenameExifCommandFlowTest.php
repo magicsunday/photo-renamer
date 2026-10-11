@@ -197,6 +197,51 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
     }
 
     /**
+     * Naming preserves each component's source directory. A still and MOV in
+     * different subdirectories therefore remain a complete pair when both reach
+     * their matching basenames; the partial counter must not require relocation
+     * into one directory or turn this supported layout into a failed command.
+     *
+     * @return void
+     */
+    #[Test]
+    public function completePairInDifferentSourceDirectoriesRemainsSuccessful(): void
+    {
+        $workspace       = $this->createTempWorkspace();
+        $filesystem      = new Filesystem();
+        $still           = $workspace . '/stills/camera.jpg';
+        $companion       = $workspace . '/videos/camera.mov';
+        $stillTarget     = $workspace . '/stills/capture.jpg';
+        $companionTarget = $workspace . '/videos/capture.mov';
+        $filesystem->dumpFile($still, 'synthetic still');
+        $filesystem->dumpFile($companion, 'synthetic companion');
+
+        $reporter = new ConsoleProgressReporter(new SymfonyStyle(new ArrayInput([]), new BufferedOutput()));
+        $journal  = FileSystemServiceFactory::createMutationJournal();
+        $executor = new ExecutionPlanExecutor($reporter, new RuntimeFileMoveExecutor($reporter, $filesystem, new RuntimeCollisionPathAllocator(), FileSystemServiceFactory::createSourceIdentityGuard(), $journal), $journal);
+        $plan     = new ExecutionPlan([new ExecutionGroup('synthetic pair', true, $still, [
+            new ExecutionItem($still, $stillTarget, ExecutionItemType::Canonical, true, false, 'synthetic pair'),
+            new ExecutionItem($companion, $companionTarget, ExecutionItemType::Companion, true, false, 'synthetic pair'),
+        ])]);
+
+        try {
+            [$command, , $output] = $this->createCommandHarness(static function (PipelineContext $context): void {
+                $context->setScannedFileCount(2);
+            }, $plan, executor: $executor);
+            $tester = new CommandTester($command);
+            $tester->setInputs(['yes']);
+            self::assertSame(Command::SUCCESS, $tester->execute(['source' => $workspace]));
+            self::assertSame('synthetic still', $filesystem->readFile($stillTarget));
+            self::assertSame('synthetic companion', $filesystem->readFile($companionTarget));
+            $summary = $output->fetch();
+            self::assertMatchesRegularExpression('/Files processed\s+2/', $summary);
+            self::assertStringNotContainsString('Partial Live Photo groups', $summary);
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
      * A scan failure remains a failed run even when no moves can be planned;
      * operators must see the read-error count instead of a successful footer.
      */

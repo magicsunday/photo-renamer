@@ -19,7 +19,6 @@ use RuntimeException;
 
 use function array_unique;
 use function count;
-use function dirname;
 use function pathinfo;
 use function sprintf;
 
@@ -77,7 +76,7 @@ final readonly class ExecutionPlanExecutor
         $stopped                = false;
 
         foreach ($plan->groups as $group) {
-            $pairLocations       = [];
+            $pairBasenames       = [];
             $pendingPairMoves    = 0;
             $successfulPairMoves = 0;
             $readyPairMembers    = 0;
@@ -88,7 +87,9 @@ final readonly class ExecutionPlanExecutor
                         continue;
                     }
 
-                    $pairLocations[$item->sourcePath] = dirname($item->sourcePath) . '/' . pathinfo($item->sourcePath, PATHINFO_FILENAME);
+                    // Naming preserves each source directory. Matching pair
+                    // basenames remain complete even across different folders.
+                    $pairBasenames[$item->sourcePath] = pathinfo($item->sourcePath, PATHINFO_FILENAME);
 
                     if ($item->renameRequired && !$item->isNoOp) {
                         ++$pendingPairMoves;
@@ -127,10 +128,12 @@ final readonly class ExecutionPlanExecutor
                     if (!$dryRun) {
                         ++$executedMoves;
 
-                        if (isset($pairLocations[$item->sourcePath])) {
+                        if (isset($pairBasenames[$item->sourcePath])) {
                             ++$successfulPairMoves;
                             ++$readyPairMembers;
-                            $pairLocations[$item->sourcePath] = dirname($actualTarget) . '/' . pathinfo($actualTarget, PATHINFO_FILENAME);
+                            // Naming preserves each source directory. Matching pair
+                            // basenames remain complete even across different folders.
+                            $pairBasenames[$item->sourcePath] = pathinfo($actualTarget, PATHINFO_FILENAME);
                         }
 
                         if ($actualTarget !== $item->targetPath) {
@@ -160,7 +163,7 @@ final readonly class ExecutionPlanExecutor
 
             if ($group->isLivePhotoGroup && !$dryRun) {
                 $partial = ($readyPairMembers > 0)
-                    && (($successfulPairMoves < $pendingPairMoves) || (count(array_unique($pairLocations)) > 1));
+                    && (($successfulPairMoves < $pendingPairMoves) || (count(array_unique($pairBasenames)) > 1));
                 $pairStatus = 'complete';
 
                 if ($partial) {
