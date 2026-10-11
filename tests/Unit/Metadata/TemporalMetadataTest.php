@@ -31,6 +31,58 @@ use PHPUnit\Framework\TestCase;
 final class TemporalMetadataTest extends TestCase
 {
     /**
+     * Replaces only the capture timestamp of fully populated synthetic metadata.
+     * Raw QuickTime provenance, pairing markers, quality flags, device signals,
+     * location and duration must remain intact, and the original stays unchanged.
+     *
+     * @return void
+     */
+    #[Test]
+    public function captureDateCopyPreservesEveryIndependentMetadataField(): void
+    {
+        $capture  = new DateTimeImmutable('2024-01-15T10:30:00.123456+00:00');
+        $raw      = new DateTimeImmutable('2024-01-15T09:00:00.654321+00:00');
+        $updated  = new DateTimeImmutable('2024-01-15T11:30:00.123456+01:00');
+        $original = new TemporalMetadata(
+            $capture,
+            ' SYNTHETIC-ID ',
+            true,
+            true,
+            8192,
+            ' Synthetic Make ',
+            ' Test Model ',
+            ' Test Software ',
+            0.25,
+            -0.5,
+            2.6,
+            true,
+            $raw,
+        );
+        $copy = $original->withCaptureDateTime($updated);
+
+        self::assertNotSame($original, $copy);
+        self::assertSame($updated, $copy->getCaptureDateTime());
+        self::assertSame($capture, $original->getCaptureDateTime());
+        self::assertSame($raw, $copy->getRawQuickTimeCreateDate());
+        self::assertSame($raw, $original->getRawQuickTimeCreateDate());
+        self::assertSame($original->getLivePhotoId(), $copy->getLivePhotoId());
+        self::assertSame($original->isFallbackDateTime(), $copy->isFallbackDateTime());
+        self::assertSame($original->isAmbiguousTimezone(), $copy->isAmbiguousTimezone());
+        self::assertSame($original->getLivePhotoVideoIndex(), $copy->getLivePhotoVideoIndex());
+        self::assertSame($original->getCameraMake(), $copy->getCameraMake());
+        self::assertSame($original->getCameraModel(), $copy->getCameraModel());
+        self::assertSame($original->getSoftware(), $copy->getSoftware());
+        self::assertSame($original->getLatitude(), $copy->getLatitude());
+        self::assertSame($original->getLongitude(), $copy->getLongitude());
+        self::assertSame($original->getVideoDurationSeconds(), $copy->getVideoDurationSeconds());
+        self::assertSame($original->hasQuickTimeLivePhotoMarker(), $copy->hasQuickTimeLivePhotoMarker());
+        self::assertSame('synthetic-id', $copy->getNormalizedLivePhotoId());
+        self::assertSame('synthetic make|test model|test software', $copy->getNormalizedDeviceKey());
+        self::assertTrue($copy->hasStillLivePhotoMarker());
+        self::assertTrue($copy->hasVideoLivePhotoMarker());
+    }
+
+    /**
      * Ensures the 'isFallbackDateTime' flag defaults to false.
      *
      * Fallback dates (e.g., from file system mtime) are visually distinguished

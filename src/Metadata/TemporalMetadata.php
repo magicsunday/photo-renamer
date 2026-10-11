@@ -125,25 +125,17 @@ final readonly class TemporalMetadata
     /**
      * Returns a new instance with the capture date updated.
      * Used when the original date is missing or needs manual correction.
+     * Native clone-with preserves every independent field, including raw
+     * QuickTime provenance and future metadata additions, without repeating the
+     * constructor's field list. The constructor currently performs no normalization.
      *
      * @param DateTimeInterface $captureDateTime New capture date
+     *
+     * @return TemporalMetadata Copy retaining all other metadata and the original instance
      */
     public function withCaptureDateTime(DateTimeInterface $captureDateTime): self
     {
-        return new self(
-            $captureDateTime,
-            $this->livePhotoId,
-            $this->isFallbackDateTime,
-            $this->isAmbiguousTimezone,
-            $this->livePhotoVideoIndex,
-            $this->cameraMake,
-            $this->cameraModel,
-            $this->software,
-            $this->latitude,
-            $this->longitude,
-            $this->videoDurationSeconds,
-            $this->hasQuickTimeLivePhotoMarker,
-        );
+        return clone ($this, ['captureDateTime' => $captureDateTime]);
     }
 
     /**
