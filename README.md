@@ -133,7 +133,7 @@ MEDIA_DIR="$HOME/Photos" MEDIA_READ_ONLY=true ./renamer.sh rename:verify /media
 MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:dedup --dry-run /media
 ```
 
-Alternatively, use `MEDIA_DIR="$HOME/Photos" make run CMD="rename:exif /media --dry-run"`. Paths with spaces work through the wrapper's quoted arguments. Host paths outside `MEDIA_DIR` are not exposed. For a single file, mount its parent and pass `/media/filename.mov`. Quarantine destinations must remain within the mounted collection.
+Alternatively, use `MEDIA_DIR="$HOME/Photos" make run CMD="rename:exif /media --dry-run"`. Paths with spaces work through the wrapper's quoted arguments, for example `MEDIA_DIR="$HOME/Photo Collection" ./renamer.sh rename:verify "/media/filename with spaces.jpg"`. Host paths outside `MEDIA_DIR` are not exposed. For a single file, mount its parent and pass `/media/filename.mov`. Quarantine destinations must remain within the mounted collection.
 
 The runtime has no Composer authentication, SSH-agent mount, development repository mount or external network interface. Code, dependencies and the compiled DI container are read-only. Media are writable for rename/write-date/dedup; set `MEDIA_READ_ONLY=true` for analysis. The Docker `media-cache` volume stores the current UID's private JSON caches at `/cache/private-<UID>/`. `make runtime-cache-clear` purges these JSON files without removing the immutable DI artifact or mounting host media. Development/install commands retain their separate `buildbox` service and credential access.
 
@@ -343,6 +343,8 @@ cp .env.dist .env
 | `FILE_LINK_BASE` | *(empty)* | Same path as seen from the terminal host (e.g. `Z:\Photos`). |
 | `FILE_LINK_PROTOCOL` | *(empty)* | URI scheme for clickable links: empty = `file://` (opens directory), `photo-select` = custom protocol (opens Explorer with file selected). |
 
+Explicit configuration is validated before media changes: `MAX_DATE_DRIFT` / `--max-date-drift` requires a non-negative integer, and only a valid explicit `0` disables the drift check. `MERGE_THRESHOLD` / `--merge-threshold` requires a finite number from 0 to 1; internal safety caps still apply. Unsupported `TIMEZONE` / `--timezone` values fail visibly. CLI values take precedence over environment values, and absent optional settings keep their documented defaults. Docker forwards canonical format priority and merge threshold to both runtime and development services.
+
 Analysis checks leave reporting and cleanup headroom inside the effective PHP limit: one eighth of the budget, bounded to 8–64 MiB. Growth checkpoints in source identities, file collection, capture grouping, pairing and plan construction stop with an explicit incomplete-analysis error before media changes; a final gate checks again before execution. On this stop, EXIF preserves the previous disk caches instead of serializing partial snapshots. A single large allocation between checkpoints, native memory, kernel OOM or failure after mutation starts can still interrupt a run; inspect its journal and actual files before replanning. The reserve does not prove that an arbitrary collection fits the default budget.
 
 ### Concurrent mutations
@@ -486,6 +488,8 @@ make test
 - Unit and integration tests (`phpunit`)
 - Copy/paste detection (`jscpd`)
 
+`make runtime-image-check` also runs `scripts/check-configuration-contract.sh`: tiny generated JPEG/HEIC fixtures prove Docker policy forwarding, actual canonical/merge decisions, invalid-value rejection, CLI precedence, defaults and external host paths with spaces. It uses disposable caches and preserves every synthetic media name and byte.
+
 The production dependency tree can be checked separately with `make no-dev-smoke`. It installs the application into a temporary isolated `--no-dev` vendor tree, starts the CLI, exercises the runtime process and video fingerprinting paths, and verifies the Write-Date and missing-`exiftool` diagnostics without inheriting development packages.
 
 The tooling configuration is shared with the other `magicsunday/*` projects through
@@ -551,6 +555,8 @@ MEDIA_DIR="$PWD/tests/Fixtures/Images" MEDIA_READ_ONLY=true ./renamer.sh rename:
 | `make rector`  | Apply Rector rules.                  |
 
 ### Build the binary
+
+`make binary-init` preserves an existing `.env` byte for byte, including comments and runtime settings. Its builder invocation uses the calling user's UID/GID through transient environment overrides. If `.env` is missing, initialization copies all `.env.dist` defaults and substitutes those initial numeric IDs. Docker/authentication failure does not erase existing configuration.
 
 ```bash
 make binary         # Init SPC environment + compile the renamer binary

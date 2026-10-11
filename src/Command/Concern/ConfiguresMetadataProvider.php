@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Command\Concern;
 
 use DateTimeZone;
+use InvalidArgumentException;
 use JsonException;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\PathHelper;
@@ -27,13 +28,18 @@ use Symfony\Component\Filesystem\Exception\IOException;
 use Symfony\Component\Filesystem\Filesystem;
 
 use function dirname;
+use function filter_var;
 use function getenv;
 use function in_array;
+use function is_finite;
+use function is_int;
+use function is_numeric;
 use function is_string;
 use function realpath;
 use function sys_get_temp_dir;
 
 use const DIRECTORY_SEPARATOR;
+use const FILTER_VALIDATE_INT;
 
 /**
  * Trait providing shared configuration logic for commands using EXIF metadata.
@@ -72,6 +78,8 @@ trait ConfiguresMetadataProvider
      * @param ExifMetadataProvider $provider The provider to configure.
      * @param InputInterface       $input    The console input used to resolve
      *                                       the --timezone option.
+     *
+     * @throws InvalidArgumentException When an explicit timezone is unsupported
      */
     protected function configureProviderTimezone(ExifMetadataProvider $provider, InputInterface $input): void
     {
@@ -88,8 +96,10 @@ trait ConfiguresMetadataProvider
      *
      * @param InputInterface $input The console input to check for CLI options.
      *
-     * @return DateTimeZone|null The resolved timezone, or null if no valid
+     * @return DateTimeZone|null The resolved timezone, or null when no
      *                           timezone was configured.
+     *
+     * @throws InvalidArgumentException When the selected CLI/environment timezone is unsupported
      */
     protected function resolveTimezone(InputInterface $input): ?DateTimeZone
     {
@@ -99,8 +109,12 @@ trait ConfiguresMetadataProvider
             $timezone = FileHelper::env('TIMEZONE');
         }
 
-        if ((!is_string($timezone)) || (!in_array($timezone, DateTimeZone::listIdentifiers(), true))) {
+        if ($timezone === null) {
             return null;
+        }
+
+        if (!in_array($timezone, DateTimeZone::listIdentifiers(), true)) {
+            throw new InvalidArgumentException('TIMEZONE / --timezone must name a supported timezone such as Europe/Berlin or UTC.');
         }
 
         return new DateTimeZone($timezone);
@@ -240,18 +254,26 @@ trait ConfiguresMetadataProvider
      * @param int            $default The default threshold if nothing else is set.
      *
      * @return int The resolved threshold in days.
+     *
+     * @throws InvalidArgumentException When the selected value is not a non-negative integer
      */
     protected function resolveMaxDateDrift(InputInterface $input, int $default = 7): int
     {
         $driftOption = $input->getOption('max-date-drift');
 
-        if (is_string($driftOption)) {
-            return (int) $driftOption;
+        $value = is_string($driftOption) ? $driftOption : FileHelper::env('MAX_DATE_DRIFT');
+
+        if ($value === null) {
+            return $default;
         }
 
-        $envDrift = FileHelper::env('MAX_DATE_DRIFT');
+        $drift = filter_var($value, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0]]);
 
-        return $envDrift !== null ? (int) $envDrift : $default;
+        if (!is_int($drift)) {
+            throw new InvalidArgumentException('MAX_DATE_DRIFT / --max-date-drift must be a non-negative integer; 0 explicitly disables the drift check.');
+        }
+
+        return $drift;
     }
 
     /**
@@ -264,18 +286,30 @@ trait ConfiguresMetadataProvider
      * @param float          $default The default threshold if nothing else is set.
      *
      * @return float The resolved threshold as a fraction between 0.0 and 1.0.
+     *
+     * @throws InvalidArgumentException When the selected value is non-numeric, non-finite or out of range
      */
     protected function resolveMergeThreshold(InputInterface $input, float $default = 0.06): float
     {
         $option = $input->getOption('merge-threshold');
 
-        if (is_string($option)) {
-            return (float) $option;
+        $value = is_string($option) ? $option : FileHelper::env('MERGE_THRESHOLD');
+
+        if ($value === null) {
+            return $default;
         }
 
-        $envValue = FileHelper::env('MERGE_THRESHOLD');
+        if (!is_numeric($value)) {
+            throw new InvalidArgumentException('MERGE_THRESHOLD / --merge-threshold must be a finite number from 0 to 1.');
+        }
 
-        return $envValue !== null ? (float) $envValue : $default;
+        $threshold = (float) $value;
+
+        if (!is_finite($threshold) || ($threshold < 0.0) || ($threshold > 1.0)) {
+            throw new InvalidArgumentException('MERGE_THRESHOLD / --merge-threshold must be a finite number from 0 to 1.');
+        }
+
+        return $threshold;
     }
 
     /**

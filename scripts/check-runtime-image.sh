@@ -17,5 +17,6 @@ echo "Runtime image: ${IMAGE_NAME} (${IMAGE_ID})"
 docker compose run --rm --volume /media -e CACHE_DIR=/tmp/synthetic-cache \
     --entrypoint bash runtime /app/scripts/runtime-image-smoke.sh "${MIN_FFMPEG_VERSION}"
 bash scripts/check-runtime-resources.sh
+bash scripts/check-configuration-contract.sh
 
 echo "Runtime image verification passed"

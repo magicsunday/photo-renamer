@@ -118,7 +118,7 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
 
     /**
      * Sets the maximum RMSE threshold for merging isDuplicateLikely pairs.
-     * Pairs with RMSE at or above this threshold are kept as separate sub-groups.
+     * Pairs with RMSE above this threshold are kept as separate sub-groups.
      */
     public function setMaxMergeRmse(float $threshold): void
     {
