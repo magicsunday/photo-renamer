@@ -15,6 +15,7 @@ use FilesystemIterator;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
+use MagicSunday\Renamer\Helper\AnalysisMemoryBudget;
 use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Helper\FileHelper;
@@ -129,6 +130,7 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(SourceIdentityGuard::class)]
 #[UsesClass(MutationJournal::class)]
 #[UsesClass(PrivateCacheStorage::class)]
+#[UsesClass(AnalysisMemoryBudget::class)]
 #[CoversClass(DuplicateDetectionService::class)]
 #[UsesClass(ComparisonWorkLimit::class)]
 #[UsesClass(DuplicateCanonicalRenameSelector::class)]

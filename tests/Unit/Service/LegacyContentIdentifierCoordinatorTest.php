@@ -91,8 +91,12 @@ final class LegacyContentIdentifierCoordinatorTest extends TestCase
         );
 
         self::assertTrue($deferred);
-        self::assertSame([$sourceFile], $cacheEntry->getPendingFiles());
-        self::assertSame($targetFile, $cacheEntry->getTarget());
+        $pending = $cacheEntry->getPendingFiles();
+        self::assertCount(1, $pending);
+        self::assertSame($sourceFile->getPathname(), $pending[0]->getPathname());
+        $rememberedTarget = $cacheEntry->getTarget();
+        self::assertNotNull($rememberedTarget);
+        self::assertSame($targetFile->getPathname(), $rememberedTarget->getPathname());
     }
 
     /**

@@ -18,6 +18,7 @@ use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
+use MagicSunday\Renamer\Helper\AnalysisMemoryBudget;
 use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Helper\FileHelper;
@@ -185,6 +186,7 @@ use function copy;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
+#[UsesClass(AnalysisMemoryBudget::class)]
 #[CoversClass(WriteDateCommand::class)]
 #[CoversClass(RenameByExifDateCommand::class)]
 #[UsesClass(ComparisonWorkLimit::class)]

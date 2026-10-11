@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer;
 
+use MagicSunday\Renamer\Exception\AnalysisMemoryBudgetExceededException;
 use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Service\Filesystem\BatchRunLock;
 use MagicSunday\Renamer\Service\Filesystem\MutationJournal;
@@ -106,6 +107,8 @@ final class Application extends \Symfony\Component\Console\Application
      * @param OutputInterface $output  Console output used by Symfony's error handling
      *
      * @return int Exit status returned by the protected command
+     *
+     * @throws AnalysisMemoryBudgetExceededException When retained analysis reaches its pre-mutation budget
      */
     #[Override]
     protected function doRunCommand(Command $command, InputInterface $input, OutputInterface $output): int

@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Command;
 
 use MagicSunday\Renamer\Command\DedupCommand;
+use MagicSunday\Renamer\Helper\AnalysisMemoryBudget;
 use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
@@ -85,6 +86,7 @@ use const PHP_EOL;
 #[UsesClass(MutationJournal::class)]
 #[UsesClass(PrivateCacheStorage::class)]
 #[UsesClass(SourceFileFingerprint::class)]
+#[UsesClass(AnalysisMemoryBudget::class)]
 #[CoversClass(DedupCommand::class)]
 #[CoversClass(QuarantineTargetGuard::class)]
 #[UsesClass(RecursiveRegexFileFilterIterator::class)]

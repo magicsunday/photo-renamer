@@ -11,9 +11,11 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Pipeline;
 
+use MagicSunday\Renamer\Exception\AnalysisMemoryBudgetExceededException;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
+use MagicSunday\Renamer\Helper\AnalysisMemoryBudget;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
@@ -89,7 +91,8 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
      *
      * @return AssetGroupCollection Collection of capture groups
      *
-     * @throws ExifMetadataReadException When the file's metadata cannot be read.
+     * @throws ExifMetadataReadException             When the file's metadata cannot be read.
+     * @throws AnalysisMemoryBudgetExceededException When retained analysis reaches the pre-mutation budget
      */
     #[Override]
     public function build(
@@ -105,6 +108,7 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
 
         // Step 2: Build disk index in PipelineContext
         foreach ($files as $file) {
+            AnalysisMemoryBudget::assertHeadroom('file indexing');
             $context->markOccupied($file->getPathname());
             $state->filesByPath[$file->getPathname()] = $file;
         }
@@ -119,6 +123,7 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
         $collection = new AssetGroupCollection();
 
         foreach ($files as $sourceFileInfo) {
+            AnalysisMemoryBudget::assertHeadroom('capture grouping');
             $result = $this->getTargetFileResult($sourceFileInfo, $renameStrategy, $context);
 
             $item                        = $this->captureAssetCandidateExtractor->extract($sourceFileInfo, $renameStrategy, $state);
@@ -189,6 +194,11 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
             $duplicateIdentifierStrategy,
             $collection,
         );
+
+        // Deferred resolution is complete. Do not overlap its per-ID state with
+        // the second-pass bridge, which builds its own target/path lookup.
+        $state->contentIdentifierCache = [];
+        $state->contentIdentifierMap   = [];
 
         // Live Photo second-pass pairing: re-scan the iterator for MOV companions
         // that were missed during the main loop (e.g. no EXIF date, only matchable
@@ -301,6 +311,8 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
      * @param AssetGroupCollection              $collection     Collection of discovered capture groups
      * @param RenameStrategyInterface           $renameStrategy Strategy to compute target filenames
      * @param PipelineContext                   $context        Pipeline context for disk index updates
+     *
+     * @throws AnalysisMemoryBudgetExceededException When retained pairing targets reach the pre-mutation budget
      */
     private function performLivePhotoSecondPass(
         RecursiveIteratorIterator $iterator,
@@ -314,6 +326,7 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
         $tempCollection = new FileDuplicateCollection();
 
         foreach ($collection as $key => $group) {
+            AnalysisMemoryBudget::assertHeadroom('Live Photo pairing bridge');
             $fileDuplicate = new FileDuplicate();
 
             foreach ($group->getItems() as $item) {

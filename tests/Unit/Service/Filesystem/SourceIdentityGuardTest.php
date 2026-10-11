@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service\Filesystem;
 
+use MagicSunday\Renamer\Helper\AnalysisMemoryBudget;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Model\SourceFileFingerprint;
 use MagicSunday\Renamer\Regex\RegexMatchResult;
@@ -37,6 +38,7 @@ use Symfony\Component\Filesystem\Filesystem;
 #[UsesClass(RegexMatchResult::class)]
 #[UsesClass(SafeRegex::class)]
 #[UsesClass(SafeHashCalculator::class)]
+#[UsesClass(AnalysisMemoryBudget::class)]
 #[CoversClass(SourceIdentityGuard::class)]
 final class SourceIdentityGuardTest extends TestCase
 {

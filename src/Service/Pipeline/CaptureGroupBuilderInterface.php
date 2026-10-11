@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Pipeline;
 
+use MagicSunday\Renamer\Exception\AnalysisMemoryBudgetExceededException;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
@@ -43,6 +44,8 @@ interface CaptureGroupBuilderInterface
      * @param PipelineContext                      $context                     Mutable state bag for pipeline phases
      *
      * @return AssetGroupCollection Collection of capture groups
+     *
+     * @throws AnalysisMemoryBudgetExceededException When retained analysis reaches its pre-mutation budget
      */
     public function build(
         RecursiveIteratorIterator $iterator,

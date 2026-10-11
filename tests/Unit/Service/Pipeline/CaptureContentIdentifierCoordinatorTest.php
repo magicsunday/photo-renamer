@@ -81,8 +81,12 @@ final class CaptureContentIdentifierCoordinatorTest extends TestCase
         );
 
         self::assertTrue($deferred);
-        self::assertSame([$file], $state->contentIdentifierCache['abc-123']->getPendingFiles());
-        self::assertSame($targetFile, $state->contentIdentifierCache['abc-123']->getTarget());
+        $pending = $state->contentIdentifierCache['abc-123']->getPendingFiles();
+        self::assertCount(1, $pending);
+        self::assertSame($file->getPathname(), $pending[0]->getPathname());
+        $rememberedTarget = $state->contentIdentifierCache['abc-123']->getTarget();
+        self::assertNotNull($rememberedTarget);
+        self::assertSame($targetFile->getPathname(), $rememberedTarget->getPathname());
     }
 
     /**

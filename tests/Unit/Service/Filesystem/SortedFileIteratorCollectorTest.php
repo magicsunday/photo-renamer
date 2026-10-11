@@ -11,9 +11,11 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service\Filesystem;
 
+use MagicSunday\Renamer\Helper\AnalysisMemoryBudget;
 use MagicSunday\Renamer\Service\Filesystem\SortedFileIteratorCollector;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use RecursiveIterator;
 use RecursiveIteratorIterator;
@@ -26,6 +28,7 @@ use SplFileInfo;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
+#[UsesClass(AnalysisMemoryBudget::class)]
 #[CoversClass(SortedFileIteratorCollector::class)]
 final class SortedFileIteratorCollectorTest extends TestCase
 {

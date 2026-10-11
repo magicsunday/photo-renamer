@@ -16,6 +16,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
+use WeakReference;
 
 use const DIRECTORY_SEPARATOR;
 
@@ -82,5 +83,54 @@ final class ContentIdentifierCacheEntryTest extends TestCase
 
         self::assertSame('live-photo:abc123', $entry->getDuplicateIdentifier());
         self::assertSame($target->getPathname(), $entry->getTarget()?->getPathname());
+    }
+
+    /**
+     * Canonical and fallback targets are pathname values, not filesystem state.
+     * Retaining their native SPL objects for every distinct Live Photo adds a
+     * large per-capture allocation. Weak references prove the original object
+     * can be released while both modes preserve the exact target pathname.
+     *
+     * @return void
+     */
+    #[Test]
+    public function rememberedTargetsReleaseTheirNativeFileObjects(): void
+    {
+        foreach ([false, true] as $resolved) {
+            $entry = new ContentIdentifierCacheEntry();
+            self::assertNull($entry->getTarget());
+            $target    = new SplFileInfo('/synthetic/target.JPG');
+            $reference = WeakReference::create($target);
+
+            if ($resolved) {
+                $entry->rememberResolvedGroup('synthetic-id', $target);
+            } else {
+                $entry->rememberFallbackTarget($target);
+            }
+
+            unset($target);
+            self::assertNull($reference->get());
+            self::assertSame('/synthetic/target.JPG', $entry->getTarget()?->getPathname());
+        }
+    }
+
+    /**
+     * Pending sources already exist in the sorted file list. Replay must retain
+     * the same views and encounter order instead of allocating another native
+     * source object per deferred video. Clearing removes those references.
+     *
+     * @return void
+     */
+    #[Test]
+    public function pendingSourcesReuseCollectedObjectsInEncounterOrder(): void
+    {
+        $entry  = new ContentIdentifierCacheEntry();
+        $first  = new SplFileInfo('/synthetic/first.MOV');
+        $second = new SplFileInfo('/synthetic/second.MOV');
+        $entry->addPendingFile($first);
+        $entry->addPendingFile($second);
+        self::assertSame([$first, $second], $entry->getPendingFiles());
+        $entry->clearPendingFiles();
+        self::assertSame([], $entry->getPendingFiles());
     }
 }

@@ -1,0 +1,463 @@
+{
+  "schema": 1,
+  "issue": 167,
+  "date": "2026-10-11",
+  "variant": "before",
+  "image": "sha256:67e91554853fdd57df7eeb3ac3c4aa3fab3736004a661006b6871de2c0ed14de",
+  "synthetic_files": 100000,
+  "package_versions_references_sha256": "cd59f3e7f2055b890992f8001329580f99e4af608532e25a000ca85e1dd7f817",
+  "harness_sha256": {
+    "BenchmarkProgressReporter.php": "80c04b6abe8024198682e2d1b8250255816be8bf924bd4ebe7963659032abe7e",
+    "benchmark-mixed-collection.php": "6ab985fd00d2f8bd7835217f9597345bcf88627493a862391f9867379780e306"
+  },
+  "workers": [
+    {
+      "phase": "cold",
+      "files": 100000,
+      "groups": 50000,
+      "live_photo_groups": 50000,
+      "seconds": 248.547203406,
+      "php_peak_bytes": 2006978560,
+      "peak_rss_bytes": 2040438784,
+      "measurements": {
+        "source_scope_ready": {
+          "php_current_bytes": 9626560,
+          "php_allocated_bytes": 10485760,
+          "php_peak_bytes": 10485760,
+          "peak_rss_bytes": 50397184
+        },
+        "before_cache_load": {
+          "php_current_bytes": 9627312,
+          "php_allocated_bytes": 10485760,
+          "php_peak_bytes": 10485760,
+          "peak_rss_bytes": 50397184
+        },
+        "cache_loaded": {
+          "php_current_bytes": 9627912,
+          "php_allocated_bytes": 10485760,
+          "php_peak_bytes": 10485760,
+          "peak_rss_bytes": 50397184
+        },
+        "file_list_and_indexes": {
+          "php_current_bytes": 853426768,
+          "php_allocated_bytes": 857739264,
+          "php_peak_bytes": 860360704,
+          "peak_rss_bytes": 889204736
+        },
+        "group_scan_finished": {
+          "php_current_bytes": 1475449528,
+          "php_allocated_bytes": 1513099264,
+          "php_peak_bytes": 1513099264,
+          "peak_rss_bytes": 1537839104
+        },
+        "pairing_bridge": {
+          "php_current_bytes": 1915778832,
+          "php_allocated_bytes": 1945636864,
+          "php_peak_bytes": 1948258304,
+          "peak_rss_bytes": 1973784576
+        },
+        "pairing_finished": {
+          "php_current_bytes": 1915771504,
+          "php_allocated_bytes": 1951928320,
+          "php_peak_bytes": 1962414080,
+          "peak_rss_bytes": 1990537216
+        },
+        "groups_built": {
+          "php_current_bytes": 1029889560,
+          "php_allocated_bytes": 1928855552,
+          "php_peak_bytes": 1962414080,
+          "peak_rss_bytes": 1990537216
+        },
+        "classification_finished": {
+          "php_current_bytes": 1029889984,
+          "php_allocated_bytes": 1928855552,
+          "php_peak_bytes": 1962414080,
+          "peak_rss_bytes": 1990537216
+        },
+        "pipeline_complete": {
+          "php_current_bytes": 1093924336,
+          "php_allocated_bytes": 1934098432,
+          "php_peak_bytes": 1967656960,
+          "peak_rss_bytes": 1992175616
+        },
+        "plan_built": {
+          "php_current_bytes": 1144205856,
+          "php_allocated_bytes": 1936195584,
+          "php_peak_bytes": 1967656960,
+          "peak_rss_bytes": 1992175616
+        },
+        "output_rendered": {
+          "php_current_bytes": 1146982872,
+          "php_allocated_bytes": 1938817024,
+          "php_peak_bytes": 1967656960,
+          "peak_rss_bytes": 1992175616
+        },
+        "execution_complete": {
+          "php_current_bytes": 1146983248,
+          "php_allocated_bytes": 1938817024,
+          "php_peak_bytes": 1967656960,
+          "peak_rss_bytes": 1992175616
+        },
+        "before_cache_flush": {
+          "php_current_bytes": 1146983624,
+          "php_allocated_bytes": 1938817024,
+          "php_peak_bytes": 1967656960,
+          "peak_rss_bytes": 1992175616
+        },
+        "cache_flushed": {
+          "php_current_bytes": 1147049488,
+          "php_allocated_bytes": 1938817024,
+          "php_peak_bytes": 2006978560,
+          "peak_rss_bytes": 2040438784
+        }
+      },
+      "effective_php_memory_limit": "3072M",
+      "effective_container_memory_bytes": "4294967296",
+      "tmpfs_capacity_bytes": 1073741824,
+      "protected_mutation_scope": false,
+      "comparison_plans": 0,
+      "first_comparison_php_bytes": null,
+      "noops": 0,
+      "executables": 100000,
+      "native_subprocesses": 0,
+      "sampled_tmp_peak_bytes": 455839744,
+      "tmp_sample_interval_ms": 100
+    },
+    {
+      "phase": "warm",
+      "files": 100000,
+      "groups": 50000,
+      "live_photo_groups": 50000,
+      "seconds": 9.469463998,
+      "php_peak_bytes": 2076708864,
+      "peak_rss_bytes": 2096263168,
+      "measurements": {
+        "source_scope_ready": {
+          "php_current_bytes": 9626560,
+          "php_allocated_bytes": 10485760,
+          "php_peak_bytes": 10485760,
+          "peak_rss_bytes": 50397184
+        },
+        "before_cache_load": {
+          "php_current_bytes": 9627312,
+          "php_allocated_bytes": 10485760,
+          "php_peak_bytes": 10485760,
+          "peak_rss_bytes": 50397184
+        },
+        "cache_loaded": {
+          "php_current_bytes": 112688952,
+          "php_allocated_bytes": 254803968,
+          "php_peak_bytes": 306274304,
+          "peak_rss_bytes": 336117760
+        },
+        "file_list_and_indexes": {
+          "php_current_bytes": 958480840,
+          "php_allocated_bytes": 1104154624,
+          "php_peak_bytes": 1106776064,
+          "peak_rss_bytes": 1130733568
+        },
+        "group_scan_finished": {
+          "php_current_bytes": 1477720800,
+          "php_allocated_bytes": 1620054016,
+          "php_peak_bytes": 1620054016,
+          "peak_rss_bytes": 1640415232
+        },
+        "pairing_bridge": {
+          "php_current_bytes": 1919980272,
+          "php_allocated_bytes": 2054688768,
+          "php_peak_bytes": 2057310208,
+          "peak_rss_bytes": 2080161792
+        },
+        "pairing_finished": {
+          "php_current_bytes": 1919972944,
+          "php_allocated_bytes": 2060980224,
+          "php_peak_bytes": 2071465984,
+          "peak_rss_bytes": 2094796800
+        },
+        "groups_built": {
+          "php_current_bytes": 1034091000,
+          "php_allocated_bytes": 2037907456,
+          "php_peak_bytes": 2071465984,
+          "peak_rss_bytes": 2094796800
+        },
+        "classification_finished": {
+          "php_current_bytes": 1034091424,
+          "php_allocated_bytes": 2037907456,
+          "php_peak_bytes": 2071465984,
+          "peak_rss_bytes": 2094796800
+        },
+        "pipeline_complete": {
+          "php_current_bytes": 1098125776,
+          "php_allocated_bytes": 2043150336,
+          "php_peak_bytes": 2076708864,
+          "peak_rss_bytes": 2096263168
+        },
+        "plan_built": {
+          "php_current_bytes": 1148472832,
+          "php_allocated_bytes": 2045247488,
+          "php_peak_bytes": 2076708864,
+          "peak_rss_bytes": 2096263168
+        },
+        "output_rendered": {
+          "php_current_bytes": 1151184312,
+          "php_allocated_bytes": 2047868928,
+          "php_peak_bytes": 2076708864,
+          "peak_rss_bytes": 2096263168
+        },
+        "execution_complete": {
+          "php_current_bytes": 1151184688,
+          "php_allocated_bytes": 2047868928,
+          "php_peak_bytes": 2076708864,
+          "peak_rss_bytes": 2096263168
+        },
+        "before_cache_flush": {
+          "php_current_bytes": 1151185064,
+          "php_allocated_bytes": 2047868928,
+          "php_peak_bytes": 2076708864,
+          "peak_rss_bytes": 2096263168
+        },
+        "cache_flushed": {
+          "php_current_bytes": 1151185440,
+          "php_allocated_bytes": 2047868928,
+          "php_peak_bytes": 2076708864,
+          "peak_rss_bytes": 2096263168
+        }
+      },
+      "effective_php_memory_limit": "3072M",
+      "effective_container_memory_bytes": "4294967296",
+      "tmpfs_capacity_bytes": 1073741824,
+      "protected_mutation_scope": false,
+      "comparison_plans": 0,
+      "first_comparison_php_bytes": null,
+      "noops": 0,
+      "executables": 100000,
+      "native_subprocesses": 0,
+      "sampled_tmp_peak_bytes": 455839744,
+      "tmp_sample_interval_ms": 100
+    },
+    {
+      "phase": "mutate",
+      "files": 100000,
+      "groups": 50000,
+      "live_photo_groups": 50000,
+      "seconds": 32.469792773,
+      "php_peak_bytes": 2129137664,
+      "peak_rss_bytes": 2142109696,
+      "measurements": {
+        "source_scope_ready": {
+          "php_current_bytes": 51203224,
+          "php_allocated_bytes": 53477376,
+          "php_peak_bytes": 53477376,
+          "peak_rss_bytes": 84881408
+        },
+        "before_cache_load": {
+          "php_current_bytes": 51203976,
+          "php_allocated_bytes": 53477376,
+          "php_peak_bytes": 53477376,
+          "peak_rss_bytes": 84881408
+        },
+        "cache_loaded": {
+          "php_current_bytes": 155027264,
+          "php_allocated_bytes": 297795584,
+          "php_peak_bytes": 349265920,
+          "peak_rss_bytes": 377364480
+        },
+        "file_list_and_indexes": {
+          "php_current_bytes": 999088112,
+          "php_allocated_bytes": 1145049088,
+          "php_peak_bytes": 1147670528,
+          "peak_rss_bytes": 1171505152
+        },
+        "group_scan_finished": {
+          "php_current_bytes": 1518393608,
+          "php_allocated_bytes": 1660948480,
+          "php_peak_bytes": 1660948480,
+          "peak_rss_bytes": 1681195008
+        },
+        "pairing_bridge": {
+          "php_current_bytes": 1960653080,
+          "php_allocated_bytes": 2097680384,
+          "php_peak_bytes": 2100301824,
+          "peak_rss_bytes": 2121203712
+        },
+        "pairing_finished": {
+          "php_current_bytes": 1969034360,
+          "php_allocated_bytes": 2110263296,
+          "php_peak_bytes": 2129137664,
+          "peak_rss_bytes": 2142109696
+        },
+        "groups_built": {
+          "php_current_bytes": 1083152416,
+          "php_allocated_bytes": 2087190528,
+          "php_peak_bytes": 2129137664,
+          "peak_rss_bytes": 2142109696
+        },
+        "classification_finished": {
+          "php_current_bytes": 1083152840,
+          "php_allocated_bytes": 2087190528,
+          "php_peak_bytes": 2129137664,
+          "peak_rss_bytes": 2142109696
+        },
+        "pipeline_complete": {
+          "php_current_bytes": 1147187192,
+          "php_allocated_bytes": 2092433408,
+          "php_peak_bytes": 2129137664,
+          "peak_rss_bytes": 2142109696
+        },
+        "plan_built": {
+          "php_current_bytes": 1197468712,
+          "php_allocated_bytes": 2094530560,
+          "php_peak_bytes": 2129137664,
+          "peak_rss_bytes": 2142109696
+        },
+        "output_rendered": {
+          "php_current_bytes": 1200245728,
+          "php_allocated_bytes": 2097152000,
+          "php_peak_bytes": 2129137664,
+          "peak_rss_bytes": 2142109696
+        },
+        "execution_complete": {
+          "php_current_bytes": 1200248816,
+          "php_allocated_bytes": 2097152000,
+          "php_peak_bytes": 2129137664,
+          "peak_rss_bytes": 2142109696
+        },
+        "before_cache_flush": {
+          "php_current_bytes": 1200249192,
+          "php_allocated_bytes": 2097152000,
+          "php_peak_bytes": 2129137664,
+          "peak_rss_bytes": 2142109696
+        },
+        "cache_flushed": {
+          "php_current_bytes": 1200249568,
+          "php_allocated_bytes": 2097152000,
+          "php_peak_bytes": 2129137664,
+          "peak_rss_bytes": 2142109696
+        }
+      },
+      "effective_php_memory_limit": "3072M",
+      "effective_container_memory_bytes": "4294967296",
+      "tmpfs_capacity_bytes": 1073741824,
+      "protected_mutation_scope": true,
+      "comparison_plans": 0,
+      "first_comparison_php_bytes": null,
+      "noops": 0,
+      "executables": 100000,
+      "native_subprocesses": 0,
+      "sampled_tmp_peak_bytes": 530518016,
+      "tmp_sample_interval_ms": 100
+    },
+    {
+      "phase": "idempotency",
+      "files": 100000,
+      "groups": 50000,
+      "live_photo_groups": 50000,
+      "seconds": 320.374977722,
+      "php_peak_bytes": 2297434112,
+      "peak_rss_bytes": 2320842752,
+      "measurements": {
+        "source_scope_ready": {
+          "php_current_bytes": 9626568,
+          "php_allocated_bytes": 10485760,
+          "php_peak_bytes": 10485760,
+          "peak_rss_bytes": 50397184
+        },
+        "before_cache_load": {
+          "php_current_bytes": 9627320,
+          "php_allocated_bytes": 10485760,
+          "php_peak_bytes": 10485760,
+          "peak_rss_bytes": 50397184
+        },
+        "cache_loaded": {
+          "php_current_bytes": 112688960,
+          "php_allocated_bytes": 254803968,
+          "php_peak_bytes": 306274304,
+          "peak_rss_bytes": 336494592
+        },
+        "file_list_and_indexes": {
+          "php_current_bytes": 958480848,
+          "php_allocated_bytes": 1104154624,
+          "php_peak_bytes": 1106776064,
+          "peak_rss_bytes": 1130983424
+        },
+        "group_scan_finished": {
+          "php_current_bytes": 1577274360,
+          "php_allocated_bytes": 1719668736,
+          "php_peak_bytes": 1719668736,
+          "peak_rss_bytes": 1743826944
+        },
+        "pairing_bridge": {
+          "php_current_bytes": 2026075656,
+          "php_allocated_bytes": 2171080704,
+          "php_peak_bytes": 2173702144,
+          "peak_rss_bytes": 2188382208
+        },
+        "pairing_finished": {
+          "php_current_bytes": 2026068328,
+          "php_allocated_bytes": 2175275008,
+          "php_peak_bytes": 2187857920,
+          "peak_rss_bytes": 2202214400
+        },
+        "groups_built": {
+          "php_current_bytes": 1140186384,
+          "php_allocated_bytes": 2152202240,
+          "php_peak_bytes": 2187857920,
+          "peak_rss_bytes": 2202214400
+        },
+        "classification_finished": {
+          "php_current_bytes": 1140186808,
+          "php_allocated_bytes": 2152202240,
+          "php_peak_bytes": 2187857920,
+          "peak_rss_bytes": 2202214400
+        },
+        "pipeline_complete": {
+          "php_current_bytes": 1205378280,
+          "php_allocated_bytes": 2152202240,
+          "php_peak_bytes": 2187857920,
+          "peak_rss_bytes": 2202214400
+        },
+        "plan_built": {
+          "php_current_bytes": 1255659800,
+          "php_allocated_bytes": 2154299392,
+          "php_peak_bytes": 2187857920,
+          "peak_rss_bytes": 2202214400
+        },
+        "output_rendered": {
+          "php_current_bytes": 1258436536,
+          "php_allocated_bytes": 2156920832,
+          "php_peak_bytes": 2187857920,
+          "peak_rss_bytes": 2202214400
+        },
+        "execution_complete": {
+          "php_current_bytes": 1258436912,
+          "php_allocated_bytes": 2156920832,
+          "php_peak_bytes": 2187857920,
+          "peak_rss_bytes": 2202214400
+        },
+        "before_cache_flush": {
+          "php_current_bytes": 1258437288,
+          "php_allocated_bytes": 2156920832,
+          "php_peak_bytes": 2187857920,
+          "peak_rss_bytes": 2202214400
+        },
+        "cache_flushed": {
+          "php_current_bytes": 1258437824,
+          "php_allocated_bytes": 2156920832,
+          "php_peak_bytes": 2297434112,
+          "peak_rss_bytes": 2320842752
+        }
+      },
+      "effective_php_memory_limit": "3072M",
+      "effective_container_memory_bytes": "4294967296",
+      "tmpfs_capacity_bytes": 1073741824,
+      "protected_mutation_scope": false,
+      "comparison_plans": 0,
+      "first_comparison_php_bytes": null,
+      "noops": 100000,
+      "executables": 0,
+      "native_subprocesses": 0,
+      "sampled_tmp_peak_bytes": 577941504,
+      "tmp_sample_interval_ms": 100
+    }
+  ]
+}

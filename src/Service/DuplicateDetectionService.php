@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service;
 
+use MagicSunday\Renamer\Exception\AnalysisMemoryBudgetExceededException;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
@@ -270,7 +271,8 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      *
      * @return FileDuplicateCollection Collection of identified duplicate groups.
      *
-     * @throws ExifMetadataReadException When the file's metadata cannot be read.
+     * @throws ExifMetadataReadException             When the file's metadata cannot be read.
+     * @throws AnalysisMemoryBudgetExceededException When retained analysis reaches its pre-mutation budget
      */
     #[Override]
     public function groupFilesByDuplicateIdentifier(

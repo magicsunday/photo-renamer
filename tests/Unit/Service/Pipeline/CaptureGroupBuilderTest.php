@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Test\Unit\Service\Pipeline;
 
 use DateTimeImmutable;
 use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Helper\AnalysisMemoryBudget;
 use MagicSunday\Renamer\Metadata\MetadataQualityFlagResolver;
 use MagicSunday\Renamer\Metadata\MetadataQualityFlags;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
@@ -60,6 +61,7 @@ use function strtolower;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
+#[UsesClass(AnalysisMemoryBudget::class)]
 #[CoversClass(CaptureGroupBuilder::class)]
 #[UsesClass(SortedFileIteratorCollector::class)]
 #[UsesClass(ContentIdentifierCacheEntry::class)]
