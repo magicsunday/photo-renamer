@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer;
 
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Service\Filesystem\BatchRunLock;
 use MagicSunday\Renamer\Service\Filesystem\MutationJournal;
 use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
@@ -20,8 +21,10 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Filesystem\Exception\IOException;
 use Symfony\Component\Filesystem\Filesystem;
+use Throwable;
 
 use function is_string;
+use function sprintf;
 use function str_starts_with;
 use function trim;
 
@@ -142,6 +145,45 @@ final class Application extends \Symfony\Component\Console\Application
         }
 
         return $status;
+    }
+
+    /**
+     * Renders uncaught failures without active filename/diagnostic controls.
+     * Symfony's default exception renderer escapes tags but retains controls;
+     * sanitize values before adding its existing error/comment styles instead
+     * of mutating Throwable objects or duplicating box-width calculations.
+     * Verbose output preserves original locations and frame identities, while
+     * exception codes and application exit handling stay with Symfony.
+     *
+     * @param Throwable       $exception Original failure, including its previous chain
+     * @param OutputInterface $output    Console error output with requested verbosity
+     *
+     * @return void
+     */
+    #[Override]
+    protected function doRenderThrowable(Throwable $exception, OutputInterface $output): void
+    {
+        do {
+            $output->writeln('<error>' . ConsoleText::escape($exception::class . ': ' . $exception->getMessage()) . '</error>', OutputInterface::VERBOSITY_QUIET);
+
+            if ($output->isVerbose()) {
+                $output->writeln('<comment>' . ConsoleText::escape(sprintf('In %s line %d:', $exception->getFile(), $exception->getLine())) . '</comment>');
+
+                foreach ($exception->getTrace() as $index => $frame) {
+                    $output->writeln(ConsoleText::escape(sprintf(
+                        '#%d %s:%d %s%s%s()',
+                        $index,
+                        $frame['file'] ?? '[internal]',
+                        $frame['line'] ?? 0,
+                        $frame['class'] ?? '',
+                        $frame['type'] ?? '',
+                        $frame['function'] ?? '',
+                    )));
+                }
+            }
+
+            $exception = $exception->getPrevious();
+        } while ($exception instanceof Throwable);
     }
 
     /**

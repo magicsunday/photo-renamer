@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service\Output;
 
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Model\LinkConfig;
@@ -36,6 +37,9 @@ use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
+use function str_contains;
+use function substr_count;
+
 /**
  * Verifies the collaborator responsible for entry-line presentation inside the output module.
  *
@@ -50,6 +54,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  */
 #[CoversClass(OutputEntryPresenter::class)]
 #[CoversClass(OutputCounters::class)]
+#[UsesClass(ConsoleText::class)]
 #[UsesClass(FileHelper::class)]
 #[UsesClass(PathHelper::class)]
 #[UsesClass(LinkConfig::class)]
@@ -82,7 +87,7 @@ final class OutputEntryPresenterTest extends TestCase
                 OutputEntry::info(
                     sortKey: '/tmp/source/2019/companion.mov',
                     sourcePath: '2019/companion.mov',
-                    reason: 'Live Photo pair across directories: <fg=cyan>2019/canonical.jpg</>',
+                    reason: 'Live Photo pair across directories: 2019/canonical.jpg',
                 ),
             ],
             $io,
@@ -110,7 +115,7 @@ final class OutputEntryPresenterTest extends TestCase
                 OutputEntry::info(
                     sortKey: '/tmp/source/2019/companion.mov',
                     sourcePath: '2019/companion.mov',
-                    reason: 'Live Photo pair across directories: <fg=cyan>2019/canonical.jpg</>',
+                    reason: 'Live Photo pair across directories: 2019/canonical.jpg',
                 ),
             ],
             $io,
@@ -165,6 +170,33 @@ final class OutputEntryPresenterTest extends TestCase
         self::assertSame(1, $counters->duplicateCount);
         self::assertSame(0, $counters->plannedMoves);
         self::assertSame(1, $counters->plannedSkips);
+    }
+
+    /**
+     * Captures both an initial reason block and its continuation line using
+     * hostile filename/metadata strings. Tags must stay literal and CR/LF/ESC
+     * must not add rows or counterfeit a success status. Boolean assertions
+     * keep the captured payload inert even if presentation regresses.
+     *
+     * @return void
+     */
+    #[Test]
+    public function reasonsAndContinuationLinesCannotInjectMarkupOrRows(): void
+    {
+        [$presenter, $io, $output] = $this->createPresenter();
+        $path                      = "<fg=red>école\r\n\x1B[2J.jpg";
+        $reason                    = "<info>fake success</info>\r\n\x1B[2J";
+        $presenter->render([
+            OutputEntry::info('synthetic', $path, $reason),
+            OutputEntry::info('synthetic', $path, $reason),
+        ], $io);
+        $buffer = $output->fetch();
+        self::assertTrue(str_contains($buffer, '<fg=red>école'));
+        self::assertTrue(str_contains($buffer, '<info>fake success</info>'));
+        self::assertTrue(str_contains($buffer, '\\r\\n\\u001b[2J'));
+        self::assertFalse(str_contains($buffer, "\x1B[2J"));
+        self::assertFalse(str_contains($buffer, "\r"));
+        self::assertSame(3, substr_count($buffer, "\n"));
     }
 
     /**

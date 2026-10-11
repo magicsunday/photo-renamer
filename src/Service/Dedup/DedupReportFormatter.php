@@ -11,9 +11,9 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Dedup;
 
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Service\Output\SummaryRow;
-use Symfony\Component\Console\Formatter\OutputFormatter;
 
 use function sprintf;
 
@@ -33,15 +33,16 @@ final class DedupReportFormatter
 {
     /**
      * Formats the same quarantine diagnostic at validation and execution time.
-     * The detail can contain filenames, so Console markup must be escaped.
+     * Controls are neutralized here; SymfonyStyle::error() escapes the plain
+     * diagnostic's markup itself. Avoid escaping twice before that block.
      *
      * @param string $detail Explanation from the boundary check or filesystem operation
      *
-     * @return string Operator-facing diagnostic safe from Console markup injection
+     * @return string Control-free plain diagnostic for a SymfonyStyle error block
      */
     public function formatQuarantineError(string $detail): string
     {
-        return 'Quarantine blocked: ' . OutputFormatter::escape($detail);
+        return 'Quarantine blocked: ' . ConsoleText::neutralize($detail);
     }
 
     /**
@@ -106,8 +107,8 @@ final class DedupReportFormatter
         return sprintf(
             '<fg=%s>[D]</> %s' . "\n" . '     <fg=cyan>→</> %s',
             $tagColor,
-            $relativePath,
-            $actionText,
+            ConsoleText::escape($relativePath),
+            ConsoleText::escape($actionText),
         );
     }
 

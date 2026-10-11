@@ -12,12 +12,15 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Command;
 
 use MagicSunday\Renamer\Command\AbstractRenameCommand;
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Model\Collection\AbstractCollection;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
+use MagicSunday\Renamer\Regex\RegexMatchResult;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
@@ -63,6 +66,10 @@ use function uniqid;
 #[UsesClass(RenameOptions::class)]
 #[UsesClass(RenameResult::class)]
 #[UsesClass(OutputEntryTag::class)]
+#[UsesClass(ConsoleText::class)]
+#[UsesClass(RecursiveRegexFileFilterIterator::class)]
+#[UsesClass(RegexMatchResult::class)]
+#[UsesClass(SafeRegex::class)]
 final class AbstractRenameCommandTest extends TestCase
 {
     /**

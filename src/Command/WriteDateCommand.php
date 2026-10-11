@@ -15,6 +15,7 @@ use Closure;
 use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
 use MagicSunday\Renamer\Command\Concern\ResolvesSourcePath;
 use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Model\LinkConfig;
@@ -30,7 +31,6 @@ use Override;
 use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Console\Command\Command;
-use Symfony\Component\Console\Formatter\OutputFormatter;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -188,6 +188,8 @@ final class WriteDateCommand extends Command
             return self::FAILURE;
         }
 
+        $io->text(sprintf('<fg=cyan>Scanning:</> %s', ConsoleText::escape($source)));
+
         $isSingleFile    = is_file($source);
         $sourceDirectory = $isSingleFile ? dirname($source) : $source;
 
@@ -212,8 +214,6 @@ final class WriteDateCommand extends Command
         $files = $isSingleFile
             ? [new SplFileInfo($source)]
             : $this->fileSystemService->collectFiles($sourceDirectory);
-
-        $io->text(sprintf('<fg=cyan>Scanning:</> %s', $source));
 
         $progressBar = $files !== [] ? $io->createProgressBar(count($files)) : null;
         $progressBar?->setFormat(Constants::PROGRESS_BAR_FORMAT);
@@ -308,7 +308,7 @@ final class WriteDateCommand extends Command
                         '<fg=red>[E]</>',
                         $linkedPath,
                         $padding,
-                        'FAILED to write: ' . OutputFormatter::escape($exception->getMessage()),
+                        'FAILED to write: ' . $exception->getMessage(),
                     ));
                     ++$writeFailed;
                 }

@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service\Verify;
 
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Service\Output\SummaryRow;
 use MagicSunday\Renamer\Service\Verify\VerifyCategoryCatalog;
 use MagicSunday\Renamer\Service\Verify\VerifyCategorySection;
@@ -19,6 +20,13 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Console\Formatter\OutputFormatter;
+
+use function array_fill_keys;
+use function array_keys;
+use function json_encode;
+
+use const JSON_THROW_ON_ERROR;
 
 /**
  * Verifies the formatter responsible for verify report sections and summaries.
@@ -35,6 +43,7 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(SummaryRow::class)]
 #[UsesClass(VerifyCategoryCatalog::class)]
 #[UsesClass(VerifyCategorySection::class)]
+#[UsesClass(ConsoleText::class)]
 final class VerifyReportFormatterTest extends TestCase
 {
     /**
@@ -110,11 +119,11 @@ final class VerifyReportFormatterTest extends TestCase
     }
 
     /**
-     * Verifies that multi-line detail entries are marked as detail sections so
-     * the command can keep the extra blank line between expanded entries.
+     * Verifies that explicitly generated detail entries retain their section
+     * layout. A filename newline alone must never authorize trusted markup.
      */
     #[Test]
-    public function formatCategorySectionsDetectsDetailEntries(): void
+    public function formatCategorySectionsUsesExplicitDetailMode(): void
     {
         $formatter = new VerifyReportFormatter();
 
@@ -126,7 +135,7 @@ final class VerifyReportFormatterTest extends TestCase
             VerifyCategoryCatalog::ERROR     => [],
             VerifyCategoryCatalog::NODATA    => [],
             VerifyCategoryCatalog::FILETYPE  => [],
-        ], null);
+        ], null, detail: true);
 
         self::assertTrue($sections[0]->detail);
     }
@@ -159,5 +168,31 @@ final class VerifyReportFormatterTest extends TestCase
         self::assertSame('Missing Live Photo companion', $rows[3]->label);
         self::assertSame('1', $rows[3]->value);
         self::assertCount(4, $rows);
+    }
+
+    /**
+     * A filename newline never grants permission to render trusted detail
+     * markup. Simple sections and categories without generated detail entries
+     * remain escaped even when the operator enables the global detail option.
+     *
+     * @return void
+     */
+    #[Test]
+    public function filenameNewlinesCannotAuthorizeTrustedDetailOutput(): void
+    {
+        $payload                                   = "<info>FORGED</info>\x1B[2J\r\n";
+        $categories                                = array_fill_keys(array_keys(VerifyCategoryCatalog::LABELS), []);
+        $categories[VerifyCategoryCatalog::NODATA] = [$payload];
+        $categories[VerifyCategoryCatalog::ERROR]  = [$payload];
+
+        foreach ([false, true] as $detail) {
+            $sections = new VerifyReportFormatter()->formatCategorySections($categories, $detail ? [VerifyCategoryCatalog::ERROR] : null, $detail);
+
+            foreach ($sections as $section) {
+                self::assertFalse($section->detail);
+                $captured = new OutputFormatter()->format($section->files[0]);
+                self::assertSame(json_encode('<info>FORGED</info>\\u001b[2J\\r\\n', JSON_THROW_ON_ERROR), json_encode($captured, JSON_THROW_ON_ERROR));
+            }
+        }
     }
 }

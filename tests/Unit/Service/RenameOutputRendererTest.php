@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
 use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\FilenameDateParser;
@@ -120,6 +121,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 #[UsesClass(SkipReasonFormatter::class)]
 #[UsesClass(SkippedFileAppendResult::class)]
 #[UsesClass(SummaryRow::class)]
+#[UsesClass(ConsoleText::class)]
 final class RenameOutputRendererTest extends TestCase
 {
     /**
@@ -368,7 +370,7 @@ final class RenameOutputRendererTest extends TestCase
             OutputEntry::info(
                 sortKey: '/tmp/source/2019/companion.mov',
                 sourcePath: '2019/companion.mov',
-                reason: 'Live Photo pair across directories: <fg=cyan>2019/canonical.jpg</>',
+                reason: 'Live Photo pair across directories: 2019/canonical.jpg',
             ),
         ];
 
@@ -393,7 +395,7 @@ final class RenameOutputRendererTest extends TestCase
             OutputEntry::info(
                 sortKey: '/tmp/source/2019/companion.mov',
                 sourcePath: '2019/companion.mov',
-                reason: 'Live Photo pair across directories: <fg=cyan>2019/canonical.jpg</>',
+                reason: 'Live Photo pair across directories: 2019/canonical.jpg',
             ),
         ];
 

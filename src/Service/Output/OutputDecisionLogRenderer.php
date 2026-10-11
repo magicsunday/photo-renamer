@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Output;
 
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
 use Symfony\Component\Console\Style\SymfonyStyle;
@@ -105,10 +106,10 @@ final class OutputDecisionLogRenderer
             $io->text('<fg=cyan>Decision Log</>');
         }
 
-        $io->text(sprintf('  <fg=yellow>%s</>:', $groupKey));
+        $io->text(sprintf('  <fg=yellow>%s</>:', ConsoleText::escape($groupKey)));
 
         foreach ($entries as $entry) {
-            $io->text('    ' . $entry);
+            $io->text('    ' . ConsoleText::escape($entry));
         }
     }
 }

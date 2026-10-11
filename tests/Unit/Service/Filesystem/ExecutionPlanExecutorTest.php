@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service\Filesystem;
 
 use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\PrivateCacheStorage;
 use MagicSunday\Renamer\Model\Execution\ExecutionGroup;
@@ -69,6 +70,7 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(ConsoleProgressReporter::class)]
 #[UsesClass(RuntimeCollisionPathAllocator::class)]
 #[UsesClass(RuntimeFileMoveExecutor::class)]
+#[UsesClass(ConsoleText::class)]
 final class ExecutionPlanExecutorTest extends TestCase
 {
     use WorkspaceTrait;

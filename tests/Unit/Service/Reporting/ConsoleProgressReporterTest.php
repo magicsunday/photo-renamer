@@ -11,15 +11,20 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service\Reporting;
 
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
+use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
+use function str_contains;
 use function str_replace;
+use function substr_count;
 
 /**
  * Verifies that ConsoleProgressReporter adapts the narrow reporting contract to
@@ -35,6 +40,7 @@ use function str_replace;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(ConsoleProgressReporter::class)]
+#[UsesClass(ConsoleText::class)]
 final class ConsoleProgressReporterTest extends TestCase
 {
     /**
@@ -63,5 +69,28 @@ final class ConsoleProgressReporterTest extends TestCase
         self::assertStringContainsString('Phase title', $normalizedOutput);
         self::assertStringContainsString('plain message', $normalizedOutput);
         self::assertStringContainsString('diagnostic problem', $normalizedOutput);
+    }
+
+    /**
+     * Metadata/parser diagnostics must retain literal tags and visible controls
+     * in both normal errors and debug messages. Capture bytes as booleans so a
+     * failing assertion cannot execute the hostile payload in the test console.
+     *
+     * @return void
+     */
+    #[Test]
+    public function diagnosticsCannotInjectFormattingOrTerminalActions(): void
+    {
+        $output   = new BufferedOutput(OutputInterface::VERBOSITY_DEBUG);
+        $reporter = new ConsoleProgressReporter(new SymfonyStyle(new ArrayInput([]), $output));
+        $payload  = "<info>FORGED</info>\x1B[2J\r\n\u{009b}";
+        $reporter->error($payload);
+        $reporter->debug($payload);
+
+        $captured = $output->fetch();
+        self::assertSame(2, substr_count($captured, '<info>FORGED</info>\\u001b[2J\\r\\n\\u009b'));
+        self::assertFalse(str_contains($captured, "\x1B"));
+        self::assertFalse(str_contains($captured, "\r"));
+        self::assertFalse(str_contains($captured, "\u{009b}"));
     }
 }

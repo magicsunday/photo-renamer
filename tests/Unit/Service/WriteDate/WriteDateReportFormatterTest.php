@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service\WriteDate;
 
 use DateTimeImmutable;
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Service\Output\SummaryRow;
 use MagicSunday\Renamer\Service\WriteDate\WriteDatePendingWrite;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateReasonCatalog;
@@ -20,6 +21,11 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Console\Formatter\OutputFormatter;
+
+use function implode;
+use function str_contains;
+use function substr_count;
 
 /**
  * Verifies the formatter used for write-date operator output.
@@ -36,6 +42,7 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(SummaryRow::class)]
 #[UsesClass(WriteDatePendingWrite::class)]
 #[UsesClass(WriteDateReasonCatalog::class)]
+#[UsesClass(ConsoleText::class)]
 final class WriteDateReportFormatterTest extends TestCase
 {
     /**
@@ -147,5 +154,26 @@ final class WriteDateReportFormatterTest extends TestCase
         self::assertSame('Unsupported write', $rows[4]->label);
         self::assertSame('Read errors', $rows[5]->label);
         self::assertCount(6, $rows);
+    }
+
+    /**
+     * Parser failures and reason values are plain text even when they resemble
+     * Console tags. The already-safe linked path must pass through once, and
+     * untrusted newlines must not increase the entry's two-line layout.
+     *
+     * @return void
+     */
+    #[Test]
+    public function entriesEscapeDiagnosticsOnceAndKeepOnlyTrustedLayout(): void
+    {
+        $payload  = "<info>FORGED</info>\x1B[2J\r\n";
+        $lines    = new WriteDateReportFormatter()->formatEntry('<fg=red>[E]</>', ConsoleText::escape($payload), '', $payload, $payload, $payload);
+        $captured = new OutputFormatter()->format(implode("\n", $lines));
+        self::assertNotNull($captured);
+        self::assertSame(4, substr_count($captured, '<info>FORGED</info>\\u001b[2J\\r\\n'));
+        self::assertSame(1, substr_count($captured, "\n"));
+        self::assertFalse(str_contains($captured, "\x1B"));
+        self::assertFalse(str_contains($captured, "\r"));
+        self::assertFalse(str_contains($captured, '\\<info>'));
     }
 }

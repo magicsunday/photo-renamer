@@ -16,6 +16,7 @@ use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
 use MagicSunday\Renamer\Command\Concern\ResolvesSourcePath;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
@@ -153,6 +154,8 @@ final class VerifyCommand extends Command
             return self::FAILURE;
         }
 
+        $io->text(sprintf('<fg=cyan>Scanning:</> %s', ConsoleText::escape($source)));
+
         $isSingleFile    = is_file($source);
         $sourceDirectory = $isSingleFile ? dirname($source) : $source;
 
@@ -169,8 +172,6 @@ final class VerifyCommand extends Command
         $files = $isSingleFile
             ? [new SplFileInfo($source)]
             : $this->fileSystemService->collectFiles($sourceDirectory);
-
-        $io->text(sprintf('<fg=cyan>Scanning:</> %s', $source));
 
         $progressBar = $files !== [] ? $io->createProgressBar(count($files)) : null;
         $progressBar?->setFormat(Constants::PROGRESS_BAR_FORMAT);
@@ -209,7 +210,7 @@ final class VerifyCommand extends Command
         }
 
         // Render output
-        $this->renderCategories($io, $categories, $showFilter);
+        $this->renderCategories($io, $categories, $showFilter, $detail);
         $this->renderSummary($io, $scannedFiles, $okCount, $categories);
 
         return self::SUCCESS;
@@ -260,10 +261,11 @@ final class VerifyCommand extends Command
      * @param SymfonyStyle                $io         Console IO
      * @param array<string, list<string>> $categories Categorized file lists
      * @param list<string>|null           $showFilter Categories to display, or null for all
+     * @param bool                        $detail     Whether detail-capable categories contain safely formatted reports
      */
-    private function renderCategories(SymfonyStyle $io, array $categories, ?array $showFilter): void
+    private function renderCategories(SymfonyStyle $io, array $categories, ?array $showFilter, bool $detail): void
     {
-        foreach ($this->verifyReportFormatter->formatCategorySections($categories, $showFilter) as $section) {
+        foreach ($this->verifyReportFormatter->formatCategorySections($categories, $showFilter, $detail) as $section) {
             $io->text(sprintf('<fg=cyan>%s</> (%d files):', $section->label, count($section->files)));
 
             foreach ($section->files as $file) {

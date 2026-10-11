@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service\Dedup;
 
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Service\Dedup\DedupReportFormatter;
 use MagicSunday\Renamer\Service\Output\SummaryRow;
@@ -19,6 +20,12 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Formatter\OutputFormatter;
+use Symfony\Component\Console\Input\ArrayInput;
+use Symfony\Component\Console\Output\BufferedOutput;
+use Symfony\Component\Console\Style\SymfonyStyle;
+
+use function str_contains;
+use function substr_count;
 
 /**
  * Verifies the formatter used for dedup command output.
@@ -34,6 +41,7 @@ use Symfony\Component\Console\Formatter\OutputFormatter;
 #[CoversClass(DedupReportFormatter::class)]
 #[UsesClass(FileHelper::class)]
 #[UsesClass(SummaryRow::class)]
+#[UsesClass(ConsoleText::class)]
 final class DedupReportFormatterTest extends TestCase
 {
     /**
@@ -43,10 +51,11 @@ final class DedupReportFormatterTest extends TestCase
     #[Test]
     public function formatQuarantineErrorEscapesFilenameMarkup(): void
     {
-        self::assertSame(
-            'Quarantine blocked: symbolic link "<info>success</info>"',
-            new OutputFormatter()->format(new DedupReportFormatter()->formatQuarantineError('symbolic link "<info>success</info>"')),
-        );
+        $output = new BufferedOutput();
+        new SymfonyStyle(new ArrayInput([]), $output)->error(new DedupReportFormatter()->formatQuarantineError('symbolic link "<info>success</info>"'));
+        $captured = $output->fetch();
+        self::assertTrue(str_contains($captured, 'Quarantine blocked: symbolic link "<info>success</info>"'));
+        self::assertFalse(str_contains($captured, '\\<info>'));
     }
 
     /**
@@ -115,5 +124,30 @@ final class DedupReportFormatterTest extends TestCase
         self::assertSame('1', $rows[2]->value);
         self::assertSame('Space reclaimable', $rows[3]->label);
         self::assertCount(4, $rows);
+    }
+
+    /**
+     * Quarantine errors, duplicate names and action targets must expose hostile
+     * controls visibly while preserving exactly the formatter's one layout
+     * newline. Only the formatter may add trusted colors or structural rows.
+     *
+     * @return void
+     */
+    #[Test]
+    public function actionsAndFailuresKeepUntrustedPayloadOnItsOwnDisplayLine(): void
+    {
+        $formatter = new DedupReportFormatter();
+        $payload   = "<info>FORGED</info>\x1B[2J\r\n";
+        $console   = new OutputFormatter();
+        $action    = $console->format($formatter->formatIndentedAction('cyan', $payload, $payload));
+        self::assertNotNull($action);
+        $output = new BufferedOutput();
+        new SymfonyStyle(new ArrayInput([]), $output)->error($formatter->formatQuarantineError($payload));
+        $failure = $output->fetch();
+        self::assertSame(2, substr_count($action, '<info>FORGED</info>\\u001b[2J\\r\\n'));
+        self::assertSame(1, substr_count($action, "\n"));
+        self::assertTrue(str_contains($failure, '<info>FORGED</info>\\u001b[2J\\r\\n'));
+        self::assertFalse(str_contains($action . $failure, "\x1B"));
+        self::assertFalse(str_contains($action . $failure, "\r"));
     }
 }

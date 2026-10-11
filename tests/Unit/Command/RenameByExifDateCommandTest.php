@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Test\Unit\Command;
 
 use DateTimeImmutable;
 use MagicSunday\Renamer\Command\RenameByExifDateCommand;
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\FilenameDateParser;
@@ -292,6 +293,7 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(TargetFileResolver::class)]
 #[UsesClass(TargetPathResolver::class)]
 #[UsesClass(PrivateCacheStorage::class)]
+#[UsesClass(ConsoleText::class)]
 final class RenameByExifDateCommandTest extends TestCase
 {
     /**

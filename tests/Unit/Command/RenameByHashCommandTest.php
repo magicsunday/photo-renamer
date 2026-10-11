@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Command;
 
 use MagicSunday\Renamer\Command\RenameByHashCommand;
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\Collection\AbstractCollection;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
@@ -57,6 +58,7 @@ use function uniqid;
 #[UsesClass(RenameResult::class)]
 #[UsesClass(OutputEntryTag::class)]
 #[UsesClass(ContentHashStrategy::class)]
+#[UsesClass(ConsoleText::class)]
 final class RenameByHashCommandTest extends TestCase
 {
     /**

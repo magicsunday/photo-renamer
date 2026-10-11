@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Filesystem;
 
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use RuntimeException;
 use SplFileInfo;
@@ -87,9 +88,9 @@ final readonly class RuntimeFileMoveExecutor
         if ($targetPath !== $plannedTarget) {
             $this->progressReporter->text(sprintf(
                 '<fg=yellow>Runtime collision fallback:</> %s → %s (planned: %s)',
-                basename($sourcePath),
-                basename($targetPath),
-                basename($plannedTarget),
+                ConsoleText::escape(basename($sourcePath)),
+                ConsoleText::escape(basename($targetPath)),
+                ConsoleText::escape(basename($plannedTarget)),
             ));
         }
 

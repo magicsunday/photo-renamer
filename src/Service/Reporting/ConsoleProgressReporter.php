@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service\Reporting;
 
 use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Helper\ConsoleText;
 use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
@@ -89,7 +90,7 @@ final class ConsoleProgressReporter implements ProgressReporterInterface
      */
     public function error(string $message): void
     {
-        $this->io->error($message);
+        $this->io->error(ConsoleText::neutralize($message));
     }
 
     /**
@@ -101,7 +102,7 @@ final class ConsoleProgressReporter implements ProgressReporterInterface
             return;
         }
 
-        $this->io->writeln($message);
+        $this->io->writeln(ConsoleText::escape($message));
     }
 
     /**

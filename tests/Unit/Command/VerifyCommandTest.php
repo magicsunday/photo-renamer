@@ -15,6 +15,7 @@ use DateTimeImmutable;
 use DateTimeZone;
 use MagicSunday\Renamer\Command\VerifyCommand;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\FilenameDateParser;
@@ -122,6 +123,7 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(VerifyReportFormatter::class)]
 #[UsesClass(VerifyScanResult::class)]
 #[UsesClass(PrivateCacheStorage::class)]
+#[UsesClass(ConsoleText::class)]
 final class VerifyCommandTest extends TestCase
 {
     use WorkspaceTrait;

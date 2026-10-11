@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Command;
 
 use FilesystemIterator;
 use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
@@ -194,7 +195,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
 
             return self::SUCCESS;
         } catch (RuntimeException $exception) {
-            $this->io->error($exception->getMessage());
+            $this->io->error(ConsoleText::neutralize($exception->getMessage()));
 
             return self::FAILURE;
         } finally {
@@ -421,7 +422,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
             ));
 
             foreach ($validationResult->duplicateTargets as $target) {
-                $this->io->text(sprintf('  <fg=yellow>→</> %s', PathHelper::relativizePath($target, $this->sourceDirectory)));
+                $this->io->text(sprintf('  <fg=yellow>→</> %s', ConsoleText::escape(PathHelper::relativizePath($target, $this->sourceDirectory))));
             }
 
             $this->io->newLine();
@@ -438,7 +439,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
                     fn (string $path): string => PathHelper::relativizePath($path, $this->sourceDirectory),
                     $group,
                 );
-                $this->io->text(sprintf('  <fg=yellow>→</> %s', implode(' ↔ ', $relativePaths)));
+                $this->io->text(sprintf('  <fg=yellow>→</> %s', ConsoleText::escape(implode(' ↔ ', $relativePaths))));
             }
 
             $this->io->newLine();
@@ -455,7 +456,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
                     fn (string $path): string => PathHelper::relativizePath($path, $this->sourceDirectory),
                     $cycle,
                 );
-                $this->io->text(sprintf('  <fg=yellow>→</> %s', implode(' → ', $relativePaths)));
+                $this->io->text(sprintf('  <fg=yellow>→</> %s', ConsoleText::escape(implode(' → ', $relativePaths))));
             }
 
             $this->io->newLine();

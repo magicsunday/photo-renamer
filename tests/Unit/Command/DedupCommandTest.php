@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Command;
 
 use MagicSunday\Renamer\Command\DedupCommand;
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Helper\PathHelper;
@@ -114,6 +115,7 @@ use const PHP_EOL;
 #[UsesClass(WarningOutputSkipReasonRule::class)]
 #[UsesClass(SummaryRow::class)]
 #[UsesClass(ConsoleProgressReporter::class)]
+#[UsesClass(ConsoleText::class)]
 final class DedupCommandTest extends TestCase
 {
     use WorkspaceTrait;

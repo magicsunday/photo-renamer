@@ -625,7 +625,7 @@ final readonly class RenameOutputRenderer
                 sortKey: $companionPath,
                 sourcePath: PathHelper::relativizePath($companionPath, $sourceBaseDirectory),
                 reason: sprintf(
-                    'Live Photo pair across directories: <fg=cyan>%s</>',
+                    'Live Photo pair across directories: %s',
                     $relativeCanonicalPath,
                 ),
             );

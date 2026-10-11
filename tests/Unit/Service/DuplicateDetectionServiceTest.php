@@ -15,6 +15,8 @@ use FilesystemIterator;
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
+use MagicSunday\Renamer\Helper\ConsoleText;
+use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Helper\PrivateCacheStorage;
@@ -26,6 +28,7 @@ use MagicSunday\Renamer\Model\Collection\FileList;
 use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\LinkConfig;
+use MagicSunday\Renamer\Model\MergeDecision;
 use MagicSunday\Renamer\Model\OutputEntry;
 use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\Rename;
@@ -210,6 +213,9 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(SimilarityResult::class)]
 #[UsesClass(TargetFileResolver::class)]
 #[UsesClass(TargetPathResolver::class)]
+#[UsesClass(ConsoleText::class)]
+#[UsesClass(DateDriftCalculator::class)]
+#[UsesClass(MergeDecision::class)]
 final class DuplicateDetectionServiceTest extends TestCase
 {
     use WorkspaceTrait;
