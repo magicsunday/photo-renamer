@@ -19,7 +19,9 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
 
+use function dirname;
 use function filemtime;
+use function var_export;
 
 use const PHP_BINARY;
 
@@ -39,8 +41,8 @@ final class DependencyCacheFreshnessTest extends TestCase
     private string $workspace;
 
     /**
-     * Copies the production bootstrap and points its vendor loader to installed
-     * Docker dependencies without copying or mutating the real vendor tree.
+     * Copies the production bootstrap and points its vendor loader to the
+     * installed dependencies without copying or mutating the real vendor tree.
      *
      * @return void
      */
@@ -51,7 +53,9 @@ final class DependencyCacheFreshnessTest extends TestCase
         $filesystem      = new Filesystem();
         $filesystem->mkdir([$this->workspace . '/src', $this->workspace . '/config', $this->workspace . '/.build/vendor']);
         $filesystem->copy(__DIR__ . '/../../src/Dependencies.php', $this->workspace . '/src/Dependencies.php');
-        $filesystem->dumpFile($this->workspace . '/.build/vendor/autoload.php', "<?php declare(strict_types=1); require '/app/.build/vendor/autoload.php';");
+
+        $autoload = dirname(__DIR__, 2) . '/.build/vendor/autoload.php';
+        $filesystem->dumpFile($this->workspace . '/.build/vendor/autoload.php', '<?php declare(strict_types=1); require ' . var_export($autoload, true) . ';');
         $filesystem->dumpFile($this->workspace . '/run.php', <<<'PHP'
             <?php
             declare(strict_types=1);
