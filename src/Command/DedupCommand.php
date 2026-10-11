@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Command;
 
 use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Service\Dedup\DedupOriginalMatcher;
@@ -178,7 +179,7 @@ final class DedupCommand extends Command
             ? [new SplFileInfo($resolved)]
             : $this->fileSystemService->collectFiles($sourceDirectory);
 
-        $io->text(sprintf('<fg=cyan>Scanning:</> %s', $sourceDirectory));
+        $io->text(sprintf('<fg=cyan>Scanning:</> %s', ConsoleText::escape($sourceDirectory)));
 
         $progressBar = $files !== [] ? $io->createProgressBar(count($files)) : null;
         $progressBar?->setFormat(Constants::PROGRESS_BAR_FORMAT);
@@ -276,7 +277,7 @@ final class DedupCommand extends Command
 
                 $io->text(sprintf(
                     '<fg=yellow>[!]</> %s <fg=cyan>→</> Original not found (skipped)',
-                    $relativePath,
+                    ConsoleText::escape($relativePath),
                 ));
 
                 continue;
@@ -286,7 +287,7 @@ final class DedupCommand extends Command
                 ++$blockedCount;
                 $io->text(sprintf(
                     '<fg=yellow>[!]</> %s <fg=cyan>→</> Deletion blocked: fresh byte identity not verified; use quarantine for review.',
-                    $relativePath,
+                    ConsoleText::escape($relativePath),
                 ));
 
                 continue;
@@ -327,7 +328,7 @@ final class DedupCommand extends Command
                     ++$quarantineErrors;
                     --$duplicatesFound;
                     $spaceReclaimable -= $fileSize;
-                    $io->error('Deletion failed; source retained: ' . $exception->getMessage());
+                    $io->error('Deletion failed; source retained: ' . ConsoleText::neutralize($exception->getMessage()));
 
                     if ($this->mutationJournal->failure() !== null) {
                         break;

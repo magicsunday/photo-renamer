@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Command;
 
 use MagicSunday\Renamer\Command\RenameLowerCaseCommand;
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\Collection\AbstractCollection;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
@@ -54,6 +55,7 @@ use function uniqid;
 #[UsesClass(RenameOptions::class)]
 #[UsesClass(OutputEntryTag::class)]
 #[UsesClass(RenameResult::class)]
+#[UsesClass(ConsoleText::class)]
 final class RenameLowerCaseCommandTest extends TestCase
 {
     /**

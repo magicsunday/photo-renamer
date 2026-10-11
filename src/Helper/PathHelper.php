@@ -141,6 +141,8 @@ final class PathHelper
         LinkConfig $linkConfig,
         ?string $color = null,
     ): string {
+        $displayPath = ConsoleText::escape($displayPath);
+
         if (!$linkConfig->isEnabled()) {
             return $color !== null
                 ? sprintf('<fg=%s>%s</>', $color, $displayPath)

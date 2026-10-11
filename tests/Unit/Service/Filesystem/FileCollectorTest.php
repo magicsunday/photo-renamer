@@ -98,6 +98,35 @@ final class FileCollectorTest extends TestCase
     }
 
     /**
+     * Default traversal includes legal Linux names with embedded and trailing
+     * line breaks. Such sources must not disappear from analysis or bypass the
+     * safe output boundary. Boolean pathname equality keeps failures from
+     * printing the raw control-bearing fixture names.
+     *
+     * @return void
+     */
+    #[Test]
+    public function defaultScanIncludesEmbeddedAndTrailingFilenameNewlines(): void
+    {
+        $embedded = $this->workspace . "/first\nsecond.jpg";
+        $trailing = $this->workspace . "/trailing.jpg\n";
+        file_put_contents($embedded, 'synthetic first');
+        file_put_contents($trailing, 'synthetic second');
+        $files = new FileCollector(new SafeRegex())->collectFiles($this->workspace);
+        self::assertCount(2, $files);
+        $foundEmbedded = false;
+        $foundTrailing = false;
+
+        foreach ($files as $file) {
+            $foundEmbedded = $foundEmbedded || ($file->getPathname() === $embedded);
+            $foundTrailing = $foundTrailing || ($file->getPathname() === $trailing);
+        }
+
+        self::assertTrue($foundEmbedded);
+        self::assertTrue($foundTrailing);
+    }
+
+    /**
      * Verifies that createFileIterator() respects an injected recursive iterator
      * instead of always creating a directory-based iterator internally.
      */

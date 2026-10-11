@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Output;
 
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Model\LinkConfig;
 use MagicSunday\Renamer\Model\OutputEntry;
@@ -77,7 +78,7 @@ final readonly class OutputEntryPresenter
 
         foreach ($outputEntries as $entry) {
             $relativePath = PathHelper::relativizePath($entry->sourcePath, $sourceBaseDirectory);
-            $padding      = str_repeat(' ', max(0, $maxFilenameLength - mb_strlen($entry->sourcePath)));
+            $padding      = str_repeat(' ', max(0, $maxFilenameLength - mb_strlen(ConsoleText::neutralize($entry->sourcePath))));
             $linkedPath   = PathHelper::linkifyPath($entry->sourcePath, $relativePath, $sourceBaseDirectory, $linkConfig, 'yellow');
 
             if ($entry->isInfo()) {
@@ -89,7 +90,7 @@ final readonly class OutputEntryPresenter
                     $io->text(sprintf(
                         '     <fg=cyan>→</> <fg=%s>%s</>',
                         $entry->tag->color(),
-                        $entry->reason ?? '',
+                        ConsoleText::escape($entry->reason ?? ''),
                     ));
                 } else {
                     $this->renderTwoLineReasonBlock($entry->tag, $linkedPath, $entry->reason ?? '', $io);
@@ -168,7 +169,7 @@ final readonly class OutputEntryPresenter
                 continue;
             }
 
-            $maxFilenameLength = max($maxFilenameLength, mb_strlen($entry->sourcePath));
+            $maxFilenameLength = max($maxFilenameLength, mb_strlen(ConsoleText::neutralize($entry->sourcePath)));
         }
 
         return $maxFilenameLength;
@@ -208,7 +209,7 @@ final readonly class OutputEntryPresenter
         $io->text(sprintf(
             '     <fg=cyan>→</> <fg=%s>%s</>',
             $tag->color(),
-            $reason,
+            ConsoleText::escape($reason),
         ));
     }
 }

@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Test\Unit\Service\Verify;
 
 use DateTimeImmutable;
 use DateTimeZone;
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\FilenameDateParser;
 use MagicSunday\Renamer\Service\Verify\VerifyCategoryCatalog;
@@ -22,8 +23,12 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Console\Formatter\OutputFormatter;
+use Symfony\Component\Filesystem\Filesystem;
 
 use function file_put_contents;
+use function str_contains;
+use function substr_count;
 use function unlink;
 
 use const DIRECTORY_SEPARATOR;
@@ -43,6 +48,7 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(VerifyCategoryCatalog::class)]
 #[UsesClass(FileHelper::class)]
 #[UsesClass(FilenameDateParser::class)]
+#[UsesClass(ConsoleText::class)]
 final class VerifyDetailEntryFormatterTest extends TestCase
 {
     use WorkspaceTrait;
@@ -105,6 +111,36 @@ final class VerifyDetailEntryFormatterTest extends TestCase
             self::assertStringContainsString('Rename to date-based name, then: rename:write-date --reason=nodata', $entry);
         } finally {
             @unlink($jpgPath);
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Detail filenames and the quoted write-date fix suggestion must display
+     * literal tags and visible controls. Generated explanation lines remain
+     * formatted while raw paths used for date recovery stay unchanged.
+     *
+     * @return void
+     */
+    #[Test]
+    public function filenamesAndFixSuggestionsCannotInjectTerminalRows(): void
+    {
+        $workspace = $this->createTempWorkspace('verify-safe-');
+        $filename  = "2024-01-15-<info>FORGED\x1B[2J\r\n.jpg";
+        $path      = $workspace . '/' . $filename;
+
+        try {
+            new Filesystem()->dumpFile($path, 'synthetic');
+            $entry    = new VerifyDetailEntryFormatter()->format($filename, $path, VerifyCategoryCatalog::NODATA, null);
+            $captured = new OutputFormatter()->format($entry);
+            self::assertNotNull($captured);
+            self::assertSame(2, substr_count($captured, '<info>FORGED\\u001b[2J\\r\\n.jpg'));
+            self::assertTrue(str_contains($captured, 'rename:write-date --reason=nodata'));
+            self::assertTrue(str_contains($captured, 'date from filename: 2024-01-15'));
+            self::assertSame(4, substr_count($captured, "\n"));
+            self::assertFalse(str_contains($captured, "\x1B"));
+            self::assertFalse(str_contains($captured, "\r"));
+        } finally {
             $this->removeWorkspace($workspace);
         }
     }

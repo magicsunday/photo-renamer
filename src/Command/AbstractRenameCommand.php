@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Command;
 
 use FilesystemIterator;
 use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\OutputEntryTag;
@@ -390,7 +391,7 @@ abstract class AbstractRenameCommand extends Command
         try {
             $this->processAndRenameFiles();
         } catch (RuntimeException $exception) {
-            $this->io->error($exception->getMessage());
+            $this->io->error(ConsoleText::neutralize($exception->getMessage()));
 
             return self::FAILURE;
         }
@@ -517,7 +518,7 @@ abstract class AbstractRenameCommand extends Command
      */
     protected function groupFilesByDuplicateIdentifier(RecursiveIteratorIterator $iterator): FileDuplicateCollection
     {
-        $this->io->text(sprintf('<fg=cyan>Scanning:</> %s', $this->sourceDirectory));
+        $this->io->text(sprintf('<fg=cyan>Scanning:</> %s', ConsoleText::escape($this->sourceDirectory)));
 
         // Process list of all files
         return $this->duplicateDetectionService

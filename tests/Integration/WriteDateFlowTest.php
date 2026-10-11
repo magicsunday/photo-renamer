@@ -18,6 +18,7 @@ use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Exception\TargetFilenameException;
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\FilenameDateParser;
@@ -68,8 +69,10 @@ use MagicSunday\Renamer\Service\ExiftoolWriter;
 use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
 use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Service\Filesystem\LegacyRenameExecutor;
+use MagicSunday\Renamer\Service\Filesystem\MutationJournal;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
 use MagicSunday\Renamer\Service\Filesystem\SortedFileIteratorCollector;
+use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\FormatPriorityResolver;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
@@ -323,6 +326,9 @@ use function copy;
 #[UsesClass(WriteDateReportFormatter::class)]
 #[UsesClass(WriteDateScanResult::class)]
 #[UsesClass(PrivateCacheStorage::class)]
+#[UsesClass(ConsoleText::class)]
+#[UsesClass(MutationJournal::class)]
+#[UsesClass(SourceIdentityGuard::class)]
 final class WriteDateFlowTest extends TestCase
 {
     use ConsoleOutputParserTrait;

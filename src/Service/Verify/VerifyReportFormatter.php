@@ -11,8 +11,10 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Verify;
 
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Service\Output\SummaryRow;
 
+use function array_map;
 use function count;
 use function in_array;
 use function sort;
@@ -86,10 +88,11 @@ final class VerifyReportFormatter
      *
      * @param array<string, list<string>> $categories Categorized verify findings
      * @param list<string>|null           $showFilter Optional category filter from `--show`
+     * @param bool                        $detail     Whether detail-capable categories came from the trusted detail formatter
      *
      * @return list<VerifyCategorySection> Ordered display sections for command rendering.
      */
-    public function formatCategorySections(array $categories, ?array $showFilter): array
+    public function formatCategorySections(array $categories, ?array $showFilter, bool $detail = false): array
     {
         $sections = [];
 
@@ -106,10 +109,13 @@ final class VerifyReportFormatter
 
             sort($files);
 
+            // Filename newlines never authorize trusted multiline markup.
+            $isDetail = $detail && in_array($categoryId, [VerifyCategoryCatalog::NODATA, VerifyCategoryCatalog::TIMEZONE, VerifyCategoryCatalog::FALLBACK], true);
+
             $sections[] = new VerifyCategorySection(
                 $label,
-                $files,
-                str_contains($files[0], "\n"),
+                $isDetail ? $files : array_map(ConsoleText::escape(...), $files),
+                $isDetail,
             );
         }
 

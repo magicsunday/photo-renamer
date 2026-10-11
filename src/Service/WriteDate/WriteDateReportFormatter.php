@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\WriteDate;
 
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Service\Output\SummaryRow;
 
 use function count;
@@ -98,11 +99,11 @@ final class WriteDateReportFormatter
         ?string $reasonLabel = null,
     ): array {
         $lines = [
-            sprintf(' %s %s%s <fg=cyan>→</> %s', $tag, $linkedPath, $padding, $detail),
+            sprintf(' %s %s%s <fg=cyan>→</> %s', $tag, $linkedPath, $padding, ConsoleText::escape($detail)),
         ];
 
         if ($reasonKey !== null) {
-            $lines[] = sprintf('      <fg=gray>[%s] %s</>', $reasonKey, $reasonLabel ?? '');
+            $lines[] = sprintf('      <fg=gray>[%s] %s</>', ConsoleText::escape($reasonKey), ConsoleText::escape($reasonLabel ?? ''));
         }
 
         return $lines;

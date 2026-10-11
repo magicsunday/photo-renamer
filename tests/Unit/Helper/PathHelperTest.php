@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Helper;
 
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Model\LinkConfig;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -20,14 +21,50 @@ use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Formatter\OutputFormatter;
 
+use function json_encode;
+use function str_contains;
+
+use const JSON_THROW_ON_ERROR;
+
 /**
  * Verifies the extracted path helper responsible for relative display paths and
  * terminal hyperlink generation.
  */
 #[CoversClass(PathHelper::class)]
 #[UsesClass(LinkConfig::class)]
+#[UsesClass(ConsoleText::class)]
 final class PathHelperTest extends TestCase
 {
+    /**
+     * Captures a hostile synthetic display path through the actual formatter.
+     * Filename markup must remain literal and ESC/CR/LF/tab/C1 bytes must become
+     * visible text, while the configured hyperlink still uses the original
+     * encoded pathname. JSON assertions never print active terminal payloads
+     * even when the regression fails before sanitization is implemented.
+     *
+     * @return void
+     */
+    #[Test]
+    public function linkifyPathEscapesMarkupAndMakesTerminalControlsVisible(): void
+    {
+        $path      = "école/<fg=red>X</>\x1B[2J\r\n\t\u{009b}.jpg";
+        $expected  = 'école/<fg=red>X</>\\u001b[2J\\r\\n\\t\\u009b.jpg';
+        $formatter = new OutputFormatter(false);
+
+        foreach ([new LinkConfig(null, null, null), new LinkConfig('/synthetic', '/host-synthetic', 'photo-select')] as $config) {
+            $markup   = PathHelper::linkifyPath($path, $path, '/synthetic', $config, 'yellow');
+            $rendered = (string) $formatter->format($markup);
+            self::assertSame(json_encode($expected, JSON_THROW_ON_ERROR), json_encode($rendered, JSON_THROW_ON_ERROR));
+            self::assertFalse(str_contains($rendered, "\x1B"));
+
+            if ($config->isEnabled()) {
+                self::assertStringContainsString('photo-select://', $markup);
+                self::assertStringContainsString('%1B', $markup);
+                self::assertStringContainsString('%3Cfg%3Dred%3E', $markup);
+            }
+        }
+    }
+
     /**
      * When link config is disabled, linkifyPath returns plain display text.
      */

@@ -385,6 +385,14 @@ To retain useful entries while removing historical paths, run `make runtime-cach
 
 The executable DI cache stays in `.build/cache/DependencyContainer.php`, outside the private JSON child, and must be protected like application code. Symfony checks tracked YAML, class wiring and installed-package resources before normal reuse; development rebuilds stale containers automatically. The runtime image ships the corresponding resource metadata and must be rebuilt after code/config/vendor changes. A running immutable PHAR uses its packaged container because external build paths cannot validate an archive after distribution; this is not a freshness bypass for normal applications. Keep the project and cache parents under trusted control: permission/ownership checks do not provide atomic protection against a hostile process replacing directories. Network filesystems and ACL policies must enforce the same owner-only access. `make cache-permissions-check` verifies synthetic GPS/path isolation between two real unprivileged UIDs in a disposable Docker container; it does not use your media.
 
+### Safe filename and diagnostic display
+
+Untrusted filenames, metadata reasons and parser errors are displayed with literal Console tags and visible C0/C1/DEL control escapes (`\n`, `\r`, `\u001b`, etc.). Ordinary Unicode remains readable; invalid UTF-8 filenames use visible byte escapes. Trusted colors, diff highlights and encoded hyperlinks are applied afterward. This changes presentation only: filesystem operations, comparisons and the lossless mutation journal still use original bytes.
+
+Default directory scans include newline-containing filenames. Uncaught error chains also escape controls and retain their original exit codes; verbose output shows original locations and frame identities.
+
+Verify detail layout is selected explicitly by `--detail`; a newline in a filename cannot enable trusted report markup. Fix suggestions for names containing controls show the escaped presentation, rather than a byte-exact shell argument. Resolve such files using their actual filesystem names instead of copying the displayed escapes.
+
 ### Clickable file paths in terminal output
 
 When `FILE_LINK_ROOT` and `FILE_LINK_BASE` are set, file paths in the output become clickable (Ctrl+Click) in terminals that support OSC 8 hyperlinks.

@@ -35,8 +35,8 @@ final readonly class OutputEntry
      * @param bool            $isDuplicateTarget      True if another file already targets this pathname
      * @param bool            $shouldSkip             True if the operation should be skipped in execution
      * @param bool            $shouldPerformOperation True if rename should actually be performed
-     * @param string|null     $reason                 Brief reason for skip/info entries
-     * @param string|null     $warningReason          Supplemental warning text for renames
+     * @param string|null     $reason                 Plain untrusted reason for skip/info entries; the presenter applies escaping and styling
+     * @param string|null     $warningReason          Plain supplemental warning text for renames, escaped only at presentation
      */
     public function __construct(
         public string $sortKey,

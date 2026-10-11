@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer;
 
 use Exception;
+use MagicSunday\Renamer\Helper\ConsoleText;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
@@ -58,7 +59,7 @@ try {
     $application = $container->get(Application::class);
     $result      = $application->run($input, $output);
 } catch (Exception $exception) {
-    $io->error($exception->getMessage());
+    $io->error(ConsoleText::neutralize($exception->getMessage()));
     $result = 1;
 }
 

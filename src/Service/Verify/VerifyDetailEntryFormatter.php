@@ -14,6 +14,7 @@ namespace MagicSunday\Renamer\Service\Verify;
 use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\FilenameDateParser;
 
@@ -60,8 +61,8 @@ final class VerifyDetailEntryFormatter
     ): string {
         $fileSize    = filesize($absolutePath);
         $sizeLabel   = ($fileSize !== false) ? FileHelper::formatSize($fileSize) : '?';
-        $lines       = [sprintf('%s <fg=gray>(%s)</>', $relativePath, $sizeLabel)];
-        $escapedPath = escapeshellarg($absolutePath);
+        $lines       = [sprintf('%s <fg=gray>(%s)</>', ConsoleText::escape($relativePath), $sizeLabel)];
+        $escapedPath = ConsoleText::escape(escapeshellarg($absolutePath));
 
         $tzFlag = ($configuredTimezone instanceof DateTimeZone)
             ? '--timezone=' . $configuredTimezone->getName()

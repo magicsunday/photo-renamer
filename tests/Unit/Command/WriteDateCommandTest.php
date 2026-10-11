@@ -15,6 +15,7 @@ use DateTimeImmutable;
 use DateTimeZone;
 use MagicSunday\Renamer\Command\WriteDateCommand;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\FilenameDateParser;
@@ -137,6 +138,7 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(WriteDateReportFormatter::class)]
 #[UsesClass(WriteDateScanResult::class)]
 #[UsesClass(PrivateCacheStorage::class)]
+#[UsesClass(ConsoleText::class)]
 final class WriteDateCommandTest extends TestCase
 {
     use WorkspaceTrait;

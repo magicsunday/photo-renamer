@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
 use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\PathHelper;
@@ -142,6 +143,7 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(SkippedFileAppendResult::class)]
 #[UsesClass(SummaryRow::class)]
 #[UsesClass(ConsoleProgressReporter::class)]
+#[UsesClass(ConsoleText::class)]
 final class FileSystemServiceTest extends TestCase
 {
     use WorkspaceTrait;

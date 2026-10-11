@@ -11,6 +11,8 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Output;
 
+use MagicSunday\Renamer\Helper\ConsoleText;
+
 use function count;
 use function max;
 use function mb_str_split;
@@ -49,7 +51,7 @@ final readonly class DiffHighlighter
     public function highlightDiff(string $source, string $target, string $baseColor): string
     {
         if ($source === $target) {
-            return sprintf('<fg=%s>%s</>', $baseColor, $target);
+            return sprintf('<fg=%s>%s</>', $baseColor, ConsoleText::escape($target));
         }
 
         $sourceSplit = $this->splitPathPrefix($source);
@@ -59,7 +61,7 @@ final readonly class DiffHighlighter
             return $this->highlightSequentialTokenDiff($source, $target, $baseColor);
         }
 
-        return sprintf('<fg=%s>%s</>', $baseColor, $targetSplit->directoryPrefix)
+        return sprintf('<fg=%s>%s</>', $baseColor, ConsoleText::escape($targetSplit->directoryPrefix))
             . $this->highlightSequentialTokenDiff($sourceSplit->filename, $targetSplit->filename, $baseColor);
     }
 
@@ -101,6 +103,9 @@ final readonly class DiffHighlighter
      */
     private function highlightSequentialTokenDiff(string $source, string $target, string $baseColor): string
     {
+        $source = ConsoleText::neutralize($source);
+        $target = ConsoleText::neutralize($target);
+
         $tokens = $this->tokenizeForSequentialDiff($target);
         $flags  = $this->matchTargetTokensSequentially($source, $tokens);
 
@@ -289,6 +294,8 @@ final readonly class DiffHighlighter
      */
     private function formatDiffSegment(string $value, DiffTokenState $state, string $baseColor): string
     {
+        $value = ConsoleText::escape($value);
+
         return match ($state) {
             DiffTokenState::Same        => sprintf('<fg=%s>%s</>', $baseColor, $value),
             DiffTokenState::CaseChanged => sprintf('<fg=bright-%s;options=bold>%s</>', $baseColor, $value),

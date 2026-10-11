@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service\Output;
 
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\Execution\ExecutionGroup;
@@ -23,6 +24,9 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
+
+use function str_contains;
+use function substr_count;
 
 /**
  * Verifies the dedicated renderer for grouped decision-log output.
@@ -40,6 +44,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 #[UsesClass(AssetGroupCollection::class)]
 #[UsesClass(ExecutionPlan::class)]
 #[UsesClass(ExecutionGroup::class)]
+#[UsesClass(ConsoleText::class)]
 final class OutputDecisionLogRendererTest extends TestCase
 {
     /**
@@ -96,5 +101,41 @@ final class OutputDecisionLogRendererTest extends TestCase
         );
 
         self::assertSame('', $output->fetch());
+    }
+
+    /**
+     * Decision keys and metadata-derived explanations cross the same trust
+     * boundary in both pipeline views. Literal tags and escaped controls must
+     * survive rendering without allowing a counterfeit decision-log row.
+     *
+     * @return void
+     */
+    #[Test]
+    public function bothDecisionViewsNeutralizeKeysAndDiagnosticEntries(): void
+    {
+        $payload    = "<info>FORGED</info>\x1B[2J\r\n";
+        $collection = new AssetGroupCollection();
+        $group      = new AssetGroup($payload);
+        $group->addDecision($payload);
+
+        $collection->set($payload, $group);
+        $renderer = new OutputDecisionLogRenderer();
+
+        foreach ([false, true] as $executionView) {
+            $output = new BufferedOutput();
+            $io     = new SymfonyStyle(new ArrayInput([]), $output);
+
+            if ($executionView) {
+                $renderer->renderExecutionPlanDecisionLog(new ExecutionPlan([new ExecutionGroup($payload, false, null, [], [$payload])]), $io);
+            } else {
+                $renderer->renderAssetGroupDecisionLog($collection, $io);
+            }
+
+            $captured = $output->fetch();
+            self::assertTrue(str_contains($captured, 'Decision Log'));
+            self::assertSame(2, substr_count($captured, '<info>FORGED</info>\\u001b[2J\\r\\n'));
+            self::assertFalse(str_contains($captured, "\x1B"));
+            self::assertFalse(str_contains($captured, "\r"));
+        }
     }
 }
