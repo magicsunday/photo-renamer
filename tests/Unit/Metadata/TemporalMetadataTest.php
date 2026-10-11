@@ -11,7 +11,9 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Metadata;
 
+use DateTime;
 use DateTimeImmutable;
+use DateTimeZone;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -30,6 +32,106 @@ use PHPUnit\Framework\TestCase;
 #[CoversClass(TemporalMetadata::class)]
 final class TemporalMetadataTest extends TestCase
 {
+    /**
+     * Mutates both constructor inputs after metadata creation, including their
+     * timezones. The DTO must retain independent snapshots with the original
+     * named zones and microseconds so grouping cannot change through aliases.
+     *
+     * @return void
+     */
+    #[Test]
+    public function mutableConstructorDatesCannotChangeStoredMetadata(): void
+    {
+        $capture  = new DateTime('2024-01-15 10:30:00.123456', new DateTimeZone('Europe/Berlin'));
+        $raw      = new DateTime('2024-01-15 09:00:00.654321', new DateTimeZone('UTC'));
+        $metadata = new TemporalMetadata($capture, null, rawQuickTimeCreateDate: $raw);
+
+        $capture->modify('+1 day')->setTimezone(new DateTimeZone('Asia/Tokyo'));
+        $raw->modify('+2 hours')->setTimezone(new DateTimeZone('America/New_York'));
+
+        $storedCapture = $metadata->getCaptureDateTime();
+        $storedRaw     = $metadata->getRawQuickTimeCreateDate();
+        self::assertNotNull($storedCapture);
+        self::assertNotNull($storedRaw);
+        self::assertSame('2024-01-15 10:30:00.123456+01:00', $storedCapture->format('Y-m-d H:i:s.uP'));
+        self::assertSame('Europe/Berlin', $storedCapture->getTimezone()->getName());
+        self::assertSame('2024-01-15 09:00:00.654321+00:00', $storedRaw->format('Y-m-d H:i:s.uP'));
+        self::assertSame('UTC', $storedRaw->getTimezone()->getName());
+    }
+
+    /**
+     * Supplies a mutable timestamp to the native clone-with path, then modifies
+     * that input. Normalization must also occur here because cloning bypasses
+     * the constructor; the original and raw provenance must remain unchanged.
+     *
+     * @return void
+     */
+    #[Test]
+    public function mutableWitherDateCannotChangeOriginalOrCopy(): void
+    {
+        $capture  = new DateTimeImmutable('2024-01-15T10:30:00.123456+00:00');
+        $raw      = new DateTimeImmutable('2024-01-15T09:00:00.654321+00:00');
+        $original = new TemporalMetadata($capture, null, rawQuickTimeCreateDate: $raw);
+        $updated  = new DateTime('2024-01-15 11:30:00.987654', new DateTimeZone('Europe/Berlin'));
+        $copy     = $original->withCaptureDateTime($updated);
+
+        $updated->modify('+1 month')->setTimezone(new DateTimeZone('UTC'));
+
+        $stored = $copy->getCaptureDateTime();
+        self::assertNotNull($stored);
+        self::assertSame('2024-01-15 11:30:00.987654+01:00', $stored->format('Y-m-d H:i:s.uP'));
+        self::assertSame('Europe/Berlin', $stored->getTimezone()->getName());
+        self::assertSame($capture, $original->getCaptureDateTime());
+        self::assertSame($raw, $original->getRawQuickTimeCreateDate());
+        self::assertSame($raw, $copy->getRawQuickTimeCreateDate());
+    }
+
+    /**
+     * Obtains both timestamps after mutable inputs were accepted. The exposed
+     * objects must be immutable: modify returns a separate value and cannot
+     * alter the timestamp retained by either metadata getter.
+     *
+     * @return void
+     */
+    #[Test]
+    public function dateGettersExposeOnlyImmutableValues(): void
+    {
+        $metadata = new TemporalMetadata(
+            new DateTime('2024-01-15T10:30:00.123456+00:00'),
+            null,
+            rawQuickTimeCreateDate: new DateTime('2024-01-15T09:00:00.654321+00:00'),
+        );
+        $capture = $metadata->getCaptureDateTime();
+        $raw     = $metadata->getRawQuickTimeCreateDate();
+        self::assertInstanceOf(DateTimeImmutable::class, $capture);
+        self::assertInstanceOf(DateTimeImmutable::class, $raw);
+        self::assertNotSame($capture, $capture->modify('+1 day'));
+        self::assertNotSame($raw, $raw->modify('+1 day'));
+        self::assertSame('2024-01-15 10:30:00.123456', $metadata->getCaptureDateTime()?->format('Y-m-d H:i:s.u'));
+        self::assertSame('2024-01-15 09:00:00.654321', $metadata->getRawQuickTimeCreateDate()?->format('Y-m-d H:i:s.u'));
+    }
+
+    /**
+     * Keeps absent timestamps null through construction and a capture-only
+     * update. An immutable replacement is retained by identity rather than
+     * copied, and no raw QuickTime date is invented by the wither.
+     *
+     * @return void
+     */
+    #[Test]
+    public function absentDatesStayNullAndImmutableWitherInputRetainsIdentity(): void
+    {
+        $metadata = new TemporalMetadata(null, null);
+        self::assertNull($metadata->getCaptureDateTime());
+        self::assertNull($metadata->getRawQuickTimeCreateDate());
+
+        $updated = new DateTimeImmutable('2024-01-15 11:30:00.987654', new DateTimeZone('Asia/Kathmandu'));
+        $copy    = $metadata->withCaptureDateTime($updated);
+        self::assertSame($updated, $copy->getCaptureDateTime());
+        self::assertNull($copy->getRawQuickTimeCreateDate());
+        self::assertNull($metadata->getCaptureDateTime());
+    }
+
     /**
      * Replaces only the capture timestamp of fully populated synthetic metadata.
      * Raw QuickTime provenance, pairing markers, quality flags, device signals,

@@ -101,7 +101,7 @@ Supported file types: `jpg`, `jpeg`, `heic`, `heif`, `avi`, `mov`, `mp4`, `m4v`.
 > environment variable / `.env` setting) converts the UTC timestamp to local time. EXIF
 > dates in images are not affected (those are already in local camera time).
 
-Capture-time adjustments retain the raw QuickTime `CreateDate` alongside the adjusted timestamp, preserving the original timestamp's provenance and the other extracted metadata.
+Capture-time adjustments retain the raw QuickTime `CreateDate` alongside the adjusted timestamp, preserving the original timestamp's provenance and the other extracted metadata. Both timestamps are stored as immutable values, so modifying a caller's input date cannot alter previously extracted metadata.
 
 ### `rename:pattern` / `rename:date` options
 
