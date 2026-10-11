@@ -1,33 +1,94 @@
 #!/usr/bin/env bash
 
-set -e
-
+set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-CURRENT_VERSION="$(cat version)"
-echo "Last version: ${CURRENT_VERSION}"
-
-read -p "Enter new version: " VERSION
-
-if [ -z "${VERSION}" ]; then
-    echo "Version is required"
+# A local release is intentionally strict: never stash/reset foreign changes.
+if [[ -n "$(git status --porcelain=v1 --untracked-files=all)" ]]; then
+    echo "Release requires a clean worktree and index; no files were changed." >&2
     exit 1
 fi
 
-if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
-    echo "Invalid version format. Expected: X.Y.Z or X.Y.Z-suffix"
+release_base="$(git rev-parse --verify HEAD)"
+if ! release_branch="$(git symbolic-ref --quiet --short HEAD)"; then
+    echo "Release requires a named branch with a configured remote upstream." >&2
+    exit 1
+fi
+if ! release_remote="$(git config --get "branch.${release_branch}.remote")" || \
+    ! release_branch_ref="$(git config --get "branch.${release_branch}.merge")"; then
+    echo "Release requires a configured remote upstream; no files were changed." >&2
+    exit 1
+fi
+if [[ "${release_remote}" == . || "${release_branch_ref}" != refs/heads/* ]]; then
+    echo "Release requires a remote branch upstream; no files were changed." >&2
     exit 1
 fi
 
-if [ "${VERSION}" == "${CURRENT_VERSION}" ]; then
-    echo "Version ${VERSION} is already released"
+release_previous="$(cat version)"
+echo "Last version: ${release_previous}"
+if ! read -r -p "Enter new version: " release_version || [[ -z "${release_version}" ]]; then
+    echo "Version is required." >&2
+    exit 1
+fi
+if [[ ! "${release_version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]] || \
+    ! git check-ref-format "refs/tags/${release_version}"; then
+    echo "Invalid version format. Expected: X.Y.Z or X.Y.Z-suffix." >&2
+    exit 1
+fi
+if [[ "${release_version}" == "${release_previous}" ]] || \
+    git show-ref --verify --quiet "refs/tags/${release_version}"; then
+    echo "Version/tag ${release_version} already exists; no files were changed." >&2
+    exit 1
+fi
+if ! release_remote_tag="$(git ls-remote --tags -- "${release_remote}" "refs/tags/${release_version}")"; then
+    echo "Unable to verify remote release tags; no files were changed." >&2
+    exit 1
+fi
+if [[ -n "${release_remote_tag}" ]]; then
+    echo "Remote release tag ${release_version} already exists; no files were changed." >&2
     exit 1
 fi
 
-echo "${VERSION}" > version
+# The gate sees exactly the intended version bytes. Failure leaves the proposed
+# local edit for inspection; it never restores or removes someone else's work.
+printf '%s\n' "${release_version}" > version
+release_version_hash="$(git hash-object version)"
+if ! make test; then
+    echo "Quality gates failed. No release commit, tag or push; inspect the retained version change." >&2
+    exit 1
+fi
 
-git add version
-git commit -m "release: ${VERSION}"
-git tag -- "${VERSION}"
-git push
-git push --tags
+# Reject untested side effects from tools or another writer before staging.
+if [[ "$(git rev-parse HEAD)" != "${release_base}" || \
+    "$(git symbolic-ref --quiet --short HEAD)" != "${release_branch}" || \
+    "$(git hash-object version)" != "${release_version_hash}" || \
+    "$(git status --porcelain=v1 --untracked-files=all)" != ' M version' ]]; then
+    echo "Working state changed during quality gates. No release commit, tag or push; inspect retained changes." >&2
+    exit 1
+fi
+
+if ! git add -- version || ! git commit --only --signoff -m "Release version ${release_version}" -- version; then
+    echo "Release commit failed; no tag or push. Inspect the retained local version/index." >&2
+    exit 1
+fi
+release_commit="$(git rev-parse HEAD)"
+if [[ "$(git rev-parse HEAD^)" != "${release_base}" || \
+    "$(git diff --name-only "${release_base}" "${release_commit}")" != version || \
+    "$(git rev-parse "${release_commit}:version")" != "${release_version_hash}" ]]; then
+    echo "Release commit differs from the verified state; no tag or push. Inspect the local commit." >&2
+    exit 1
+fi
+if ! git tag -- "${release_version}" "${release_commit}"; then
+    echo "Release tag creation failed; local commit retained, nothing pushed." >&2
+    exit 1
+fi
+
+# Never fall back to independent pushes: an unsupported/rejected atomic push
+# fails closed. Pin both remote refs to the tested commit, never moving HEAD.
+# Local commit/tag remain available for reconciliation, not replay.
+if ! git push --atomic -- "${release_remote}" \
+    "${release_commit}:${release_branch_ref}" "${release_commit}:refs/tags/${release_version}"; then
+    echo "Atomic publication failed. Local release commit/tag retained; inspect remote refs before retrying." >&2
+    exit 1
+fi
+echo "Released ${release_version}: ${release_commit} and ${release_branch_ref}."

@@ -563,6 +563,10 @@ make binary         # Init SPC environment + compile the renamer binary
 make binary-clean   # Remove SPC build artifacts to free space
 ```
 
+`make version` requires a clean worktree/index and a configured remote upstream. It rejects existing local/remote release tags before changing `version`, runs the complete Docker-backed `make test` on the proposed version, rejects unexpected gate side effects, and commits only `version` with an imperative subject and DCO. It publishes exactly the configured branch and new tag using one atomic push pinned to the tested release commit; unsupported atomicity fails without separate fallback pushes.
+
+A gate failure retains the proposed local version change for inspection and creates no release commit/tag/push. Commit/tag or publication failures retain the relevant local state. Inspect local history and actual remote refs before retrying: a lost server acknowledgement can report failure even when both remote refs were updated. The helper never stashes, resets or removes foreign work. Regression tests use temporary repositories, a local bare remote and stub Make/controlled Git failures; they publish no project release.
+
 ### Other targets
 
 | Target              | Description                                           |
