@@ -164,6 +164,7 @@ final class VerifyCommand extends Command
         $this->configureProviderTimezone($this->exifMetadataProvider, $input);
 
         $cache = $this->configureProviderCache($this->exifMetadataProvider);
+        $this->reportCacheDiagnostic($cache, $io);
 
         $files = $isSingleFile
             ? [new SplFileInfo($source)]
@@ -196,7 +197,7 @@ final class VerifyCommand extends Command
         $okCount                                      = $scanResult->okCount;
 
         // Flush metadata cache
-        $cache->flush();
+        $this->flushCache($cache, $io);
         $this->exifMetadataProvider->clearCache();
 
         // Post-scan summary before detailed listing

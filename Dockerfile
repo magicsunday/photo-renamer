@@ -46,7 +46,10 @@ COPY --from=runtime-vendor /app/config /app/config/
 COPY --from=runtime-vendor /app/version /app/version
 COPY --from=runtime-vendor /app/.build/vendor /app/.build/vendor/
 COPY --from=runtime-vendor /app/.build/cache/DependencyContainer.php /app/.build/cache/DependencyContainer.php
+COPY --from=runtime-vendor /app/.build/cache/DependencyContainer.php.meta /app/.build/cache/DependencyContainer.php.meta
+COPY --from=runtime-vendor /app/.build/cache/DependencyContainer.php.meta.json /app/.build/cache/DependencyContainer.php.meta.json
 COPY scripts/clear-cache.php /app/scripts/clear-cache.php
+COPY scripts/prune-cache.php /app/scripts/prune-cache.php
 COPY scripts/runtime-resources-smoke.php /app/scripts/runtime-resources-smoke.php
 COPY scripts/runtime-image-smoke.sh /app/scripts/runtime-image-smoke.sh
 COPY config/imagemagick-policy.xml /etc/ImageMagick-7/policy.xml

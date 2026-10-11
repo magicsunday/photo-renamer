@@ -164,6 +164,7 @@ use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Tester\CommandTester;
+use Symfony\Component\Filesystem\Exception\IOException;
 use Symfony\Component\Filesystem\Filesystem;
 
 use function array_filter;
@@ -172,8 +173,10 @@ use function array_search;
 use function array_values;
 use function file_get_contents;
 use function file_put_contents;
+use function getenv;
 use function mkdir;
 use function preg_replace;
+use function putenv;
 use function rtrim;
 use function str_contains;
 use function str_starts_with;
@@ -1040,6 +1043,44 @@ final class RenameByExifDateCommandTest extends TestCase
     }
 
     /**
+     * Fails the optional JSON cache append after the real command has renamed a
+     * synthetic source. The physical result and successful operation count must
+     * survive, with a visible cache warning instead of a late uncaught failure.
+     *
+     * @return void
+     */
+    #[Test]
+    public function cachePersistenceFailurePreservesCompletedRenameAndEmitsWarning(): void
+    {
+        $workspace        = $this->createTempWorkspace('cache-flush-failure-');
+        $previousCacheDir = getenv('CACHE_DIR');
+        putenv('CACHE_DIR=' . $workspace . '/cache');
+
+        try {
+            $source = $workspace . '/source.jpg';
+            file_put_contents($source, 'synthetic media');
+            $metadata = new StubMetadataExtractor();
+            $metadata->withResponse($source, new TemporalMetadata(new DateTimeImmutable('2024-01-15T10:30:00Z'), null));
+            $filesystem = self::getMockBuilder(Filesystem::class)->onlyMethods(['appendToFile'])->getMock();
+            $filesystem->expects(self::once())->method('appendToFile')->willThrowException(new IOException('Controlled optional cache failure.'));
+            $output = $this->runCommandOutput($workspace, $metadata, false, cacheFilesystem: $filesystem);
+            self::assertFileDoesNotExist($source);
+            self::assertSame('synthetic media', file_get_contents($workspace . '/2024-01-15_10-30-00-000.jpg'));
+            self::assertStringContainsString('Cache persistence failed', $output);
+            self::assertStringContainsString('Completed media operations remain counted', $output);
+            self::assertMatchesRegularExpression('/Files processed\s+1/', $output);
+        } finally {
+            if ($previousCacheDir === false) {
+                putenv('CACHE_DIR');
+            } else {
+                putenv('CACHE_DIR=' . $previousCacheDir);
+            }
+
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
      * Runs the real EXIF command with controlled metadata and explicit execution
      * options so tests can compare preview decisions with actual file outcomes.
      *
@@ -1050,10 +1091,11 @@ final class RenameByExifDateCommandTest extends TestCase
      * @param int                                              $maximumPairs         Comparison visits allowed per capture group
      * @param int                                              $expectedExitCode     Required command outcome, including fail-closed analysis
      * @param CrossGroupVideoDuplicateReconcilerInterface|null $crossGroupReconciler Optional batch analysis boundary for video failure tests
+     * @param Filesystem|null                                  $cacheFilesystem      Optional cache-only I/O boundary for persistence-failure tests
      *
      * @return string Renderer output captured from the command's collaborators
      */
-    private function runCommandOutput(string $workspace, StubMetadataExtractor $metadataExtractor, bool $dryRun = true, ?int $maxDateDrift = null, int $maximumPairs = 100000, int $expectedExitCode = Command::SUCCESS, ?CrossGroupVideoDuplicateReconcilerInterface $crossGroupReconciler = null): string
+    private function runCommandOutput(string $workspace, StubMetadataExtractor $metadataExtractor, bool $dryRun = true, ?int $maxDateDrift = null, int $maximumPairs = 100000, int $expectedExitCode = Command::SUCCESS, ?CrossGroupVideoDuplicateReconcilerInterface $crossGroupReconciler = null, ?Filesystem $cacheFilesystem = null): string
     {
         $output           = new BufferedOutput();
         $style            = new SymfonyStyle(new ArrayInput([]), $output);
@@ -1105,7 +1147,7 @@ final class RenameByExifDateCommandTest extends TestCase
                 $livePhotoConflictDetector,
             ),
             new SafeRegex(),
-            new Filesystem(),
+            $cacheFilesystem ?? new Filesystem(),
             new ExifMetadataProvider($metadataExtractor),
             new StubPerceptualHashCalculator(),
             $hashSubGroupingService,

@@ -166,6 +166,8 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
 
         $metadataCache = $this->configureProviderCache($this->exifMetadataProvider);
         $signalCache   = $this->createPerceptualSignalCache();
+        $this->reportCacheDiagnostic($metadataCache, $this->io);
+        $this->reportCacheDiagnostic($signalCache, $this->io);
 
         if ($this->perceptualHashCalculator instanceof PerceptualHashCalculator) {
             $this->perceptualHashCalculator->setSignalCache($signalCache);
@@ -196,8 +198,8 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
 
             return self::FAILURE;
         } finally {
-            $metadataCache->flush();
-            $signalCache->flush();
+            $this->flushCache($metadataCache, $this->io);
+            $this->flushCache($signalCache, $this->io);
         }
     }
 

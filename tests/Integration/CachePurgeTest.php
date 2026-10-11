@@ -11,11 +11,16 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Integration;
 
+use MagicSunday\Renamer\Helper\PrivateCacheStorage;
+use MagicSunday\Renamer\Metadata\MetadataCache;
+use MagicSunday\Renamer\Service\Filesystem\BatchRunLock;
+use MagicSunday\Renamer\Service\PerceptualHash\PerceptualSignalCache;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use SplFileInfo;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
 
@@ -32,6 +37,76 @@ use const PHP_BINARY;
 final class CachePurgeTest extends TestCase
 {
     use WorkspaceTrait;
+
+    /**
+     * Runs actual maintenance against two cached synthetic sources, removing
+     * only the missing path from each snapshot. Existing media, journals, DI
+     * metadata and unrelated data remain intact; an active mutation lock blocks
+     * maintenance before any selected snapshot can be changed.
+     *
+     * @return void
+     */
+    #[Test]
+    public function pruningPreservesMediaAndHistoryAndRespectsMutationLock(): void
+    {
+        $workspace  = $this->createTempWorkspace('cache-prune-script-');
+        $filesystem = new Filesystem();
+        $base       = $workspace . '/cache';
+        $storage    = new PrivateCacheStorage($filesystem);
+        $private    = $storage->directory($base);
+        $script     = $workspace . '/scripts/prune-cache.php';
+        $filesystem->copy(dirname(__DIR__, 2) . '/scripts/prune-cache.php', $script);
+        $filesystem->symlink(dirname(__DIR__, 2) . '/.build/vendor/autoload.php', $workspace . '/.build/vendor/autoload.php');
+
+        $retained = $workspace . '/retained.jpg';
+        $removed  = $workspace . '/removed.jpg';
+        $filesystem->dumpFile($retained, 'retained synthetic media');
+        $filesystem->dumpFile($removed, 'removed synthetic media');
+
+        $metadata = new MetadataCache($private . '/metadata-cache.json', $storage);
+        $signals  = new PerceptualSignalCache($private . '/perceptual-signal-cache.json', $storage);
+
+        foreach ([$retained, $removed] as $source) {
+            $metadata->set(new SplFileInfo($source), null);
+            $signals->set(new SplFileInfo($source), ['dhash' => null, 'whash' => null, 'hf' => null, 'hist' => null]);
+        }
+
+        $metadata->flush();
+        $signals->flush();
+        $filesystem->remove($removed);
+        $filesystem->dumpFile($private . '/mutation-synthetic.jsonl', 'retained history');
+        $filesystem->dumpFile($workspace . '/.build/cache/DependencyContainer.php.meta', 'retained DI metadata');
+
+        $process = new Process([PHP_BINARY, $script], $workspace, ['CACHE_DIR' => $base]);
+        $process->setTimeout(10.0);
+
+        try {
+            $lock     = new BatchRunLock($filesystem, $base)->acquire();
+            $snapshot = $filesystem->readFile($private . '/metadata-cache.json');
+
+            try {
+                $process->run();
+                self::assertNotSame(0, $process->getExitCode());
+                self::assertStringContainsString('Another mutating renamer', $process->getOutput() . $process->getErrorOutput());
+                self::assertSame($snapshot, $filesystem->readFile($private . '/metadata-cache.json'));
+            } finally {
+                $lock->release();
+            }
+
+            $process->mustRun();
+            self::assertStringContainsString('Pruned 1 metadata and 1 perceptual entries', $process->getOutput());
+            self::assertSame('retained synthetic media', $filesystem->readFile($retained));
+            self::assertSame('retained history', $filesystem->readFile($private . '/mutation-synthetic.jsonl'));
+            self::assertSame('retained DI metadata', $filesystem->readFile($workspace . '/.build/cache/DependencyContainer.php.meta'));
+            $fresh = new MetadataCache($private . '/metadata-cache.json', $storage);
+            self::assertNotNull($fresh->get(new SplFileInfo($retained)));
+            self::assertNull($fresh->get(new SplFileInfo($removed)));
+            $process->mustRun();
+            self::assertStringContainsString('Pruned 0 metadata and 0 perceptual entries', $process->getOutput());
+        } finally {
+            $filesystem->remove($workspace);
+        }
+    }
 
     /**
      * The current UID's private caches, old flat caches and separate DI cache are
@@ -55,6 +130,8 @@ final class CachePurgeTest extends TestCase
             $base . '/metadata-cache.json',
             $base . '/perceptual-signal-cache.json',
             $workspace . '/.build/cache/DependencyContainer.php',
+            $workspace . '/.build/cache/DependencyContainer.php.meta',
+            $workspace . '/.build/cache/DependencyContainer.php.meta.json',
         ];
 
         foreach ($paths as $pathname) {
@@ -142,11 +219,15 @@ final class CachePurgeTest extends TestCase
         $container  = $workspace . '/.build/cache/DependencyContainer.php';
         $filesystem->dumpFile($mediaCache, 'synthetic metadata');
         $filesystem->dumpFile($container, 'immutable container');
+        $filesystem->dumpFile($container . '.meta', 'immutable resources');
+        $filesystem->dumpFile($container . '.meta.json', 'immutable resource diagnostics');
 
         try {
             $process = new Process([PHP_BINARY, $script, $option], $workspace, ['CACHE_DIR' => $base]);
             $process->run();
             self::assertSame('immutable container', $filesystem->readFile($container));
+            self::assertSame('immutable resources', $filesystem->readFile($container . '.meta'));
+            self::assertSame('immutable resource diagnostics', $filesystem->readFile($container . '.meta.json'));
 
             if ($purged) {
                 self::assertSame(0, $process->getExitCode());

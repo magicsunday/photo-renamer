@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Command\Concern;
 
 use DateTimeZone;
+use JsonException;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Helper\PrivateCacheStorage;
@@ -21,6 +22,8 @@ use MagicSunday\Renamer\Service\FormatPriorityResolver;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualSignalCache;
 use Phar;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Filesystem\Exception\IOException;
 use Symfony\Component\Filesystem\Filesystem;
 
 use function dirname;
@@ -137,6 +140,44 @@ trait ConfiguresMetadataProvider
         $storage = new PrivateCacheStorage($this->getCommandFilesystem());
 
         return new PerceptualSignalCache($storage->directory($this->resolveCacheDir()) . '/perceptual-signal-cache.json', $storage);
+    }
+
+    /**
+     * Makes invalid persisted snapshots visible without exposing cached paths.
+     * Cold-cache rejection is safe to continue; private-storage boundary errors
+     * already throw during construction and are never suppressed here.
+     *
+     * @param MetadataCache|PerceptualSignalCache $cache Cache whose load outcome is reported
+     * @param SymfonyStyle                        $io    Current command output
+     *
+     * @return void
+     */
+    protected function reportCacheDiagnostic(MetadataCache|PerceptualSignalCache $cache, SymfonyStyle $io): void
+    {
+        $diagnostic = $cache->getDiagnostic();
+
+        if ($diagnostic !== null) {
+            $io->warning($diagnostic);
+        }
+    }
+
+    /**
+     * Persists optional cache work without replacing a completed media outcome
+     * with an undiagnosed I/O/serialization exception. Emit a safe warning and
+     * retain the actual operation counts; ownership/link failures still throw.
+     *
+     * @param MetadataCache|PerceptualSignalCache $cache Cache to flush after analysis/mutation
+     * @param SymfonyStyle                        $io    Current command output
+     *
+     * @return void
+     */
+    protected function flushCache(MetadataCache|PerceptualSignalCache $cache, SymfonyStyle $io): void
+    {
+        try {
+            $cache->flush();
+        } catch (IOException|JsonException $exception) {
+            $io->warning('Cache persistence failed (' . $exception::class . '); cache updates may be lost. Completed media operations remain counted.');
+        }
     }
 
     /**

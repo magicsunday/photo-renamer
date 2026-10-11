@@ -11,10 +11,15 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\PerceptualHash;
 
+use JsonException;
 use MagicSunday\Renamer\Helper\PrivateCacheStorage;
 use SplFileInfo;
 
+use function array_is_list;
 use function is_array;
+use function is_float;
+use function is_int;
+use function is_string;
 use function json_decode;
 use function json_encode;
 
@@ -35,6 +40,11 @@ use const JSON_THROW_ON_ERROR;
  */
 final class PerceptualSignalCache
 {
+    /**
+     * Safe reason when the previous persisted snapshot cannot be reused.
+     */
+    private ?string $diagnostic = null;
+
     /**
      * Bump this when the signal computation changes (e.g. Imagick normalization,
      * multi-frame video, scoring weights). Mismatched versions discard the cache.
@@ -68,6 +78,40 @@ final class PerceptualSignalCache
         private readonly PrivateCacheStorage $storage,
     ) {
         $this->load();
+    }
+
+    /**
+     * Exposes a cold-cache reason without including sensitive media pathnames.
+     *
+     * @return string|null Diagnostic for a corrupt or incompatible snapshot
+     */
+    public function getDiagnostic(): ?string
+    {
+        return $this->diagnostic;
+    }
+
+    /**
+     * Explicitly removes paths no longer visible as regular files. Call only
+     * with the expected collection mounted; inaccessible paths cause harmless
+     * cache misses, not media deletion, and pruning is never automatic.
+     *
+     * @return int Number of removed entries
+     */
+    public function pruneMissing(): int
+    {
+        $removed = 0;
+
+        foreach ($this->entries as $pathname => $entry) {
+            if (new SplFileInfo($pathname)->isFile()) {
+                continue;
+            }
+
+            unset($this->entries[$pathname]);
+            ++$removed;
+            $this->dirty = true;
+        }
+
+        return $removed;
     }
 
     /**
@@ -132,7 +176,8 @@ final class PerceptualSignalCache
      * Persists the cache to disk if any entries were added or invalidated.
      *
      * Uses atomic file dump to ensure the JSON cache remains consistent
-     * even if the process is interrupted.
+     * even if the process is interrupted. Overlapping writers replace complete
+     * snapshots; the last writer wins without a read-modify-write merge.
      */
     public function flush(): void
     {
@@ -162,26 +207,92 @@ final class PerceptualSignalCache
         $contents = $this->storage->read($this->cacheFile);
 
         if ($contents === null) {
+            if (new SplFileInfo($this->cacheFile)->isFile()) {
+                $this->diagnostic = 'Perceptual cache could not be read; starting cold.';
+            }
+
             return;
         }
 
-        $data = json_decode($contents, true);
+        try {
+            $data = json_decode($contents, true, flags: JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            $this->diagnostic = 'Perceptual cache contains invalid JSON; starting cold.';
+
+            return;
+        }
 
         if (!is_array($data)) {
+            $this->diagnostic = 'Perceptual cache format is invalid; starting cold.';
+
             return;
         }
 
         // Discard cache if version mismatch (signal computation changed)
         if (($data['_version'] ?? 0) !== self::CACHE_VERSION) {
-            $this->dirty = true;
+            $this->dirty      = true;
+            $this->diagnostic = 'Perceptual cache version changed; starting cold.';
 
             return;
         }
 
-        if (is_array($data['entries'] ?? null)) {
-            /** @var array<string, array{mtime: int, size: int, dhash: string|null, whash: string|null, hf: float|null, hist: list<float>|null}> $entries */
-            $entries       = $data['entries'];
-            $this->entries = $entries;
+        if (!is_array($data['entries'] ?? null)) {
+            $this->diagnostic = 'Perceptual cache entries are invalid; starting cold.';
+
+            return;
+        }
+
+        foreach ($data['entries'] as $pathname => $entry) {
+            if (!is_string($pathname) || !is_array($entry)
+                || !is_int($entry['mtime'] ?? null) || !is_int($entry['size'] ?? null)
+            ) {
+                $this->entries    = [];
+                $this->diagnostic = 'Perceptual cache entries are invalid; starting cold.';
+
+                return;
+            }
+
+            $dhash = $entry['dhash'] ?? null;
+            $whash = $entry['whash'] ?? null;
+            $hf    = $entry['hf'] ?? null;
+            $hist  = $entry['hist'] ?? null;
+
+            if ((!is_string($dhash) && ($dhash !== null))
+                || (!is_string($whash) && ($whash !== null))
+                || (!is_float($hf) && !is_int($hf) && ($hf !== null))
+                || (($hist !== null) && (!is_array($hist) || !array_is_list($hist)))
+            ) {
+                $this->entries    = [];
+                $this->diagnostic = 'Perceptual cache signals are invalid; starting cold.';
+
+                return;
+            }
+
+            $normalizedHistogram = null;
+
+            if (is_array($hist)) {
+                $normalizedHistogram = [];
+
+                foreach ($hist as $value) {
+                    if (!is_float($value) && !is_int($value)) {
+                        $this->entries    = [];
+                        $this->diagnostic = 'Perceptual cache histogram is invalid; starting cold.';
+
+                        return;
+                    }
+
+                    $normalizedHistogram[] = (float) $value;
+                }
+            }
+
+            $this->entries[$pathname] = [
+                'mtime' => $entry['mtime'],
+                'size'  => $entry['size'],
+                'dhash' => $dhash,
+                'whash' => $whash,
+                'hf'    => $hf !== null ? (float) $hf : null,
+                'hist'  => $normalizedHistogram,
+            ];
         }
     }
 }
