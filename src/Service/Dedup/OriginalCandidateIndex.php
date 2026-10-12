@@ -19,7 +19,9 @@ use SplFileInfo;
  *
  * The index is intentionally lightweight: it does not classify files or decide
  * which candidate should win. It only provides efficient lookup of possible
- * originals that can later be evaluated by the matcher policy.
+ * originals that can later be evaluated by the matcher policy. Immutable
+ * per-run format ranks keep simultaneous/repeated indexes independent without
+ * storing environment-derived configuration in a shared matcher.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -29,9 +31,11 @@ final readonly class OriginalCandidateIndex
 {
     /**
      * @param array<string, list<SplFileInfo>> $candidatesByBasename Candidates keyed by clean basename
+     * @param array<string, int>               $formatPriorityRanks  Explicit per-run normalized extension ranks
      */
     public function __construct(
         private array $candidatesByBasename,
+        public array $formatPriorityRanks = [],
     ) {
     }
 

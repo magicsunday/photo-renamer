@@ -23,6 +23,17 @@ use SplFileInfo;
 interface PerceptualHashCalculatorInterface
 {
     /**
+     * Starts the next run with its explicitly selected persistent signal cache.
+     * Implementations without persistence may ignore the storage; previous
+     * transient results must not affect a newly attached cache.
+     *
+     * @param PerceptualSignalCache|null $signalCache Cache owned by the current run; null detaches persistent storage
+     *
+     * @return void
+     */
+    public function setSignalCache(?PerceptualSignalCache $signalCache): void;
+
+    /**
      * Computes a multi-signal similarity score between two files.
      * Uses dHash, wHash, HF-energy, color histogram, and optional video duration.
      *

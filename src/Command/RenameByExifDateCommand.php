@@ -25,9 +25,7 @@ use MagicSunday\Renamer\Service\CanonicalScorerInterface;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilderInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
-use MagicSunday\Renamer\Service\HashSubGroupingService;
 use MagicSunday\Renamer\Service\HashSubGroupingServiceInterface;
-use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
 use MagicSunday\Renamer\Service\Pipeline\AssetGroupPipeline;
 use MagicSunday\Renamer\Service\Pipeline\PipelineReviewMapper;
@@ -165,30 +163,28 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
             $this->exifDateFilenameStrategy = null;
         }
 
-        $this->configureProviderTimezone($this->exifMetadataProvider, $this->input);
+        // Resolve selected inputs once, before touching caches or shared services.
+        $timezone       = $this->resolveTimezone($this->input);
+        $mergeThreshold = $this->resolveMergeThreshold($this->input);
+        $formatPriority = $this->resolveFormatPriority();
+        $cacheDirectory = $this->resolveCacheDir();
 
-        $metadataCache = $this->configureProviderCache($this->exifMetadataProvider);
-        $signalCache   = $this->createPerceptualSignalCache();
+        $this->exifMetadataProvider->clearCache();
+        $this->exifMetadataProvider->setDefaultTimezone($timezone);
+
+        $metadataCache = $this->configureProviderCache($this->exifMetadataProvider, $cacheDirectory);
+        $signalCache   = $this->createPerceptualSignalCache($cacheDirectory);
         $this->reportCacheDiagnostic($metadataCache, $this->io);
         $this->reportCacheDiagnostic($signalCache, $this->io);
-
-        if ($this->perceptualHashCalculator instanceof PerceptualHashCalculator) {
-            $this->perceptualHashCalculator->setSignalCache($signalCache);
-        }
-
-        if ($this->hashSubGroupingService instanceof HashSubGroupingService) {
-            $this->hashSubGroupingService->setMaxMergeRmse(
-                $this->resolveMergeThreshold($this->input),
-            );
-        }
-
-        // Configure score-based canonical selection
-        $this->canonicalScorer->setFormatPriority($this->resolveFormatPriority());
-        $this->canonicalScorer->setSourceDirectory($this->sourceDirectory);
 
         $memoryAborted = false;
 
         try {
+            $this->perceptualHashCalculator->setSignalCache($signalCache);
+            $this->hashSubGroupingService->setMaxMergeRmse($mergeThreshold);
+            $this->canonicalScorer->setFormatPriority($formatPriority);
+            $this->canonicalScorer->setSourceDirectory($this->sourceDirectory);
+
             if (!$this->processWithAssetGroups()) {
                 $this->io->error('Completed with errors. See the summary for actual results.');
 
@@ -212,9 +208,15 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
         } finally {
             // Serializing an optional full snapshot would reintroduce growth
             // after a planned low-memory stop; keep the previous disk cache.
-            if (!$memoryAborted) {
-                $this->flushCache($metadataCache, $this->io);
-                $this->flushCache($signalCache, $this->io);
+            try {
+                if (!$memoryAborted) {
+                    $this->flushCache($metadataCache, $this->io);
+                    $this->flushCache($signalCache, $this->io);
+                }
+            } finally {
+                // Other CLI workflows share these services, but not EXIF run settings.
+                $this->perceptualHashCalculator->setSignalCache(null);
+                $this->hashSubGroupingService->setMaxMergeRmse(null);
             }
         }
     }
@@ -369,6 +371,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
             listAll: $this->listAll,
             sourceBaseDirectory: $this->sourceDirectory,
             maxDateDrift: $this->maxDateDrift,
+            linkConfig: $this->linkConfig,
         );
 
         $this->io->text('<fg=cyan>Renaming files</>');

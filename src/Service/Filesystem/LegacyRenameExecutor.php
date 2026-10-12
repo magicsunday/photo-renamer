@@ -142,7 +142,7 @@ final readonly class LegacyRenameExecutor
         ?string $sourceBaseDirectory = null,
         ?array $showFilter = null,
     ): OutputCounters {
-        $counters = $this->renderer->renderEntryLines($outputEntries, $sourceBaseDirectory, $showFilter);
+        $counters = $this->renderer->renderEntryLines($outputEntries, $sourceBaseDirectory, $showFilter, $options->linkConfig);
 
         foreach ($outputEntries as $entry) {
             if (!$entry->isRename()) {

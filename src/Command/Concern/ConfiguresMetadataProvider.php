@@ -14,11 +14,13 @@ namespace MagicSunday\Renamer\Command\Concern;
 use DateTimeZone;
 use InvalidArgumentException;
 use JsonException;
+use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Helper\PrivateCacheStorage;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\MetadataCache;
+use MagicSunday\Renamer\Model\LinkConfig;
 use MagicSunday\Renamer\Service\FormatPriorityResolver;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualSignalCache;
 use Phar;
@@ -85,9 +87,8 @@ trait ConfiguresMetadataProvider
     {
         $timezone = $this->resolveTimezone($input);
 
-        if ($timezone instanceof DateTimeZone) {
-            $provider->setDefaultTimezone($timezone);
-        }
+        $provider->clearCache();
+        $provider->setDefaultTimezone($timezone);
     }
 
     /**
@@ -121,20 +122,32 @@ trait ConfiguresMetadataProvider
     }
 
     /**
+     * Resolves terminal link settings once at the CLI boundary. Services receive
+     * the immutable values explicitly and never re-read process environment.
+     *
+     * @return LinkConfig Current run's optional host path and protocol settings
+     */
+    protected function resolveLinkConfig(): LinkConfig
+    {
+        return new LinkConfig(FileHelper::env('FILE_LINK_ROOT'), FileHelper::env('FILE_LINK_BASE'), FileHelper::env('FILE_LINK_PROTOCOL'));
+    }
+
+    /**
      * Configures and initializes the persistent metadata cache.
      *
      * This speeds up subsequent runs by storing extracted EXIF/QuickTime
      * metadata in a JSON file, avoiding expensive re-extraction with exiftool.
      *
-     * @param ExifMetadataProvider $provider The provider to which the cache
-     *                                       should be attached.
+     * @param ExifMetadataProvider $provider       The provider to which the cache
+     *                                             should be attached.
+     * @param string|null          $cacheDirectory Already resolved run directory; null uses the command default
      *
      * @return MetadataCache The initialized cache instance.
      */
-    protected function configureProviderCache(ExifMetadataProvider $provider): MetadataCache
+    protected function configureProviderCache(ExifMetadataProvider $provider, ?string $cacheDirectory = null): MetadataCache
     {
         $storage = new PrivateCacheStorage($this->getCommandFilesystem());
-        $cache   = new MetadataCache($storage->directory($this->resolveCacheDir()) . '/metadata-cache.json', $storage);
+        $cache   = new MetadataCache($storage->directory($cacheDirectory ?? $this->resolveCacheDir()) . '/metadata-cache.json', $storage);
 
         $provider->setCache($cache);
 
@@ -147,13 +160,15 @@ trait ConfiguresMetadataProvider
      * This cache stores computed dHash, wHash, and HF-energy values to avoid
      * expensive re-computation during perceptual duplicate detection.
      *
+     * @param string|null $cacheDirectory Already resolved run directory; null uses the command default
+     *
      * @return PerceptualSignalCache The initialized signal cache.
      */
-    protected function createPerceptualSignalCache(): PerceptualSignalCache
+    protected function createPerceptualSignalCache(?string $cacheDirectory = null): PerceptualSignalCache
     {
         $storage = new PrivateCacheStorage($this->getCommandFilesystem());
 
-        return new PerceptualSignalCache($storage->directory($this->resolveCacheDir()) . '/perceptual-signal-cache.json', $storage);
+        return new PerceptualSignalCache($storage->directory($cacheDirectory ?? $this->resolveCacheDir()) . '/perceptual-signal-cache.json', $storage);
     }
 
     /**
@@ -203,7 +218,7 @@ trait ConfiguresMetadataProvider
      *
      * @return string The resolved absolute path to the cache directory.
      */
-    private function resolveCacheDir(): string
+    protected function resolveCacheDir(): string
     {
         $envDir = FileHelper::env('CACHE_DIR');
 
@@ -289,7 +304,7 @@ trait ConfiguresMetadataProvider
      *
      * @throws InvalidArgumentException When the selected value is non-numeric, non-finite or out of range
      */
-    protected function resolveMergeThreshold(InputInterface $input, float $default = 0.06): float
+    protected function resolveMergeThreshold(InputInterface $input, float $default = Constants::DEFAULT_MERGE_THRESHOLD): float
     {
         $option = $input->getOption('merge-threshold');
 

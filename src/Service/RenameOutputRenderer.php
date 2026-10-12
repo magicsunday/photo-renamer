@@ -23,6 +23,7 @@ use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
 use MagicSunday\Renamer\Model\Execution\ExecutionPreview;
 use MagicSunday\Renamer\Model\Execution\ExecutionResult;
 use MagicSunday\Renamer\Model\FileDuplicate;
+use MagicSunday\Renamer\Model\LinkConfig;
 use MagicSunday\Renamer\Model\OutputEntry;
 use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\Rename;
@@ -447,7 +448,7 @@ final readonly class RenameOutputRenderer
             $sourceBaseDirectory,
         );
 
-        $counters = $this->renderEntryLines($buildResult->entries, $sourceBaseDirectory, $showFilter);
+        $counters = $this->renderEntryLines($buildResult->entries, $sourceBaseDirectory, $showFilter, $options->linkConfig);
 
         return new ExecutionPreview(
             plannedMoves: $counters->plannedMoves,
@@ -690,6 +691,7 @@ final readonly class RenameOutputRenderer
      * @param list<OutputEntry> $outputEntries       Sorted output entries
      * @param string|null       $sourceBaseDirectory Base directory for linkified paths
      * @param list<string>|null $showFilter          Tag filter (null = show all)
+     * @param LinkConfig|null   $linkConfig          Explicit run link settings, null disables links
      *
      * @return OutputCounters Immutable render counters shared with legacy execution
      */
@@ -697,12 +699,14 @@ final readonly class RenameOutputRenderer
         array $outputEntries,
         ?string $sourceBaseDirectory = null,
         ?array $showFilter = null,
+        ?LinkConfig $linkConfig = null,
     ): OutputCounters {
         return $this->entryPresenter->render(
             $outputEntries,
             $this->io,
             $sourceBaseDirectory,
             $showFilter,
+            $linkConfig,
         );
     }
 

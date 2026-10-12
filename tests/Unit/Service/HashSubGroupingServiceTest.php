@@ -707,7 +707,8 @@ final class HashSubGroupingServiceTest extends TestCase
 
     /**
      * Verifies that an explicit stricter merge threshold still overrides the
-     * dHash-exact safe zone.
+     * dHash-exact safe zone. Resetting afterward restores the default for a
+     * fresh group on the same service, without retaining the prior run's policy.
      */
     #[Test]
     public function applyKeepsDhashExactFormatNoiseSeparateWhenUserThresholdIsStricter(): void
@@ -750,6 +751,15 @@ final class HashSubGroupingServiceTest extends TestCase
         );
 
         self::assertIsArray($result, 'A stricter user threshold must keep the files in separate sub-groups.');
+
+        // A later legacy/default run cannot inherit the prior EXIF threshold.
+        $service->setMaxMergeRmse(null);
+        $nextGroup     = new FileDuplicate();
+        $nextCanonical = new Rename(new SplFileInfo($fileA), new SplFileInfo($target));
+        $nextDuplicate = new Rename(new SplFileInfo($fileB), new SplFileInfo($target));
+        $nextGroup->addFile(new SplFileInfo($fileA))->addFile(new SplFileInfo($fileB))->setTarget(new SplFileInfo($target));
+        $nextGroup->addRename($nextCanonical)->addRename($nextDuplicate);
+        self::assertNull($service->apply($nextGroup, $nextCanonical, null, [], $this->createTargetPathnameResolver($sourceDirectory, $targetDirectory)), 'Resetting the run must restore the native default merge policy.');
     }
 
     /**

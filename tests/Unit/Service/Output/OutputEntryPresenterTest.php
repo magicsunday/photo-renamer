@@ -71,6 +71,33 @@ use function substr_count;
 final class OutputEntryPresenterTest extends TestCase
 {
     /**
+     * Explicit link settings can differ between renders on one presenter,
+     * without consulting or modifying environment. A later configuration must
+     * not leak its destination into a prior configuration's repeated output.
+     *
+     * @return void
+     */
+    #[Test]
+    public function explicitLinkConfigurationsRemainIndependentAcrossRenders(): void
+    {
+        [$presenter, $io, $output] = $this->createPresenter();
+        $output->setDecorated(true);
+        $entries = [OutputEntry::info('/synthetic/capture.jpg', '/synthetic/capture.jpg', 'synthetic notice')];
+        $first   = new LinkConfig('/synthetic', '/host-first', null);
+        $second  = new LinkConfig('/synthetic', '/host-second', null);
+        $presenter->render($entries, $io, '/synthetic', null, $first);
+        $firstText = $output->fetch();
+        $presenter->render($entries, $io, '/synthetic', null, $second);
+        $secondText = $output->fetch();
+        $presenter->render($entries, $io, '/synthetic', null, $first);
+        $repeatedText = $output->fetch();
+        self::assertTrue(str_contains($firstText, '/host-first'));
+        self::assertTrue(str_contains($secondText, '/host-second'));
+        self::assertFalse(str_contains($secondText, '/host-first'));
+        self::assertTrue($firstText === $repeatedText);
+    }
+
+    /**
      * Verifies that pure info entries stay hidden when the active filter excludes
      * their visual tag.
      *

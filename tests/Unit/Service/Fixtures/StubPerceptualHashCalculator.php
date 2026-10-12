@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service\Fixtures;
 
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
+use MagicSunday\Renamer\Service\PerceptualHash\PerceptualSignalCache;
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityClassification;
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityResult;
 use Override;
@@ -42,6 +43,20 @@ final class StubPerceptualHashCalculator implements PerceptualHashCalculatorInte
      * @var array<string, string|null> pathname → dHash hex string
      */
     private array $hashes = [];
+
+    /**
+     * Accepts the run's storage through the production contract. This in-memory
+     * fixture deliberately has no persistent signals; programmed fixture hashes
+     * are independent test inputs rather than cache results.
+     *
+     * @param PerceptualSignalCache|null $signalCache Unused persistent storage
+     *
+     * @return void
+     */
+    #[Override]
+    public function setSignalCache(?PerceptualSignalCache $signalCache): void
+    {
+    }
 
     /**
      * Pre-programs the dHash for a given file path.

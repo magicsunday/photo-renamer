@@ -21,6 +21,13 @@ namespace MagicSunday\Renamer;
 final class Constants
 {
     /**
+     * Default maximum perceptual merge RMSE, shared by CLI resolution and the
+     * grouping service's unconfigured state. Internal conservative caps remain
+     * stricter where needed; resetting a run must restore this same default.
+     */
+    public const float DEFAULT_MERGE_THRESHOLD = 0.06;
+
+    /**
      * String inserted between the base name and the sequential number
      * when creating duplicate-suffixed filenames (e.g. "photo-duplicate-001.jpg").
      */

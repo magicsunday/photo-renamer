@@ -16,6 +16,7 @@ use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\Collection\AbstractCollection;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
+use MagicSunday\Renamer\Model\LinkConfig;
 use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
@@ -50,6 +51,7 @@ use function uniqid;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(RenameLowerCaseCommand::class)]
+#[UsesClass(LinkConfig::class)]
 #[UsesClass(FileHelper::class)]
 #[UsesClass(AbstractCollection::class)]
 #[UsesClass(RenameOptions::class)]

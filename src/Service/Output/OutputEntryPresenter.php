@@ -58,6 +58,7 @@ final readonly class OutputEntryPresenter
      * @param SymfonyStyle      $io                  Console IO used for output
      * @param string|null       $sourceBaseDirectory Base directory used for relative links
      * @param list<string>|null $showFilter          Visible tag letters or null for all tags
+     * @param LinkConfig|null   $linkConfig          Explicit link settings; null disables links
      *
      * @return OutputCounters Immutable counters describing the rendered execution set
      */
@@ -66,9 +67,10 @@ final readonly class OutputEntryPresenter
         SymfonyStyle $io,
         ?string $sourceBaseDirectory = null,
         ?array $showFilter = null,
+        ?LinkConfig $linkConfig = null,
     ): OutputCounters {
         $maxFilenameLength = $this->resolveMaxFilenameLength($outputEntries, $showFilter);
-        $linkConfig        = LinkConfig::fromEnv();
+        $linkConfig ??= new LinkConfig(null, null, null);
 
         $fileCount           = 0;
         $duplicateCount      = 0;

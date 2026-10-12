@@ -94,7 +94,7 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
      * Configurable at runtime via setMaxMergeRmse().
      * HEIC↔JPG format conversions: 0.001–0.013. Different photos: 0.25+.
      */
-    private float $maxMergeRmse = 0.06;
+    private float $maxMergeRmse = Constants::DEFAULT_MERGE_THRESHOLD;
 
     /**
      * @param SafeHashCalculatorInterface       $hashCalculator           Computes file content hashes for sub-group keying
@@ -117,12 +117,18 @@ final class HashSubGroupingService implements HashSubGroupingServiceInterface
     }
 
     /**
-     * Sets the maximum RMSE threshold for merging isDuplicateLikely pairs.
-     * Pairs with RMSE above this threshold are kept as separate sub-groups.
+     * Sets the selected maximum RMSE without overriding conservative safety
+     * caps. Null restores the unconfigured default when the run scope ends,
+     * preventing a later legacy workflow from inheriting EXIF preferences.
+     *
+     * @param float|null $threshold Validated run threshold, or null to restore the default
+     *
+     * @return void
      */
-    public function setMaxMergeRmse(float $threshold): void
+    #[Override]
+    public function setMaxMergeRmse(?float $threshold): void
     {
-        $this->maxMergeRmse = $threshold;
+        $this->maxMergeRmse = $threshold ?? Constants::DEFAULT_MERGE_THRESHOLD;
     }
 
     /**
