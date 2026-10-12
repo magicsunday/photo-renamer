@@ -1,5 +1,7 @@
 # Media Processing Masterplan
 
+> Historical implementation plan, not the current merge contract. The proposed dHash-zero Stage B bypass below has been superseded: still merges require successful local analysis even at dHash zero, and companion hashes never override rejected/unavailable still evidence. Use [the current decision matrix](../../decision-matrix.md) and root `AGENTS.md` for present behavior and contributor rules.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Define and implement a complete, testable specification for how every type of media file is handled — from metadata extraction through renaming, deduplication, and Live Photo pairing — including implementation fixes, performance optimizations, and comprehensive test coverage for ALL possible file relationship types.

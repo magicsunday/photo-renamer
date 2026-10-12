@@ -13,13 +13,19 @@ namespace MagicSunday\Renamer\Service\PerceptualHash;
 
 use Imagick;
 use ImagickPixel;
+use MagicSunday\Renamer\Helper\NativeToolError;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
+use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use SplFileInfo;
+use Symfony\Component\Process\Exception\ExceptionInterface;
+use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Process;
 use Throwable;
 
 use function extension_loaded;
+use function getenv;
 use function is_file;
+use function is_finite;
 use function is_numeric;
 use function is_string;
 use function max;
@@ -33,6 +39,8 @@ use function unlink;
 /**
  * Loads and normalizes images via Imagick with proper color space handling.
  * For videos, extracts a poster frame via ffmpeg, then normalizes through Imagick.
+ * Configuration stays readonly; two bounded diagnostic flags prevent repeated
+ * capability failures from flooding a large collection's Console output.
  *
  * The normalization pipeline ensures that the same capture in different formats
  * (JPG in sRGB vs HEIC in Display P3) produces identical pixel values:
@@ -46,18 +54,28 @@ use function unlink;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-final readonly class ImagickImageLoader
+final class ImagickImageLoader
 {
     /**
-     * @param string $ffmpegBinary      Path to the ffmpeg binary used for frame extraction.
-     * @param string $ffprobeBinary     Path to the ffprobe binary used for duration probing.
-     * @param float  $posterFrameSecond The default second at which to extract a poster frame (0.1 to 2.0).
+     * Bounded to the two fixed capabilities, retaining no path/pair history.
+     *
+     * @var array<string, true>
+     */
+    private array $reportedToolFailures = [];
+
+    /**
+     * @param MediaTypeClassifierInterface $mediaTypeClassifier Distinguishes still and video decoding paths.
+     * @param string                       $ffmpegBinary        Path to the ffmpeg binary used for frame extraction.
+     * @param ProgressReporterInterface    $progressReporter    Existing reporting boundary for lazy capability/failure diagnostics.
+     * @param string                       $ffprobeBinary       Path to the ffprobe binary used for duration probing.
+     * @param float                        $posterFrameSecond   The default second at which to extract a poster frame (0.1 to 2.0).
      */
     public function __construct(
-        private MediaTypeClassifierInterface $mediaTypeClassifier,
-        private string $ffmpegBinary = 'ffmpeg',
-        private string $ffprobeBinary = 'ffprobe',
-        private float $posterFrameSecond = 1.0,
+        private readonly MediaTypeClassifierInterface $mediaTypeClassifier,
+        private readonly ProgressReporterInterface $progressReporter,
+        private readonly string $ffmpegBinary = 'ffmpeg',
+        private readonly string $ffprobeBinary = 'ffprobe',
+        private readonly float $posterFrameSecond = 1.0,
     ) {
         if (extension_loaded('imagick')) {
             // Set once per process — caps resource usage for maliciously crafted files
@@ -241,13 +259,20 @@ final readonly class ImagickImageLoader
 
         try {
             $process->run();
-        } catch (Throwable) {
+        } catch (ProcessTimedOutException) {
+            $this->reportToolFailure('ffmpeg', 'timed out after 5 seconds', $process->getErrorOutput());
+            $this->cleanup($posterPath);
+
+            return null;
+        } catch (ExceptionInterface $exception) {
+            $this->reportToolFailure('ffmpeg', 'could not extract a video frame', $exception->getMessage());
             $this->cleanup($posterPath);
 
             return null;
         }
 
         if ((!$process->isSuccessful()) || (!is_file($posterPath))) {
+            $this->reportToolFailure('ffmpeg', sprintf('exited with code %d or produced no frame', $process->getExitCode() ?? -1), $process->getErrorOutput());
             $this->cleanup($posterPath);
 
             return null;
@@ -380,22 +405,61 @@ final readonly class ImagickImageLoader
 
         try {
             $process->run();
-        } catch (Throwable) {
+        } catch (ProcessTimedOutException) {
+            $this->reportToolFailure('ffprobe', 'timed out after 10 seconds', $process->getErrorOutput());
+
+            return null;
+        } catch (ExceptionInterface $exception) {
+            $this->reportToolFailure('ffprobe', 'could not probe video duration', $exception->getMessage());
+
             return null;
         }
 
         if (!$process->isSuccessful()) {
+            $this->reportToolFailure('ffprobe', sprintf('exited with code %d', $process->getExitCode() ?? -1), $process->getErrorOutput());
+
             return null;
         }
 
         $output = trim($process->getOutput());
 
         if (($output === '') || !is_numeric($output)) {
+            $this->reportToolFailure('ffprobe', 'produced no usable video duration', '');
+
             return null;
         }
 
         $duration = (float) $output;
 
-        return $duration > 0.0 ? $duration : null;
+        if (!is_finite($duration) || ($duration <= 0.0)) {
+            $this->reportToolFailure('ffprobe', 'produced no usable video duration', '');
+
+            return null;
+        }
+
+        return $duration;
+    }
+
+    /**
+     * Reports one useful example per native capability without retaining an
+     * unbounded failure history. Further calls stay fail-closed and keep tracing
+     * details available only through the existing debug reporting boundary.
+     *
+     * @param string $tool    Fixed ffmpeg or ffprobe capability name
+     * @param string $failure Trusted failure description
+     * @param string $details Native stderr or startup exception text
+     *
+     * @return void
+     */
+    private function reportToolFailure(string $tool, string $failure, string $details): void
+    {
+        $message = NativeToolError::describe($tool, $failure, $details, getenv());
+
+        if (!isset($this->reportedToolFailures[$tool])) {
+            $this->reportedToolFailures[$tool] = true;
+            $this->progressReporter->error('Video analysis unavailable: ' . $message);
+        }
+
+        $this->progressReporter->debug($message);
     }
 }

@@ -33,6 +33,7 @@ final readonly class VideoFingerprintMatch
      * @param bool        $audioMismatch          True when both sides have audio but the hashes differ.
      * @param string|null $reviewReason           Human-readable reason used for review-only cases.
      * @param bool        $hasAdditionalAvStreams True when either file contains additional AV streams whose full equality is unproven.
+     * @param bool        $analysisAvailable      False when tool failure or invalid output prevented a measured comparison.
      */
     public function __construct(
         public bool $videoStreamMatched,
@@ -42,6 +43,7 @@ final readonly class VideoFingerprintMatch
         public bool $audioMismatch,
         public ?string $reviewReason = null,
         public bool $hasAdditionalAvStreams = false,
+        public bool $analysisAvailable = true,
     ) {
     }
 
@@ -57,7 +59,7 @@ final readonly class VideoFingerprintMatch
      */
     public function isExactDuplicate(): bool
     {
-        return !$this->hasAdditionalAvStreams && $this->videoStreamMatched && ($this->audioStreamMatched || $this->bothWithoutAudio);
+        return $this->analysisAvailable && !$this->hasAdditionalAvStreams && $this->videoStreamMatched && ($this->audioStreamMatched || $this->bothWithoutAudio);
     }
 
     /**
@@ -70,6 +72,6 @@ final readonly class VideoFingerprintMatch
      */
     public function isCandidate(): bool
     {
-        return $this->videoStreamMatched && ($this->missingAudioOnOneSide || $this->audioMismatch || $this->hasAdditionalAvStreams);
+        return $this->analysisAvailable && $this->videoStreamMatched && ($this->missingAudioOnOneSide || $this->audioMismatch || $this->hasAdditionalAvStreams);
     }
 }

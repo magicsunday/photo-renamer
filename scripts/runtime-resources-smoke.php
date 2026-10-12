@@ -19,6 +19,7 @@ use LogicException;
 use MagicSunday\Renamer\Helper\PrivateCacheStorage;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
+use MagicSunday\Renamer\Service\Reporting\NullProgressReporter;
 use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Filesystem\Exception\IOExceptionInterface;
@@ -108,7 +109,7 @@ requireRuntimeInvariant(getenv('COMPOSER_AUTH') === false, 'Runtime inherited Co
 requireRuntimeInvariant(getenv('SSH_AUTH_SOCK') === false, 'Runtime inherited SSH-agent configuration.');
 requireRuntimeInvariant(!file_exists('/ssh-agent'), 'Runtime mounted an SSH agent.');
 requireRuntimeInvariant(!file_exists('/app/.git') && !file_exists('/app/.env'), 'Runtime exposes repository credentials.');
-$loader = new ImagickImageLoader(new MediaTypeClassifier());
+$loader = new ImagickImageLoader(new MediaTypeClassifier(), new NullProgressReporter());
 requireRuntimeInvariant(glob('/sys/class/net/*/ifindex') === ['/sys/class/net/lo/ifindex'], 'Runtime has an external network interface.');
 
 try {

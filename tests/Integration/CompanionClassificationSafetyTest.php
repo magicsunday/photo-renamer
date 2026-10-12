@@ -102,7 +102,7 @@ final class CompanionClassificationSafetyTest extends TestCase
 
             $group->setTarget($renames['a.jpg']->getTarget());
             $media   = new MediaTypeClassifier();
-            $loader  = new ImagickImageLoader($media);
+            $loader  = new ImagickImageLoader($media, new NullProgressReporter());
             $service = new HashSubGroupingService(new SafeHashCalculator(), new NullProgressReporter(), $media, new PerceptualHashCalculator($loader, new PerceptualHashMath()), new LocalDifferenceAnalyzer(), $loader, new ComparisonWorkLimit(100000));
             $service->setMaxMergeRmse(0.0);
             /** @var list<MergeDecision> $decisions */
@@ -268,7 +268,7 @@ final class CompanionClassificationSafetyTest extends TestCase
             $visual = self::createMock(PerceptualHashCalculatorInterface::class);
             $visual->expects(self::never())->method('similarityScore');
             $media   = new MediaTypeClassifier();
-            $service = new HashSubGroupingService($hashing, new NullProgressReporter(), $media, $visual, new LocalDifferenceAnalyzer(), new ImagickImageLoader($media), new ComparisonWorkLimit(100000));
+            $service = new HashSubGroupingService($hashing, new NullProgressReporter(), $media, $visual, new LocalDifferenceAnalyzer(), new ImagickImageLoader($media, new NullProgressReporter()), new ComparisonWorkLimit(100000));
             /** @var list<MergeDecision> $decisions */
             $decisions = [];
             $result    = $service->apply($group, $canonical, null, [], static fn (SplFileInfo $file, string $name): string => $file->getPath() . '/' . $name, onDecision: static function (MergeDecision $decision) use (&$decisions): void {
@@ -314,7 +314,7 @@ final class CompanionClassificationSafetyTest extends TestCase
             self::assertInstanceOf(Rename::class, $canonical);
             $group->setTarget($canonical->getTarget());
             $media  = new MediaTypeClassifier();
-            $loader = new ImagickImageLoader($media);
+            $loader = new ImagickImageLoader($media, new NullProgressReporter());
             $visual = new PerceptualHashCalculator($loader, new PerceptualHashMath());
             $visual->setSignalCache($cache);
             $service = new HashSubGroupingService(new SafeHashCalculator(), new NullProgressReporter(), $media, $visual, new LocalDifferenceAnalyzer(), $loader, new ComparisonWorkLimit(100000));
@@ -358,7 +358,7 @@ final class CompanionClassificationSafetyTest extends TestCase
             $groups->set('capture', $group);
             $media      = new MediaTypeClassifier();
             $reporter   = new NullProgressReporter();
-            $visual     = new PerceptualHashCalculator(new ImagickImageLoader($media), new PerceptualHashMath());
+            $visual     = new PerceptualHashCalculator(new ImagickImageLoader($media, new NullProgressReporter()), new PerceptualHashMath());
             $classifier = new SubgroupClassifier($this->createService(), $media, new OrphanLivePhotoVideoReconciler($media, $visual, $reporter), $reporter);
             $classifier->classify($groups);
 
@@ -380,7 +380,7 @@ final class CompanionClassificationSafetyTest extends TestCase
     private function createService(): HashSubGroupingService
     {
         $media  = new MediaTypeClassifier();
-        $loader = new ImagickImageLoader($media);
+        $loader = new ImagickImageLoader($media, new NullProgressReporter());
 
         return new HashSubGroupingService(new SafeHashCalculator(), new NullProgressReporter(), $media, new PerceptualHashCalculator($loader, new PerceptualHashMath()), new LocalDifferenceAnalyzer(), $loader, new ComparisonWorkLimit(100000));
     }

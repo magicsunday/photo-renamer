@@ -135,6 +135,7 @@ use MagicSunday\Renamer\Service\Pipeline\TargetNameResolverInterface;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\RenamePlanValidator;
 use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
+use MagicSunday\Renamer\Service\Reporting\NullProgressReporter;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Service\TargetFileResolver;
 use MagicSunday\Renamer\Service\TargetPathResolver;
@@ -180,6 +181,7 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(SourceIdentityGuard::class)]
 #[UsesClass(MutationJournal::class)]
 #[UsesClass(AnalysisMemoryBudget::class)]
+#[UsesClass(NullProgressReporter::class)]
 #[CoversClass(RenameByExifDateCommand::class)]
 #[UsesClass(ComparisonWorkLimit::class)]
 #[UsesClass(AssetGroup::class)]
@@ -380,7 +382,7 @@ final class RenameByExifDateCommandTest extends TestCase
             $hashCalculator            = new SafeHashCalculator();
             $mediaTypeClassifier       = new MediaTypeClassifier();
             $progressReporter          = new ConsoleProgressReporter($style);
-            $hashSubGroupingService    = new HashSubGroupingService($hashCalculator, $progressReporter, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier()), new ComparisonWorkLimit(100000));
+            $hashSubGroupingService    = new HashSubGroupingService($hashCalculator, $progressReporter, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier(), new NullProgressReporter()), new ComparisonWorkLimit(100000));
             $livePhotoConflictDetector = new LivePhotoConflictDetector($mediaTypeClassifier);
             $duplicateDetectionService = DuplicateDetectionServiceFactory::create(
                 $progressReporter,

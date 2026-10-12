@@ -35,7 +35,7 @@ Backup copies, re-imports, cloud syncs without conversion. Result: `-duplicate-N
 
 ### B: Format Conversions (same visual content)
 
-HEIC-to-JPG, MOV-to-MP4, JPEG quality re-save. Detected via perceptual hashing (dHash/wHash). When dHash distance = 0, Stage B (local difference analysis) is skipped to avoid false positives from compression artifacts. Result: `-duplicate-NNN`.
+HEIC-to-JPG, MOV-to-MP4, JPEG quality re-save. Detected via perceptual hashing (dHash/wHash). For still images, Stage B (local difference analysis) remains required even when dHash distance is zero. A usable decode, chroma acceptance and RMSE within the effective threshold are required; compression tolerance changes the threshold, not the need for evidence. Matching companion hashes or filenames never override rejected or unavailable still evidence. Result: `-duplicate-NNN`.
 
 ### C: Intentional Edits (different content, same capture moment)
 
@@ -65,7 +65,7 @@ No EXIF metadata (`[S]`), unsupported formats (PNG, RAW, MKV), corrupted files (
 |-----|------|---------|
 | `[R]` | Rename | File will be renamed |
 | `[O]` | Original | File already has the correct name |
-| `[D]` | Duplicate | Byte-identical copy, gets `-duplicate-NNN` |
+| `[D]` | Duplicate | Classification duplicate (exact or accepted perceptual evidence), gets `-duplicate-NNN`; not deletion authority |
 | `[F]` | Fallback | Date from ModifyDate (0x0132) -- unreliable |
 | `[W]` | Warning | Ambiguous timezone or date drift -- skipped |
 | `[C]` | Candidate | Live Photo conflict -- skipped |
@@ -89,3 +89,9 @@ Exception: `[O]` wins for no-ops (file already correctly named).
 | PNG | No | No | No EXIF metadata |
 | MKV/WebM | No | No | Not supported by imagemeta |
 | RAW (CR2, ARW, NEF, ...) | No | No | Camera-specific formats |
+
+## Evidence and mutation boundaries
+
+Exact classification hashes and accepted perceptual evidence can form duplicate subgroups. Measured dissimilarity is `different`; missing signals, failed native tools and failed local analysis are `uncertain`. Video stream matching requires the supported primary AV topology; additional audio/video streams require review. Unavailable cross-group stream analysis is diagnosed and never merges those groups. Perceptual video evidence is not an exact audio/container identity claim. See the [capability prerequisites and failure table](../README.md#capability-prerequisites-and-failure-behavior).
+
+A duplicate role or suffix never authorizes permanent deletion. `rename:dedup --delete` independently requires fresh SHA-256 equality with a retained original; unavailable evidence blocks deletion. Renames reject observed occupied targets under the cooperating batch lock, but trusted parents and quiescent external writers remain necessary. Metadata writes are intentional modifications; journals do not promise automatic rollback or power-loss durability. These are the same scoped guarantees documented in the README.

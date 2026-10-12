@@ -44,6 +44,7 @@ use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifier;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\RenamePlanValidator;
 use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
+use MagicSunday\Renamer\Service\Reporting\NullProgressReporter;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
@@ -261,7 +262,7 @@ final class ExecutionPathDifferentialTest extends TestCase
         $metadataProvider->setDefaultTimezone(new DateTimeZone('Europe/Berlin'));
 
         $mediaTypeClassifier = new MediaTypeClassifier();
-        $imageLoader         = new ImagickImageLoader($mediaTypeClassifier);
+        $imageLoader         = new ImagickImageLoader($mediaTypeClassifier, new NullProgressReporter());
         $progressReporter    = new ConsoleProgressReporter($io);
 
         $perceptualHashCalculator = new PerceptualHashCalculator($imageLoader, new PerceptualHashMath());

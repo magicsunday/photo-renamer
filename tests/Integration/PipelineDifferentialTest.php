@@ -40,6 +40,7 @@ use MagicSunday\Renamer\Service\Pipeline\OrphanLivePhotoVideoReconciler;
 use MagicSunday\Renamer\Service\Pipeline\RoleAssigner;
 use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifier;
 use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
+use MagicSunday\Renamer\Service\Reporting\NullProgressReporter;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
@@ -175,7 +176,7 @@ final class PipelineDifferentialTest extends TestCase
         $metadataProvider->setDefaultTimezone(new DateTimeZone('Europe/Berlin'));
 
         $mediaTypeClassifier = new MediaTypeClassifier();
-        $imageLoader         = new ImagickImageLoader($mediaTypeClassifier);
+        $imageLoader         = new ImagickImageLoader($mediaTypeClassifier, new NullProgressReporter());
 
         $perceptualHashCalculator = new PerceptualHashCalculator($imageLoader, new PerceptualHashMath());
 
@@ -266,7 +267,7 @@ final class PipelineDifferentialTest extends TestCase
         $metadataProvider->setDefaultTimezone(new DateTimeZone('Europe/Berlin'));
 
         $mediaTypeClassifier = new MediaTypeClassifier();
-        $imageLoader         = new ImagickImageLoader($mediaTypeClassifier);
+        $imageLoader         = new ImagickImageLoader($mediaTypeClassifier, new NullProgressReporter());
 
         $perceptualHashCalculator = new PerceptualHashCalculator($imageLoader, new PerceptualHashMath());
 

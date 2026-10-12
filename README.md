@@ -30,13 +30,13 @@
 ---
 
 ## 📌 Overview
-Photo Renamer is a self-contained CLI tool for batch-renaming and deduplicating large photo and video collections. It reads EXIF/QuickTime metadata via [ImageMeta](https://github.com/magicsunday/imagemeta), pairs Apple Live Photos (still + video sharing a Content Identifier), detects duplicates through content hashing and perceptual similarity analysis, and standardises filenames — all without breaking existing folder structures. The tool compiles to a single binary with no runtime dependencies.
+Photo Renamer is a self-contained CLI tool for batch-renaming and deduplicating large photo and video collections. It reads EXIF/QuickTime metadata via [ImageMeta](https://github.com/magicsunday/imagemeta), pairs Apple Live Photos (still + video sharing a Content Identifier), detects duplicates through content hashing and perceptual similarity analysis, and standardises filenames — all without breaking existing folder structures. The optional Linux binary embeds PHP and production packages; video analysis and metadata writing still require external media tools (see the capability table below).
 
 | Key     | Value                                                                                          |
 |---------|------------------------------------------------------------------------------------------------|
 | Package | `magicsunday/photo-renamer`                                                                    |
 | PHP     | `>=8.5`                                                                                        |
-| Binary  | Self-contained via [static-php-cli](https://github.com/crazywhalecc/static-php-cli)           |
+| Binary  | Embedded PHP/packages via [static-php-cli](https://github.com/crazywhalecc/static-php-cli)           |
 
 ## ❓ What is this?
 Photo Renamer processes directories of photos and videos, generating consistent filenames based on EXIF/QuickTime dates, content hashes, or custom patterns. It automatically detects Apple Live Photo pairs (JPEG/HEIC + MOV sharing the same Content Identifier), identifies duplicates across directories using content hashing and multi-stage perceptual similarity analysis (visual similarity scoring, RMSE zone gating, and chroma-aware merge decisions), and provides metadata quality analysis to find and fix broken timestamps.
@@ -155,7 +155,7 @@ Configure environment variables (timezone, cache directory, etc.) in `.env` — 
 
 ### Build a standalone binary (optional)
 
-Compiles a self-contained binary via [static-php-cli](https://github.com/crazywhalecc/static-php-cli) with all dependencies (including PHP, Imagick, and ImageMagick) statically linked. The first build takes several minutes; subsequent builds reuse the cached SPC environment.
+Compiles a Linux standalone binary via [static-php-cli](https://github.com/crazywhalecc/static-php-cli) with PHP, Composer production dependencies, Imagick and ImageMagick included. External media tools are not embedded; install `ffmpeg`, `ffprobe` and `exiftool` on the execution host for the capabilities below. The first build takes several minutes; subsequent builds reuse the cached SPC environment.
 
 ```bash
 make binary
@@ -163,6 +163,20 @@ chmod +x renamer
 sudo mv renamer /usr/local/bin/
 renamer --version
 ```
+
+### Capability prerequisites and failure behavior
+
+The normal Docker runtime includes PHP, production dependencies, Imagick/ImageMagick, `ffmpeg`, `ffprobe` and `exiftool`; rebuild it with `make runtime-build` after code or dependency changes. It requires Docker Compose, writable media for mutations, a writable private state volume, and enough finite memory/temporary storage for the collection. Building the standalone binary also requires Docker and access to the pinned build inputs. Executing it requires a compatible Linux architecture, readable media, trusted writable temporary/cache directories and external tools on `PATH` as applicable. The standalone executable does not inherit Docker's network, filesystem, PID or container memory isolation; apply appropriate OS isolation when processing untrusted media.
+
+| Capability | Docker runtime | Standalone execution host | Failure behavior |
+|---|---|---|---|
+| Metadata reading, filename rules, content hashes | Included PHP and production packages | Embedded PHP and production packages | Unsupported/corrupt metadata is skipped or diagnosed; no external video tool is needed solely for metadata reading. |
+| Still-image perceptual comparison | Included Imagick/ImageMagick and supported local coders | Embedded Imagick/ImageMagick | Missing decode evidence remains uncertain and cannot authorize a merge. |
+| Cross-group exact video stream comparison | Included `ffmpeg` with `streamhash` | Install `ffmpeg` with `streamhash` | Startup/exit/20-second timeout failures are unavailable evidence, reported once per reconciliation; groups remain separate. |
+| Perceptual video frame/duration analysis | Included `ffmpeg` and `ffprobe` | Install `ffmpeg` and `ffprobe` | Frame extraction has a 5-second deadline, duration probing 10 seconds. Failure is reported once per capability per loader; probing failure permits the existing single-frame fallback, failed decoding cannot prove similarity. |
+| `rename:write-date` | Included `exiftool` | Install `exiftool` | Missing tool is an explicit command failure before metadata writes; writes have a 60-second process deadline and bounded failure diagnostics. |
+
+Capabilities are used lazily: missing video tools do not prevent still-image analysis. Video-analysis diagnostics preserve exit/timeout context and a bounded stderr excerpt rather than dumping the environment. Values of credential-like environment names are redacted before truncation; this is not a general detector for arbitrary secrets embedded in media or stderr. Console controls/markup are escaped separately. Finite deadlines do not promise recovery from an OS kill. A cross-group comparison diagnostic does not globally abort unrelated safe renames; degraded subgroup classification instead blocks its affected group and produces a failing EXIF exit status. Always inspect diagnostics, the Decision Log and a dry-run before mutation.
 
 ## Recommended Workflow
 
@@ -310,10 +324,10 @@ After processing, a summary table shows scanned files, skipped files (no metadat
 - **Live Photo pairing:** Still images (JPEG/HEIC/HEIF) + video companions (MOV/MP4/M4V) sharing the same Apple Content Identifier are treated as a pair. The video companion always receives the same base name as its still image, even when the video has its own (different) EXIF timestamp.
 - **Unified grouping:** All files with the same EXIF date are placed into one group regardless of their Live Photo Content Identifier. This ensures consistent numbering across the entire timestamp.
 - **Hash sub-grouping:** When multiple distinct files share the same EXIF date, they are grouped by content hash. True duplicates (same hash) receive `-duplicate-NNN` suffixes, while different files get sequential group numbers (`-002`, `-003`, ...).
-- **Perceptual duplicate detection:** Files that are the same capture but have different content hashes (e.g., JPG↔HEIC format backups, re-imports, re-saves) are detected via a multi-stage perceptual pipeline: Stage A computes a multi-signal similarity score (dHash, wHash, HF-energy, color histogram, video duration) using Imagick with proper sRGB color normalization; Stage B applies a conservative merge policy with dHash-adaptive RMSE thresholds (permissive for identical gradient structure, strict for any change) and a chroma-aware merge veto that prevents color→grayscale conversions from being absorbed as duplicates. Additionally, if all companion videos in a group share the same hash, the stills are treated as duplicates.
+- **Perceptual duplicate detection:** Files that are the same capture but have different content hashes (e.g., JPG↔HEIC format backups, re-imports, re-saves) are detected via a multi-stage perceptual pipeline: Stage A computes a multi-signal similarity score (dHash, wHash, HF-energy, color histogram, video duration) using Imagick with proper sRGB color normalization; Stage B applies a conservative merge policy with dHash-adaptive RMSE thresholds (permissive for identical gradient structure, strict for any change) and a chroma-aware merge veto that prevents color→grayscale conversions from being absorbed as duplicates. Still-image Stage B remains required even at dHash distance zero. Matching companion hashes or filenames never override rejected or unavailable still evidence; companion identity controls pairing, not visual equivalence.
 - **Subdirectory ordering:** Parent directory files are processed before subdirectories, so the first file encountered in the top-level directory wins the canonical (unsuffixed) name.
-- **Safe renames:** Files are never overwritten. An in-memory disk index tracks all occupied paths during a run, and a fallback to the next available duplicate suffix prevents data loss even when multiple files compete for the same target path.
-- **Non-destructive:** Original files are moved (renamed in place), never deleted.
+- **Safe renames:** Planning indexes occupied paths and resolves collisions; execution rejects observed occupied target leaves, including dangling links. Cooperating mutating CLI processes share a batch lock and fresh source checks. These checks require trusted directories, the same persistent state base and stopped external writers; they do not provide atomic protection against an uncoordinated writer between observation and rename. See [Concurrent mutations](#concurrent-mutations).
+- **Mutation scope:** Rename commands move media without intentionally deleting its contents; `rename:write-date` explicitly modifies metadata. `rename:dedup` moves candidates to quarantine by default; its explicit `--delete` mode permanently removes only freshly verified byte-identical duplicates after confirmation. Classification evidence alone never authorizes deletion. Interruption can leave a partially completed batch; journals support reconciliation, not automatic rollback.
 
 ## ⚙️ Configuration
 

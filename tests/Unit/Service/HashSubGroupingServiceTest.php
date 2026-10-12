@@ -976,7 +976,7 @@ final class HashSubGroupingServiceTest extends TestCase
         PerceptualHashCalculatorInterface $perceptualHashCalculator,
         int $maximumPairs = 100000,
     ): HashSubGroupingService {
-        $imageLoader = new ImagickImageLoader(new MediaTypeClassifier());
+        $imageLoader = new ImagickImageLoader(new MediaTypeClassifier(), new NullProgressReporter());
 
         return new HashSubGroupingService(
             $hashCalculator,

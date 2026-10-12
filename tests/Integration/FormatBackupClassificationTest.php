@@ -101,7 +101,7 @@ final class FormatBackupClassificationTest extends TestCase
                 $media,
                 $similarity,
                 new LocalDifferenceAnalyzer(),
-                new ImagickImageLoader($media),
+                new ImagickImageLoader($media, new NullProgressReporter()),
                 new ComparisonWorkLimit(100000),
             );
             $service->setMaxMergeRmse($threshold);

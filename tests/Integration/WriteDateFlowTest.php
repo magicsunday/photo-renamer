@@ -142,6 +142,7 @@ use MagicSunday\Renamer\Service\Pipeline\TargetNameResolver;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\RenamePlanValidator;
 use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
+use MagicSunday\Renamer\Service\Reporting\NullProgressReporter;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Service\TargetFileResolver;
 use MagicSunday\Renamer\Service\TargetPathResolver;
@@ -187,6 +188,7 @@ use function copy;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[UsesClass(AnalysisMemoryBudget::class)]
+#[UsesClass(NullProgressReporter::class)]
 #[CoversClass(WriteDateCommand::class)]
 #[CoversClass(RenameByExifDateCommand::class)]
 #[UsesClass(ComparisonWorkLimit::class)]
@@ -504,7 +506,7 @@ final class WriteDateFlowTest extends TestCase
         $style  = new SymfonyStyle(new ArrayInput([]), $output);
 
         $mediaTypeClassifier      = new MediaTypeClassifier();
-        $imageLoader              = new ImagickImageLoader($mediaTypeClassifier);
+        $imageLoader              = new ImagickImageLoader($mediaTypeClassifier, new NullProgressReporter());
         $perceptualHashCalculator = new PerceptualHashCalculator($imageLoader, new PerceptualHashMath());
         $progressReporter         = new ConsoleProgressReporter($style);
 
