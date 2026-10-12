@@ -986,6 +986,7 @@ final class RenameByExifDateCommandTest extends TestCase
 
             if ($blocked) {
                 self::assertFileExists($source);
+                self::assertSame('synthetic media fixture', file_get_contents($source));
                 self::assertFileDoesNotExist($target);
             } else {
                 self::assertFileExists($target);
