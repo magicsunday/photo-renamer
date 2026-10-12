@@ -11,9 +11,11 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Model\Execution;
 
+use InvalidArgumentException;
 use MagicSunday\Renamer\Model\Execution\ExecutionItem;
 use MagicSunday\Renamer\Model\Execution\ExecutionItemType;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -28,6 +30,81 @@ use PHPUnit\Framework\TestCase;
 #[CoversClass(ExecutionItem::class)]
 final class ExecutionItemTest extends TestCase
 {
+    /**
+     * Redundant path/rename/no-op flags and contradictory block reasons cannot
+     * reach rendering or execution as apparently valid immutable plan entries.
+     *
+     * @param string      $target     Target path defining equality with the fixed source
+     * @param bool        $rename     Requested mutation flag
+     * @param bool        $noOp       Requested preservation flag
+     * @param bool        $executable Whether mutation is permitted
+     * @param string|null $reason     Block reason incompatible with the given state
+     *
+     * @return void
+     */
+    #[Test]
+    #[DataProvider('contradictoryStates')]
+    public function contradictoryStatesAreRejected(string $target, bool $rename, bool $noOp, bool $executable, ?string $reason): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        new ExecutionItem('/synthetic/a.jpg', $target, ExecutionItemType::Canonical, $rename, $noOp, 'synthetic', isExecutable: $executable, executionBlockReason: $reason);
+    }
+
+    /**
+     * Covers contradictory flag combinations and reasons on executable/no-op entries.
+     *
+     * @return iterable<string, array{string, bool, bool, bool, string|null}> Invalid states
+     */
+    public static function contradictoryStates(): iterable
+    {
+        yield 'same path marked rename' => ['/synthetic/a.jpg', true, false, true, null];
+        yield 'same path missing no-op' => ['/synthetic/a.jpg', false, false, false, null];
+        yield 'different path marked no-op' => ['/synthetic/b.jpg', false, true, false, null];
+        yield 'both rename and no-op' => ['/synthetic/b.jpg', true, true, false, null];
+        yield 'neither rename nor no-op' => ['/synthetic/b.jpg', false, false, false, null];
+        yield 'executable with block reason' => ['/synthetic/b.jpg', true, false, true, 'blocked'];
+        yield 'no-op with block reason' => ['/synthetic/a.jpg', false, true, false, 'blocked'];
+    }
+
+    /**
+     * Executable and withheld renames retain their policy state. Equal-path
+     * no-ops always become non-executable, including callers using the default
+     * true input. A blocked rename may omit an explanation, preserving the
+     * existing fail-closed API without inventing a new policy requirement.
+     *
+     * @param bool        $rename              Whether paths differ
+     * @param bool        $requestedExecutable Input execution permission
+     * @param string|null $reason              Optional withheld-rename explanation
+     * @param bool        $expectedExecutable  Effective permission after no-op derivation
+     *
+     * @return void
+     */
+    #[Test]
+    #[DataProvider('validStates')]
+    public function validStatesPreservePolicyAndNeverExecuteNoOps(bool $rename, bool $requestedExecutable, ?string $reason, bool $expectedExecutable): void
+    {
+        $target = $rename ? '/synthetic/b.jpg' : '/synthetic/a.jpg';
+        $item   = new ExecutionItem('/synthetic/a.jpg', $target, ExecutionItemType::Canonical, $rename, !$rename, 'synthetic', isExecutable: $requestedExecutable, executionBlockReason: $reason);
+        self::assertSame($rename, $item->renameRequired);
+        self::assertSame(!$rename, $item->isNoOp);
+        self::assertSame($expectedExecutable, $item->isExecutable);
+        self::assertSame($reason, $item->executionBlockReason);
+    }
+
+    /**
+     * Enumerates executable, blocked-with/without-reason and explicit/default no-op states.
+     *
+     * @return iterable<string, array{bool, bool, string|null, bool}> Valid states
+     */
+    public static function validStates(): iterable
+    {
+        yield 'executable rename' => [true, true, null, true];
+        yield 'blocked with reason' => [true, false, 'classification unavailable', false];
+        yield 'blocked without reason' => [true, false, null, false];
+        yield 'explicit no-op' => [false, false, null, false];
+        yield 'default-permission no-op' => [false, true, null, false];
+    }
+
     /**
      * Verifies that the constructor correctly initializes all 12 properties
      * of the ExecutionItem DTO.

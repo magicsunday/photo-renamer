@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Model;
 
+use LogicException;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
 use MagicSunday\Renamer\Model\ItemRole;
@@ -146,10 +147,35 @@ final class AssetGroupTest extends TestCase
     }
 
     /**
-     * Verifies that replaceItem() performs no operation if the item to be replaced is not found in the group.
+     * A second replacement using the pre-wither identity is rejected explicitly,
+     * rather than silently losing the caller's intended update.
+     *
+     * @return void
      */
     #[Test]
-    public function replaceItemNoOpsWhenNotFound(): void
+    public function replacingStaleIdentityFailsVisibly(): void
+    {
+        $group    = new AssetGroup('synthetic');
+        $original = new AssetItem(new SplFileInfo('/synthetic/still.jpg'));
+        $group->addItem($original);
+        $updated = $original->withScore(42, ['synthetic score']);
+        $group->replaceItem($original, $updated);
+        self::assertSame([$updated], $group->getItems());
+        $this->expectException(LogicException::class);
+
+        try {
+            $group->replaceItem($original, $original->withScore(99, ['stale update']));
+        } finally {
+            self::assertSame([$updated], $group->getItems());
+        }
+    }
+
+    /**
+     * An unknown identity is rejected explicitly, even when another asset is present;
+     * the group must not silently pretend that an immutable update succeeded.
+     */
+    #[Test]
+    public function replaceItemRejectsUnknownIdentity(): void
     {
         $group   = new AssetGroup('key-1');
         $inGroup = new AssetItem(new SplFileInfo('/tmp/photo.heic'));
@@ -159,10 +185,10 @@ final class AssetGroupTest extends TestCase
 
         $replacement = $unknown->withScore(99, ['test']);
 
-        $group->replaceItem($unknown, $replacement);
-
         self::assertSame(1, $group->itemCount());
         self::assertSame($inGroup, $group->getItems()[0]);
+        $this->expectException(LogicException::class);
+        $group->replaceItem($unknown, $replacement);
     }
 
     /**

@@ -544,6 +544,8 @@ Test the CLI:
 MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:exif --dry-run --list-all /media
 ```
 
+The execution model checks redundant path flags when constructed: `renameRequired` means different raw source/target path strings and `isNoOp` means equal strings. Contradictions raise `InvalidArgumentException` before execution. Equal-path no-ops are always non-executable, including callers using the default execution permission. A block reason belongs only to a withheld rename; withheld renames may still omit a reason. Quality flags remain inputs to the builder's existing policy, not a new model policy engine. `AssetGroup::replaceItem()` requires the current object identity and throws `LogicException` for a missing/stale predecessor; after an immutable update, use the replacement object or read the current group again. These checks protect in-memory contracts and do not replace filesystem/source verification.
+
 ### Individual CI targets
 
 | Target         | Description                          |

@@ -11,6 +11,8 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Model;
 
+use LogicException;
+
 use function array_filter;
 use function array_map;
 use function array_splice;
@@ -76,10 +78,13 @@ final class AssetGroup
 
     /**
      * Replaces an item in-place using identity comparison.
-     * Silently no-ops if the old item is not found.
+     * Missing or stale identities fail visibly: silently losing an immutable
+     * update would hide a caller error. Identity is not substituted by pathname.
      *
      * @param AssetItem $old Existing item to replace (matched by identity)
      * @param AssetItem $new Replacement item
+     *
+     * @throws LogicException When the old identity is not a current group member
      */
     public function replaceItem(AssetItem $old, AssetItem $new): void
     {
@@ -90,6 +95,8 @@ final class AssetGroup
                 return;
             }
         }
+
+        throw new LogicException('Cannot replace an asset that is not present in the group.');
     }
 
     /**
