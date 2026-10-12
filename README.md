@@ -542,9 +542,18 @@ MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:exif --dry-run --list-all /media
 | `make templates` | Check the config copies against the coding-standard templates. |
 | `make unit`    | Run PHPUnit tests.                   |
 | `make coverage` | Run PHPUnit with HTML + Clover coverage report (`.build/coverage/`). |
+| `make mutation` | Run Infection with the configured mutation-score gates. |
 | `make cpd`     | Run copy-paste detection.            |
 | `make no-dev-smoke` | Verify the isolated production vendor tree and runtime dependencies. |
 | `make runtime-image-check` | Build the runtime image and verify its native media decoder contract. |
+
+Quality targets propagate tool failures, including risky coverage tests and failed
+mutation-score gates, as a nonzero Make status. Coverage runs retain the strict
+PHPUnit metadata and warning/risky guards. PCOV/Clover reports statement coverage;
+it does not prove branch coverage, safe deletion, successful file moves or Live
+Photo integrity. Use the real execution, negative safety and repeated-run tests
+alongside coverage reports. Mutation results measure the exercised mutations,
+not a guarantee against every defect; CI integration is maintained separately.
 
 ### Test images
 
