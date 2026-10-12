@@ -11,17 +11,22 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Video;
 
+use InvalidArgumentException;
+use MagicSunday\Renamer\Helper\NativeToolError;
 use MagicSunday\Renamer\Model\Pipeline\VideoFingerprintMatch;
 use SplFileInfo;
+use Symfony\Component\Process\Exception\ExceptionInterface;
+use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Process;
-use Throwable;
 
 use function array_key_exists;
 use function count;
 use function explode;
 use function filemtime;
 use function filesize;
+use function getenv;
 use function hash;
+use function is_finite;
 use function is_numeric;
 use function preg_match;
 use function sprintf;
@@ -50,10 +55,15 @@ final class VideoStreamFingerprintMatcher implements VideoStreamFingerprintMatch
 
     /**
      * @param string $ffmpegBinary Path to the ffmpeg binary providing the streamhash muxer.
+     * @param float  $timeout      Finite deadline for stream hashing, also permitting deterministic short failure probes.
      */
     public function __construct(
         private readonly string $ffmpegBinary = 'ffmpeg',
+        private readonly float $timeout = 20.0,
     ) {
+        if (!is_finite($this->timeout) || ($this->timeout <= 0.0)) {
+            throw new InvalidArgumentException('Video stream timeout must be positive and finite.');
+        }
     }
 
     /**
@@ -73,6 +83,12 @@ final class VideoStreamFingerprintMatcher implements VideoStreamFingerprintMatch
     {
         $fingerprintA = $this->fingerprint($fileA);
         $fingerprintB = $this->fingerprint($fileB);
+
+        $failure = $fingerprintA->analysisFailure ?? $fingerprintB->analysisFailure;
+
+        if ($failure !== null) {
+            return new VideoFingerprintMatch(false, false, false, false, false, $failure, analysisAvailable: false);
+        }
 
         $videoStreamMatched = ($fingerprintA->videoHash !== null)
             && ($fingerprintA->videoHash === $fingerprintB->videoHash);
@@ -156,16 +172,18 @@ final class VideoStreamFingerprintMatcher implements VideoStreamFingerprintMatch
             'sha256',
             '-',
         ]);
-        $process->setTimeout(20.0);
+        $process->setTimeout($this->timeout);
 
         try {
             $process->run();
-        } catch (Throwable) {
-            return $this->fingerprintCache[$cacheKey] = new VideoStreamFingerprint(null, null, false);
+        } catch (ProcessTimedOutException) {
+            return $this->fingerprintCache[$cacheKey] = new VideoStreamFingerprint(null, null, false, analysisFailure: NativeToolError::describe('ffmpeg', sprintf('timed out after %g seconds', $this->timeout), $process->getErrorOutput(), getenv()));
+        } catch (ExceptionInterface $exception) {
+            return $this->fingerprintCache[$cacheKey] = new VideoStreamFingerprint(null, null, false, analysisFailure: NativeToolError::describe('ffmpeg', 'could not complete stream analysis', $exception->getMessage(), getenv()));
         }
 
         if (!$process->isSuccessful()) {
-            return $this->fingerprintCache[$cacheKey] = new VideoStreamFingerprint(null, null, false);
+            return $this->fingerprintCache[$cacheKey] = new VideoStreamFingerprint(null, null, false, analysisFailure: NativeToolError::describe('ffmpeg', sprintf('exited with code %d', $process->getExitCode() ?? -1), $process->getErrorOutput(), getenv()));
         }
 
         $videoHash        = null;
@@ -193,6 +211,10 @@ final class VideoStreamFingerprintMatcher implements VideoStreamFingerprintMatch
                 ++$audioStreamCount;
                 $audioHash ??= $parsedLine->hash;
             }
+        }
+
+        if ($videoHash === null) {
+            return $this->fingerprintCache[$cacheKey] = new VideoStreamFingerprint(null, null, false, analysisFailure: 'ffmpeg produced no usable video stream fingerprint');
         }
 
         return $this->fingerprintCache[$cacheKey] = new VideoStreamFingerprint(

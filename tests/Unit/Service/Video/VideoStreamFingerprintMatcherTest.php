@@ -12,6 +12,8 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service\Video;
 
 use DateTimeImmutable;
+use InvalidArgumentException;
+use MagicSunday\Renamer\Helper\NativeToolError;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
@@ -26,6 +28,7 @@ use MagicSunday\Renamer\Service\Pipeline\CrossGroupVideoComparisonPlan;
 use MagicSunday\Renamer\Service\Pipeline\CrossGroupVideoDuplicateReconciler;
 use MagicSunday\Renamer\Service\Pipeline\DurationBucketedVideoCandidate;
 use MagicSunday\Renamer\Service\Reporting\NullProgressReporter;
+use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use MagicSunday\Renamer\Service\Video\StreamHashRecord;
 use MagicSunday\Renamer\Service\Video\StreamHashType;
 use MagicSunday\Renamer\Service\Video\VideoStreamFingerprint;
@@ -37,9 +40,15 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
 
+use function getenv;
+use function putenv;
 use function sprintf;
+
+use const INF;
+use const NAN;
 
 /**
  * Verifies VideoStreamFingerprintMatcher against real ffmpeg-generated videos.
@@ -54,6 +63,7 @@ use function sprintf;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(VideoStreamFingerprintMatcher::class)]
+#[UsesClass(NativeToolError::class)]
 #[UsesClass(ComparisonWorkLimit::class)]
 #[UsesClass(VideoFingerprintMatch::class)]
 #[UsesClass(StreamHashRecord::class)]
@@ -85,6 +95,189 @@ final class VideoStreamFingerprintMatcherTest extends TestCase
     protected function tearDown(): void
     {
         $this->removeWorkspace($this->workspace);
+    }
+
+    /**
+     * The test deadline must never introduce an unlimited or invalid native
+     * process budget; invalid values fail at construction before touching media.
+     *
+     * @param float $timeout Invalid timeout value
+     *
+     * @return void
+     */
+    #[Test]
+    #[DataProvider('invalidTimeouts')]
+    public function invalidDeadlinesAreRejected(float $timeout): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        new VideoStreamFingerprintMatcher(timeout: $timeout);
+    }
+
+    /**
+     * Supplies non-positive and non-finite values rejected by the deadline contract.
+     *
+     * @return iterable<string, array{float}> Invalid deadlines
+     */
+    public static function invalidTimeouts(): iterable
+    {
+        yield 'zero' => [0.0];
+        yield 'negative' => [-1.0];
+        yield 'infinite' => [INF];
+        yield 'nan' => [NAN];
+    }
+
+    /**
+     * Real child-process stderr preserves decoder context while removing the
+     * named synthetic credential; exit-success without hashes is unavailable too.
+     *
+     * @return void
+     */
+    #[Test]
+    public function nativeStderrRedactsNamedCredentialAndEmptySuccessIsUnavailable(): void
+    {
+        $filesystem = new Filesystem();
+        $source     = $this->workspace . '/synthetic.mov';
+        $tool       = $this->workspace . '/synthetic-tool.sh';
+        $filesystem->dumpFile($source, 'synthetic media');
+        $filesystem->dumpFile($tool, '#!/bin/sh' . "\n" . 'printf "decoder synthetic-credential-133" >&2' . "\nexit 47\n");
+        $filesystem->chmod($tool, 0o700);
+
+        $previous = getenv('RENAMER_TEST_TOKEN');
+        putenv('RENAMER_TEST_TOKEN=synthetic-credential-133');
+
+        try {
+            $file    = new SplFileInfo($source);
+            $failure = new VideoStreamFingerprintMatcher($tool)->match($file, $file);
+            self::assertSame('ffmpeg exited with code 47: decoder [redacted]', $failure->reviewReason);
+            self::assertFalse($failure->analysisAvailable);
+            $filesystem->dumpFile($tool, "#!/bin/sh\nexit 0\n");
+            $empty = new VideoStreamFingerprintMatcher($tool)->match($file, $file);
+            self::assertFalse($empty->analysisAvailable);
+            self::assertFalse($empty->isExactDuplicate());
+            self::assertSame('ffmpeg produced no usable video stream fingerprint', $empty->reviewReason);
+        } finally {
+            putenv($previous === false ? 'RENAMER_TEST_TOKEN' : 'RENAMER_TEST_TOKEN=' . $previous);
+        }
+    }
+
+    /**
+     * Three eligible groups with unavailable stream evidence retain all assets,
+     * produce no duplicate candidates and report only one operator diagnostic.
+     *
+     * @return void
+     */
+    #[Test]
+    public function reconcilerReportsUnavailableEvidenceWithoutMerging(): void
+    {
+        $groups     = new AssetGroupCollection();
+        $filesystem = new Filesystem();
+
+        foreach (['a', 'b', 'c'] as $name) {
+            $path = $this->workspace . '/' . $name . '.mov';
+            $filesystem->dumpFile($path, 'synthetic media');
+            $group = new AssetGroup($name);
+            $group->addItem(new AssetItem(new SplFileInfo($path), metadata: new TemporalMetadata(
+                new DateTimeImmutable('2024-01-01T10:00:00+00:00'),
+                null,
+                videoDurationSeconds: 0.5,
+            )));
+            $groups->set($name, $group);
+        }
+
+        $reporter = $this->createMock(ProgressReporterInterface::class);
+        $reporter->expects(self::once())->method('error')->with(self::stringContains('ffmpeg'));
+        $context    = new PipelineContext($this->workspace);
+        $reconciler = new CrossGroupVideoDuplicateReconciler(
+            new MediaCompatibilityPolicy(new MediaTypeClassifier()),
+            new VideoStreamFingerprintMatcher($this->workspace . '/missing-ffmpeg.sh'),
+            $reporter,
+            new ComparisonWorkLimit(100000),
+        );
+        $reconciler->reconcile($groups, $context);
+        self::assertCount(3, $groups);
+        self::assertSame([], $context->getVideoDuplicateCandidates());
+
+        foreach ($groups as $group) {
+            self::assertCount(1, $group->getItems());
+            self::assertSame('synthetic media', $filesystem->readFile($group->getItems()[0]->file->getPathname()));
+        }
+    }
+
+    /**
+     * An absent ffmpeg executable supplies no comparison evidence. The caller
+     * must receive an unavailable-analysis reason rather than a silent result
+     * indistinguishable from two successfully measured different streams.
+     *
+     * @return void
+     */
+    #[Test]
+    public function missingToolRetainsUnavailableAnalysisReason(): void
+    {
+        $source = $this->workspace . '/synthetic.mov';
+        new Filesystem()->dumpFile($source, 'synthetic media bytes');
+        $matcher = new VideoStreamFingerprintMatcher($this->workspace . '/missing-ffmpeg.sh');
+        $file    = new SplFileInfo($source);
+        $match   = $matcher->match($file, $file);
+
+        self::assertNotNull($match->reviewReason);
+        self::assertStringContainsString('ffmpeg', $match->reviewReason);
+        self::assertFalse($match->analysisAvailable);
+        self::assertFalse($match->isExactDuplicate());
+    }
+
+    /**
+     * A real child process exits 47 after writing a synthetic decode diagnostic.
+     * Preserve both exit status and useful cause in unavailable evidence, while
+     * keeping the source unchanged and refusing exact duplicate authority.
+     *
+     * @return void
+     */
+    #[Test]
+    public function nonzeroToolExitRetainsStatusAndDiagnostic(): void
+    {
+        $filesystem = new Filesystem();
+        $tool       = $this->workspace . '/failed-ffmpeg.sh';
+        $source     = $this->workspace . '/synthetic.mov';
+        $filesystem->dumpFile($source, 'synthetic media bytes');
+        $filesystem->dumpFile($tool, "#!/usr/bin/env sh\nprintf 'decoder rejected synthetic stream' >&2\nexit 47\n");
+        $filesystem->chmod($tool, 0o755);
+
+        $file  = new SplFileInfo($source);
+        $match = new VideoStreamFingerprintMatcher($tool)->match($file, $file);
+
+        self::assertNotNull($match->reviewReason);
+        self::assertStringContainsString('47', $match->reviewReason);
+        self::assertStringContainsString('decoder rejected synthetic stream', $match->reviewReason);
+        self::assertFalse($match->analysisAvailable);
+        self::assertFalse($match->isExactDuplicate());
+        self::assertSame('synthetic media bytes', $filesystem->readFile($source));
+    }
+
+    /**
+     * A real child sleeps beyond a short configured deadline. The returned
+     * evidence records the timeout rather than claiming measured inequality;
+     * Symfony terminates the child and no source mutation takes place.
+     *
+     * @return void
+     */
+    #[Test]
+    public function timedOutToolRemainsUnavailable(): void
+    {
+        $filesystem = new Filesystem();
+        $tool       = $this->workspace . '/slow-ffmpeg.sh';
+        $source     = $this->workspace . '/synthetic.mov';
+        $filesystem->dumpFile($source, 'synthetic media bytes');
+        $filesystem->dumpFile($tool, "#!/usr/bin/env sh\nexec sleep 3\n");
+        $filesystem->chmod($tool, 0o755);
+
+        $file  = new SplFileInfo($source);
+        $match = new VideoStreamFingerprintMatcher($tool, 0.05)->match($file, $file);
+
+        self::assertNotNull($match->reviewReason);
+        self::assertStringContainsString('timed out after 0.05 seconds', $match->reviewReason);
+        self::assertFalse($match->analysisAvailable);
+        self::assertFalse($match->isExactDuplicate());
+        self::assertSame('synthetic media bytes', $filesystem->readFile($source));
     }
 
     /**
@@ -188,6 +381,7 @@ final class VideoStreamFingerprintMatcherTest extends TestCase
         self::assertFalse($match->isExactDuplicate());
         self::assertFalse($match->isCandidate());
         self::assertFalse($match->videoStreamMatched);
+        self::assertTrue($match->analysisAvailable);
     }
 
     /**

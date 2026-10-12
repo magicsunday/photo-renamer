@@ -13,10 +13,10 @@ body:
               If you would need to guess, expand scope, or relax guards: **STOP** and ask.
 
               **TDD workflow:** Write a failing test first, then implement the minimal code to make it pass.
-              **Commit workflow:** Commit directly to `main`.
-              **Commit message:** Conventional Commits (`feat:`, `fix:`, `refactor:`, `test:`). No `Co-Authored-By` trailers.
+              **Commit workflow:** Use `GH-<N>` for issue-tracked work (or `main` where authorized), as specified in `AGENTS.md`.
+              **Commit message:** Capitalised English imperative; issue subjects and PR titles use `GH-<N>: <Capitalised imperative>`. Conventional-commit prefixes are rejected. Preserve DCO `Signed-off-by`; never add AI attribution.
               **CI gate:** Run `make test` before committing. All checks must pass.
-              **Close rule:** If `make test` is fully green and the task is complete, close this issue.
+              **Merge/close rule:** Read every page of issue comments, PR reviews and inline comments. Individually evidence and check all acceptance criteria, complete own review, and require successful checks for the exact reviewed head before squash merge with a dedicated descriptive title/body and DCO. Do not close an issue with unresolved acceptance work.
 
     - type: textarea
       id: goal

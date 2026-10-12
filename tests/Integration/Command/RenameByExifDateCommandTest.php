@@ -1158,7 +1158,7 @@ final class RenameByExifDateCommandTest extends TestCase
         $progressReporter = new ConsoleProgressReporter($style);
 
         $mediaTypeClassifier       = new MediaTypeClassifier();
-        $hashSubGroupingService    = new HashSubGroupingService(new SafeHashCalculator(), $progressReporter, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier()), new ComparisonWorkLimit($maximumPairs));
+        $hashSubGroupingService    = new HashSubGroupingService(new SafeHashCalculator(), $progressReporter, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier(), new NullProgressReporter()), new ComparisonWorkLimit($maximumPairs));
         $livePhotoConflictDetector = new LivePhotoConflictDetector($mediaTypeClassifier);
 
         $captureGroupBuilder = CaptureGroupBuilderFactory::create(

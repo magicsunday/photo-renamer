@@ -71,8 +71,9 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
      */
     public function reconcile(AssetGroupCollection $groups, PipelineContext $context): void
     {
-        $candidateVideos = $this->collectCandidateVideos($groups);
-        $started         = false;
+        $candidateVideos     = $this->collectCandidateVideos($groups);
+        $started             = false;
+        $reportedUnavailable = false;
 
         try {
             foreach ($this->buildComparisons($candidateVideos, $groups) as $comparison) {
@@ -108,6 +109,15 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
 
                 $match = $this->videoStreamFingerprintMatcher->match($leftItem->file, $rightItem->file);
                 $this->progressReporter->advance();
+
+                if (!$match->analysisAvailable) {
+                    if (!$reportedUnavailable) {
+                        $this->progressReporter->error('Video stream analysis unavailable: ' . ($match->reviewReason ?? 'no usable comparison evidence'));
+                        $reportedUnavailable = true;
+                    }
+
+                    continue;
+                }
 
                 if ($match->isExactDuplicate()) {
                     $this->mergeExactDuplicate($groups, $leftGroup, $leftItem, $rightGroup, $rightItem);

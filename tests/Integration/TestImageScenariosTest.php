@@ -24,6 +24,7 @@ use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\FilenameDateParser;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
+use MagicSunday\Renamer\Helper\NativeToolError;
 use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Helper\PrivateCacheStorage;
 use MagicSunday\Renamer\Metadata\CaptureTimestampExtraction;
@@ -147,6 +148,7 @@ use MagicSunday\Renamer\Service\Pipeline\TargetNameResolver;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\RenamePlanValidator;
 use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
+use MagicSunday\Renamer\Service\Reporting\NullProgressReporter;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Service\TargetFileResolver;
 use MagicSunday\Renamer\Service\TargetPathResolver;
@@ -202,7 +204,9 @@ use const PREG_SET_ORDER;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
+#[UsesClass(NativeToolError::class)]
 #[UsesClass(AnalysisMemoryBudget::class)]
+#[UsesClass(NullProgressReporter::class)]
 #[CoversClass(RenameByExifDateCommand::class)]
 #[UsesClass(ComparisonWorkLimit::class)]
 #[UsesClass(AssetGroup::class)]
@@ -1233,7 +1237,7 @@ final class TestImageScenariosTest extends TestCase
         $metadataExtractor   = new MetadataExtractor(MetadataReader::createDefault());
         $metadataProvider    = new ExifMetadataProvider($metadataExtractor);
         $mediaTypeClassifier = new MediaTypeClassifier();
-        $imageLoader         = new ImagickImageLoader($mediaTypeClassifier);
+        $imageLoader         = new ImagickImageLoader($mediaTypeClassifier, new NullProgressReporter());
         $progressReporter    = new ConsoleProgressReporter($style);
 
         $perceptualHashCalculator = new PerceptualHashCalculator($imageLoader, new PerceptualHashMath());

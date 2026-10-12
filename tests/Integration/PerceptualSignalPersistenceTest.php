@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Integration;
 
 use Imagick;
+use MagicSunday\Renamer\Helper\NativeToolError;
 use MagicSunday\Renamer\Helper\PrivateCacheStorage;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
@@ -20,6 +21,7 @@ use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashMath;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualSignalCache;
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityResult;
+use MagicSunday\Renamer\Service\Reporting\NullProgressReporter;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use Override;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -38,6 +40,8 @@ use function clearstatcache;
  * one lifecycle. Synthetic files keep the test independent of personal media;
  * a classifier spy proves warm complete signals avoid invoking the decoder.
  */
+#[UsesClass(NativeToolError::class)]
+#[UsesClass(NullProgressReporter::class)]
 #[CoversClass(PerceptualHashCalculator::class)]
 #[CoversClass(PerceptualSignalCache::class)]
 #[UsesClass(ImagickImageLoader::class)]
@@ -113,7 +117,7 @@ final class PerceptualSignalPersistenceTest extends TestCase
         self::assertEquals($signals, $reloaded->get($file));
         $classifier = self::createMock(MediaTypeClassifierInterface::class);
         $classifier->expects(self::never())->method('isVideo');
-        $warm = new PerceptualHashCalculator(new ImagickImageLoader($classifier), new PerceptualHashMath());
+        $warm = new PerceptualHashCalculator(new ImagickImageLoader($classifier, new NullProgressReporter()), new PerceptualHashMath());
         $warm->setSignalCache($reloaded);
 
         $result = $warm->similarityScore($file, $file, 1.0, 1.0);
@@ -254,7 +258,7 @@ final class PerceptualSignalPersistenceTest extends TestCase
      */
     private function createCalculator(PerceptualSignalCache $cache): PerceptualHashCalculator
     {
-        $calculator = new PerceptualHashCalculator(new ImagickImageLoader(new MediaTypeClassifier()), new PerceptualHashMath());
+        $calculator = new PerceptualHashCalculator(new ImagickImageLoader(new MediaTypeClassifier(), new NullProgressReporter()), new PerceptualHashMath());
         $calculator->setSignalCache($cache);
 
         return $calculator;

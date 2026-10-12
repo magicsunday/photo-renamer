@@ -12,16 +12,21 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service\PerceptualHash;
 
 use Imagick;
+use MagicSunday\Renamer\Helper\NativeToolError;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
+use MagicSunday\Renamer\Service\Reporting\NullProgressReporter;
+use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
 
+use function chmod;
 use function escapeshellarg;
 use function exec;
+use function file_get_contents;
 use function file_put_contents;
 use function mkdir;
 use function sprintf;
@@ -33,7 +38,9 @@ use function uniqid;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
+#[UsesClass(NullProgressReporter::class)]
 #[CoversClass(ImagickImageLoader::class)]
+#[UsesClass(NativeToolError::class)]
 #[UsesClass(MediaTypeClassifier::class)]
 final class ImagickImageLoaderTest extends TestCase
 {
@@ -50,9 +57,73 @@ final class ImagickImageLoaderTest extends TestCase
         exec('rm -rf ' . escapeshellarg($this->tempDir));
     }
 
+    /**
+     * Missing video capabilities are reported once each across repeated loads,
+     * keep failed analysis unavailable, and leave source bytes untouched.
+     *
+     * @return void
+     */
+    #[Test]
+    public function missingVideoToolsProduceBoundedDiagnostics(): void
+    {
+        $path = $this->tempDir . '/synthetic.mov';
+        file_put_contents($path, 'synthetic media');
+        $messages = [];
+        $reporter = $this->createMock(ProgressReporterInterface::class);
+        $reporter->expects(self::exactly(2))->method('error')->willReturnCallback(static function (string $message) use (&$messages): void {
+            $messages[] = $message;
+        });
+        $loader = new ImagickImageLoader(new MediaTypeClassifier(), $reporter, $this->tempDir . '/missing-ffmpeg.sh', $this->tempDir . '/missing-ffprobe.sh');
+
+        self::assertNull($loader->loadNormalized(new SplFileInfo($path)));
+        self::assertNull($loader->loadNormalized(new SplFileInfo($path)));
+        self::assertStringContainsString('ffprobe', $messages[0]);
+        self::assertStringContainsString('ffmpeg', $messages[1]);
+        self::assertSame('synthetic media', file_get_contents($path));
+    }
+
+    /**
+     * A native child exiting unsuccessfully exposes its exit code and stderr;
+     * independent JPEG decoding remains usable without either video binary.
+     *
+     * @return void
+     */
+    #[Test]
+    public function nativeFailureIsVisibleAndDoesNotBlockImages(): void
+    {
+        $tool = $this->tempDir . '/failing-tool.sh';
+        file_put_contents($tool, "#!/bin/sh\nprintf 'synthetic decoder failure' >&2\nexit 47\n");
+        chmod($tool, 0700);
+        $video = $this->tempDir . '/synthetic.mov';
+        file_put_contents($video, 'synthetic media');
+        $messages = [];
+        $reporter = $this->createMock(ProgressReporterInterface::class);
+        $reporter->expects(self::exactly(2))->method('error')->willReturnCallback(static function (string $message) use (&$messages): void {
+            $messages[] = $message;
+        });
+        $loader = new ImagickImageLoader(new MediaTypeClassifier(), $reporter, $tool, $tool);
+        self::assertNull($loader->loadNormalized(new SplFileInfo($video)));
+
+        foreach ($messages as $message) {
+            self::assertStringContainsString('47', $message);
+            self::assertStringContainsString('synthetic decoder failure', $message);
+        }
+
+        $image = new Imagick();
+        $image->newImage(16, 16, 'red', 'jpeg');
+
+        $path = $this->tempDir . '/still.jpg';
+        $image->writeImage($path);
+        $image->clear();
+
+        $result = $loader->loadNormalized(new SplFileInfo($path));
+        self::assertInstanceOf(Imagick::class, $result);
+        $result->clear();
+    }
+
     private function createLoader(): ImagickImageLoader
     {
-        return new ImagickImageLoader(new MediaTypeClassifier());
+        return new ImagickImageLoader(new MediaTypeClassifier(), new NullProgressReporter());
     }
 
     /**

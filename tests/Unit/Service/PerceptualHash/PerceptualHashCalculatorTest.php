@@ -17,6 +17,7 @@ use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashMath;
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityClassification;
 use MagicSunday\Renamer\Service\PerceptualHash\SimilarityResult;
+use MagicSunday\Renamer\Service\Reporting\NullProgressReporter;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
@@ -36,6 +37,7 @@ use function uniqid;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
+#[UsesClass(NullProgressReporter::class)]
 #[CoversClass(PerceptualHashCalculator::class)]
 #[UsesClass(ImagickImageLoader::class)]
 #[UsesClass(MediaTypeClassifier::class)]
@@ -58,7 +60,7 @@ final class PerceptualHashCalculatorTest extends TestCase
 
     private function createCalculator(): PerceptualHashCalculator
     {
-        return new PerceptualHashCalculator(new ImagickImageLoader(new MediaTypeClassifier()), new PerceptualHashMath());
+        return new PerceptualHashCalculator(new ImagickImageLoader(new MediaTypeClassifier(), new NullProgressReporter()), new PerceptualHashMath());
     }
 
     /**
