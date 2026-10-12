@@ -99,7 +99,7 @@
             "node_modules/.bin/jscpd --config .jscpd.json --skip-comments --no-tips --fail-on-empty"
         ],
         "ci:test:php:audit": [
-            "composer audit --format=plain"
+            "composer audit --locked --format=plain"
         ],
         "ci:test:php:mutation": [
             "@putenv COMPOSER_PROCESS_TIMEOUT=0",

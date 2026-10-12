@@ -557,6 +557,21 @@ Photo integrity. Use the real execution, negative safety and repeated-run tests
 alongside coverage reports. Mutation results measure the exercised mutations,
 not a guarantee against every defect; CI integration is maintained separately.
 
+`make test` is the fast lint/style/static-analysis/architecture/unit/integration/CPD
+aggregate. Composer audit and full mutation testing remain separate local targets.
+The PR `build (8.5)` job also audits the complete locked production/development
+graph; audit failure fails that required build context, even if CPD succeeds.
+The Security workflow audits the lock on PRs, pushes, its weekly schedule and manual
+runs. Its full PCOV/Infection job runs weekly or through **Run workflow**, retaining
+the configured 68% covered-MSI gate and propagating failures.
+
+The full mutation lane has a 45-minute job timeout and 4 GiB RAM without additional
+swap, 4 CPU and 256-PID container limits. A local reference run took 18m51s for
+5,221 mutations; runner timings vary. Full mutation is a scheduled/manual report,
+not a required PR merge context. Other Security scanner contexts also follow the
+repository's separate branch-protection policy; their existence does not imply
+that they are required. No score guard is weakened to shorten a run.
+
 ### Test images
 
 Generate synthetic test files covering all renamer scenarios (duplicates, Live Photos, timezone, drift, HEIC, cross-directory, perceptual hashing, etc.):

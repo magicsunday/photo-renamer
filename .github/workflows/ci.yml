@@ -102,6 +102,10 @@ jobs:
               if: ${{ always() && steps.install.conclusion == 'success' }}
               run: bash scripts/check-no-dev-runtime
 
+            - name: Composer audit of the locked graph
+              if: ${{ always() && steps.install.conclusion == 'success' }}
+              run: composer ci:test:php:audit
+
             - name: Lint
               if: ${{ always() && steps.install.conclusion == 'success' }}
               run: composer ci:test:php:lint
