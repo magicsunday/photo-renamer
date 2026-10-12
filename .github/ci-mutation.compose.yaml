@@ -1,0 +1,7 @@
+# Finite CI profiling limits; production media defaults remain in compose.yaml.
+services:
+    buildbox:
+        mem_limit: 4g
+        memswap_limit: 4g
+        cpus: 4.0
+        pids_limit: 256
