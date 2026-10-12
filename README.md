@@ -548,7 +548,9 @@ MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:exif --dry-run --list-all /media
 | `make runtime-image-check` | Build the runtime image and verify its native media decoder contract. |
 
 Quality targets propagate tool failures, including risky coverage tests and failed
-mutation-score gates, as a nonzero Make status. Coverage runs retain the strict
+mutation-score gates, as a nonzero Make status. Infection `^0.35.2` supports the
+PHPUnit 13 initial-run configuration without weakening the repository's strict
+PHPUnit configuration. Coverage runs retain the strict
 PHPUnit metadata and warning/risky guards. PCOV/Clover reports statement coverage;
 it does not prove branch coverage, safe deletion, successful file moves or Live
 Photo integrity. Use the real execution, negative safety and repeated-run tests
