@@ -13,7 +13,6 @@ namespace MagicSunday\Renamer\Service\Dedup;
 
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Helper\FileHelper;
-use MagicSunday\Renamer\Service\FormatPriorityResolver;
 use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use SplFileInfo;
 
@@ -39,21 +38,11 @@ use function substr_count;
 final readonly class DedupOriginalMatcher
 {
     /**
-     * Normalized extension rank map derived from canonical format priority.
-     *
-     * Lower numbers are preferred.
-     *
-     * @var array<string, int>
-     */
-    private array $formatPriorityRanks;
-
-    /**
      * @param MediaCompatibilityPolicy $mediaCompatibilityPolicy Shared still/video compatibility rules
      */
     public function __construct(
         private MediaCompatibilityPolicy $mediaCompatibilityPolicy,
     ) {
-        $this->formatPriorityRanks = $this->buildFormatPriorityRanks();
     }
 
     /**
@@ -62,11 +51,12 @@ final readonly class DedupOriginalMatcher
      * Only files without the duplicate marker are indexed. Matching and ranking
      * decisions are deferred to {@see match()}.
      *
-     * @param list<SplFileInfo> $files Files collected from the dedup source tree
+     * @param list<SplFileInfo> $files          Files collected from the dedup source tree
+     * @param list<string>      $formatPriority Explicit ordered formats for this run, retained by its immutable index
      *
      * @return OriginalCandidateIndex Lookup structure keyed by clean basename
      */
-    public function createIndex(array $files): OriginalCandidateIndex
+    public function createIndex(array $files, array $formatPriority = Constants::DEFAULT_FORMAT_PRIORITY): OriginalCandidateIndex
     {
         /** @var array<string, list<SplFileInfo>> $candidatesByBasename */
         $candidatesByBasename = [];
@@ -82,7 +72,7 @@ final readonly class DedupOriginalMatcher
             $candidatesByBasename[$basename][] = $file;
         }
 
-        return new OriginalCandidateIndex($candidatesByBasename);
+        return new OriginalCandidateIndex($candidatesByBasename, $this->buildFormatPriorityRanks($formatPriority));
     }
 
     /**
@@ -114,7 +104,7 @@ final readonly class DedupOriginalMatcher
                 continue;
             }
 
-            if (($bestCandidate === null) || ($this->compareCandidates($duplicateFile, $candidate, $bestCandidate) < 0)) {
+            if (($bestCandidate === null) || ($this->compareCandidates($duplicateFile, $candidate, $bestCandidate, $index->formatPriorityRanks) < 0)) {
                 $bestCandidate = $candidate;
             }
         }
@@ -127,13 +117,14 @@ final readonly class DedupOriginalMatcher
      *
      * Lower comparison values indicate that `$candidateA` is preferred.
      *
-     * @param SplFileInfo $duplicateFile Duplicate file being resolved
-     * @param SplFileInfo $candidateA    First compatible original candidate
-     * @param SplFileInfo $candidateB    Second compatible original candidate
+     * @param SplFileInfo        $duplicateFile       Duplicate file being resolved
+     * @param SplFileInfo        $candidateA          First compatible original candidate
+     * @param SplFileInfo        $candidateB          Second compatible original candidate
+     * @param array<string, int> $formatPriorityRanks Immutable per-run extension ranks
      *
      * @return int Negative when A is preferred, positive when B is preferred, 0 when equal
      */
-    private function compareCandidates(SplFileInfo $duplicateFile, SplFileInfo $candidateA, SplFileInfo $candidateB): int
+    private function compareCandidates(SplFileInfo $duplicateFile, SplFileInfo $candidateA, SplFileInfo $candidateB, array $formatPriorityRanks): int
     {
         $duplicateExtension = $this->normalizeExtension($duplicateFile);
         $aExactMatch        = $this->normalizeExtension($candidateA) === $duplicateExtension;
@@ -143,7 +134,7 @@ final readonly class DedupOriginalMatcher
             return $aExactMatch ? -1 : 1;
         }
 
-        $rankComparison = $this->compareFormatPriority($candidateA, $candidateB);
+        $rankComparison = $this->compareFormatPriority($candidateA, $candidateB, $formatPriorityRanks);
 
         if ($rankComparison !== 0) {
             return $rankComparison;
@@ -189,15 +180,16 @@ final readonly class DedupOriginalMatcher
      *
      * Unknown extensions sort after known ones while still remaining stable and deterministic.
      *
-     * @param SplFileInfo $candidateA First candidate
-     * @param SplFileInfo $candidateB Second candidate
+     * @param SplFileInfo        $candidateA          First candidate
+     * @param SplFileInfo        $candidateB          Second candidate
+     * @param array<string, int> $formatPriorityRanks Immutable per-run extension ranks
      *
      * @return int Negative when A has higher priority, positive when B has higher priority, 0 when equal
      */
-    private function compareFormatPriority(SplFileInfo $candidateA, SplFileInfo $candidateB): int
+    private function compareFormatPriority(SplFileInfo $candidateA, SplFileInfo $candidateB, array $formatPriorityRanks): int
     {
-        $rankA = $this->formatPriorityRanks[$this->normalizeExtension($candidateA)] ?? PHP_INT_MAX;
-        $rankB = $this->formatPriorityRanks[$this->normalizeExtension($candidateB)] ?? PHP_INT_MAX;
+        $rankA = $formatPriorityRanks[$this->normalizeExtension($candidateA)] ?? PHP_INT_MAX;
+        $rankB = $formatPriorityRanks[$this->normalizeExtension($candidateB)] ?? PHP_INT_MAX;
 
         return $rankA <=> $rankB;
     }
@@ -208,14 +200,16 @@ final readonly class DedupOriginalMatcher
      * Duplicate normalized extensions collapse to the earliest configured rank so
      * aliases like `jpeg` and `jpg` remain equivalent for matching purposes.
      *
+     * @param list<string> $formatPriority Explicit ordered formats selected at the command boundary
+     *
      * @return array<string, int> Normalized extension to rank map
      */
-    private function buildFormatPriorityRanks(): array
+    private function buildFormatPriorityRanks(array $formatPriority): array
     {
         /** @var array<string, int> $ranks */
         $ranks = [];
 
-        foreach (FormatPriorityResolver::resolve() as $index => $extension) {
+        foreach ($formatPriority as $index => $extension) {
             $normalizedExtension = FileHelper::normalizeExtension(strtolower($extension));
 
             $ranks[$normalizedExtension] ??= $index;

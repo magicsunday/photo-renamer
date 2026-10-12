@@ -100,10 +100,19 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
     }
 
     /**
-     * Injects the persistent disk cache for cross-run signal reuse.
+     * Starts another run with explicit persistent storage and fresh transient
+     * state. Discarding prior maps performs no old-path I/O: those sources may
+     * have been renamed or removed since classification. Regular clearCache()
+     * still completes partial entries while their sources remain accessible.
+     *
+     * @param PerceptualSignalCache|null $signalCache Current run's persistent signals; null detaches storage at cleanup
+     *
+     * @return void
      */
-    public function setSignalCache(PerceptualSignalCache $signalCache): void
+    #[Override]
+    public function setSignalCache(?PerceptualSignalCache $signalCache): void
     {
+        $this->releaseTransientSignals();
         $this->signalCache = $signalCache;
     }
 
@@ -544,6 +553,18 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
             }
         }
 
+        $this->releaseTransientSignals();
+    }
+
+    /**
+     * Releases native images and both transient maps without reading source
+     * paths or appending signals to a cache. This is shared by normal cleanup
+     * and the next-run boundary, whose persistence responsibilities differ.
+     *
+     * @return void
+     */
+    private function releaseTransientSignals(): void
+    {
         foreach ($this->loadCache as $entry) {
             $entry['img']?->clear();
         }

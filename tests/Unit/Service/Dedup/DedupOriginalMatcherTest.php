@@ -51,6 +51,27 @@ final class DedupOriginalMatcherTest extends TestCase
     use WorkspaceTrait;
 
     /**
+     * Two runs sharing one matcher must honor their explicit format priorities,
+     * without reading or changing global environment. Reusing either index must
+     * retain its own choice, so configuring the second cannot alter the first.
+     *
+     * @return void
+     */
+    #[Test]
+    public function repeatedRunsKeepExplicitFormatPrioritiesIndependent(): void
+    {
+        $matcher   = $this->createMatcher();
+        $heic      = new SplFileInfo('/synthetic/capture.heic');
+        $jpeg      = new SplFileInfo('/synthetic/capture.jpg');
+        $duplicate = new SplFileInfo('/synthetic/capture-duplicate-001.heif');
+        $jpegRun   = $matcher->createIndex([$heic, $jpeg], ['jpg', 'heic']);
+        $heicRun   = $matcher->createIndex([$heic, $jpeg], ['heic', 'jpg']);
+        self::assertSame($jpeg, $matcher->match($duplicate, $jpegRun));
+        self::assertSame($heic, $matcher->match($duplicate, $heicRun));
+        self::assertSame($jpeg, $matcher->match($duplicate, $jpegRun));
+    }
+
+    /**
      * Verifies that exact normalized extension matches are preferred over
      * alternative still-image candidates when both are available.
      */

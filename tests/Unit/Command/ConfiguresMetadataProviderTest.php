@@ -11,14 +11,17 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Command;
 
+use DateTimeImmutable;
 use DateTimeZone;
 use InvalidArgumentException;
 use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Helper\FilenameDateParser;
 use MagicSunday\Renamer\Helper\PrivateCacheStorage;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\MetadataCache;
 use MagicSunday\Renamer\Metadata\MetadataCacheEntry;
+use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualSignalCache;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
@@ -59,10 +62,12 @@ use const DIRECTORY_SEPARATOR;
  */
 #[CoversTrait(ConfiguresMetadataProvider::class)]
 #[UsesClass(FileHelper::class)]
+#[UsesClass(FilenameDateParser::class)]
 #[UsesClass(MetadataCache::class)]
 #[UsesClass(MetadataCacheEntry::class)]
 #[UsesClass(PerceptualSignalCache::class)]
 #[UsesClass(ExifMetadataProvider::class)]
+#[UsesClass(TemporalMetadata::class)]
 #[UsesClass(PrivateCacheStorage::class)]
 final class ConfiguresMetadataProviderTest extends TestCase
 {
@@ -208,6 +213,66 @@ final class ConfiguresMetadataProviderTest extends TestCase
             }
         } finally {
             $this->restoreEnv('CACHE_DIR', $previousCacheDir);
+        }
+    }
+
+    /**
+     * A provider reused after a configured Berlin run must return raw UTC on the
+     * next unconfigured run, rather than inheriting the previous fallback zone.
+     * The observed capture time exercises the real provider with synthetic
+     * ambiguous metadata; environment is restored after testing CLI defaults.
+     *
+     * @return void
+     */
+    #[Test]
+    public function unconfiguredRunDoesNotInheritPreviousTimezone(): void
+    {
+        $previous = getenv('TIMEZONE');
+        putenv('TIMEZONE');
+        $workspace = $this->createTempWorkspace('timezone-run-reset-');
+
+        try {
+            $filesystem = new Filesystem();
+            $path       = $workspace . '/synthetic.mov';
+            $filesystem->dumpFile($path, 'synthetic media');
+            $extractor = new StubMetadataExtractor();
+            $extractor->withResponse($path, new TemporalMetadata(new DateTimeImmutable('2024-06-01T12:00:00+00:00'), null, isAmbiguousTimezone: true));
+            $provider = new ExifMetadataProvider($extractor);
+            $harness  = new class {
+                use ConfiguresMetadataProvider;
+
+                /**
+                 * Applies actual command timezone setup to one shared provider.
+                 *
+                 * @param ExifMetadataProvider $provider Provider reused across runs
+                 * @param InputInterface       $input    Selected command input
+                 *
+                 * @return void
+                 */
+                public function apply(ExifMetadataProvider $provider, InputInterface $input): void
+                {
+                    $this->configureProviderTimezone($provider, $input);
+                }
+
+                /**
+                 * Supplies the concern's explicit filesystem boundary.
+                 *
+                 * @return Filesystem Test-local collaborator, unused for timezone resolution
+                 */
+                protected function getCommandFilesystem(): Filesystem
+                {
+                    return new Filesystem();
+                }
+            };
+            $file = new SplFileInfo($path);
+            $harness->apply($provider, $this->input(['--timezone' => 'Europe/Berlin']));
+            self::assertSame('14:00:00+02:00', $provider->getCaptureDateTime($file)?->format('H:i:sP'));
+            $harness->apply($provider, $this->input([]));
+            self::assertSame('12:00:00+00:00', $provider->getCaptureDateTime($file)?->format('H:i:sP'));
+            self::assertSame('synthetic media', $filesystem->readFile($path));
+        } finally {
+            $this->restoreEnv('TIMEZONE', $previous);
+            $this->removeWorkspace($workspace);
         }
     }
 

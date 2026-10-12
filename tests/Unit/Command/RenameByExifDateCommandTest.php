@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Command;
 
 use DateTimeImmutable;
+use InvalidArgumentException;
 use MagicSunday\Renamer\Command\RenameByExifDateCommand;
 use MagicSunday\Renamer\Helper\AnalysisMemoryBudget;
 use MagicSunday\Renamer\Helper\ConsoleText;
@@ -107,6 +108,7 @@ use MagicSunday\Renamer\Service\Output\SkippedFileAppendResult;
 use MagicSunday\Renamer\Service\Output\SummaryRow;
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
 use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzer;
+use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualSignalCache;
 use MagicSunday\Renamer\Service\Pipeline\AssetGroupPipeline;
 use MagicSunday\Renamer\Service\Pipeline\CaptureAssetCandidateExtractor;
@@ -147,12 +149,14 @@ use MagicSunday\Renamer\Test\Fixtures\DuplicateDetectionServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\TargetNameResolverFactory;
+use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubPerceptualHashCalculator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
@@ -300,6 +304,142 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(ConsoleText::class)]
 final class RenameByExifDateCommandTest extends TestCase
 {
+    use WorkspaceTrait;
+
+    /**
+     * Two invocations configure alternate interface implementations through the
+     * same contract, with distinct selected thresholds and fresh run caches.
+     * A concrete-class check would silently omit both collaborators' setup.
+     *
+     * @return void
+     */
+    #[Test]
+    public function repeatedRunsConfigureAlternateImplementations(): void
+    {
+        $workspace = $this->createTempWorkspace('explicit-exif-run-');
+        $visual    = self::createMock(PerceptualHashCalculatorInterface::class);
+        $caches    = [];
+        $visual->expects(self::exactly(4))->method('setSignalCache')->willReturnCallback(static function (?PerceptualSignalCache $cache) use (&$caches): void {
+            $caches[] = $cache;
+        });
+        $grouping = self::createMock(HashSubGroupingServiceInterface::class);
+        $selected = [];
+        $grouping->expects(self::exactly(4))->method('setMaxMergeRmse')->willReturnCallback(static function (?float $threshold) use (&$selected): void {
+            $selected[] = $threshold;
+        });
+
+        try {
+            $tester = new CommandTester($this->createConfigurationCommand($visual, $grouping));
+            self::assertSame(0, $tester->execute(['source' => $workspace, '--dry-run' => true, '--timezone' => 'UTC', '--merge-threshold' => '0.01']));
+            self::assertSame(0, $tester->execute(['source' => $workspace, '--dry-run' => true, '--timezone' => 'Europe/Berlin', '--merge-threshold' => '0.03']));
+            self::assertSame([0.01, null, 0.03, null], $selected);
+            self::assertInstanceOf(PerceptualSignalCache::class, $caches[0]);
+            self::assertNull($caches[1]);
+            self::assertInstanceOf(PerceptualSignalCache::class, $caches[2]);
+            self::assertNull($caches[3]);
+            self::assertNotSame($caches[0], $caches[2]);
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * A failing execution must still detach EXIF storage and restore default
+     * grouping policy, so the next workflow cannot inherit an aborted run's
+     * settings. The empty real pipeline grants no physical media mutations.
+     *
+     * @return void
+     */
+    #[Test]
+    public function executionFailureReleasesRunConfiguration(): void
+    {
+        $workspace = $this->createTempWorkspace('failed-exif-run-');
+        $visual    = self::createMock(PerceptualHashCalculatorInterface::class);
+        $caches    = [];
+        $visual->expects(self::exactly(2))->method('setSignalCache')->willReturnCallback(static function (?PerceptualSignalCache $cache) use (&$caches): void {
+            $caches[] = $cache;
+        });
+        $grouping = self::createMock(HashSubGroupingServiceInterface::class);
+        $selected = [];
+        $grouping->expects(self::exactly(2))->method('setMaxMergeRmse')->willReturnCallback(static function (?float $threshold) use (&$selected): void {
+            $selected[] = $threshold;
+        });
+
+        try {
+            $tester = new CommandTester($this->createConfigurationCommand($visual, $grouping, true));
+            self::assertSame(1, $tester->execute(['source' => $workspace, '--dry-run' => true, '--merge-threshold' => '0.01']));
+            self::assertSame([0.01, null], $selected);
+            self::assertInstanceOf(PerceptualSignalCache::class, $caches[0]);
+            self::assertNull($caches[1]);
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Invalid selected input must be rejected even when grouping is provided by
+     * an alternative implementation; validation cannot depend on class identity.
+     *
+     * @return void
+     */
+    #[Test]
+    public function alternateImplementationCannotBypassThresholdValidation(): void
+    {
+        $workspace = $this->createTempWorkspace('invalid-exif-run-');
+        $grouping  = self::createMock(HashSubGroupingServiceInterface::class);
+        $grouping->expects(self::never())->method('setMaxMergeRmse');
+
+        try {
+            $tester = new CommandTester($this->createConfigurationCommand(self::createStub(PerceptualHashCalculatorInterface::class), $grouping));
+            $this->expectException(InvalidArgumentException::class);
+            $tester->execute(['source' => $workspace, '--dry-run' => true, '--merge-threshold' => '-1']);
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Builds an empty real pipeline with configurable interface test doubles.
+     * Keeping the pipeline/plan/renderer real checks the CLI setup lifecycle
+     * without decoding media or granting any filesystem mutation authority.
+     *
+     * @param PerceptualHashCalculatorInterface $visual         Alternate signal calculator
+     * @param HashSubGroupingServiceInterface   $grouping       Alternate content grouping service
+     * @param bool                              $executionFails Whether the filesystem boundary fails before any action
+     *
+     * @return RenameByExifDateCommand Command with a deterministic empty pipeline
+     */
+    private function createConfigurationCommand(PerceptualHashCalculatorInterface $visual, HashSubGroupingServiceInterface $grouping, bool $executionFails = false): RenameByExifDateCommand
+    {
+        $io                = new SymfonyStyle(new ArrayInput([]), new BufferedOutput());
+        $filesystemService = self::createStub(FileSystemServiceInterface::class);
+
+        if ($executionFails) {
+            $filesystemService->method('executePlan')->willThrowException(new RuntimeException('synthetic executor failure'));
+        } else {
+            $filesystemService->method('executePlan')->willReturn(new ExecutionResult());
+        }
+
+        $builder = self::createStub(CaptureGroupBuilderInterface::class);
+        $builder->method('build')->willReturn(new AssetGroupCollection());
+
+        return new RenameByExifDateCommand(
+            $filesystemService,
+            self::createStub(DuplicateDetectionServiceInterface::class),
+            new SafeRegex(),
+            new Filesystem(),
+            $this->createExifMetadataProvider(),
+            $visual,
+            $grouping,
+            new AssetGroupPipeline($builder, self::createStub(SubgroupClassifierInterface::class), self::createStub(RoleAssignerInterface::class), self::createStub(TargetNameResolverInterface::class), self::createStub(CollisionResolverInterface::class), new RenamePlanValidator()),
+            self::createStub(CanonicalScorerInterface::class),
+            new ExecutionPlanBuilder(),
+            new PipelineReviewMapper(),
+            OutputRendererFactory::create($io),
+            new TargetBasenameStrategy(),
+        );
+    }
+
     /**
      * Verifies that the command registers under the name "rename:exif".
      */

@@ -18,7 +18,6 @@ use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
-use MagicSunday\Renamer\Model\LinkConfig;
 use MagicSunday\Renamer\Service\ExiftoolWriter;
 use MagicSunday\Renamer\Service\Filesystem\MutationJournal;
 use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
@@ -176,6 +175,8 @@ final class WriteDateCommand extends Command
         $io = new SymfonyStyle($input, $output);
         $io->title($this->getName() ?? '');
 
+        $linkConfig = $this->resolveLinkConfig();
+
         $source = $this->resolveExistingSourcePath($input, $io);
 
         if ($source === null) {
@@ -266,8 +267,6 @@ final class WriteDateCommand extends Command
 
             return self::SUCCESS;
         }
-
-        $linkConfig = LinkConfig::fromEnv();
 
         // Process pending writes
         foreach ($pendingWrites as $entry) {

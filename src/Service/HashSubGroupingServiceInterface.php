@@ -28,6 +28,16 @@ use SplFileInfo;
 interface HashSubGroupingServiceInterface
 {
     /**
+     * Selects the explicit validated maximum RMSE for this run. Internal
+     * conservative safety caps remain independent of this caller preference.
+     *
+     * @param float|null $threshold Finite selected threshold from zero to one; null restores the default after the run
+     *
+     * @return void
+     */
+    public function setMaxMergeRmse(?float $threshold): void;
+
+    /**
      * Applies content-hash sub-grouping when a naming conflict exists.
      *
      * Returns a cluster map (source pathname → cluster root hash key) when

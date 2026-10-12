@@ -17,6 +17,7 @@ use MagicSunday\Renamer\Exception\AnalysisMemoryBudgetExceededException;
 use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
+use MagicSunday\Renamer\Model\LinkConfig;
 use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
@@ -95,6 +96,11 @@ abstract class AbstractRenameCommand extends Command
      * When true, the output lists all files including unchanged originals.
      */
     protected bool $listAll = false;
+
+    /**
+     * Immutable terminal link settings selected afresh for each command run.
+     */
+    protected ?LinkConfig $linkConfig = null;
 
     /**
      * Maximum allowed date drift in days between source filename and target date.
@@ -245,6 +251,7 @@ abstract class AbstractRenameCommand extends Command
         $this->listAll = (bool) $input->getOption('list-all');
 
         $this->maxDateDrift = $this->resolveMaxDateDrift($input);
+        $this->linkConfig   = $this->resolveLinkConfig();
 
         $showOption = $input->getOption('show');
 
@@ -438,6 +445,7 @@ abstract class AbstractRenameCommand extends Command
                     listAll: $this->listAll,
                     sourceBaseDirectory: $this->sourceDirectory,
                     maxDateDrift: $this->maxDateDrift,
+                    linkConfig: $this->linkConfig,
                 ),
                 $result,
                 $this->showFilter,

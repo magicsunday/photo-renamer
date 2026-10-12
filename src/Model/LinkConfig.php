@@ -11,12 +11,10 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Model;
 
-use function getenv;
-use function is_string;
-
 /**
  * Immutable configuration for clickable file links in terminal output.
- * Resolved from FILE_LINK_ROOT, FILE_LINK_BASE and FILE_LINK_PROTOCOL env vars.
+ * Explicit values are resolved at the command boundary. Keeping environment
+ * reads out of this model makes rendering deterministic across repeated runs.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -34,41 +32,6 @@ final readonly class LinkConfig
         public ?string $base,
         public ?string $protocol,
     ) {
-    }
-
-    /**
-     * Creates a LinkConfig instance from environment variables.
-     *
-     * Reads FILE_LINK_ROOT, FILE_LINK_BASE, and FILE_LINK_PROTOCOL. Returns
-     * a configuration with null fields if these variables are not defined.
-     *
-     * @return self The constructed configuration.
-     */
-    public static function fromEnv(): self
-    {
-        return new self(
-            self::env('FILE_LINK_ROOT'),
-            self::env('FILE_LINK_BASE'),
-            self::env('FILE_LINK_PROTOCOL'),
-        );
-    }
-
-    /**
-     * Reads one environment variable, treating an unset or empty value as absent.
-     *
-     * Read here rather than through FileHelper::env(): the model layer sits below
-     * the helpers (PathHelper depends on this class), so it must not call back up
-     * into them.
-     *
-     * @param string $name The name of the environment variable to read.
-     *
-     * @return string|null The value, or null when it is unset or empty.
-     */
-    private static function env(string $name): ?string
-    {
-        $value = getenv($name);
-
-        return is_string($value) && ($value !== '') ? $value : null;
     }
 
     /**

@@ -26,24 +26,26 @@ namespace MagicSunday\Renamer\Model;
 final readonly class RenameOptions
 {
     /**
-     * @param bool        $dryRun              If true, the operation is simulated,
-     *                                         and no changes are made to the
-     *                                         file system.
-     * @param bool        $listAll             If true, all processed files (including
-     *                                         those that are not renamed) are
-     *                                         listed in the final output.
-     * @param string|null $sourceBaseDirectory The absolute path to the base
-     *                                         directory being scanned. Used for
-     *                                         path relativization in reports.
-     * @param int|null    $maxDateDrift        The maximum allowed difference in
-     *                                         days between filename dates and
-     *                                         metadata dates (null to disable).
+     * @param bool            $dryRun              If true, the operation is simulated,
+     *                                             and no changes are made to the
+     *                                             file system.
+     * @param bool            $listAll             If true, all processed files (including
+     *                                             those that are not renamed) are
+     *                                             listed in the final output.
+     * @param string|null     $sourceBaseDirectory The absolute path to the base
+     *                                             directory being scanned. Used for
+     *                                             path relativization in reports.
+     * @param int|null        $maxDateDrift        The maximum allowed difference in
+     *                                             days between filename dates and
+     *                                             metadata dates (null to disable).
+     * @param LinkConfig|null $linkConfig          Explicit run link settings; null disables links
      */
     public function __construct(
         public bool $dryRun = false,
         public bool $listAll = false,
         public ?string $sourceBaseDirectory = null,
         public ?int $maxDateDrift = null,
+        public ?LinkConfig $linkConfig = null,
     ) {
     }
 }

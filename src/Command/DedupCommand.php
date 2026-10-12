@@ -22,6 +22,7 @@ use MagicSunday\Renamer\Service\Dedup\QuarantineTargetGuard;
 use MagicSunday\Renamer\Service\Filesystem\MutationJournal;
 use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
+use MagicSunday\Renamer\Service\FormatPriorityResolver;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use Override;
 use RuntimeException;
@@ -185,7 +186,7 @@ final class DedupCommand extends Command
         $progressBar?->setFormat(Constants::PROGRESS_BAR_FORMAT);
         $progressBar?->start();
 
-        $originalIndex = $this->dedupOriginalMatcher->createIndex($files);
+        $originalIndex = $this->dedupOriginalMatcher->createIndex($files, FormatPriorityResolver::resolve());
 
         /** @var list<array{file: SplFileInfo, original: SplFileInfo|null, relativePath: string}> $duplicates */
         $duplicates = [];
