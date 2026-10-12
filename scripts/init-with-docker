@@ -33,4 +33,8 @@ if [ -z "${GITHUB_TOKEN:-}" ]; then
     fi
 fi
 
-docker compose run --rm -e GITHUB_TOKEN="${GITHUB_TOKEN}" builder ./scripts/init
+export GITHUB_TOKEN
+# Tokens exist only in the short-lived downloader container. Compilation uses
+# a fresh container, whose Docker configuration and parent environment are clear.
+docker compose run --rm -e GITHUB_TOKEN builder ./scripts/init download
+docker compose run --rm -e GITHUB_TOKEN= -e GH_TOKEN= -e COMPOSER_AUTH= builder ./scripts/init compile

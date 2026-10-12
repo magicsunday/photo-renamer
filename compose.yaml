@@ -3,6 +3,9 @@ services:
         build:
             context: .
             target: runtime
+            args:
+                APP_REVISION: ${APP_REVISION:-${GITHUB_SHA:-workspace}}
+                APP_SOURCE_DIRTY: ${APP_SOURCE_DIRTY:-1}
         profiles: [runtime]
         user: "${USERID:-1000}:${GROUPID:-1000}"
         read_only: true

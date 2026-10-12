@@ -23,13 +23,14 @@ mixed-collection-benchmark: .logo ## Profile synthetic JPG/HEIC+MOV through the 
 
 binary: .logo ## Build the self-contained renamer binary.
 	$(COMPOSE_BUILD) php scripts/clear-cache.php
-	@bash scripts/build
+	@bash scripts/build-with-docker.sh
 
 binary-init: .logo ## Initialize SPC build environment (download + compile PHP).
 	@bash scripts/init-with-docker
 
 binary-clean: .logo ## Remove SPC build artifacts to free space.
-	@rm -rf .build/spc/pkgroot/ .build/spc/downloads/ .build/spc/source/
+	@rm -rf .build/spc/pkgroot/ .build/spc/downloads/ .build/spc/source/ .build/spc/buildroot/ .build/spc/bootstrap.sha256
+	@rm -f .build/bin/php .build/bin/composer .build/bin/spc
 
 cache-clear: .logo ## Clear development/legacy media caches and owned DI container.
 	$(COMPOSE_BUILD) php scripts/clear-cache.php

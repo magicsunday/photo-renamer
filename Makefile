@@ -31,6 +31,10 @@ ifdef GITHUB_TOKEN
     export COMPOSER_AUTH := {"github-oauth":{"github.com":"$(GITHUB_TOKEN)"}}
 endif
 
+# Record actual source checkout identity without exposing Git credentials.
+export APP_REVISION := $(shell git rev-parse --verify HEAD 2>/dev/null)
+export APP_SOURCE_DIRTY := $(shell if git diff --quiet && git diff --cached --quiet; then echo 0; else echo 1; fi)
+
 COMPOSE_BUILD := $(COMPOSE_BIN) run --rm buildbox
 
 # Includes

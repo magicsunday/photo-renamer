@@ -5,7 +5,6 @@
 .DS_Store
 
 # Dependencies
-composer.lock
 node_modules/
 
 # Build output
@@ -14,6 +13,7 @@ node_modules/
 log/
 renamer
 renamer.phar
+renamer.build.json
 renamer.md5
 
 # Environment
