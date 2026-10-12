@@ -176,6 +176,8 @@ use function array_values;
 use function file_get_contents;
 use function file_put_contents;
 use function getenv;
+use function hash;
+use function hash_file;
 use function mkdir;
 use function preg_replace;
 use function putenv;
@@ -903,6 +905,55 @@ final class RenameByExifDateCommandTest extends TestCase
             );
         } finally {
             $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * Executes the real pipeline and filesystem twice for a synthetic Live Photo
+     * plus an exact still duplicate in another directory. The companion has a
+     * different capture date and must retain its still's basename on both runs;
+     * final paths and SHA-256 checks protect bytes independently of preview text.
+     * Metadata is supplied at both source and destination paths to model a parser
+     * reading unchanged embedded metadata after a physical move.
+     *
+     * @return void
+     */
+    #[Test]
+    public function repeatedActualExecutionPreservesLivePhotoAndDuplicateBytes(): void
+    {
+        $workspace  = $this->createTempWorkspace();
+        $filesystem = new Filesystem();
+        $metadata   = new StubMetadataExtractor();
+        $still      = new TemporalMetadata(new DateTimeImmutable('2024-01-01 12:00:00'), 'synthetic-pair-id');
+        $video      = new TemporalMetadata(new DateTimeImmutable('2024-01-02 12:00:00'), 'synthetic-pair-id');
+        $fixtures   = [
+            ['camera.jpg', '2024-01-01_12-00-00-000.jpg', 'synthetic still bytes', $still],
+            ['camera.mov', '2024-01-01_12-00-00-000.mov', 'synthetic companion bytes', $video],
+            ['backup/export.jpg', 'backup/2024-01-01_12-00-00-000-duplicate-001.jpg', 'synthetic still bytes', $still],
+        ];
+
+        try {
+            foreach ($fixtures as [$source, $target, $bytes, $signals]) {
+                $filesystem->dumpFile($workspace . '/' . $source, $bytes);
+                $metadata->withResponse($workspace . '/' . $source, $signals);
+                $metadata->withResponse($workspace . '/' . $target, $signals);
+            }
+
+            $this->runCommandOutput($workspace, $metadata, false);
+
+            foreach ($fixtures as [$source, $target, $bytes]) {
+                self::assertFileDoesNotExist($workspace . '/' . $source);
+                self::assertSame(hash('sha256', $bytes), hash_file('sha256', $workspace . '/' . $target));
+            }
+
+            self::assertStringContainsString('Nothing to do.', $this->runCommandOutput($workspace, $metadata, false));
+
+            foreach ($fixtures as [$source, $target, $bytes]) {
+                self::assertFileDoesNotExist($workspace . '/' . $source);
+                self::assertSame(hash('sha256', $bytes), hash_file('sha256', $workspace . '/' . $target));
+            }
+        } finally {
+            $filesystem->remove($workspace);
         }
     }
 

@@ -29,6 +29,7 @@ make stan           # PHPStan only
 make deptrac        # Deptrac architecture layers (+ unassigned classes, layer cycles)
 make templates      # Config copies vs. the coding-standard templates
 make coverage       # PHPUnit with HTML + Clover coverage (.build/coverage/)
+make mutation       # Infection with configured score gates; failures propagate
 make cgl            # Fix code style
 make rector         # Apply rector rules
 make install        # Composer install
@@ -47,6 +48,8 @@ make mixed-collection-benchmark COUNT=70000 # Real synthetic JPG/HEIC+MOV: pipel
 ```
 
 Local pipeline order of `composer ci:test`: phplint → php-cs-fixer (dry-run) → rector (dry-run) → phpstan → deptrac → templates → phpunit → jscpd
+
+Quality Make recipes must propagate coverage/mutation tool failures; never prefix them with `-` or suppress their exit codes. The development image includes GNU Make for actual recipe-status regression tests without nested Docker. Keep strict PHPUnit coverage metadata/risky/warning guards. PCOV/Clover measures statements, not branch coverage or mutation safety; actual file-state, negative safety and repeated-execution contracts remain mandatory alongside plan/renderer/architecture checks.
 
 `composer ci:test:php:cpd` runs the installed `node_modules/.bin/jscpd`, so the Node dependencies must be installed first (`make install` runs `npm ci`). jscpd is pinned to an exact version in `package.json`. CI runs it as its own job through the shared `cpd.yml` workflow of the `.github` repository, reported as `cpd / Copy-paste detection`.
 

@@ -18,7 +18,7 @@ RUN apk add --no-cache \
 # Development/installation retains its credential access and tooling.
 FROM media-base AS dev
 
-RUN apk add --no-cache git nodejs npm openssh-client php85-pecl-pcov && \
+RUN apk add --no-cache git make nodejs npm openssh-client php85-pecl-pcov && \
     echo "extension=/usr/lib/php85/modules/pcov.so" > /usr/local/etc/php/conf.d/pcov.ini && \
     echo "pcov.enabled=0" >> /usr/local/etc/php/conf.d/pcov.ini && \
     git config --global --add safe.directory /app

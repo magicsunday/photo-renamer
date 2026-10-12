@@ -31,7 +31,7 @@ unit: .logo ## Runs the PHPUnit tests.
 	$(COMPOSE_BUILD) composer ci:test:php:unit
 
 coverage: .logo ## Runs PHPUnit tests with HTML + Clover coverage report (.build/coverage/).
-	-$(COMPOSE_BUILD) composer ci:test:php:unit:coverage
+	$(COMPOSE_BUILD) composer ci:test:php:unit:coverage
 
 cpd: .logo ## Runs copy-paste detection (jscpd).
 	$(COMPOSE_BUILD) composer ci:test:php:cpd
@@ -40,7 +40,7 @@ audit: .logo ## Checks for known security vulnerabilities in dependencies.
 	$(COMPOSE_BUILD) composer ci:test:php:audit
 
 mutation: .logo ## Runs mutation testing with Infection.
-	-$(COMPOSE_BUILD) composer ci:test:php:mutation
+	$(COMPOSE_BUILD) composer ci:test:php:mutation
 
 no-dev-smoke: .logo ## Verifies the isolated production vendor tree and runtime Process dependencies.
 	$(COMPOSE_BUILD) bash scripts/check-no-dev-runtime
