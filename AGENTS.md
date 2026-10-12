@@ -81,6 +81,7 @@ MEDIA_DIR=/photos make run CMD="rename:exif /media --dry-run"
 ### Shared tooling (`magicsunday/coding-standard`)
 
 - `require-dev` holds `magicsunday/coding-standard` (delivers php-cs-fixer, PHPStan + rule packs, Rector, phplint, PHPUnit, Deptrac) and `infection/infection` only. Do not add those tools individually.
+- Infection must use the PHPUnit-13-compatible `^0.35.2` constraint and its locked package reference. Verify the actual mutation initial run and completion; never work around its test-history warning by weakening PHPUnit guards or lowering mutation-score thresholds.
 - `.php-cs-fixer.dist.php`, `phpstan.neon` and `rector.php` wrap the shared `php-cs-fixer/base.php`, `phpstan/base.neon` and `rector/base.php` (PHP floor `80500`). Change a shared rule upstream, not here.
 - `phpunit.xml`, `.phplint.yml`, `.editorconfig`, `.jscpd.json` are adapted template copies; `composer ci:test:php:templates` (`check-consumer-config.php .`) fails when a strict flag is dropped.
 
