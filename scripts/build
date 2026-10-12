@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+bash scripts/check-lock.sh
 
 ROOT_DIR="$(pwd)"
 BUILD_DIR="${ROOT_DIR}/.build/renamer"
@@ -22,11 +23,13 @@ STRIP_FILES=(
 
 echo "Compiling ${BIN_NAME}"
 
-# Auto-initialize SPC build environment if needed
-if [ ! -f "${BIN_DIR}/php" ] || [ ! -f "${BIN_DIR}/composer" ] || [ ! -f "${SPC_DIR}/buildroot/bin/micro.sfx" ]; then
-    echo "SPC build environment not found, initializing..."
-    ./scripts/init-with-docker
+if [[ ! -f /.dockerenv ]]; then
+    echo "Run the binary build through make binary inside Docker." >&2
+    exit 1
 fi
+unset GITHUB_TOKEN GH_TOKEN COMPOSER_AUTH
+bash scripts/ensure-spc.sh "${BIN_DIR}/spc"
+bash scripts/bootstrap-state.sh verify
 
 rm -rf "${BUILD_DIR}"
 
@@ -35,13 +38,15 @@ mkdir "${BUILD_DIR}"
 
 echo "Copying files"
 cp composer.json "${BUILD_DIR}"
-cp composer.lock "${BUILD_DIR}" 2>/dev/null || :
+cp composer.lock "${BUILD_DIR}"
 cp -r src "${BUILD_DIR}"
 cp -r config "${BUILD_DIR}"
-cp version "${BUILD_DIR}"
+cp version Dockerfile "${BUILD_DIR}"
+mkdir -p "${BUILD_DIR}/scripts"
+cp scripts/write-build-manifest.php "${BUILD_DIR}/scripts/"
 
 echo "Installing composer dependencies"
-"${BIN_DIR}/composer" -d "${BUILD_DIR}" install --no-dev --no-ansi --no-interaction --no-progress --no-scripts --classmap-authoritative
+"${BIN_DIR}/php" /usr/bin/composer --working-dir "${BUILD_DIR}" install --no-dev --no-ansi --no-interaction --no-progress --no-scripts --classmap-authoritative
 
 echo "Stripping non-essential vendor files"
 
@@ -51,14 +56,17 @@ for dir in "${STRIP_DIRS[@]}"; do
 done
 # Remove leading -o
 find "${BUILD_DIR}/.build/vendor" -mindepth 3 -maxdepth 3 -type d \
-    \( "${dir_args[@]:1}" \) -exec rm -rf {} + || :
+    \( "${dir_args[@]:1}" \) -exec rm -rf {} +
 
 file_args=()
 for file in "${STRIP_FILES[@]}"; do
     file_args+=(-o -iname "$file")
 done
 find "${BUILD_DIR}/.build/vendor" -mindepth 3 -maxdepth 3 -type f \
-    \( "${file_args[@]:1}" \) -delete || :
+    \( "${file_args[@]:1}" \) -delete
+
+"${BIN_DIR}/php" "${BUILD_DIR}/scripts/write-build-manifest.php" "${BUILD_DIR}/.build/build-inputs.json" "${APP_REVISION:-workspace}" "${APP_SOURCE_DIRTY:-1}" binary "${ROOT_DIR}"
+cp "${BUILD_DIR}/.build/build-inputs.json" "${ROOT_DIR}/renamer.build.json"
 
 echo "Creating phar archive"
 "${BIN_DIR}/php" scripts/build.php

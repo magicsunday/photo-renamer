@@ -62,6 +62,7 @@ rector: .logo ## Applies the rector rules.
 .PHONY: install update
 
 install: .logo ## Installs the composer and Node dependencies.
+	bash scripts/check-lock.sh
 	$(COMPOSE_BUILD) composer install
 	$(COMPOSE_BUILD) npm ci
 

@@ -490,6 +490,14 @@ make test
 
 `make runtime-image-check` also runs `scripts/check-configuration-contract.sh`: tiny generated JPEG/HEIC fixtures prove Docker policy forwarding, actual canonical/merge decisions, invalid-value rejection, CLI precedence, defaults and external host paths with spaces. It uses disposable caches and preserves every synthetic media name and byte.
 
+Application dependencies use the versioned `composer.lock`: normal installation, CI, the runtime image, binary packaging and the isolated no-dev check use that exact input. Missing lockfiles fail before installation rather than triggering fresh resolution. Use `make update` for an intentional dependency change, review the lock diff and run the full pipeline plus runtime checks before committing it.
+
+SPC bootstrap uses the reviewed release and archive/binary SHA-256 values in `config/build-inputs.env`. It checks downloads and cached executables before use, selects the fixed PHP source URL/hash, and records native archive hashes and Git/submodule commits. The pinned builder image contains the compiler prerequisites and the official Composer PHAR; no extra Composer installer or packed Composer executable is needed. Download and compile use separate containers, and compile/package containers receive no download credentials. Cached compiler outputs require matching input/output receipts; `make binary-clean` clears only generated bootstrap/tool outputs so changed inputs can be rebuilt.
+
+`make binary` runs all PHP/Composer/SPC build steps inside the builder container. Runtime images contain `.build/build-inputs.json`; binary builds contain the same manifest inside the PHAR and write `renamer.build.json` alongside the binary. It records source/lock hashes, actual package references, tool/native build versions and base-image digests. Make passes the checked-out Git revision and an explicit modified-workspace flag. Manual Docker builds without a revision use an explicit workspace identity instead of inventing a commit. No environment dumps, checkout paths or media metadata belong in this public artifact.
+
+These records support rebuilding and diagnosing the selected inputs; they do not promise bit-for-bit identity across compilers, system repositories and archive generation. Review manifests and run no-dev/runtime/artifact checks when updating dependencies or build inputs.
+
 The production dependency tree can be checked separately with `make no-dev-smoke`. It installs the application into a temporary isolated `--no-dev` vendor tree, starts the CLI, exercises the runtime process and video fingerprinting paths, and verifies the Write-Date and missing-`exiftool` diagnostics without inheriting development packages.
 
 The tooling configuration is shared with the other `magicsunday/*` projects through

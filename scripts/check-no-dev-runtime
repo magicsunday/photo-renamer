@@ -3,6 +3,7 @@
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+bash scripts/check-lock.sh
 
 PHP_BIN="${PHP_BIN:-php}"
 COMPOSER_BIN="${COMPOSER_BIN:-composer}"
@@ -17,7 +18,7 @@ cleanup() {
 trap cleanup EXIT
 
 mkdir -p "${SMOKE_ROOT}/.build"
-cp composer.json version "${SMOKE_ROOT}/"
+cp composer.json composer.lock version "${SMOKE_ROOT}/"
 cp -r src config "${SMOKE_ROOT}/"
 
 # GitDriver needs a cache; this invocation's empty private cache is disposable
@@ -62,6 +63,17 @@ if (!is_string($root) || ($root === "")) {
 }
 
 require $root . "/.build/vendor/autoload.php";
+
+$filesystem = new Symfony\Component\Filesystem\Filesystem();
+$locked = json_decode($filesystem->readFile($root . "/composer.lock"), true, flags: JSON_THROW_ON_ERROR);
+foreach ($locked["packages"] as $package) {
+    $reference = $package["source"]["reference"] ?? null;
+    if (Composer\InstalledVersions::getPrettyVersion($package["name"]) !== $package["version"]
+        || Composer\InstalledVersions::getReference($package["name"]) !== $reference) {
+        throw new RuntimeException("Fresh production vendor differs from the locked package references.");
+    }
+}
+echo "Every fresh production package matches its locked version and reference.\n";
 
 $process = new Symfony\Component\Process\Process([PHP_BINARY, "-r", "echo \"process-ok\";"]);
 $process->run();

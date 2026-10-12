@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 PHP_EXTENSIONS="ctype,curl,dom,exif,fileinfo,filter,iconv,imagick,mbstring,openssl,pcntl,phar,posix,xml,xmlreader,xmlwriter,zlib"
 
@@ -13,56 +13,64 @@ SPC="${BIN_DIR}/spc"
 
 mkdir -p "${SPC_DIR}" "${BIN_DIR}"
 
-# Skip if SPC is already fully built
-if [ -f "${SPC_DIR}/buildroot/bin/micro.sfx" ] && [ -f "${BIN_DIR}/php" ] && [ -f "${BIN_DIR}/composer" ]; then
+# Every cache reuse is verified before the early-return or any tool call.
+bash scripts/ensure-spc.sh "${SPC}"
+
+source config/build-inputs.env
+bootstrap_phase="${1:-all}"
+case "${bootstrap_phase}" in download|compile|all) ;; *) echo "Expected download or compile bootstrap phase." >&2; exit 1 ;; esac
+# Cached compiler outputs are reusable only with the same reviewed inputs.
+if [[ -f "${SPC_DIR}/buildroot/bin/micro.sfx" && -f "${BIN_DIR}/php" ]]; then
+    bash scripts/bootstrap-state.sh verify
     echo "SPC build environment already exists, skipping (use 'make binary-clean' to rebuild)"
     exit 0
 fi
 
-if [ ! -f "${SPC}" ]; then
-    echo "Download SPC binary command"
-    curl -fsSL -o "${SPC}" https://dl.static-php.dev/static-php-cli/spc-bin/nightly/spc-linux-x86_64
-    chmod +x "${SPC}"
-fi
-
 cd "${SPC_DIR}"
 
-echo "Check system tool dependencies, auto-fix them if possible"
-"${SPC}" doctor --auto-fix
+if [[ "${bootstrap_phase}" != compile ]]; then
+    echo "Check system tool dependencies, auto-fix them if possible"
+    env -u GITHUB_TOKEN -u GH_TOKEN -u COMPOSER_AUTH "${SPC}" doctor --auto-fix
 
-if [ ! -f "pkgroot/bin/upx" ]; then
-    echo "Download UPX command"
-    "${SPC}" install-pkg upx
+    if [ ! -f "pkgroot/bin/upx" ]; then
+        echo "Download UPX command"
+        "${SPC}" install-pkg upx
+    fi
+
+    echo "Download SPC extensions"
+    "${SPC}" download --with-php=8.5 --custom-url "php-src:https://www.php.net/distributions/php-${PHP_BUILD_VERSION}.tar.xz" --for-extensions "${PHP_EXTENSIONS}" --prefer-pre-built --without-suggestions
+fi
+if [[ "${bootstrap_phase}" == download ]]; then
+    echo "Bootstrap downloads complete; start compile in a fresh credential-free container."
+    bash "${ROOT_DIR}/scripts/native-inputs.sh" record
+    exit 0
 fi
 
-echo "Download SPC extensions"
-"${SPC}" download --with-php=8.5 --for-extensions "${PHP_EXTENSIONS}" --prefer-pre-built --without-suggestions
+# Download does not extract sources. Verify the selected archive before build.
+php_source="downloads/php-${PHP_BUILD_VERSION}.tar.xz"
+if [[ ! -f "${php_source}" || -L "${php_source}" ]]; then
+    echo "The pinned PHP source archive is missing or linked." >&2
+    exit 1
+fi
+php_source_hash="$(sha256sum < "${php_source}")"
+if [[ "${php_source_hash%% *}" != "${PHP_SOURCE_SHA256}" ]]; then
+    echo "PHP source checksum mismatch; compilation will not run." >&2
+    exit 1
+fi
 
+if [[ "${bootstrap_phase}" == compile ]]; then bash "${ROOT_DIR}/scripts/native-inputs.sh" verify; fi
+
+# Download authentication ends here; all remaining compile/combine children
+# inherit no download credentials, including later Composer micro-combination.
+unset GITHUB_TOKEN GH_TOKEN COMPOSER_AUTH
 echo "Compile SPC"
 "${SPC}" build --build-cli --build-micro --with-micro-fake-cli --with-upx-pack "${PHP_EXTENSIONS}" -I "phar.readonly=Off" -I "memory_limit=1024M" -I "error_reporting=-1"
 
 ln -sf "../spc/buildroot/bin/php" "${BIN_DIR}/php"
 
-echo "Install Composer"
-curl -fsSL -o composer-setup.php https://getcomposer.org/installer
-
-EXPECTED_CHECKSUM="$("${BIN_DIR}/php" -r 'copy("https://composer.github.io/installer.sig", "php://stdout");')"
-ACTUAL_CHECKSUM="$("${BIN_DIR}/php" -r "echo hash_file('sha384', 'composer-setup.php');")"
-
-if [ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]; then
-    >&2 echo 'ERROR: Invalid Composer installer checksum'
-    rm composer-setup.php
-    exit 1
-fi
-
-"${BIN_DIR}/php" composer-setup.php
-rm composer-setup.php
-
-if [ -f "composer.phar" ]; then
-    "${SPC}" micro:combine composer.phar --output=composer
-    rm composer.phar
-    mv composer "${BIN_DIR}/composer"
-else
-    echo "Composer download failed"
-    exit 1
-fi
+# Composer PHAR is copied from the pinned official image by Dockerfile.
+# No mutable installer and no separately packed Composer executable are needed.
+"${BIN_DIR}/php" /usr/bin/composer --version --no-ansi
+cd "${ROOT_DIR}"
+bash scripts/native-inputs.sh record
+bash scripts/bootstrap-state.sh record

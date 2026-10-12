@@ -20,8 +20,11 @@ use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
 
 use function dirname;
+use function hash;
+use function in_array;
 use function posix_getegid;
 use function posix_geteuid;
+use function preg_replace;
 use function str_replace;
 
 /**
@@ -37,8 +40,9 @@ final class BinaryInitConfigurationTest extends TestCase
 
     /**
      * Existing values, comments and whitespace must survive all init outcomes.
-     * A completed synthetic SPC tree exercises the real init script's early
-     * return; controlled Docker/auth failures also preserve every original byte.
+     * A verified synthetic SPC tree exercises the real reuse gate; changed
+     * build inputs or damaged output must fail instead of trusting marker-only
+     * reuse. Controlled Docker/auth failures also preserve every original byte.
      *
      * @param string $scenario     Controlled subprocess outcome
      * @param int    $expectedExit Expected shell status
@@ -57,9 +61,18 @@ final class BinaryInitConfigurationTest extends TestCase
             $this->prepareCheckout($workspace, $filesystem);
             $filesystem->dumpFile($workspace . '/.env', $contents);
 
-            if ($scenario === 'already-initialized') {
-                foreach (['.build/spc/buildroot/bin/micro.sfx', '.build/bin/php', '.build/bin/composer'] as $marker) {
+            if (in_array($scenario, ['already-initialized', 'corrupt-bootstrap', 'stale-bootstrap'], true)) {
+                foreach (['.build/spc/buildroot/bin/micro.sfx', '.build/spc/buildroot/bin/php', '.build/bin/php'] as $marker) {
                     $filesystem->dumpFile($workspace . '/' . $marker, 'synthetic initialized marker');
+                }
+
+                $receipt = new Process(['bash', $workspace . '/scripts/bootstrap-state.sh', 'record'], $workspace);
+                $receipt->mustRun();
+
+                if ($scenario === 'corrupt-bootstrap') {
+                    $filesystem->dumpFile($workspace . '/.build/spc/buildroot/bin/micro.sfx', 'corrupted synthetic output');
+                } elseif ($scenario === 'stale-bootstrap') {
+                    $filesystem->appendToFile($workspace . '/config/build-inputs.env', "# changed source input\n");
                 }
             }
 
@@ -82,6 +95,8 @@ final class BinaryInitConfigurationTest extends TestCase
     public static function existingConfigurationOutcomes(): iterable
     {
         yield 'already initialized builder' => ['already-initialized', 0];
+        yield 'damaged compiler output' => ['corrupt-bootstrap', 1];
+        yield 'changed compiler input' => ['stale-bootstrap', 1];
         yield 'Docker failure' => ['docker-failure', 33];
         yield 'missing authentication' => ['auth-failure', 1];
     }
@@ -127,14 +142,28 @@ final class BinaryInitConfigurationTest extends TestCase
         $project = dirname(__DIR__, 2);
         $filesystem->copy($project . '/scripts/init-with-docker', $workspace . '/scripts/init-with-docker');
         $filesystem->copy($project . '/scripts/init', $workspace . '/scripts/init');
+        $filesystem->copy($project . '/scripts/ensure-spc.sh', $workspace . '/scripts/ensure-spc.sh');
+        $filesystem->copy($project . '/scripts/bootstrap-state.sh', $workspace . '/scripts/bootstrap-state.sh');
+        $filesystem->copy($project . '/scripts/native-inputs.sh', $workspace . '/scripts/native-inputs.sh');
+        $filesystem->dumpFile($workspace . '/.build/spc/native-inputs.sha256', 'synthetic verified native inputs');
+        $filesystem->copy($project . '/Dockerfile', $workspace . '/Dockerfile');
+        // Only the verified fixture tool may satisfy the real init's reuse gate.
+        $spcFixture = "#!/usr/bin/env bash\nexit 0\n";
+        $inputs     = preg_replace('/^SPC_BINARY_SHA256=[0-9a-f]{64}$/m', 'SPC_BINARY_SHA256=' . hash('sha256', $spcFixture), $filesystem->readFile($project . '/config/build-inputs.env'));
+        self::assertIsString($inputs);
+        $filesystem->dumpFile($workspace . '/config/build-inputs.env', $inputs);
+        $filesystem->dumpFile($workspace . '/.build/bin/spc', $spcFixture);
+        $filesystem->chmod($workspace . '/.build/bin/spc', 0o755);
         $filesystem->copy($project . '/.env.dist', $workspace . '/.env.dist');
         $filesystem->dumpFile($workspace . '/bin/docker', <<<'SH'
             #!/usr/bin/env bash
             set -euo pipefail
             if [[ "${TEST_INIT_SCENARIO}" == docker-failure ]]; then exit 33; fi
             printf '%s:%s' "${USERID:-missing}" "${GROUPID:-missing}" > observed-builder-ids
-            if [[ "${TEST_INIT_SCENARIO}" == already-initialized && "${!#}" == ./scripts/init ]]; then
-                exec bash ./scripts/init
+            if [[ "${TEST_INIT_SCENARIO}" == already-initialized || "${TEST_INIT_SCENARIO}" == corrupt-bootstrap || "${TEST_INIT_SCENARIO}" == stale-bootstrap ]]; then
+                for argument in "$@"; do
+                    if [[ "${argument}" == ./scripts/init ]]; then exec bash ./scripts/init "${!#}"; fi
+                done
             fi
             SH);
         $filesystem->dumpFile($workspace . '/bin/gh', "#!/usr/bin/env bash\nexit 1\n");
