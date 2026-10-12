@@ -169,8 +169,9 @@ final class ExecutionPlanExecutorTest extends TestCase
     }
 
     /**
-     * Verifies that an item with isNoOp=true is not moved. The file stays
-     * at its source path (which equals its target path).
+     * An equal-path item using the constructor's default execution permission
+     * must remain in place with unchanged bytes and zero successful moves. The
+     * model derives non-executable no-op state before the real executor sees it.
      */
     #[Test]
     public function executePlanSkipsNoOpItems(): void
@@ -195,7 +196,6 @@ final class ExecutionPlanExecutorTest extends TestCase
                         renameRequired: false,
                         isNoOp: true,
                         groupKey: 'group-noop',
-                        isExecutable: false,
                     ),
                 ],
             ),

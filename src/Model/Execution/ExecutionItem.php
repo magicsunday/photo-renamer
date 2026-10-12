@@ -11,6 +11,8 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Model\Execution;
 
+use InvalidArgumentException;
+
 use function rtrim;
 use function str_starts_with;
 use function strlen;
@@ -21,7 +23,9 @@ use const DIRECTORY_SEPARATOR;
 /**
  * Pure DTO representing a single file operation in the execution plan.
  * Contains only string-based paths (no SplFileInfo) — suitable for
- * serialization, dry-run rendering, and runtime output.
+ * serialization, dry-run rendering, and runtime output. Constructor guards
+ * keep redundant path flags consistent before side effects; execution policy
+ * remains with the builder, while equal-path no-ops never become mutations.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -29,6 +33,12 @@ use const DIRECTORY_SEPARATOR;
  */
 final readonly class ExecutionItem
 {
+    /**
+     * Effective execution permission, always false for an equal-path no-op.
+     * Blocked renames retain the caller's policy, even without a reason.
+     */
+    public bool $isExecutable;
+
     /**
      * @param string            $sourcePath           Absolute source file path
      * @param string            $targetPath           Absolute target file path
@@ -43,7 +53,9 @@ final readonly class ExecutionItem
      * @param bool              $isAmbiguousTimezone  Timezone could not be determined unambiguously
      * @param string|null       $warningReason        Human-readable warning (if any)
      * @param bool              $isExecutable         Whether this item is eligible for execution
-     * @param string|null       $executionBlockReason Human-readable reason why execution is blocked (null when executable or no-op)
+     * @param string|null       $executionBlockReason Optional reason for a withheld rename (must be null when executable or no-op)
+     *
+     * @throws InvalidArgumentException When path flags or block reasons contradict the requested state
      */
     public function __construct(
         public string $sourcePath,
@@ -58,9 +70,18 @@ final readonly class ExecutionItem
         public bool $isFallbackDate = false,
         public bool $isAmbiguousTimezone = false,
         public ?string $warningReason = null,
-        public bool $isExecutable = true,
+        bool $isExecutable = true,
         public ?string $executionBlockReason = null,
     ) {
+        if (($renameRequired !== ($sourcePath !== $targetPath)) || ($isNoOp === $renameRequired)) {
+            throw new InvalidArgumentException('Execution item path, rename and no-op flags must agree.');
+        }
+
+        if (($executionBlockReason !== null) && ($isExecutable || $isNoOp)) {
+            throw new InvalidArgumentException('Only a blocked rename may carry an execution block reason.');
+        }
+
+        $this->isExecutable = $renameRequired && $isExecutable;
     }
 
     /**
