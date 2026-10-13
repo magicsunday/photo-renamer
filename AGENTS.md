@@ -93,7 +93,7 @@ Application installs consume the versioned `composer.lock`; `scripts/check-lock.
 
 Symfony DI uses autowiring from `config/Services.yaml`. All `src/` classes are auto-registered except `Renamer.php`, `Dependencies.php`, `Constants.php`, and `Model/`; service interfaces are bound explicitly, and `MetadataReader` is created through its static factory. The compiled container is cached at `.build/cache/DependencyContainer.php` with Symfony resource metadata (`.meta`/`.meta.json`). `ConfigCache(..., true)` validates YAML/class wiring and installed-package resources before normal reuse; never use `debug=false` as a freshness check. Development rebuilds stale resources automatically. Ship the resource files with the immutable runtime image and rebuild that image after code/vendor/config changes; runtime cache-clear preserves all DI artifacts. Only an actually running immutable PHAR (`Phar::running()`) uses its packaged container without checking obsolete external build paths; a missing packaged container fails explicitly. Test a real small archive after deleting its synthetic build tree. Keep executable cache/resource parents trusted.
 
-Constructor parameters must not default to `new Foo()`. New collaborators are wired by the container and supplied explicitly by tests; `tests/Unit/Architecture/ConstructorWiringArchitectureTest` enforces this contract.
+Collaborators are explicit constructor dependencies wired by the container and supplied by tests. Compiled-container and CLI tests verify actual wiring and its failure behavior.
 
 Normal media runs (`renamer.sh`, `make run`) use the separate `runtime` service: no dev credentials/mounts, network none, read-only root, media at `/media`, private JSON in the `media-cache` volume at `/cache`. Build with `make runtime-build` after code/vendor/config changes; its precompiled DI file is immutable. `buildbox` remains for installation/development. `make runtime-image-check` verifies the actual production image, default resource limits, dummy-host credential isolation, all supported formats and tiny-policy rejection (32 pixels, list length 2, separate 1-KiB disk budget). The check runs on PRs as well as pushes. New shell scripts use `.sh`.
 
@@ -129,7 +129,7 @@ Normal media runs (`renamer.sh`, `make run`) use the separate `runtime` service:
 ## PHPUnit
 
 - PHPUnit 13 with attributes: `#[Test]`, `#[CoversClass]`, `#[UsesClass]` — `requireCoverageMetadata` makes `#[CoversClass]`/`#[CoversNothing]` mandatory
-- `tests/Unit/Architecture/` holds source-scanning PHPUnit guards (role boundaries, constructor wiring, shape-array returns); `tests/Architecture/` must stay free of PHPUnit tests (the template gate excludes it)
+- Deptrac checks dependency direction; PHPUnit protects observable behavior, file state and actual wiring. Private class names, suffixes, imports and parameter layouts do not need separate source-scanning tests. `tests/Architecture/` stays free of PHPUnit tests (the template gate excludes it).
 - CamelCase test method names
 - `WorkspaceTrait` for temp directory management in tests
 - `StubMetadataExtractor` + `LivePhotoFixtureFactory` for test doubles
@@ -291,7 +291,7 @@ src/
   Model/Collection/    # AbstractCollection (keyed), AbstractList (int-keyed, append()), concrete collections
   Regex/               # SafeRegex wrapper
   Service/             # Core services (see table above)
-  Service/LivePhoto/   # Live Photo pairing (7 classes)
+  Service/LivePhoto/   # Live Photo pairing
   Strategy/            # Rename + duplicate identifier strategies
   Application.php      # Symfony Console app bootstrap
   Constants.php        # Shared constants (DUPLICATE_IDENTIFIER, SUPPORTED_MEDIA_EXTENSIONS)
@@ -302,10 +302,9 @@ config/
 deptrac.yaml           # Architecture layers (imports the coding-standard ruleset)
 tests/
   Unit/                # Unit tests (mirrors src/ structure)
-  Unit/Architecture/   # Source-scanning architecture guards
   Integration/         # Full command integration tests
   Fixtures/            # WorkspaceTrait, StubMetadataExtractor, LivePhotoFixtureFactory
-  Fixtures/Images/     # 29 test image scenarios (verified by TestImageScenariosTest)
+  Fixtures/Images/     # Synthetic media scenarios (verified by TestImageScenariosTest)
 .build/
   bin/                 # Compiled binaries
   vendor/              # Composer dependencies
