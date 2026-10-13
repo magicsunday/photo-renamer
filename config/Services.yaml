@@ -61,6 +61,9 @@ services:
         arguments:
             $rules: !tagged_iterator renamer.output_skip_reason_rule
 
+    MagicSunday\Renamer\Service\ContentClassifierInterface:
+        alias: MagicSunday\Renamer\Service\ContentClassifier
+
     MagicSunday\Renamer\Service\HashSubGroupingServiceInterface:
         class: MagicSunday\Renamer\Service\HashSubGroupingService
 

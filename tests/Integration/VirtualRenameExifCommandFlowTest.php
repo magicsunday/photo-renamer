@@ -24,11 +24,11 @@ use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Model\SkippedFile;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\CanonicalScorer;
+use MagicSunday\Renamer\Service\ContentClassifierInterface;
 use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilderInterface;
 use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
-use MagicSunday\Renamer\Service\HashSubGroupingServiceInterface;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
 use MagicSunday\Renamer\Service\Pipeline\AssetGroupPipeline;
 use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuilderInterface;
@@ -578,7 +578,7 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
             self::createStub(TargetNameResolverInterface::class),
             self::createStub(CollisionResolverInterface::class),
             new RenamePlanValidator(),
-            self::createStub(HashSubGroupingServiceInterface::class),
+            self::createStub(ContentClassifierInterface::class),
             self::createStub(PerceptualHashCalculatorInterface::class),
             new CanonicalScorer(),
         );

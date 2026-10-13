@@ -11,15 +11,10 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Pipeline;
 
-use MagicSunday\Renamer\Helper\FileHelper;
-use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\AssetGroup;
-use MagicSunday\Renamer\Model\AssetItem;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
-use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\MergeDecision;
-use MagicSunday\Renamer\Model\Rename;
-use MagicSunday\Renamer\Service\HashSubGroupingServiceInterface;
+use MagicSunday\Renamer\Service\ContentClassifierInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
 use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use Override;
@@ -28,15 +23,11 @@ use SplFileInfo;
 
 use function sprintf;
 
-use const DIRECTORY_SEPARATOR;
-
 /**
- * AssetGroup-native facade over HashSubGroupingService.
- *
- * Bridges the new AssetGroup/AssetItem model to the existing hash-based sub-grouping
- * logic. For each group with multiple items, constructs temporary FileDuplicate/Rename
- * objects, delegates to HashSubGroupingService::apply(), and maps the mutated rename
- * targets back to clusterIds on AssetItems.
+ * Applies shared content membership directly to AssetItems. Real source files,
+ * metadata and actual companion hints cross the analysis boundary; no synthetic
+ * rename targets or legacy naming models are constructed. Assignment remains
+ * atomic per group and evidence reporting remains bounded.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -45,13 +36,13 @@ use const DIRECTORY_SEPARATOR;
 final readonly class SubgroupClassifier implements SubgroupClassifierInterface
 {
     /**
-     * @param HashSubGroupingServiceInterface $hashSubGroupingService Existing hash-based sub-grouping service
-     * @param MediaTypeClassifierInterface    $mediaTypeClassifier    Classifies files as Live Photo stills or videos for companion bridging
-     * @param OrphanLivePhotoVideoReconciler  $orphanVideoReconciler  Specialized pre-pass for orphan MOV reconciliation
-     * @param ProgressReporterInterface       $progressReporter       Narrow reporting boundary for progress headings and diagnostics
+     * @param ContentClassifierInterface     $contentClassifier     Shared source-only content and evidence rules
+     * @param MediaTypeClassifierInterface   $mediaTypeClassifier   Classifies files as Live Photo stills or videos for companion bridging
+     * @param OrphanLivePhotoVideoReconciler $orphanVideoReconciler Specialized pre-pass for orphan MOV reconciliation
+     * @param ProgressReporterInterface      $progressReporter      Narrow reporting boundary for progress headings and diagnostics
      */
     public function __construct(
-        private HashSubGroupingServiceInterface $hashSubGroupingService,
+        private ContentClassifierInterface $contentClassifier,
         private MediaTypeClassifierInterface $mediaTypeClassifier,
         private OrphanLivePhotoVideoReconciler $orphanVideoReconciler,
         private ProgressReporterInterface $progressReporter,
@@ -96,7 +87,7 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
             try {
                 $this->classifyGroup($group);
             } finally {
-                $this->hashSubGroupingService->clearCache();
+                $this->contentClassifier->clearCache();
             }
 
             $this->progressReporter->advance();
@@ -106,7 +97,7 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
     }
 
     /**
-     * Classifies a single group by bridging to HashSubGroupingService.
+     * Classifies actual sources through the shared content boundary.
      *
      * Atomic per group: clusterId assignments are collected in a temporary map and
      * applied to items only after the entire mapping step succeeds. Runtime failures
@@ -118,43 +109,16 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
     private function classifyGroup(AssetGroup $group): void
     {
         try {
-            $fileDuplicate = new FileDuplicate();
-
-            /** @var array<string, AssetItem> $pathToItem */
-            $pathToItem = [];
-
-            /** @var array<string, Rename> $pathToRename */
-            $pathToRename = [];
-
-            foreach ($group->getItems() as $item) {
-                $sourceFile = $item->file;
-                $targetPath = $sourceFile->getPath() . DIRECTORY_SEPARATOR
-                    . $group->groupKey . '.' . FileHelper::normalizeExtension($sourceFile->getExtension());
-
-                $rename = new Rename($sourceFile, new SplFileInfo($targetPath));
-
-                $fileDuplicate->addFile($sourceFile);
-                $fileDuplicate->addRename($rename);
-                $pathToItem[$sourceFile->getPathname()]   = $item;
-                $pathToRename[$sourceFile->getPathname()] = $rename;
-            }
-
-            // Set canonical target from first rename (HashSubGroupingService reads this)
-            $firstRename = $fileDuplicate->getRenames()->get(0);
-
-            if ($firstRename instanceof Rename) {
-                $fileDuplicate->setTarget($firstRename->getTarget());
-            }
-
-            // Build content identifier and temporal metadata maps from AssetItems
-            /** @var array<string, string> $contentIdMap */
-            $contentIdMap = [];
-
-            /** @var array<string, TemporalMetadata|null> $temporalMetaMap */
+            $files           = [];
+            $pathToItem      = [];
+            $contentIdMap    = [];
             $temporalMetaMap = [];
 
             foreach ($group->getItems() as $item) {
-                $path = $item->file->getPathname();
+                $file              = $item->file;
+                $path              = $file->getPathname();
+                $files[]           = $file;
+                $pathToItem[$path] = $item;
 
                 if ($item->contentIdentifier !== null) {
                     $contentIdMap[$path] = $item->contentIdentifier;
@@ -165,16 +129,7 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
                 }
             }
 
-            // Detect likely canonical and companion for Live Photo groups.
-            // This is needed before role assignment so HashSubGroupingService can
-            // properly exclude companion media types from content-hash sub-grouping.
-            [$canonicalRename, $companionRename] = $this->detectLikelyCanonicalAndCompanion(
-                $group,
-                $pathToRename,
-                $contentIdMap,
-            );
-
-            $targetPathnameResolver = (static fn (SplFileInfo $source, string $targetFilename): string => $source->getPath() . DIRECTORY_SEPARATOR . $targetFilename);
+            [$canonical, $companion] = $this->detectLikelyCanonicalAndCompanion($group, $contentIdMap);
 
             // Keep one example and a count per finite reason, not every pair.
             // Typed decisions remain available to service-level observers.
@@ -188,21 +143,14 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
                 $decisionExamples[$key] ??= $decision;
             };
 
-            $clusterMap = $this->hashSubGroupingService->apply(
-                $fileDuplicate,
-                $canonicalRename,
-                $companionRename,
-                $contentIdMap,
-                $targetPathnameResolver,
-                $temporalMetaMap,
-                $onDecision,
-            );
+            $classification = $this->contentClassifier->classify($files, $canonical, $companion, $contentIdMap, $temporalMetaMap, $onDecision);
+            $clusterMap     = $classification->clusterMap();
 
             foreach ($decisionExamples as $key => $decision) {
                 $group->addDecision(sprintf('%s (%d comparison(s))', $decision->describe(), $decisionCounts[$key]));
             }
 
-            if ($clusterMap === null) {
+            if (!$classification->hasSubgroups()) {
                 // Single hash group or single file — no subgrouping needed
                 $group->markClassificationSucceeded();
 
@@ -271,22 +219,20 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
     }
 
     /**
-     * Detects likely canonical and companion renames for Live Photo groups.
+     * Detects likely preferred still and companion sources for Live Photo groups.
      *
      * Before role assignment, identifies the first still with a content identifier
      * as the likely canonical and the first video with a matching content identifier
-     * as the likely companion. This allows HashSubGroupingService to properly exclude
+     * as the likely companion. This allows the shared content kernel to properly exclude
      * companion media types from content-hash sub-grouping.
      *
      * @param AssetGroup            $group        The group to analyze
-     * @param array<string, Rename> $pathToRename Map from source pathname to Rename
      * @param array<string, string> $contentIdMap Map from source pathname to content identifier
      *
-     * @return array{0: Rename|null, 1: Rename|null} [canonicalRename, companionRename]
+     * @return array{0: SplFileInfo|null, 1: SplFileInfo|null} Preferred source and actual paired companion
      */
     private function detectLikelyCanonicalAndCompanion(
         AssetGroup $group,
-        array $pathToRename,
         array $contentIdMap,
     ): array {
         // Find the first still with a content identifier
@@ -302,7 +248,7 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
                 continue;
             }
 
-            $likelyCanonical    = $pathToRename[$item->file->getPathname()] ?? null;
+            $likelyCanonical    = $item->file;
             $canonicalContentId = $item->contentIdentifier;
 
             break;
@@ -323,7 +269,7 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
             $itemContentId = $contentIdMap[$item->file->getPathname()] ?? null;
 
             if ($itemContentId === $canonicalContentId) {
-                $likelyCompanion = $pathToRename[$item->file->getPathname()] ?? null;
+                $likelyCompanion = $item->file;
 
                 break;
             }

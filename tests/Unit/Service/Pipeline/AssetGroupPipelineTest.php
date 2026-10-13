@@ -16,7 +16,7 @@ use MagicSunday\Renamer\Helper\AnalysisMemoryBudget;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Service\CanonicalScorerInterface;
-use MagicSunday\Renamer\Service\HashSubGroupingServiceInterface;
+use MagicSunday\Renamer\Service\ContentClassifierInterface;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
 use MagicSunday\Renamer\Service\Pipeline\AssetGroupPipeline;
 use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuilderInterface;
@@ -71,7 +71,7 @@ final class AssetGroupPipelineTest extends TestCase
     {
         $builder = self::createStub(CaptureGroupBuilderInterface::class);
         $builder->method('build')->willThrowException(new LogicException('synthetic builder failure'));
-        $grouping = self::createMock(HashSubGroupingServiceInterface::class);
+        $grouping = self::createMock(ContentClassifierInterface::class);
         $selected = [];
         $grouping->expects(self::exactly(2))->method('setMaxMergeRmse')->willReturnCallback(static function (?float $threshold) use (&$selected): void {
             $selected[] = $threshold;
@@ -172,7 +172,7 @@ final class AssetGroupPipelineTest extends TestCase
             $targetNameResolver,
             $collisionResolver,
             new RenamePlanValidator(),
-            self::createStub(HashSubGroupingServiceInterface::class),
+            self::createStub(ContentClassifierInterface::class),
             self::createStub(PerceptualHashCalculatorInterface::class),
             self::createStub(CanonicalScorerInterface::class),
             $crossGroupVideoDuplicateReconciler,

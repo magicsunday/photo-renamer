@@ -25,6 +25,7 @@ use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\AssetGroupAdapter;
 use MagicSunday\Renamer\Service\CanonicalScorer;
 use MagicSunday\Renamer\Service\ComparisonWorkLimit;
+use MagicSunday\Renamer\Service\ContentClassifier;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetector;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingService;
@@ -180,15 +181,8 @@ final class PipelineDifferentialTest extends TestCase
 
         $perceptualHashCalculator = new PerceptualHashCalculator($imageLoader, new PerceptualHashMath());
 
-        $hashSubGroupingService = new HashSubGroupingService(
-            new SafeHashCalculator(),
-            $progressReporter,
-            $mediaTypeClassifier,
-            $perceptualHashCalculator,
-            new LocalDifferenceAnalyzer(),
-            $imageLoader,
-            new ComparisonWorkLimit(100000),
-        );
+        $contentClassifier      = new ContentClassifier(new SafeHashCalculator(), $progressReporter, $mediaTypeClassifier, $perceptualHashCalculator, new LocalDifferenceAnalyzer(), $imageLoader, new ComparisonWorkLimit(100000));
+        $hashSubGroupingService = new HashSubGroupingService($contentClassifier);
 
         $livePhotoConflictDetector = new LivePhotoConflictDetector($mediaTypeClassifier);
 
@@ -271,15 +265,7 @@ final class PipelineDifferentialTest extends TestCase
 
         $perceptualHashCalculator = new PerceptualHashCalculator($imageLoader, new PerceptualHashMath());
 
-        $hashSubGroupingService = new HashSubGroupingService(
-            new SafeHashCalculator(),
-            $progressReporter,
-            $mediaTypeClassifier,
-            $perceptualHashCalculator,
-            new LocalDifferenceAnalyzer(),
-            $imageLoader,
-            new ComparisonWorkLimit(100000),
-        );
+        $contentClassifier = new ContentClassifier(new SafeHashCalculator(), $progressReporter, $mediaTypeClassifier, $perceptualHashCalculator, new LocalDifferenceAnalyzer(), $imageLoader, new ComparisonWorkLimit(100000));
 
         $livePhotoConflictDetector = new LivePhotoConflictDetector($mediaTypeClassifier);
 
@@ -306,7 +292,7 @@ final class PipelineDifferentialTest extends TestCase
 
         // Step 2: SubgroupClassifier
         $subgroupClassifier = new SubgroupClassifier(
-            $hashSubGroupingService,
+            $contentClassifier,
             $mediaTypeClassifier,
             new OrphanLivePhotoVideoReconciler($mediaTypeClassifier, $perceptualHashCalculator, $progressReporter),
             $progressReporter,
