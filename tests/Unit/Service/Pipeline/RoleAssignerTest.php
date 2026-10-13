@@ -466,44 +466,6 @@ final class RoleAssignerTest extends TestCase
     }
 
     /**
-     * RoleAssigner should NOT set a DuplicateRelation on assigned Duplicates.
-     * That is the SubgroupClassifier's responsibility.
-     */
-    #[Test]
-    public function duplicateRelationNotSetByRoleAssigner(): void
-    {
-        $heic = new AssetItem(new SplFileInfo('/photos/IMG_0001.heic'));
-        $jpg  = new AssetItem(new SplFileInfo('/photos/IMG_0001.jpg'));
-
-        $group = new AssetGroup('group-1');
-        $group->addItem($heic);
-        $group->addItem($jpg);
-
-        $scoredHeic = $heic->withScore(100, ['format priority']);
-        $scoredJpg  = $jpg->withScore(50, ['lower priority']);
-
-        $scorer = $this->createScorerMock($heic, $scoredHeic, $jpg, $scoredJpg);
-
-        $companionDetector = self::createStub(CompanionDetectorInterface::class);
-        $companionDetector->method('detect')->willReturn(new CompanionPathSet());
-
-        $assigner = $this->createAssigner($scorer, $companionDetector);
-
-        $groups = new AssetGroupCollection();
-        $groups->set('group-1', $group);
-
-        $context = new PipelineContext('/photos');
-
-        $assigner->assign($groups, $context);
-
-        $duplicateItem = $group->getItemByPath('/photos/IMG_0001.jpg');
-
-        self::assertNotNull($duplicateItem);
-        self::assertSame(ItemRole::Duplicate, $duplicateItem->role);
-        self::assertNull($duplicateItem->duplicateRelation);
-    }
-
-    /**
      * Creates a RoleAssigner with the given mock dependencies.
      */
     private function createAssigner(

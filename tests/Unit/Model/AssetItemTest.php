@@ -13,7 +13,6 @@ namespace MagicSunday\Renamer\Test\Unit\Model;
 
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\AssetItem;
-use MagicSunday\Renamer\Model\DuplicateRelation;
 use MagicSunday\Renamer\Model\ItemRole;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -45,7 +44,6 @@ final class AssetItemTest extends TestCase
 
         self::assertSame($file, $item->file);
         self::assertSame(ItemRole::Canonical, $item->role);
-        self::assertNull($item->duplicateRelation);
         self::assertNull($item->metadata);
         self::assertNull($item->contentIdentifier);
         self::assertNull($item->proposedName);
@@ -58,7 +56,7 @@ final class AssetItemTest extends TestCase
 
     /**
      * Verifies that withRole() returns a new instance with the updated role
-     * and duplicate relation, while the original remains unchanged.
+     * while the original remains unchanged.
      */
     #[Test]
     public function withRoleReturnsNewInstance(): void
@@ -66,13 +64,11 @@ final class AssetItemTest extends TestCase
         $file     = new SplFileInfo('/tmp/photo.heic');
         $original = new AssetItem($file);
 
-        $updated = $original->withRole(ItemRole::Duplicate, DuplicateRelation::Exact);
+        $updated = $original->withRole(ItemRole::Duplicate);
 
         self::assertNotSame($original, $updated);
         self::assertSame(ItemRole::Duplicate, $updated->role);
-        self::assertSame(DuplicateRelation::Exact, $updated->duplicateRelation);
         self::assertSame(ItemRole::Canonical, $original->role);
-        self::assertNull($original->duplicateRelation);
     }
 
     /**
@@ -272,7 +268,6 @@ final class AssetItemTest extends TestCase
         // Preserved fields
         self::assertSame($item->file, $changed->file);
         self::assertSame(ItemRole::Duplicate, $changed->role);
-        self::assertSame(DuplicateRelation::Transcoded, $changed->duplicateRelation);
         self::assertSame('/photos/proposed.heic', $changed->proposedName);
         self::assertTrue($changed->renameRequired);
         self::assertSame(42, $changed->priorityScore);
@@ -282,8 +277,8 @@ final class AssetItemTest extends TestCase
     }
 
     /**
-     * Verifies that withRole() preserves all properties except the role and
-     * the duplicate relation (which is reset when the role changes).
+     * Verifies that withRole() changes only the role while preserving metadata,
+     * naming, scoring and subgroup fields.
      */
     #[Test]
     public function withRolePreservesOtherFields(): void
@@ -294,7 +289,6 @@ final class AssetItemTest extends TestCase
         // Changed fields
         self::assertNotSame($item, $changed);
         self::assertSame(ItemRole::Ambiguous, $changed->role);
-        self::assertNull($changed->duplicateRelation);
 
         // Preserved fields
         self::assertSame($item->file, $changed->file);
@@ -326,7 +320,6 @@ final class AssetItemTest extends TestCase
         // Preserved fields
         self::assertSame($item->file, $changed->file);
         self::assertSame(ItemRole::Duplicate, $changed->role);
-        self::assertSame(DuplicateRelation::Transcoded, $changed->duplicateRelation);
         self::assertSame($item->metadata, $changed->metadata);
         self::assertSame('content-id-123', $changed->contentIdentifier);
         self::assertSame(42, $changed->priorityScore);
@@ -353,7 +346,6 @@ final class AssetItemTest extends TestCase
         // Preserved fields
         self::assertSame($item->file, $changed->file);
         self::assertSame(ItemRole::Duplicate, $changed->role);
-        self::assertSame(DuplicateRelation::Transcoded, $changed->duplicateRelation);
         self::assertSame($item->metadata, $changed->metadata);
         self::assertSame('content-id-123', $changed->contentIdentifier);
         self::assertSame('/photos/proposed.heic', $changed->proposedName);
@@ -379,7 +371,6 @@ final class AssetItemTest extends TestCase
         // Preserved fields
         self::assertSame($item->file, $changed->file);
         self::assertSame(ItemRole::Duplicate, $changed->role);
-        self::assertSame(DuplicateRelation::Transcoded, $changed->duplicateRelation);
         self::assertSame($item->metadata, $changed->metadata);
         self::assertSame('content-id-123', $changed->contentIdentifier);
         self::assertSame('/photos/proposed.heic', $changed->proposedName);
@@ -406,7 +397,6 @@ final class AssetItemTest extends TestCase
         // Preserved fields
         self::assertSame($item->file, $changed->file);
         self::assertSame(ItemRole::Duplicate, $changed->role);
-        self::assertSame(DuplicateRelation::Transcoded, $changed->duplicateRelation);
         self::assertSame($item->metadata, $changed->metadata);
         self::assertSame('content-id-123', $changed->contentIdentifier);
         self::assertSame('/photos/proposed.heic', $changed->proposedName);
@@ -417,14 +407,14 @@ final class AssetItemTest extends TestCase
     }
 
     /**
-     * Creates a fully populated AssetItem with known values for all 11 fields.
+     * Creates an AssetItem with known metadata, naming, scoring and subgroup values.
      * Used by preservation tests to verify that with*() methods copy every
      * non-targeted field unchanged.
      */
     private function createFullyPopulatedItem(): AssetItem
     {
         return new AssetItem(new SplFileInfo('/photos/test.heic'))
-            ->withRole(ItemRole::Duplicate, DuplicateRelation::Transcoded)
+            ->withRole(ItemRole::Duplicate)
             ->withMetadata(new TemporalMetadata(null, null), 'content-id-123')
             ->withProposedName('/photos/proposed.heic')
             ->withScore(42, ['test=42'])
