@@ -39,23 +39,21 @@ use const DIRECTORY_SEPARATOR;
 final readonly class AssetItem
 {
     /**
-     * @param SplFileInfo            $file              The source file on disk.
-     * @param ItemRole               $role              Role within the asset group (e.g., Canonical, Duplicate).
-     * @param DuplicateRelation|null $duplicateRelation Relationship to the canonical item (only set for duplicates).
-     * @param TemporalMetadata|null  $metadata          Extracted capture date and associated metadata.
-     * @param string|null            $contentIdentifier Normalized content identifier for Live Photos.
-     * @param string|null            $proposedName      Proposed absolute target pathname for renaming.
-     * @param bool                   $renameRequired    Whether the file actually needs to be moved/renamed.
-     * @param int                    $priorityScore     Score for canonical selection (higher is better).
-     * @param list<string>           $reasoning         List of reasons for the assigned score.
-     * @param int|null               $sequenceNumber    Sequential number for duplicates (1-based).
-     * @param string|null            $clusterId         Subgroup/cluster ID (e.g., burst ID).
-     * @param int|null               $clusterRank       Stable rank within the cluster (0-based).
+     * @param SplFileInfo           $file              The source file on disk.
+     * @param ItemRole              $role              Role within the asset group (e.g., Canonical, Duplicate).
+     * @param TemporalMetadata|null $metadata          Extracted capture date and associated metadata.
+     * @param string|null           $contentIdentifier Normalized content identifier for Live Photos.
+     * @param string|null           $proposedName      Proposed absolute target pathname for renaming.
+     * @param bool                  $renameRequired    Whether the file actually needs to be moved/renamed.
+     * @param int                   $priorityScore     Score for canonical selection (higher is better).
+     * @param list<string>          $reasoning         List of reasons for the assigned score.
+     * @param int|null              $sequenceNumber    Sequential number for duplicates (1-based).
+     * @param string|null           $clusterId         Subgroup/cluster ID (e.g., burst ID).
+     * @param int|null              $clusterRank       Stable rank within the cluster (0-based).
      */
     public function __construct(
         public SplFileInfo $file,
         public ItemRole $role = ItemRole::Canonical,
-        public ?DuplicateRelation $duplicateRelation = null,
         public ?TemporalMetadata $metadata = null,
         public ?string $contentIdentifier = null,
         public ?string $proposedName = null,
@@ -69,19 +67,17 @@ final readonly class AssetItem
     }
 
     /**
-     * Returns a new instance with the given role and optional duplicate relation.
+     * Returns a new instance with the given role while preserving independent asset data.
      *
-     * @param ItemRole               $role     New role (Canonical, Duplicate, Companion).
-     * @param DuplicateRelation|null $relation Relationship to the canonical item.
+     * @param ItemRole $role New role (Canonical, Duplicate, Companion).
      *
-     * @return self New instance with updated role/relation.
+     * @return self New instance with the updated role.
      */
-    public function withRole(ItemRole $role, ?DuplicateRelation $relation = null): self
+    public function withRole(ItemRole $role): self
     {
         return new self(
             $this->file,
             $role,
-            $relation,
             $this->metadata,
             $this->contentIdentifier,
             $this->proposedName,
@@ -107,7 +103,6 @@ final readonly class AssetItem
         return new self(
             $this->file,
             $this->role,
-            $this->duplicateRelation,
             $metadata,
             $contentIdentifier,
             $this->proposedName,
@@ -133,7 +128,6 @@ final readonly class AssetItem
         return new self(
             $this->file,
             $this->role,
-            $this->duplicateRelation,
             $this->metadata,
             $this->contentIdentifier,
             $pathname,
@@ -160,7 +154,6 @@ final readonly class AssetItem
         return new self(
             $this->file,
             $this->role,
-            $this->duplicateRelation,
             $this->metadata,
             $this->contentIdentifier,
             $this->proposedName,
@@ -186,7 +179,6 @@ final readonly class AssetItem
         return new self(
             $this->file,
             $this->role,
-            $this->duplicateRelation,
             $this->metadata,
             $this->contentIdentifier,
             $this->proposedName,
@@ -211,7 +203,6 @@ final readonly class AssetItem
         return new self(
             $this->file,
             $this->role,
-            $this->duplicateRelation,
             $this->metadata,
             $this->contentIdentifier,
             $this->proposedName,
@@ -236,7 +227,6 @@ final readonly class AssetItem
         return new self(
             $this->file,
             $this->role,
-            $this->duplicateRelation,
             $this->metadata,
             $this->contentIdentifier,
             $this->proposedName,
