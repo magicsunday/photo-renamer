@@ -110,6 +110,8 @@ Normal media runs (`renamer.sh`, `make run`) use the separate `runtime` service:
 - `self` in PHP return types, full class name in `@return` PHPDoc
 - No `mixed` type, no `empty()`, no nested ternaries
 - **Documentation (DocBlocks):**
+    - Local audit working notes in `docs/audit/` are ignored and must never be committed or copied into public issues/artifacts; repository documentation describes supported behavior.
+    - README is the concise current entry point: purpose, requirements, quick start, usage/configuration, contribution/help/license links. Keep detailed operating and architecture guidance in linked docs; do not add change histories, removed-symbol inventories or past benchmark runs to README.
     - When deleting or moving code, review adjacent inline comments and the enclosing DocBlocks. Remove orphan section labels, references to removed symbols, and claims that no longer match the implementation. Include comments, examples and current documentation in every code review; retain historical plans only with an explicit historical-status notice.
     - Every class and method MUST have a DocBlock.
     - **Classes:** Describe the specific purpose, high-level responsibility, and architecture. Explain *why* certain design choices were made (e.g., immutability, transitional mapping).

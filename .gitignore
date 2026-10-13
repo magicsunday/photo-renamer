@@ -30,3 +30,6 @@ images2/
 coverage-report/
 coverage-report-xdebug/
 test-validation/
+
+# Local audit working notes
+docs/audit/
