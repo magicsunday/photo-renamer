@@ -94,7 +94,6 @@ use MagicSunday\Renamer\Service\Output\OutputEntryBuildResult;
 use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
 use MagicSunday\Renamer\Service\Output\OutputEntryTagResolution;
 use MagicSunday\Renamer\Service\Output\OutputSkipFlags;
-use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
 use MagicSunday\Renamer\Service\Output\OutputSummaryRowBuilder;
 use MagicSunday\Renamer\Service\Output\PathPrefixSplit;
 use MagicSunday\Renamer\Service\Output\RenameSummaryCounters;
@@ -245,7 +244,6 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(TargetBasenameStrategy::class)]
 #[UsesClass(ExifDateFilenameStrategy::class)]
 #[UsesClass(OutputEntryPresenter::class)]
-#[UsesClass(OutputSkipReasonDecider::class)]
 #[UsesClass(DateDriftCalculator::class)]
 #[UsesClass(FilenameDateParser::class)]
 #[UsesClass(PathHelper::class)]

@@ -43,14 +43,10 @@ use MagicSunday\Renamer\Service\Output\OutputEntryBuildResult;
 use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
 use MagicSunday\Renamer\Service\Output\OutputEntryTagResolution;
 use MagicSunday\Renamer\Service\Output\OutputSkipFlags;
-use MagicSunday\Renamer\Service\Output\OutputSkipReason;
-use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
-use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecision;
 use MagicSunday\Renamer\Service\Output\OutputSummaryRowBuilder;
 use MagicSunday\Renamer\Service\Output\PathPrefixSplit;
 use MagicSunday\Renamer\Service\Output\RenameSummaryCounters;
 use MagicSunday\Renamer\Service\Output\SkippedFileAppendResult;
-use MagicSunday\Renamer\Service\Output\SkipReasonFormatter;
 use MagicSunday\Renamer\Service\Output\SummaryRow;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
@@ -124,12 +120,8 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(OutputEntryTagResolution::class)]
 #[UsesClass(OutputSkipFlags::class)]
 #[UsesClass(PathPrefixSplit::class)]
-#[UsesClass(OutputSkipReason::class)]
-#[UsesClass(OutputSkipReasonDecider::class)]
-#[UsesClass(OutputSkipReasonDecision::class)]
 #[UsesClass(OutputSummaryRowBuilder::class)]
 #[UsesClass(RenameSummaryCounters::class)]
-#[UsesClass(SkipReasonFormatter::class)]
 #[UsesClass(SkippedFileAppendResult::class)]
 #[UsesClass(SummaryRow::class)]
 #[UsesClass(ConsoleProgressReporter::class)]

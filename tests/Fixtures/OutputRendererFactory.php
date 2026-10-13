@@ -14,9 +14,7 @@ namespace MagicSunday\Renamer\Test\Fixtures;
 use MagicSunday\Renamer\Service\Output\DiffHighlighter;
 use MagicSunday\Renamer\Service\Output\OutputDecisionLogRenderer;
 use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
-use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
 use MagicSunday\Renamer\Service\Output\OutputSummaryRowBuilder;
-use MagicSunday\Renamer\Service\Output\SkipReasonFormatter;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
@@ -49,8 +47,6 @@ final readonly class OutputRendererFactory
             $io,
             new OutputDecisionLogRenderer(),
             new OutputEntryPresenter(
-                new OutputSkipReasonDecider(),
-                new SkipReasonFormatter(),
                 $diffHighlighter,
             ),
             new OutputSummaryRowBuilder(),

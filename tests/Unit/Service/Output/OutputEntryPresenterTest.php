@@ -17,13 +17,12 @@ use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Model\LinkConfig;
 use MagicSunday\Renamer\Model\OutputEntry;
 use MagicSunday\Renamer\Model\OutputEntryTag;
+use MagicSunday\Renamer\Model\OutputEntryType;
 use MagicSunday\Renamer\Service\Output\DiffHighlighter;
 use MagicSunday\Renamer\Service\Output\OutputCounters;
 use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
-use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
-use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecision;
-use MagicSunday\Renamer\Service\Output\SkipReasonFormatter;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
@@ -39,8 +38,7 @@ use function substr_count;
  *
  * The presenter now owns concrete CLI line layout, filter visibility, and
  * render counters for already projected `OutputEntry` objects. These tests keep
- * that presentation contract stable while `RenameOutputRenderer` becomes a
- * thinner visible boundary.
+ * final skip text, console escaping and layout stable at the presentation boundary.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -54,9 +52,7 @@ use function substr_count;
 #[UsesClass(LinkConfig::class)]
 #[UsesClass(OutputEntry::class)]
 #[UsesClass(OutputEntryTag::class)]
-#[UsesClass(OutputSkipReasonDecider::class)]
-#[UsesClass(OutputSkipReasonDecision::class)]
-#[UsesClass(SkipReasonFormatter::class)]
+#[UsesClass(OutputEntryType::class)]
 final class OutputEntryPresenterTest extends TestCase
 {
     /**
@@ -216,6 +212,64 @@ final class OutputEntryPresenterTest extends TestCase
     }
 
     /**
+     * Preserves the existing tag/conditional-detail matrix at the observable
+     * two-line CLI boundary. Null keeps the default text, an empty message stays
+     * empty, and unrelated detail fields cannot override the tag's meaning.
+     *
+     * @param OutputEntryTag $tag          Exclusive tag selecting the skipped rename text
+     * @param string|null    $reason       Supplemental review detail
+     * @param string|null    $warning      Supplemental warning detail
+     * @param string         $expectedText Exact plain-text explanation on the second line
+     *
+     * @return void
+     */
+    #[Test]
+    #[DataProvider('tagDecisions')]
+    public function everyTagPreservesItsConditionalSkipText(
+        OutputEntryTag $tag,
+        ?string $reason,
+        ?string $warning,
+        string $expectedText,
+    ): void {
+        [$presenter, $io, $output] = $this->createPresenter();
+        $entry                     = new OutputEntry(
+            sortKey: '/synthetic/source',
+            type: OutputEntryType::Rename,
+            tag: $tag,
+            sourcePath: '/synthetic/source',
+            shouldSkip: true,
+            reason: $reason,
+            warningReason: $warning,
+        );
+        $presenter->render([$entry], $io);
+
+        self::assertSame('  [' . $tag->letter() . '] /synthetic/source' . "\n      → " . $expectedText . "\n", $output->fetch());
+    }
+
+    /**
+     * Provides every exclusive tag with independent expected output text and
+     * null, empty or custom detail partitions.
+     *
+     * @return iterable<string, array{OutputEntryTag, string|null, string|null, string}> Tag, conditional details and final text
+     */
+    public static function tagDecisions(): iterable
+    {
+        yield 'candidate ignores other details' => [OutputEntryTag::Candidate, 'unrelated reason', 'unrelated warning', 'Conflicting Live Photo content ID across groups'];
+        yield 'fallback ignores other details' => [OutputEntryTag::Fallback, 'unrelated reason', 'unrelated warning', 'Fallback date: DateTime (0x0132) used instead of DateTimeOriginal'];
+        yield 'review null' => [OutputEntryTag::Review, null, 'unrelated warning', 'Cross-group video review required'];
+        yield 'review empty' => [OutputEntryTag::Review, '', 'unrelated warning', ''];
+        yield 'review custom' => [OutputEntryTag::Review, 'Synthetic video review', 'unrelated warning', 'Synthetic video review'];
+        yield 'warning null' => [OutputEntryTag::Warning, 'unrelated reason', null, 'Warning'];
+        yield 'warning empty' => [OutputEntryTag::Warning, 'unrelated reason', '', ''];
+        yield 'warning timezone remains generic warning' => [OutputEntryTag::Warning, 'unrelated reason', 'Ambiguous timezone: custom warning', 'Ambiguous timezone: custom warning'];
+
+        foreach ([OutputEntryTag::Rename, OutputEntryTag::Duplicate, OutputEntryTag::Original, OutputEntryTag::Skipped, OutputEntryTag::Error, OutputEntryTag::Info] as $tag) {
+            yield $tag->value . ' generic null' => [$tag, null, null, 'Skipped'];
+            yield $tag->value . ' generic ignores details' => [$tag, 'unrelated reason', 'unrelated warning', 'Skipped'];
+        }
+    }
+
+    /**
      * Creates the presenter with real output collaborators and a buffered console.
      *
      * @return array{OutputEntryPresenter, SymfonyStyle, BufferedOutput} Presenter, console IO, and captured buffer
@@ -226,8 +280,6 @@ final class OutputEntryPresenterTest extends TestCase
         $io     = new SymfonyStyle(new ArrayInput([]), $output);
 
         $presenter = new OutputEntryPresenter(
-            new OutputSkipReasonDecider(),
-            new SkipReasonFormatter(),
             new DiffHighlighter(),
         );
 
