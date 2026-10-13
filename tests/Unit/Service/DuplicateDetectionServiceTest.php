@@ -63,9 +63,7 @@ use MagicSunday\Renamer\Service\LegacyLivePhotoDuplicateCoordinator;
 use MagicSunday\Renamer\Service\LegacyLivePhotoPair;
 use MagicSunday\Renamer\Service\LegacyLivePhotoQualityFlagPropagator;
 use MagicSunday\Renamer\Service\LegacyLivePhotoTargetPromoter;
-use MagicSunday\Renamer\Service\LegacyTargetFileResolver;
 use MagicSunday\Renamer\Service\LegacyTargetOccupancyChecker;
-use MagicSunday\Renamer\Service\LegacyTargetPathResolver;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\Output\DiffHighlighter;
 use MagicSunday\Renamer\Service\Output\OutputCounters;
@@ -189,9 +187,7 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(LegacyLivePhotoPair::class)]
 #[UsesClass(LegacyLivePhotoQualityFlagPropagator::class)]
 #[UsesClass(LegacyLivePhotoTargetPromoter::class)]
-#[UsesClass(LegacyTargetFileResolver::class)]
 #[UsesClass(LegacyTargetOccupancyChecker::class)]
-#[UsesClass(LegacyTargetPathResolver::class)]
 #[UsesClass(MediaTypeClassifier::class)]
 #[UsesClass(DiffHighlighter::class)]
 #[UsesClass(OutputCounters::class)]

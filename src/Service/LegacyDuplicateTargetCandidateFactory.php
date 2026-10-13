@@ -32,9 +32,9 @@ use function sprintf;
 final readonly class LegacyDuplicateTargetCandidateFactory
 {
     /**
-     * @param LegacyTargetPathResolver $targetPathResolver Resolves the final absolute target pathname while preserving the legacy directory structure.
+     * @param TargetPathResolver $targetPathResolver Resolves the final absolute target pathname while preserving the legacy directory structure.
      */
-    public function __construct(private LegacyTargetPathResolver $targetPathResolver)
+    public function __construct(private TargetPathResolver $targetPathResolver)
     {
     }
 

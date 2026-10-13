@@ -198,7 +198,7 @@ DuplicateDetectionService → FileDuplicateCollection → FileSystemService.rena
 
 `AbstractMediaRenameCommand` shares only CLI/options/source/confirmation/scan reporting. `AbstractRenameCommand` adds the legacy duplicate execution; EXIF extends the common base directly. The pipeline owns scoring/classification setup and nullable detach/default cleanup in finally, receiving explicit scalar merge/list format values and cache storage separately. Per-group classification cleanup precedes physical mutation. Keep source-mode reset on every invocation, existing single-file/filter/confirmation semantics and truthful result-to-exit propagation; never hide collaborators in a service-locator bundle.
 
-This is an intentional bounded exception (End State B). These commands are too simple to benefit from the `ExecutionPlan` runtime model. The legacy path is retained without migration timeline.
+This is an intentional bounded exception (End State B). These commands are too simple to benefit from the `ExecutionPlan` runtime model. The legacy path is retained without migration timeline. The legacy grouping and duplicate candidate factory use the existing shared `TargetFileResolver`/`TargetPathResolver` directly. Keep their filename-only validation, relative layout and strategy-error/skip translation in those shared services; do not reintroduce pass-through LegacyTarget resolver wrappers.
 
 ### Key Services
 

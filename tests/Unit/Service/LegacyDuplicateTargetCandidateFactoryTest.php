@@ -13,7 +13,6 @@ namespace MagicSunday\Renamer\Test\Unit\Service;
 
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Service\LegacyDuplicateTargetCandidateFactory;
-use MagicSunday\Renamer\Service\LegacyTargetPathResolver;
 use MagicSunday\Renamer\Service\TargetPathResolver;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -35,7 +34,6 @@ use const DIRECTORY_SEPARATOR;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(LegacyDuplicateTargetCandidateFactory::class)]
-#[UsesClass(LegacyTargetPathResolver::class)]
 #[UsesClass(TargetPathResolver::class)]
 final class LegacyDuplicateTargetCandidateFactoryTest extends TestCase
 {
@@ -47,7 +45,7 @@ final class LegacyDuplicateTargetCandidateFactoryTest extends TestCase
     #[Test]
     public function createBuildsDuplicateCandidateInLegacyTargetDirectory(): void
     {
-        $factory    = new LegacyDuplicateTargetCandidateFactory(new LegacyTargetPathResolver(new TargetPathResolver()));
+        $factory    = new LegacyDuplicateTargetCandidateFactory(new TargetPathResolver());
         $sourceRoot = DIRECTORY_SEPARATOR . 'tmp' . DIRECTORY_SEPARATOR . 'Fotos';
         $source     = new SplFileInfo(
             $sourceRoot
