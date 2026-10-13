@@ -12,7 +12,6 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
-use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
@@ -20,10 +19,10 @@ use PHPUnit\Framework\TestCase;
 use SplFileInfo;
 
 /**
- * Verifies the MediaTypeClassifierInterface contract implemented by MediaTypeClassifier.
+ * Verifies extension classification and shared media-family pair rules.
  *
  * The classifier distinguishes still image extensions (HEIC, HEIF, JPG, JPEG) from
- * video companion extensions (MOV, MP4) and other file types.
+ * video extensions (AVI, MOV, MP4, M4V) and other file types.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -90,7 +89,47 @@ final class MediaTypeClassifierTest extends TestCase
         self::assertFalse($classifier->isLivePhotoStill(new SplFileInfo($filename)));
     }
 
-    private function createClassifier(): MediaTypeClassifierInterface
+    /**
+     * Verifies that two still-image files are treated as belonging to the same
+     * still family even when they use different still extensions.
+     */
+    #[Test]
+    public function areBothStillImagesRecognizesCrossExtensionStillPairs(): void
+    {
+        $classifier = $this->createClassifier();
+
+        self::assertTrue($classifier->areBothStillImages(
+            new SplFileInfo('/photos/IMG_0001.heic'),
+            new SplFileInfo('/photos/IMG_0001.jpg'),
+        ));
+    }
+
+    /**
+     * Verifies that only explicit still/video pairings are treated as different
+     * media families by extension classification.
+     */
+    #[Test]
+    public function areDifferentMediaFamiliesRecognizesStillVideoPairs(): void
+    {
+        $classifier = $this->createClassifier();
+
+        self::assertTrue($classifier->areDifferentMediaFamilies(
+            new SplFileInfo('/photos/IMG_0001.heic'),
+            new SplFileInfo('/photos/IMG_0001.mov'),
+        ));
+
+        self::assertFalse($classifier->areDifferentMediaFamilies(
+            new SplFileInfo('/photos/IMG_0001.heic'),
+            new SplFileInfo('/photos/IMG_0001.jpg'),
+        ));
+    }
+
+    /**
+     * Creates the production classifier used by these extension and pair checks.
+     *
+     * @return MediaTypeClassifier Stateless media-family classifier
+     */
+    private function createClassifier(): MediaTypeClassifier
     {
         return new MediaTypeClassifier();
     }

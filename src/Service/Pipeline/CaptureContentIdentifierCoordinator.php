@@ -18,7 +18,7 @@ use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Model\SkippedFile;
 use MagicSunday\Renamer\Model\TargetFileResult;
 use MagicSunday\Renamer\Service\ContentIdentifierCacheEntry;
-use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
+use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use SplFileInfo;
 
 use function array_key_exists;
@@ -41,10 +41,10 @@ use function is_string;
 final readonly class CaptureContentIdentifierCoordinator
 {
     /**
-     * @param MediaTypeClassifierInterface $mediaTypeClassifier Distinguishes Live Photo stills from deferred companion videos.
+     * @param MediaTypeClassifier $mediaTypeClassifier Distinguishes Live Photo stills from deferred companion videos.
      */
     public function __construct(
-        private MediaTypeClassifierInterface $mediaTypeClassifier,
+        private MediaTypeClassifier $mediaTypeClassifier,
     ) {
     }
 

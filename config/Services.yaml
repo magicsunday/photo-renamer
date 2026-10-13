@@ -64,9 +64,6 @@ services:
     MagicSunday\Renamer\Service\SafeHashCalculatorInterface:
         class: MagicSunday\Renamer\Service\SafeHashCalculator
 
-    MagicSunday\Renamer\Service\MediaTypeClassifierInterface:
-        class: MagicSunday\Renamer\Service\MediaTypeClassifier
-
     MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetectorInterface:
         class: MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetector
 

@@ -20,7 +20,7 @@ use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Model\SkippedFile;
 use MagicSunday\Renamer\Model\TargetFileResult;
 use MagicSunday\Renamer\Service\ContentIdentifierCacheEntry;
-use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
+use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\Pipeline\CaptureContentIdentifierCoordinator;
 use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuildState;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -41,6 +41,7 @@ use SplFileInfo;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(CaptureContentIdentifierCoordinator::class)]
+#[UsesClass(MediaTypeClassifier::class)]
 #[UsesClass(CaptureGroupBuildState::class)]
 #[UsesClass(ContentIdentifierCacheEntry::class)]
 #[UsesClass(AssetGroupCollection::class)]
@@ -59,8 +60,7 @@ final class CaptureContentIdentifierCoordinatorTest extends TestCase
     #[Test]
     public function deferredVideoCompanionIsQueuedWhenStillIsNotResolvedYet(): void
     {
-        $classifier = $this->createMock(MediaTypeClassifierInterface::class);
-        $classifier->expects(self::once())->method('isLivePhotoStill')->willReturn(false);
+        $classifier = new MediaTypeClassifier();
 
         $coordinator = new CaptureContentIdentifierCoordinator($classifier);
         $state       = new CaptureGroupBuildState();
@@ -96,7 +96,7 @@ final class CaptureContentIdentifierCoordinatorTest extends TestCase
     #[Test]
     public function attachToResolvedGroupHydratesPendingFiles(): void
     {
-        $classifier  = self::createStub(MediaTypeClassifierInterface::class);
+        $classifier  = new MediaTypeClassifier();
         $coordinator = new CaptureContentIdentifierCoordinator($classifier);
         $state       = new CaptureGroupBuildState();
         $collection  = new AssetGroupCollection();
@@ -142,7 +142,7 @@ final class CaptureContentIdentifierCoordinatorTest extends TestCase
     #[Test]
     public function skippedFileIsAttachedToResolvedContentIdentifierGroup(): void
     {
-        $classifier  = self::createStub(MediaTypeClassifierInterface::class);
+        $classifier  = new MediaTypeClassifier();
         $coordinator = new CaptureContentIdentifierCoordinator($classifier);
         $state       = new CaptureGroupBuildState();
         $collection  = new AssetGroupCollection();
@@ -182,7 +182,7 @@ final class CaptureContentIdentifierCoordinatorTest extends TestCase
     #[Test]
     public function unrelatedSkippedFileIsRecordedInContext(): void
     {
-        $classifier  = self::createStub(MediaTypeClassifierInterface::class);
+        $classifier  = new MediaTypeClassifier();
         $coordinator = new CaptureContentIdentifierCoordinator($classifier);
         $state       = new CaptureGroupBuildState();
         $collection  = new AssetGroupCollection();

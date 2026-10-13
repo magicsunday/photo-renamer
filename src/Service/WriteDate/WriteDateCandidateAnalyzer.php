@@ -17,7 +17,7 @@ use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Helper\FilenameDateParser;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
-use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
+use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use SplFileInfo;
 
 use function in_array;
@@ -44,14 +44,14 @@ final readonly class WriteDateCandidateAnalyzer
     private const array UNSUPPORTED_WRITE_EXTENSIONS = ['avi'];
 
     /**
-     * @param ExifMetadataProvider         $exifMetadataProvider    Metadata provider used during scan
-     * @param MediaTypeClassifierInterface $mediaTypeClassifier     Distinguishes still images from video files
-     * @param WriteDateReasonAnalyzer      $writeDateReasonAnalyzer Determines why a file needs metadata repair
-     * @param TimezoneRewritePlanner       $timezoneRewritePlanner  Plans timezone-specific write values
+     * @param ExifMetadataProvider    $exifMetadataProvider    Metadata provider used during scan
+     * @param MediaTypeClassifier     $mediaTypeClassifier     Distinguishes still images from video files
+     * @param WriteDateReasonAnalyzer $writeDateReasonAnalyzer Determines why a file needs metadata repair
+     * @param TimezoneRewritePlanner  $timezoneRewritePlanner  Plans timezone-specific write values
      */
     public function __construct(
         private ExifMetadataProvider $exifMetadataProvider,
-        private MediaTypeClassifierInterface $mediaTypeClassifier,
+        private MediaTypeClassifier $mediaTypeClassifier,
         private WriteDateReasonAnalyzer $writeDateReasonAnalyzer,
         private TimezoneRewritePlanner $timezoneRewritePlanner,
     ) {

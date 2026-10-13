@@ -22,7 +22,6 @@ use MagicSunday\Renamer\Model\Pipeline\VideoDuplicateCandidate;
 use MagicSunday\Renamer\Model\Pipeline\VideoFingerprintMatch;
 use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Service\ComparisonWorkLimit;
-use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\Pipeline\CrossGroupVideoComparisonPlan;
 use MagicSunday\Renamer\Service\Pipeline\CrossGroupVideoDuplicateReconciler;
@@ -75,7 +74,6 @@ use const NAN;
 #[UsesClass(AssetGroupCollection::class)]
 #[UsesClass(PipelineContext::class)]
 #[UsesClass(VideoDuplicateCandidate::class)]
-#[UsesClass(MediaCompatibilityPolicy::class)]
 #[UsesClass(MediaTypeClassifier::class)]
 #[UsesClass(CrossGroupVideoComparisonPlan::class)]
 #[UsesClass(CrossGroupVideoDuplicateReconciler::class)]
@@ -188,7 +186,7 @@ final class VideoStreamFingerprintMatcherTest extends TestCase
         $reporter->expects(self::once())->method('error')->with(self::stringContains('ffmpeg'));
         $context    = new PipelineContext($this->workspace);
         $reconciler = new CrossGroupVideoDuplicateReconciler(
-            new MediaCompatibilityPolicy(new MediaTypeClassifier()),
+            new MediaTypeClassifier(),
             new VideoStreamFingerprintMatcher($this->workspace . '/missing-ffmpeg.sh'),
             $reporter,
             new ComparisonWorkLimit(100000),
@@ -431,7 +429,7 @@ final class VideoStreamFingerprintMatcherTest extends TestCase
         }
 
         $context    = new PipelineContext($this->workspace);
-        $reconciler = new CrossGroupVideoDuplicateReconciler(new MediaCompatibilityPolicy(new MediaTypeClassifier()), $matcher, new NullProgressReporter(), new ComparisonWorkLimit(100000));
+        $reconciler = new CrossGroupVideoDuplicateReconciler(new MediaTypeClassifier(), $matcher, new NullProgressReporter(), new ComparisonWorkLimit(100000));
         $reconciler->reconcile($groups, $context);
         self::assertCount(2, $groups);
 

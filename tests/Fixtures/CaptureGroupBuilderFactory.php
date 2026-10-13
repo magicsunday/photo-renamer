@@ -13,7 +13,7 @@ namespace MagicSunday\Renamer\Test\Fixtures;
 
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetectorInterface;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingServiceInterface;
-use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
+use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\Pipeline\CaptureAssetCandidateExtractor;
 use MagicSunday\Renamer\Service\Pipeline\CaptureContentIdentifierCoordinator;
 use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuilder;
@@ -41,13 +41,13 @@ final class CaptureGroupBuilderFactory
      * Creates the default grouping builder used across manual test harnesses.
      *
      * @param ProgressReporterInterface               $progressReporter          Reporter used by the builder during the scan phase.
-     * @param MediaTypeClassifierInterface            $mediaTypeClassifier       Media classifier shared with pairing and content-ID coordination.
+     * @param MediaTypeClassifier                     $mediaTypeClassifier       Media classifier shared with pairing and content-ID coordination.
      * @param LivePhotoConflictDetectorInterface|null $livePhotoConflictDetector Optional LP conflict detector for tests that model pairing conflicts.
      * @param LivePhotoPairingServiceInterface|null   $livePhotoPairingService   Optional second-pass LP pairing service for tests that need it.
      */
     public static function create(
         ProgressReporterInterface $progressReporter,
-        MediaTypeClassifierInterface $mediaTypeClassifier,
+        MediaTypeClassifier $mediaTypeClassifier,
         ?LivePhotoConflictDetectorInterface $livePhotoConflictDetector = null,
         ?LivePhotoPairingServiceInterface $livePhotoPairingService = null,
     ): CaptureGroupBuilder {

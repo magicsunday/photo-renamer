@@ -11,22 +11,21 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service;
 
-use Override;
 use SplFileInfo;
 
 use function in_array;
 use function strtolower;
 
 /**
- * Standalone implementation of the MediaTypeClassifierInterface. Classifies
- * a file as a still image (HEIC, HEIF, JPG, JPEG) or a video companion
- * (MOV, MP4) based solely on its extension.
+ * Classifies still images and videos by extension and applies the shared
+ * media-family pair rules used by Live Photo and duplicate matching.
+ * Unknown extensions belong to neither supported family.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-final readonly class MediaTypeClassifier implements MediaTypeClassifierInterface
+final readonly class MediaTypeClassifier
 {
     /**
      * Extensions that identify still image assets within Live Photo groups.
@@ -52,7 +51,6 @@ final readonly class MediaTypeClassifier implements MediaTypeClassifierInterface
      *
      * @return bool True if the file extension matches a known image format.
      */
-    #[Override]
     public function isLivePhotoStill(SplFileInfo $fileInfo): bool
     {
         $extension = strtolower($fileInfo->getExtension());
@@ -74,7 +72,6 @@ final readonly class MediaTypeClassifier implements MediaTypeClassifierInterface
      *
      * @return bool True if the file extension matches a known video format.
      */
-    #[Override]
     public function isVideo(SplFileInfo $fileInfo): bool
     {
         return in_array(
@@ -82,5 +79,42 @@ final readonly class MediaTypeClassifier implements MediaTypeClassifierInterface
             self::VIDEO_EXTENSIONS,
             true,
         );
+    }
+
+    /**
+     * Returns whether both files belong to the still-image family.
+     *
+     * This is used by commands such as `rename:dedup` that allow cross-extension
+     * matching between still formats while still rejecting video/still pairings.
+     *
+     * @param SplFileInfo $fileA First file to compare
+     * @param SplFileInfo $fileB Second file to compare
+     *
+     * @return bool True when both files are classified as still images
+     */
+    public function areBothStillImages(SplFileInfo $fileA, SplFileInfo $fileB): bool
+    {
+        return $this->isLivePhotoStill($fileA) && $this->isLivePhotoStill($fileB);
+    }
+
+    /**
+     * Returns whether the files belong to different media families.
+     *
+     * Classification is conservative: it only reports a cross-family pairing when one
+     * file is classified as a still image and the other as a video. Unsupported or
+     * unknown families do not establish a cross-family pair.
+     *
+     * @param SplFileInfo $fileA First file to compare
+     * @param SplFileInfo $fileB Second file to compare
+     *
+     * @return bool True when one file is a still image and the other is a video
+     */
+    public function areDifferentMediaFamilies(SplFileInfo $fileA, SplFileInfo $fileB): bool
+    {
+        if ($this->isLivePhotoStill($fileA) && $this->isVideo($fileB)) {
+            return true;
+        }
+
+        return $this->isVideo($fileA) && $this->isLivePhotoStill($fileB);
     }
 }

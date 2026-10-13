@@ -16,7 +16,7 @@ use DateTimeInterface;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Service\DateDriftAnalyzer;
-use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
+use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use SplFileInfo;
 
 use function sprintf;
@@ -36,14 +36,14 @@ use function sprintf;
 final readonly class WriteDateReasonAnalyzer
 {
     /**
-     * @param ExifMetadataProvider         $exifMetadataProvider Metadata provider used for reliability/fallback checks
-     * @param DateDriftAnalyzer            $dateDriftAnalyzer    Calculates filename-versus-metadata drift consistently
-     * @param MediaTypeClassifierInterface $mediaTypeClassifier  Distinguishes still images from video files
+     * @param ExifMetadataProvider $exifMetadataProvider Metadata provider used for reliability/fallback checks
+     * @param DateDriftAnalyzer    $dateDriftAnalyzer    Calculates filename-versus-metadata drift consistently
+     * @param MediaTypeClassifier  $mediaTypeClassifier  Distinguishes still images from video files
      */
     public function __construct(
         private ExifMetadataProvider $exifMetadataProvider,
         private DateDriftAnalyzer $dateDriftAnalyzer,
-        private MediaTypeClassifierInterface $mediaTypeClassifier,
+        private MediaTypeClassifier $mediaTypeClassifier,
     ) {
     }
 

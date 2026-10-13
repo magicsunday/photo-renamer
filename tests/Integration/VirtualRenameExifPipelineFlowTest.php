@@ -26,7 +26,6 @@ use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilder;
 use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
-use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
 use MagicSunday\Renamer\Service\Pipeline\AssetGroupPipeline;
@@ -500,7 +499,6 @@ final class VirtualRenameExifPipelineFlowTest extends TestCase
 
         $progressReporter          = new NullProgressReporter();
         $mediaTypeClassifier       = new MediaTypeClassifier();
-        $mediaCompatibilityPolicy  = new MediaCompatibilityPolicy($mediaTypeClassifier);
         $contentClassifier         = $contentService;
         $perceptualHashCalculator  = self::createStub(PerceptualHashCalculatorInterface::class);
         $videoFingerprintMatcher   = self::createStub(VideoStreamFingerprintMatcherInterface::class);
@@ -508,9 +506,9 @@ final class VirtualRenameExifPipelineFlowTest extends TestCase
         $orphanVideoReconciler     = new OrphanLivePhotoVideoReconciler($mediaTypeClassifier, $perceptualHashCalculator, $progressReporter);
         $subgroupClassifier        = new SubgroupClassifier($contentClassifier, $mediaTypeClassifier, $orphanVideoReconciler, $progressReporter);
         $captureGroupBuilder       = CaptureGroupBuilderFactory::create($progressReporter, $mediaTypeClassifier);
-        $companionDetector         = new CompanionDetector($mediaCompatibilityPolicy);
-        $roleAssigner              = new RoleAssigner($canonicalScorer, $companionDetector, $mediaCompatibilityPolicy);
-        $crossGroupVideoReconciler = new CrossGroupVideoDuplicateReconciler($mediaCompatibilityPolicy, $videoFingerprintMatcher, $progressReporter, new ComparisonWorkLimit(100000));
+        $companionDetector         = new CompanionDetector($mediaTypeClassifier);
+        $roleAssigner              = new RoleAssigner($canonicalScorer, $companionDetector, $mediaTypeClassifier);
+        $crossGroupVideoReconciler = new CrossGroupVideoDuplicateReconciler($mediaTypeClassifier, $videoFingerprintMatcher, $progressReporter, new ComparisonWorkLimit(100000));
 
         $videoFingerprintMatcher
             ->method('match')

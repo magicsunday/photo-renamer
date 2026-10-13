@@ -34,7 +34,6 @@ use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
 use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\FormatPriorityResolver;
-use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
 use MagicSunday\Renamer\Service\Output\SummaryRow;
@@ -89,7 +88,6 @@ use const PHP_EOL;
 #[UsesClass(SafeRegex::class)]
 #[UsesClass(FileSystemService::class)]
 #[UsesClass(MediaTypeClassifier::class)]
-#[UsesClass(MediaCompatibilityPolicy::class)]
 #[UsesClass(DedupOriginalMatcher::class)]
 #[UsesClass(DedupReportFormatter::class)]
 #[UsesClass(DuplicateDeletionGuard::class)]
@@ -872,7 +870,7 @@ final class DedupCommandTest extends TestCase
         $renderer          = OutputRendererFactory::create($style);
         $fileSystemService = FileSystemServiceFactory::create($renderer, $style);
         $matcher           = new DedupOriginalMatcher(
-            new MediaCompatibilityPolicy(new MediaTypeClassifier()),
+            new MediaTypeClassifier(),
         );
 
         return new DedupCommand(

@@ -15,7 +15,7 @@ use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\MergeDecision;
 use MagicSunday\Renamer\Service\ContentClassifierInterface;
-use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
+use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use Override;
 use RuntimeException;
@@ -37,13 +37,13 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
 {
     /**
      * @param ContentClassifierInterface     $contentClassifier     Shared source-only content and evidence rules
-     * @param MediaTypeClassifierInterface   $mediaTypeClassifier   Classifies files as Live Photo stills or videos for companion bridging
+     * @param MediaTypeClassifier            $mediaTypeClassifier   Classifies files as Live Photo stills or videos for companion bridging
      * @param OrphanLivePhotoVideoReconciler $orphanVideoReconciler Specialized pre-pass for orphan MOV reconciliation
      * @param ProgressReporterInterface      $progressReporter      Narrow reporting boundary for progress headings and diagnostics
      */
     public function __construct(
         private ContentClassifierInterface $contentClassifier,
-        private MediaTypeClassifierInterface $mediaTypeClassifier,
+        private MediaTypeClassifier $mediaTypeClassifier,
         private OrphanLivePhotoVideoReconciler $orphanVideoReconciler,
         private ProgressReporterInterface $progressReporter,
     ) {

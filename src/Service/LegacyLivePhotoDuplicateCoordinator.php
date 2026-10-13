@@ -30,11 +30,11 @@ final readonly class LegacyLivePhotoDuplicateCoordinator
 {
     /**
      * @param LegacyLivePhotoCompanionDetector $livePhotoCompanionDetector Detects the matching companion rename inside one duplicate group.
-     * @param MediaTypeClassifierInterface     $mediaTypeClassifier        Classifier used to normalize still/companion ordering in returned pairs.
+     * @param MediaTypeClassifier              $mediaTypeClassifier        Classifier used to normalize still/companion ordering in returned pairs.
      */
     public function __construct(
         private LegacyLivePhotoCompanionDetector $livePhotoCompanionDetector,
-        private MediaTypeClassifierInterface $mediaTypeClassifier,
+        private MediaTypeClassifier $mediaTypeClassifier,
     ) {
     }
 

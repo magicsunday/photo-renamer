@@ -85,7 +85,6 @@ use MagicSunday\Renamer\Service\LivePhoto\LivePhotoContentIdentifierTargetMap;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoExistingFilePathnameIndex;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingCollection;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingService;
-use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\Output\DiffHighlighter;
 use MagicSunday\Renamer\Service\Output\OutputCounters;
@@ -223,7 +222,6 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(LivePhotoContentIdentifierTargetMap::class)]
 #[UsesClass(LivePhotoExistingFilePathnameIndex::class)]
 #[UsesClass(LivePhotoPairingCollection::class)]
-#[UsesClass(MediaCompatibilityPolicy::class)]
 #[UsesClass(MediaTypeClassifier::class)]
 #[UsesClass(MetadataCache::class)]
 #[UsesClass(PerceptualSignalCache::class)]
@@ -560,14 +558,13 @@ final class RenameByExifDateCommandTest extends TestCase
                 new OrphanLivePhotoVideoReconciler($mediaTypeClassifier, new StubPerceptualHashCalculator(), $progressReporter),
                 $progressReporter,
             );
-            $mediaCompatibilityPolicy = new MediaCompatibilityPolicy($mediaTypeClassifier);
-            $companionDetector        = new CompanionDetector($mediaCompatibilityPolicy);
-            $canonicalScorer          = new CanonicalScorer();
-            $roleAssigner             = new RoleAssigner($canonicalScorer, $companionDetector, $mediaCompatibilityPolicy);
-            $targetNameResolver       = TargetNameResolverFactory::create();
-            $collisionResolver        = new CollisionResolver();
-            $renamePlanValidator      = new RenamePlanValidator();
-            $executionPlanBuilder     = new ExecutionPlanBuilder();
+            $companionDetector    = new CompanionDetector($mediaTypeClassifier);
+            $canonicalScorer      = new CanonicalScorer();
+            $roleAssigner         = new RoleAssigner($canonicalScorer, $companionDetector, $mediaTypeClassifier);
+            $targetNameResolver   = TargetNameResolverFactory::create();
+            $collisionResolver    = new CollisionResolver();
+            $renamePlanValidator  = new RenamePlanValidator();
+            $executionPlanBuilder = new ExecutionPlanBuilder();
 
             $pipeline = new AssetGroupPipeline(
                 $captureGroupBuilder,

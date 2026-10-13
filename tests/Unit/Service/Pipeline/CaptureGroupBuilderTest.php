@@ -25,7 +25,7 @@ use MagicSunday\Renamer\Model\SkippedFile;
 use MagicSunday\Renamer\Model\TargetFileResult;
 use MagicSunday\Renamer\Service\ContentIdentifierCacheEntry;
 use MagicSunday\Renamer\Service\Filesystem\SortedFileIteratorCollector;
-use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
+use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\Pipeline\CaptureAssetCandidateExtractor;
 use MagicSunday\Renamer\Service\Pipeline\CaptureContentIdentifierCoordinator;
 use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuilder;
@@ -50,8 +50,6 @@ use RecursiveIteratorIterator;
 use SplFileInfo;
 
 use function count;
-use function in_array;
-use function strtolower;
 
 /**
  * Verifies CaptureGroupBuilder: file collection, metadata extraction,
@@ -63,6 +61,7 @@ use function strtolower;
  */
 #[UsesClass(AnalysisMemoryBudget::class)]
 #[CoversClass(CaptureGroupBuilder::class)]
+#[UsesClass(MediaTypeClassifier::class)]
 #[UsesClass(SortedFileIteratorCollector::class)]
 #[UsesClass(ContentIdentifierCacheEntry::class)]
 #[UsesClass(CaptureAssetCandidateExtractor::class)]
@@ -213,11 +212,7 @@ final class CaptureGroupBuilderTest extends TestCase
         );
         $duplicateStrategy = $this->createStubDuplicateIdentifierStrategy();
 
-        $mediaTypeClassifier = self::createStub(MediaTypeClassifierInterface::class);
-        $mediaTypeClassifier->method('isLivePhotoStill')->willReturn(true);
-        $mediaTypeClassifier->method('isVideo')->willReturn(false);
-
-        $builder    = $this->createBuilder(mediaTypeClassifier: $mediaTypeClassifier);
+        $builder    = $this->createBuilder();
         $collection = $builder->build($iterator, $renameStrategy, $duplicateStrategy, $context);
 
         $group = $collection->get('2024-01-01_12-00-00');
@@ -329,47 +324,16 @@ final class CaptureGroupBuilderTest extends TestCase
     // Factory helpers
     // -------------------------------------------------------------------------
     /**
-     * Creates a CaptureGroupBuilder with optional dependency overrides.
+     * Creates a CaptureGroupBuilder with the production media-family classifier.
      *
-     * @param MediaTypeClassifierInterface|null $mediaTypeClassifier Optional media type classifier stub
+     * @return CaptureGroupBuilder Builder using the production media-family classifier
      */
-    private function createBuilder(
-        ?MediaTypeClassifierInterface $mediaTypeClassifier = null,
-    ): CaptureGroupBuilderInterface {
-        $mediaTypeClassifier ??= $this->createDefaultMediaTypeClassifier();
-
+    private function createBuilder(): CaptureGroupBuilderInterface
+    {
         return CaptureGroupBuilderFactory::create(
             new NullProgressReporter(),
-            $mediaTypeClassifier,
+            new MediaTypeClassifier(),
         );
-    }
-
-    /**
-     * Creates a default media type classifier that classifies HEIC/JPG as stills.
-     */
-    private function createDefaultMediaTypeClassifier(): MediaTypeClassifierInterface
-    {
-        $classifier = self::createStub(MediaTypeClassifierInterface::class);
-
-        $classifier->method('isLivePhotoStill')
-            ->willReturnCallback(
-                static fn (SplFileInfo $file): bool => in_array(
-                    strtolower($file->getExtension()),
-                    ['heic', 'heif', 'jpg', 'jpeg'],
-                    true,
-                ),
-            );
-
-        $classifier->method('isVideo')
-            ->willReturnCallback(
-                static fn (SplFileInfo $file): bool => in_array(
-                    strtolower($file->getExtension()),
-                    ['mov', 'mp4', 'm4v'],
-                    true,
-                ),
-            );
-
-        return $classifier;
     }
 
     /**

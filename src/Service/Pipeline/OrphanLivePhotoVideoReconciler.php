@@ -14,7 +14,7 @@ namespace MagicSunday\Renamer\Service\Pipeline;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
-use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
+use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
 use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 
@@ -37,12 +37,12 @@ use function sprintf;
 final readonly class OrphanLivePhotoVideoReconciler
 {
     /**
-     * @param MediaTypeClassifierInterface      $mediaTypeClassifier      Classifies files as Live Photo stills or videos
+     * @param MediaTypeClassifier               $mediaTypeClassifier      Classifies files as Live Photo stills or videos
      * @param PerceptualHashCalculatorInterface $perceptualHashCalculator Multi-frame similarity scoring for candidate videos
      * @param ProgressReporterInterface         $progressReporter         Narrow reporting boundary for progress headings and diagnostics
      */
     public function __construct(
-        private MediaTypeClassifierInterface $mediaTypeClassifier,
+        private MediaTypeClassifier $mediaTypeClassifier,
         private PerceptualHashCalculatorInterface $perceptualHashCalculator,
         private ProgressReporterInterface $progressReporter,
     ) {
