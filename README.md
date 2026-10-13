@@ -1,12 +1,37 @@
-# Photo Renamer
+<h1 align="center">Photo Renamer: CLI Tool for Photo Collections</h1>
 
-[![CI](https://github.com/magicsunday/photo-renamer/actions/workflows/ci.yml/badge.svg)](https://github.com/magicsunday/photo-renamer/actions/workflows/ci.yml)
-[![PHP](https://img.shields.io/badge/PHP-8.5-blue.svg)](composer.json)
-[![License](https://img.shields.io/github/license/magicsunday/photo-renamer)](LICENSE)
+<p align="center">
+  Self-contained command-line tool for tidying large photo and video collections.
+</p>
+
+<!-- Row 1: CI / Quality badges -->
+<p align="center">
+  <a href="https://github.com/magicsunday/photo-renamer/actions/workflows/ci.yml"><img src="https://github.com/magicsunday/photo-renamer/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+</p>
+
+<!-- Row 2: Standards / Tooling badges -->
+<p align="center">
+  <a href="https://phpstan.org/"><img src="https://img.shields.io/badge/PHPStan-max%20level-brightgreen.svg" alt="PHPStan Max Level"></a>
+  <a href="https://phpunit.de/"><img src="https://img.shields.io/badge/PHPUnit-13-blue.svg" alt="PHPUnit 13"></a>
+  <a href="https://getrector.com/"><img src="https://img.shields.io/badge/Rector-2.x-orange.svg" alt="Rector 2.x"></a>
+  <a href="https://www.php-fig.org/psr/psr-12/"><img src="https://img.shields.io/badge/Code%20Style-PSR--12-blue.svg" alt="PSR-12"></a>
+</p>
+
+<!-- Row 3: Compatibility badges -->
+<p align="center">
+  <a href="composer.json"><img src="https://img.shields.io/badge/php-8.5-blue" alt="PHP Version"></a>
+</p>
+
+<!-- Row 4: Project badges -->
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/magicsunday/photo-renamer" alt="License"></a>
+</p>
+
+---
 
 A PHP command-line tool for organizing photo and video collections. It reads EXIF/QuickTime metadata, generates consistent filenames, pairs Apple Live Photos and identifies duplicates while preserving directory structure.
 
-## Features
+## ✨ Features
 
 - Rename by capture date, content hash, filename pattern or lowercase conversion.
 - Pair Live Photo stills and videos through their Apple Content Identifier.
@@ -16,13 +41,13 @@ A PHP command-line tool for organizing photo and video collections. It reads EXI
 
 Supported media: JPEG/JPG, HEIC, HEIF, AVI, MOV, MP4 and M4V. Metadata parsing uses [ImageMeta](https://github.com/magicsunday/imagemeta).
 
-## Requirements
+## 🧰 Requirements
 
 The recommended setup uses Docker with Docker Compose, GNU Make and Bash. The runtime image includes PHP 8.5, production packages, Imagick/ImageMagick, `ffmpeg`, `ffprobe` and `exiftool`; host PHP is not needed.
 
 An optional Linux standalone binary embeds PHP and production packages. Its host needs external media tools for video analysis and metadata writing, and appropriate operating-system isolation. See [standalone setup](docs/development.md#build-a-standalone-binary-optional).
 
-## Quick start
+## 🚀 Quick start
 
 ```bash
 git clone https://github.com/magicsunday/photo-renamer.git
@@ -47,7 +72,7 @@ MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:exif /media
 
 Mutating commands ask for confirmation. See the [collection workflow](docs/usage.md#collection-workflow) for metadata repair, verification and duplicate cleanup.
 
-## Commands
+## 🧩 Commands
 
 | Command | Purpose |
 |---|---|
@@ -75,7 +100,7 @@ Renaming commands support `--dry-run`, `--list-all`, `--show=TAGS` and `--skip-d
 
 See [usage and output indicators](docs/usage.md) and the [media decision matrix](docs/decision-matrix.md) for detailed behavior and examples.
 
-## Configuration
+## ⚙️ Configuration
 
 Docker Compose reads `.env`. Common settings are:
 
@@ -93,7 +118,7 @@ Docker Compose reads `.env`. Common settings are:
 
 The runtime uses a private `/cache` volume. Development and standalone execution use `CACHE_DIR` (default `.build/cache`). See [configuration](docs/configuration.md) for all limits, cache settings and clickable terminal links.
 
-## Safe operation and collection size
+## 🔒 Safe operation and collection size
 
 - Use a backup and a dry-run before mutation. An interrupted batch may be partially complete; its private journal supports inspection and reconciliation.
 - Exact/perceptual classification does not authorize permanent deletion. `rename:dedup --delete` requires fresh SHA-256 equality with a surviving original; distinct format conversions cannot pass that byte-identity check.
@@ -103,7 +128,7 @@ The runtime uses a private `/cache` volume. Development and standalone execution
 
 Read [runtime capabilities, failure handling and cache maintenance](docs/runtime-and-safety.md) before processing a large collection or recovering an interrupted run. [Synthetic collection profiling](docs/mixed-collection-benchmark.md) documents how to measure resource needs and the limits of those measurements.
 
-## Development and contributing
+## 🛠️ Development and contributing
 
 Development and quality checks run in Docker:
 
@@ -118,12 +143,12 @@ make runtime-image-check
 
 Follow [AGENTS.md](AGENTS.md) for coding, review and commit rules. The [development guide](docs/development.md) covers architecture, focused checks, dependency updates, CI, binary builds and releases. Submit changes through a pull request with relevant tests and current documentation.
 
-## Help
+## 💬 Help
 
 Use command-specific help as shown above or [open an issue](https://github.com/magicsunday/photo-renamer/issues) for bugs and feature requests. Include a reproducible example and diagnostics with personal paths, GPS data, credentials and other sensitive information removed; use synthetic media when possible.
 
 Maintained by [Rico Sonntag (@magicsunday)](https://github.com/magicsunday).
 
-## License
+## 📄 License
 
 [MIT](LICENSE).

@@ -1,6 +1,6 @@
 # Configuration
 
-[Quick start](../README.md#quick-start) · [Runtime and safety](runtime-and-safety.md)
+[Quick start](../README.md#-quick-start) · [Runtime and safety](runtime-and-safety.md)
 
 ## Environment variables
 

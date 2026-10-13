@@ -1,6 +1,6 @@
 # Runtime and safety
 
-[Quick start](../README.md#quick-start) · [Configuration](configuration.md) · [Usage](usage.md)
+[Quick start](../README.md#-quick-start) · [Configuration](configuration.md) · [Usage](usage.md)
 
 ## Resource limits and collection size
 
