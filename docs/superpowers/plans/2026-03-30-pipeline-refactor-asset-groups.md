@@ -1,5 +1,7 @@
 # Pipeline Refactor: Asset Groups — Zielarchitektur-Plan v2
 
+> Historical design snapshot from the date in this filename, not current implementation instructions or an acceptance checklist. Names, dependencies and proposed policies below may have been superseded. Use [README](../../../README.md), root [AGENTS.md](../../../AGENTS.md) and the [current decision matrix](../../decision-matrix.md) for present behavior; shared content decisions now live in `ContentClassifier`, with legacy naming retained at the caller boundary.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Source context:** This plan supersedes the earlier 3-phase draft and incorporates the original domain proposal (canonical item, duplicate items, sub-groups, format priority, Live Photo pairing, no-touch for already-correct names) plus the repo-specific findings around `RenameByExifDateCommand`, `AbstractRenameCommand`, `DuplicateDetectionService`, `FileSystemService`, `RenameOutputRenderer`, and `HashSubGroupingServiceInterface`. See the uploaded prior draft for the baseline it replaces fileciteturn25file0.

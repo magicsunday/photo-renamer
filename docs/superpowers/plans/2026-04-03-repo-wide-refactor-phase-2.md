@@ -1,5 +1,7 @@
 # Repo-Wide Refactor Wave 2 — Boundary Cleanup, Contract Discipline, and Stronger Architecture Rules
 
+> Historical design snapshot from the date in this filename, not current implementation instructions or an acceptance checklist. Names, dependencies and proposed policies below may have been superseded. Use [README](../../../README.md), root [AGENTS.md](../../../AGENTS.md) and the [current decision matrix](../../decision-matrix.md) for present behavior; shared content decisions now live in `ContentClassifier`, with legacy naming retained at the caller boundary.
+
 > **Goal:** Bring the remaining parts of `src/` in line with explicit boundaries, explicit contracts, container-driven DI, stronger testability, and stricter architecture enforcement without introducing speculative abstraction.
 
 **Problem:** The first structural refactor wave removed several major hotspots, but the repository still has broad boundary classes, tuple-heavy service internals, permissive dependency injection shortcuts, and architecture rules that are too coarse for the current codebase maturity. The code is already good in many places; the remaining issue is uneven discipline, not general disorder.

@@ -92,12 +92,10 @@ final readonly class TargetNameResolver implements TargetNameResolverInterface
             ? FileHelper::normalizeExtension($canonical->file->getExtension())
             : '';
 
-        // Degraded classification recovery: when hash comparison failed but existing
-        // filenames demonstrate a prior successful subgroup run, preserve those names
-        // instead of flattening to -duplicate-NNN. This is a DELIBERATE, narrowly
-        // bounded exception to the rule that current filenames must not drive pipeline
-        // decisions. The 5 strict conditions in tryPreserveExistingSubgroupNames()
-        // limit this to cases where names demonstrably come from a prior successful run.
+        // On degraded analysis, preserve coherent existing subgroup names through
+        // ExistingSubgroupNamePreserver's structural checks. Names are a bounded
+        // presentation hint, not evidence of a previous successful classification.
+        // The execution-plan builder independently blocks mutations in this group.
         if (
             $group->isClassificationDegraded()
             && $this->existingSubgroupNamePreserver->preserveIfPossible(

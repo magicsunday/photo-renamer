@@ -19,7 +19,7 @@ use MagicSunday\Renamer\Model\Rename;
 use SplFileInfo;
 
 /**
- * Contract for content-hash based sub-grouping of duplicate groups.
+ * Legacy target-naming contract over shared source-only content classification.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -41,7 +41,7 @@ interface HashSubGroupingServiceInterface
      * Applies content-hash sub-grouping when a naming conflict exists.
      *
      * Returns a cluster map (source pathname → cluster root hash key) when
-     * sub-grouping was applied (multiple distinct content hashes found).
+     * sub-group naming was applied (independent content groups remain after analysis).
      * Returns null when sub-grouping is not needed (single hash group or
      * single non-companion file).
      *

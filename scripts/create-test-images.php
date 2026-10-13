@@ -578,11 +578,11 @@ echo "  31 duplicate + ambiguous tz  → both [W] skipped (not [D])\n";
 //      HEIC original + JPG conversion in the same directory.
 //      Both have identical visual content but different content hashes.
 //      Expected: JPG gets -duplicate-001 (format backup = duplicate, not edit).
-//      This tests Fix 1: Stage B must skip when dHash distance = 0.
+//      A dHash-zero candidate still requires measured Stage B codec tolerance.
 // ============================================================================
 mkdir("$dir/42-same-dir-format-backup", 0755, true);
 // Create a textured JPEG (mandelbrot pattern — produces compression artifacts
-// that differ between JPEG and HEIC, triggering the Stage B false positive)
+// that differ between JPEG and HEIC, exercising measured codec-noise tolerance)
 exec("ffmpeg -y -f lavfi -i mandelbrot=s=256x256:maxiter=100:rate=1 -frames:v 1 $dir/42-same-dir-format-backup/photo.jpg 2>/dev/null");
 exiftool(
     '-DateTimeOriginal=2025:02:20 15:30:00', '-SubSecTimeOriginal=200',

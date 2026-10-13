@@ -42,8 +42,9 @@ use function unlink;
  * Configuration stays readonly; two bounded diagnostic flags prevent repeated
  * capability failures from flooding a large collection's Console output.
  *
- * The normalization pipeline ensures that the same capture in different formats
- * (JPG in sRGB vs HEIC in Display P3) produces identical pixel values:
+ * Normalization puts different formats into a common comparison representation.
+ * It reduces orientation/color-space differences without promising identical
+ * pixels across codecs or profiles; the classifier measures remaining differences:
  *
  *   autoOrient → strip → sRGB → removeAlpha → flatten
  *

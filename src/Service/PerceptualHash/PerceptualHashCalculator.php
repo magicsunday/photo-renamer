@@ -401,7 +401,9 @@ final class PerceptualHashCalculator implements PerceptualHashCalculatorInterfac
             return new SimilarityResult($score, $dhashDistance, 64, 1.0, 1.0, null, SimilarityClassification::Different, ($dhashA !== null) && ($dhashB !== null));
         }
 
-        // Early exit: dHash = 0 AND not video → visually identical.
+        // Stage A shortcut for still candidates with identical gradient hashes.
+        // This is not proof of identical pixels: content classification still
+        // requires successful Stage B analysis before merging these sources.
         $isVideo = (($durationA !== null) && ($durationB !== null));
 
         if (($dhashDistance === 0) && (!$isVideo)) {

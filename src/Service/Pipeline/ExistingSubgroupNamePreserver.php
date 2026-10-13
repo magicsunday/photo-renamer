@@ -27,13 +27,14 @@ use function sort;
 use const DIRECTORY_SEPARATOR;
 
 /**
- * Preserves existing subgroup-style names when degraded classification proves a
- * prior successful subgroup run should remain authoritative.
+ * Preserves coherent existing subgroup-style names after degraded classification.
+ * Structural filename checks are presentation hints, not content evidence or
+ * proof that a previous run succeeded. Execution safety remains with the builder.
  *
  * This is the narrowly bounded exception in the naming pipeline where current
  * filenames may influence behavior: only classification-degraded groups may
  * keep their current subgroup names, and only when strict structural checks
- * show those names look like a coherent result of an earlier successful run.
+ * show those names form a coherent subgroup layout.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT

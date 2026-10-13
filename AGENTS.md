@@ -110,6 +110,7 @@ Normal media runs (`renamer.sh`, `make run`) use the separate `runtime` service:
 - `self` in PHP return types, full class name in `@return` PHPDoc
 - No `mixed` type, no `empty()`, no nested ternaries
 - **Documentation (DocBlocks):**
+    - When deleting or moving code, review adjacent inline comments and the enclosing DocBlocks. Remove orphan section labels, references to removed symbols, and claims that no longer match the implementation. Include comments, examples and current documentation in every code review; retain historical plans only with an explicit historical-status notice.
     - Every class and method MUST have a DocBlock.
     - **Classes:** Describe the specific purpose, high-level responsibility, and architecture. Explain *why* certain design choices were made (e.g., immutability, transitional mapping).
     - **Methods:** Describe *what* they do and *why* they do it that way. Document all parameters (`@param`) with meaningful descriptions and specify return values (`@return`). Explain any critical implementation details or side effects.

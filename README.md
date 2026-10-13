@@ -473,7 +473,7 @@ This project follows strict documentation standards. Every class and method must
 - **Parameters:** All parameters must be documented with `@param`.
 - **Tests:** Every test must describe exactly what scenario is being tested. No "Standard-Blah-Blah".
 
-See `AGENTS.md` and `CLAUDE.md` for more details.
+See [AGENTS.md](AGENTS.md) for the current contributor instructions.
 
 ## 🛠️ Development
 

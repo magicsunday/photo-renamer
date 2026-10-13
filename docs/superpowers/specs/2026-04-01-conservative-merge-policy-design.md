@@ -1,5 +1,7 @@
 # Conservative Merge Policy — Design Spec
 
+> Historical design snapshot from the date in this filename, not current implementation instructions or an acceptance checklist. Names, dependencies and proposed policies below may have been superseded. Use [README](../../../README.md), root [AGENTS.md](../../../AGENTS.md) and the [current decision matrix](../../decision-matrix.md) for present behavior; shared content decisions now live in `ContentClassifier`, with legacy naming retained at the caller boundary.
+
 **Date:** 2026-04-01
 **Branch:** TBD (from `main`)
 **Status:** Draft
