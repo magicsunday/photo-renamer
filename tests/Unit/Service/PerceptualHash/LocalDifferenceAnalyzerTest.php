@@ -22,6 +22,9 @@ use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
 /**
+ * Protects measured grayscale/chroma values and explicit failure availability
+ * through the retained analysis entry point, using real native images.
+ *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
@@ -32,6 +35,11 @@ final class LocalDifferenceAnalyzerTest extends TestCase
 {
     private LocalDifferenceAnalyzer $analyzer;
 
+    /**
+     * Creates a fresh stateless analyzer for independent native-image cases.
+     *
+     * @return void
+     */
     protected function setUp(): void
     {
         $this->analyzer = new LocalDifferenceAnalyzer();
@@ -39,7 +47,9 @@ final class LocalDifferenceAnalyzerTest extends TestCase
 
     /**
      * Ensures that identical images produce no differences.
-     * RMSE, changed area, and blob count must be exactly 0.
+     * Successful evidence must contain exactly zero grayscale and chroma difference.
+     *
+     * @return void
      */
     #[Test]
     public function identicalImagesProduceZeroChanges(): void
@@ -50,15 +60,15 @@ final class LocalDifferenceAnalyzerTest extends TestCase
         $result = $this->analyzer->analyze($imgA, $imgB);
 
         self::assertSame(0.0, $result->rmse);
-        self::assertSame(0.0, $result->changedAreaRatio);
-        self::assertSame(0.0, $result->largestBlobRatio);
-        self::assertSame(0, $result->blobCount);
-        self::assertFalse($result->hasCompactRetouch);
+        self::assertSame(0.0, $result->chromaDifference);
+        self::assertTrue($result->success);
     }
 
     /**
      * Verifies that completely different images (white vs. black) produce a
      * high Root Mean Square Error (RMSE) value.
+     *
+     * @return void
      */
     #[Test]
     public function completelyDifferentImagesProduceHighRmse(): void
@@ -74,6 +84,8 @@ final class LocalDifferenceAnalyzerTest extends TestCase
     /**
      * Checks if a single differing pixel results only in a minimal,
      * negligible RMSE value.
+     *
+     * @return void
      */
     #[Test]
     public function singlePixelDifferenceProducesNearZeroRmse(): void
@@ -94,9 +106,11 @@ final class LocalDifferenceAnalyzerTest extends TestCase
     }
 
     /**
-     * Simulates a local retouch (10x10 square) and checks if the RMSE is in a
-     * moderate range that signals a retouch without the image being considered
-     * completely different.
+     * A small black patch on a white image produces a measurable aggregate
+     * RMSE between 0.05 and 0.5. This verifies the measurement without claiming
+     * spatial retouch detection or deciding whether classification permits a merge.
+     *
+     * @return void
      */
     #[Test]
     public function localRetouchProducesModerateRmse(): void
@@ -104,7 +118,7 @@ final class LocalDifferenceAnalyzerTest extends TestCase
         $imgA = $this->createSolidImage(64, 64, 'white');
         $imgB = $this->createSolidImage(64, 64, 'white');
 
-        // Draw a 10x10 black square to simulate a local retouch
+        // Draw a small black square to simulate a local retouch
         $draw = new ImagickDraw();
         $draw->setFillColor(new ImagickPixel('black'));
         $draw->rectangle(20, 20, 30, 30);
@@ -113,7 +127,7 @@ final class LocalDifferenceAnalyzerTest extends TestCase
 
         $result = $this->analyzer->analyze($imgA, $imgB);
 
-        // 10×10 black square on white → noticeable but not extreme RMSE
+        // The local black patch produces a noticeable aggregate RMSE.
         self::assertGreaterThan(0.05, $result->rmse);
         self::assertLessThan(0.5, $result->rmse);
     }
@@ -122,6 +136,8 @@ final class LocalDifferenceAnalyzerTest extends TestCase
      * Checks the color difference (chroma) when comparing a color image
      * with its grayscale version. The chroma difference must be significantly
      * above the threshold.
+     *
+     * @return void
      */
     #[Test]
     public function colorToGrayscaleConversionProducesHighChromaDifference(): void
@@ -142,9 +158,10 @@ final class LocalDifferenceAnalyzerTest extends TestCase
     }
 
     /**
-     * Ensures that in case of errors (e.g., invalid image data), a
-     * "conservative" result (no changes) is returned instead of
-     * aborting the process with an exception.
+     * A cleared native image must report unavailable evidence even though its
+     * numeric fields are zero, preventing decode failure from appearing as a match.
+     *
+     * @return void
      */
     #[Test]
     public function analyzeReturnsConservativeResultOnFailure(): void
@@ -156,12 +173,19 @@ final class LocalDifferenceAnalyzerTest extends TestCase
         $result = $this->analyzer->analyze($invalidImg, $validImg);
 
         self::assertSame(0.0, $result->rmse);
-        self::assertSame(0.0, $result->changedAreaRatio);
-        self::assertSame(0.0, $result->largestBlobRatio);
-        self::assertSame(0, $result->blobCount);
-        self::assertFalse($result->hasCompactRetouch);
+        self::assertSame(0.0, $result->chromaDifference);
+        self::assertFalse($result->success);
     }
 
+    /**
+     * Creates deterministic solid native pixels without codec or metadata noise.
+     *
+     * @param int    $width  Working image width.
+     * @param int    $height Working image height.
+     * @param string $color  Native fill color for the measurement case.
+     *
+     * @return Imagick The uncompressed PNG image supplied to the analyzer.
+     */
     private function createSolidImage(int $width, int $height, string $color): Imagick
     {
         $img = new Imagick();

@@ -1163,7 +1163,7 @@ final class TestImageScenariosTest extends TestCase
 
         // Scenario 42: same-directory format backup (HEIC + JPG, same photo)
         // HEIC canonical + JPG format conversion → JPG gets -duplicate-001 (not -002)
-        // Tests Fix 1: Stage B must skip when dHash distance = 0
+        // Stage B remains mandatory at zero dHash distance; codec noise stays within its safe window.
         yield '42-same-dir-format-backup' => [
             '42-same-dir-format-backup',
             [
@@ -1197,10 +1197,9 @@ final class TestImageScenariosTest extends TestCase
         ];
 
         // Scenario 59: minimal-edit false merge — three images with same capture date.
-        // The -003 image is a minimal edit (RMSE 0.043 from original, dHash distance 0).
-        // Current bug: dHash==0 causes the pipeline to merge -003 into the canonical
-        // cluster, renaming it to -duplicate-001. Correct behavior: all three should
-        // remain as separate subgroups because they are perceptually distinct edits.
+        // The small edit preserves high visual similarity but exceeds its safe RMSE cap.
+        // All three assets must remain separate; classification must not turn an edit
+        // into a duplicate merely because its gradient structure is near-identical.
         yield '59-minimal-edit-false-merge' => [
             '59-minimal-edit-false-merge',
             [
