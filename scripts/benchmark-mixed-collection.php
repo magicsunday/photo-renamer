@@ -194,9 +194,6 @@ if ($mode === 'worker') {
         requireProfileInvariant($provider instanceof ExifMetadataProvider, 'Invalid metadata provider.');
         $provider->setDefaultTimezone(new DateTimeZone('UTC'));
         $provider->setCache($cache);
-        $scorer = $container->get(CanonicalScorer::class);
-        requireProfileInvariant($scorer instanceof CanonicalScorer, 'Invalid scorer.');
-        $scorer->setSourceDirectory($media);
         $files    = $container->get(FileSystemService::class);
         $pipeline = $container->get(AssetGroupPipeline::class);
         $builder  = $container->get(ExecutionPlanBuilder::class);

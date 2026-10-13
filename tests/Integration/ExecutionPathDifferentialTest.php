@@ -298,8 +298,6 @@ final class ExecutionPathDifferentialTest extends TestCase
         );
 
         $canonicalScorer = new CanonicalScorer();
-        $canonicalScorer->setFormatPriority([]);
-        $canonicalScorer->setSourceDirectory($workspace);
 
         $mediaCompatibilityPolicy = new MediaCompatibilityPolicy($mediaTypeClassifier);
         $companionDetector        = new CompanionDetector($mediaCompatibilityPolicy);
@@ -317,6 +315,9 @@ final class ExecutionPathDifferentialTest extends TestCase
             $targetNameResolver,
             $collisionResolver,
             $renamePlanValidator,
+            $hashSubGroupingService,
+            $perceptualHashCalculator,
+            $canonicalScorer,
         );
 
         $iterator = $this->createFileIterator($workspace);
@@ -327,6 +328,7 @@ final class ExecutionPathDifferentialTest extends TestCase
             $duplicateIdentifierStrategy,
             $workspace,
             true, // useFileExtensionFromSource
+            formatPriority: [],
         );
     }
 

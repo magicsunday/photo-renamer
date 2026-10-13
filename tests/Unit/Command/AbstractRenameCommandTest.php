@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Command;
 
+use MagicSunday\Renamer\Command\AbstractMediaRenameCommand;
 use MagicSunday\Renamer\Command\AbstractRenameCommand;
 use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\FileHelper;
@@ -62,6 +63,7 @@ use function uniqid;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(AbstractRenameCommand::class)]
+#[UsesClass(AbstractMediaRenameCommand::class)]
 #[UsesClass(LinkConfig::class)]
 #[UsesClass(FileHelper::class)]
 #[UsesClass(AbstractCollection::class)]

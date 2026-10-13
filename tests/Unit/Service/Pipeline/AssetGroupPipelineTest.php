@@ -11,9 +11,13 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service\Pipeline;
 
+use LogicException;
 use MagicSunday\Renamer\Helper\AnalysisMemoryBudget;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\PipelineContext;
+use MagicSunday\Renamer\Service\CanonicalScorerInterface;
+use MagicSunday\Renamer\Service\HashSubGroupingServiceInterface;
+use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
 use MagicSunday\Renamer\Service\Pipeline\AssetGroupPipeline;
 use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuilderInterface;
 use MagicSunday\Renamer\Service\Pipeline\CollisionResolverInterface;
@@ -55,6 +59,39 @@ use SplFileInfo;
 #[UsesClass(ValidationResult::class)]
 final class AssetGroupPipelineTest extends TestCase
 {
+    /**
+     * A builder failure propagates as a logic error while the workflow still
+     * detaches its cache and restores grouping defaults. Setup uses explicit
+     * format/source values, and cleanup performs no classification/source I/O.
+     *
+     * @return void
+     */
+    #[Test]
+    public function builderFailureStillClosesAnalysisConfigurationScope(): void
+    {
+        $builder = self::createStub(CaptureGroupBuilderInterface::class);
+        $builder->method('build')->willThrowException(new LogicException('synthetic builder failure'));
+        $grouping = self::createMock(HashSubGroupingServiceInterface::class);
+        $selected = [];
+        $grouping->expects(self::exactly(2))->method('setMaxMergeRmse')->willReturnCallback(static function (?float $threshold) use (&$selected): void {
+            $selected[] = $threshold;
+        });
+        $grouping->expects(self::never())->method('clearCache');
+        $visual = self::createMock(PerceptualHashCalculatorInterface::class);
+        $visual->expects(self::exactly(2))->method('setSignalCache')->with(null);
+        $scorer = self::createMock(CanonicalScorerInterface::class);
+        $scorer->expects(self::once())->method('setFormatPriority')->with(['jpg', 'heic']);
+        $scorer->expects(self::once())->method('setSourceDirectory')->with('/synthetic');
+        $pipeline = new AssetGroupPipeline($builder, self::createStub(SubgroupClassifierInterface::class), self::createStub(RoleAssignerInterface::class), self::createStub(TargetNameResolverInterface::class), self::createStub(CollisionResolverInterface::class), new RenamePlanValidator(), $grouping, $visual, $scorer);
+        $this->expectException(LogicException::class);
+
+        try {
+            $pipeline->run(new RecursiveIteratorIterator(new RecursiveArrayIterator([])), $this->createRenameStrategyDouble(), $this->createDuplicateIdentifierStrategyDouble(), '/synthetic', mergeThreshold: 0.03, formatPriority: ['jpg', 'heic']);
+        } finally {
+            self::assertSame([0.03, null], $selected);
+        }
+    }
+
     /**
      * Verifies that the cross-group video reconciler runs after group building and
      * before subgroup classification on the same mutable group collection/context.
@@ -135,6 +172,9 @@ final class AssetGroupPipelineTest extends TestCase
             $targetNameResolver,
             $collisionResolver,
             new RenamePlanValidator(),
+            self::createStub(HashSubGroupingServiceInterface::class),
+            self::createStub(PerceptualHashCalculatorInterface::class),
+            self::createStub(CanonicalScorerInterface::class),
             $crossGroupVideoDuplicateReconciler,
         );
 

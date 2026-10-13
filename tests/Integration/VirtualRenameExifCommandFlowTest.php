@@ -24,7 +24,6 @@ use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Model\SkippedFile;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\CanonicalScorer;
-use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilderInterface;
 use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
@@ -579,6 +578,9 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
             self::createStub(TargetNameResolverInterface::class),
             self::createStub(CollisionResolverInterface::class),
             new RenamePlanValidator(),
+            self::createStub(HashSubGroupingServiceInterface::class),
+            self::createStub(PerceptualHashCalculatorInterface::class),
+            new CanonicalScorer(),
         );
 
         $executionPlanBuilder = new readonly class($executionPlan) implements ExecutionPlanBuilderInterface {
@@ -595,14 +597,10 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
 
         $command = new RenameByExifDateCommand(
             $fileSystemService,
-            self::createStub(DuplicateDetectionServiceInterface::class),
             new SafeRegex(),
             new Filesystem(),
             new ExifMetadataProvider(new StubMetadataExtractor()),
-            self::createStub(PerceptualHashCalculatorInterface::class),
-            self::createStub(HashSubGroupingServiceInterface::class),
             $pipeline,
-            new CanonicalScorer(),
             $executionPlanBuilder,
             new PipelineReviewMapper(),
             OutputRendererFactory::create($style),

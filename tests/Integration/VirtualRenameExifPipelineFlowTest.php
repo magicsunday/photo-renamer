@@ -123,8 +123,8 @@ final class VirtualRenameExifPipelineFlowTest extends TestCase
             $hashService = $this->createMock(HashSubGroupingServiceInterface::class);
             $hashService->expects(self::once())->method('apply')->willThrowException(new RuntimeException('synthetic analysis failure'));
             $hashService->expects(self::once())->method('clearCache');
-            $pipeline = $this->createPipeline($workspace, '', '', $hashService);
-            $result   = $pipeline->run($this->createFileIterator($files), $strategy, new TargetBasenameStrategy(), $workspace, true);
+            $pipeline = $this->createPipeline('', '', $hashService);
+            $result   = $pipeline->run($this->createFileIterator($files), $strategy, new TargetBasenameStrategy(), $workspace, true, formatPriority: ['heic', 'jpg', 'mov']);
             self::assertTrue($result->validationResult->isValid());
             $plan = new ExecutionPlanBuilder()->build($result->groups, $result->context);
             self::assertSame(1, $plan->executableItemCount());
@@ -214,7 +214,7 @@ final class VirtualRenameExifPipelineFlowTest extends TestCase
         $sourceDirectory = '/virtual/source';
         $files           = $this->createVirtualFiles($sourceDirectory);
         $strategy        = $this->createStrategy($files);
-        $pipeline        = $this->createPipeline($sourceDirectory, $files['reviewA']->getPathname(), $files['reviewB']->getPathname());
+        $pipeline        = $this->createPipeline($files['reviewA']->getPathname(), $files['reviewB']->getPathname());
 
         $pipelineResult = $pipeline->run(
             $this->createFileIterator($files),
@@ -222,6 +222,7 @@ final class VirtualRenameExifPipelineFlowTest extends TestCase
             new TargetBasenameStrategy(),
             $sourceDirectory,
             true,
+            formatPriority: ['heic', 'jpg', 'mov'],
         );
 
         self::assertTrue($pipelineResult->validationResult->isValid());
@@ -482,13 +483,11 @@ final class VirtualRenameExifPipelineFlowTest extends TestCase
      * real role assignment, real naming, real collision resolution, and real review
      * mapping, while the expensive hash and stream boundaries stay deterministic.
      *
-     * @param string                               $sourceDirectory Virtual source root used by CanonicalScorer
      * @param string                               $reviewLeftPath  First video of the review-only pair
      * @param string                               $reviewRightPath Second video of the review-only pair
      * @param HashSubGroupingServiceInterface|null $hashService     Injected analysis failure boundary, or null for normal grouping
      */
     private function createPipeline(
-        string $sourceDirectory,
         string $reviewLeftPath,
         string $reviewRightPath,
         ?HashSubGroupingServiceInterface $hashService = null,
@@ -535,9 +534,6 @@ final class VirtualRenameExifPipelineFlowTest extends TestCase
                 return new VideoFingerprintMatch(false, false, false, false, false);
             });
 
-        $canonicalScorer->setFormatPriority(['heic', 'jpg', 'mov']);
-        $canonicalScorer->setSourceDirectory($sourceDirectory);
-
         return new AssetGroupPipeline(
             $captureGroupBuilder,
             $subgroupClassifier,
@@ -545,6 +541,9 @@ final class VirtualRenameExifPipelineFlowTest extends TestCase
             TargetNameResolverFactory::create(),
             new CollisionResolver(),
             new RenamePlanValidator(),
+            $hashSubGroupingService,
+            $perceptualHashCalculator,
+            $canonicalScorer,
             $crossGroupVideoReconciler,
         );
     }
