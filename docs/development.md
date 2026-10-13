@@ -71,6 +71,9 @@ Internal class suffixes, import lists, inheritance and constructor layouts are
 implementation choices; behavioral tests do not require a particular decomposition.
 Keep distinct source/target/deletion, classification-failure, cleanup and repeated-run
 cases even when internal services or models are simplified.
+Broad CLI/media integration tests use `CoversNothing` without reducing their
+behavioral assertions. Focused rule and cache tests retain class-level coverage
+metadata; coverage attribution is separate from whether a behavior is checked.
 
 Test the CLI:
 
