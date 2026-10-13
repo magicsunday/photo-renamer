@@ -37,7 +37,6 @@ use MagicSunday\Renamer\Service\FormatPriorityResolver;
 use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
-use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
 use MagicSunday\Renamer\Service\Output\SummaryRow;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
@@ -104,7 +103,6 @@ use const PHP_EOL;
 #[UsesClass(LegacyRenameExecutor::class)]
 #[UsesClass(RuntimeFileMoveExecutor::class)]
 #[UsesClass(OutputEntryPresenter::class)]
-#[UsesClass(OutputSkipReasonDecider::class)]
 #[UsesClass(SummaryRow::class)]
 #[UsesClass(ConsoleProgressReporter::class)]
 #[UsesClass(ConsoleText::class)]

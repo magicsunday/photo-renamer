@@ -40,13 +40,9 @@ use function str_repeat;
 final readonly class OutputEntryPresenter
 {
     /**
-     * @param OutputSkipReasonDecider $skipReasonDecider   Semantic skip-reason decider used for skipped rename entries
-     * @param SkipReasonFormatter     $skipReasonFormatter Operator-facing skip-reason formatter
-     * @param DiffHighlighter         $diffHighlighter     Diff highlighter used for one-line rename output
+     * @param DiffHighlighter $diffHighlighter Diff highlighter used for one-line rename output
      */
     public function __construct(
-        private OutputSkipReasonDecider $skipReasonDecider,
-        private SkipReasonFormatter $skipReasonFormatter,
         private DiffHighlighter $diffHighlighter,
     ) {
     }
@@ -114,11 +110,7 @@ final readonly class OutputEntryPresenter
 
             if ($this->isTagVisible($entry->tag, $showFilter)) {
                 if ($entry->shouldSkip) {
-                    $skipReason = $this->skipReasonFormatter->format(
-                        $this->skipReasonDecider->decide($entry),
-                    );
-
-                    $this->renderTwoLineReasonBlock($entry->tag, $linkedPath, $skipReason, $io);
+                    $this->renderTwoLineReasonBlock($entry->tag, $linkedPath, $this->skipReason($entry), $io);
                 } else {
                     $io->text(sprintf(
                         ' %s %s' . $padding . ' <fg=cyan>→</> %s',
@@ -188,6 +180,28 @@ final readonly class OutputEntryPresenter
     private function isTagVisible(OutputEntryTag $tag, ?array $showFilter): bool
     {
         return ($showFilter === null) || in_array($tag->letter(), $showFilter, true);
+    }
+
+    /**
+     * Selects the final plain-text explanation for a skipped rename entry.
+     *
+     * Each entry has one exclusive tag. Review and warning details belong only
+     * to their respective tags; null selects a default while empty stays empty.
+     * Console escaping remains at the actual output boundary.
+     *
+     * @param OutputEntry $entry Skipped rename entry to explain to the operator
+     *
+     * @return string Plain skip text matching the entry's tag and conditional details
+     */
+    private function skipReason(OutputEntry $entry): string
+    {
+        return match ($entry->tag) {
+            OutputEntryTag::Candidate => 'Conflicting Live Photo content ID across groups',
+            OutputEntryTag::Review    => $entry->reason ?? 'Cross-group video review required',
+            OutputEntryTag::Warning   => $entry->warningReason ?? 'Warning',
+            OutputEntryTag::Fallback  => 'Fallback date: DateTime (0x0132) used instead of DateTimeOriginal',
+            default                   => 'Skipped',
+        };
     }
 
     /**

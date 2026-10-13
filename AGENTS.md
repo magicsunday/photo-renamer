@@ -265,7 +265,7 @@ This is an intentional bounded exception (End State B). These commands are too s
 
 ### Output Tags (OutputEntryTag enum)
 
-`OutputSkipReasonDecider` maps the exclusive Candidate/Review/Warning/Fallback tags directly to semantic decisions, with a generic default for all other tags. Review uses `reason`, Warning uses `warningReason`; null and empty details remain distinct. Keep selection separate from `SkipReasonFormatter` text and presenter escaping. There is no priority chain, rule registry or tagged-rule DI contract; parameterized tests protect all tags and conditional details.
+`OutputEntryPresenter` selects plain skip text directly from the exclusive Candidate/Review/Warning/Fallback tags, with a generic default for other tags. Review uses `reason`, Warning uses `warningReason`; null and empty details remain distinct. Escaping and styling follow at the actual output boundary. The existing parameterized output matrix protects every tag and conditional detail.
 
 `[R]` Rename, `[F]` Fallback, `[D]` Duplicate, `[O]` Original, `[W]` Warning, `[S]` Skipped, `[E]` Error, `[C]` Candidate (conflicting content ID)
 

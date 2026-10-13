@@ -42,7 +42,6 @@ use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
 use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
-use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
 use MagicSunday\Renamer\Service\Output\SummaryRow;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
@@ -117,7 +116,6 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(LegacyRenameExecutor::class)]
 #[UsesClass(RuntimeFileMoveExecutor::class)]
 #[UsesClass(OutputEntryPresenter::class)]
-#[UsesClass(OutputSkipReasonDecider::class)]
 #[UsesClass(ConsoleProgressReporter::class)]
 #[UsesClass(SummaryRow::class)]
 #[UsesClass(TimezoneRewritePlan::class)]
