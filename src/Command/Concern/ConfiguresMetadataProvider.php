@@ -294,8 +294,9 @@ trait ConfiguresMetadataProvider
     /**
      * Resolves the merge threshold for perceptual duplicate detection.
      *
-     * The threshold represents the maximum allowed Root Mean Square Error (RMSE)
-     * between two images to consider them visually identical.
+     * This operator ceiling limits accepted perceptual merges; it does not prove
+     * visual identity. The shared classifier still applies independent evidence
+     * checks and may impose a stricter RMSE safety cap for the pair.
      *
      * @param InputInterface $input   The console input carrying the option.
      * @param float          $default The default threshold if nothing else is set.

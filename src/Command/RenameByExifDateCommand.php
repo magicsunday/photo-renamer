@@ -370,8 +370,6 @@ final class RenameByExifDateCommand extends AbstractMediaRenameCommand
             $executionResult,
         );
 
-        // Cleanup
-
         foreach ($result->skippedFiles as $skippedFile) {
             if ($skippedFile->isError()) {
                 return false;

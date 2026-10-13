@@ -24,6 +24,7 @@ use MagicSunday\Renamer\Model\MergeDecisionKind;
 use MagicSunday\Renamer\Model\MergeDecisionReason;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Service\ComparisonWorkLimit;
+use MagicSunday\Renamer\Service\ContentClassifier;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
@@ -61,7 +62,9 @@ final class CompanionClassificationSafetyTest extends TestCase
 
     /**
      * Different valid pixels and unavailable pixels both stay separate despite
-     * identical companion bytes. The strict operator threshold remains binding.
+     * identical companion bytes. The direct and legacy paths, including repeated
+     * cold analysis, must agree on membership and every typed evidence field.
+     * The strict operator threshold remains binding.
      *
      * @param string|null         $secondColor Second image color, or null for unavailable pixels
      * @param bool                $merge       Expected positive grouping verdict
@@ -101,15 +104,48 @@ final class CompanionClassificationSafetyTest extends TestCase
             }
 
             $group->setTarget($renames['a.jpg']->getTarget());
-            $media   = new MediaTypeClassifier();
-            $loader  = new ImagickImageLoader($media, new NullProgressReporter());
-            $service = new HashSubGroupingService(new SafeHashCalculator(), new NullProgressReporter(), $media, new PerceptualHashCalculator($loader, new PerceptualHashMath()), new LocalDifferenceAnalyzer(), $loader, new ComparisonWorkLimit(100000));
+            $media             = new MediaTypeClassifier();
+            $loader            = new ImagickImageLoader($media, new NullProgressReporter());
+            $contentClassifier = new ContentClassifier(new SafeHashCalculator(), new NullProgressReporter(), $media, new PerceptualHashCalculator($loader, new PerceptualHashMath()), new LocalDifferenceAnalyzer(), $loader, new ComparisonWorkLimit(100000));
+            $service           = new HashSubGroupingService($contentClassifier);
             $service->setMaxMergeRmse(0.0);
             /** @var list<MergeDecision> $decisions */
             $decisions = [];
             $result    = $service->apply($group, $renames['a.jpg'], $renames['a.mov'], $ids, static fn (SplFileInfo $file, string $name): string => $file->getPath() . '/' . $name, onDecision: static function (MergeDecision $decision) use (&$decisions): void {
                 $decisions[] = $decision;
             });
+
+            // Replay through the direct boundary after releasing cached signals.
+            // Matching companion bytes must never change rejected/unavailable still
+            // evidence, and every typed measurement must survive the legacy adapter.
+            $files = [];
+
+            foreach ($renames as $rename) {
+                $files[] = $rename->getSource();
+            }
+
+            for ($run = 0; $run < 2; ++$run) {
+                $service->clearCache();
+                $directDecisions = [];
+                $direct          = $contentClassifier->classify(
+                    $files,
+                    $renames['a.jpg']->getSource(),
+                    $renames['a.mov']->getSource(),
+                    $ids,
+                    onDecision: static function (MergeDecision $decision) use (&$directDecisions): void {
+                        $directDecisions[] = $decision;
+                    },
+                );
+                self::assertEquals($decisions, $directDecisions);
+                self::assertSame($result ?? [], $direct->clusterMap());
+                self::assertSame(!$merge, $direct->hasSubgroups());
+
+                if (!$merge) {
+                    $clusters = $direct->clusterMap();
+                    self::assertSame($clusters[$workspace . '/a.jpg'], $clusters[$workspace . '/a.mov']);
+                    self::assertSame($clusters[$workspace . '/b.jpg'], $clusters[$workspace . '/b.mov']);
+                }
+            }
 
             self::assertSame($merge, $result === null);
             self::assertCount(1, $decisions);
@@ -267,8 +303,9 @@ final class CompanionClassificationSafetyTest extends TestCase
             });
             $visual = self::createMock(PerceptualHashCalculatorInterface::class);
             $visual->expects(self::never())->method('similarityScore');
-            $media   = new MediaTypeClassifier();
-            $service = new HashSubGroupingService($hashing, new NullProgressReporter(), $media, $visual, new LocalDifferenceAnalyzer(), new ImagickImageLoader($media, new NullProgressReporter()), new ComparisonWorkLimit(100000));
+            $media             = new MediaTypeClassifier();
+            $contentClassifier = new ContentClassifier($hashing, new NullProgressReporter(), $media, $visual, new LocalDifferenceAnalyzer(), new ImagickImageLoader($media, new NullProgressReporter()), new ComparisonWorkLimit(100000));
+            $service           = new HashSubGroupingService($contentClassifier);
             /** @var list<MergeDecision> $decisions */
             $decisions = [];
             $result    = $service->apply($group, $canonical, null, [], static fn (SplFileInfo $file, string $name): string => $file->getPath() . '/' . $name, onDecision: static function (MergeDecision $decision) use (&$decisions): void {
@@ -317,7 +354,8 @@ final class CompanionClassificationSafetyTest extends TestCase
             $loader = new ImagickImageLoader($media, new NullProgressReporter());
             $visual = new PerceptualHashCalculator($loader, new PerceptualHashMath());
             $visual->setSignalCache($cache);
-            $service = new HashSubGroupingService(new SafeHashCalculator(), new NullProgressReporter(), $media, $visual, new LocalDifferenceAnalyzer(), $loader, new ComparisonWorkLimit(100000));
+            $contentClassifier = new ContentClassifier(new SafeHashCalculator(), new NullProgressReporter(), $media, $visual, new LocalDifferenceAnalyzer(), $loader, new ComparisonWorkLimit(100000));
+            $service           = new HashSubGroupingService($contentClassifier);
             /** @var list<MergeDecision> $decisions */
             $decisions = [];
             $result    = $service->apply($group, $canonical, null, [], static fn (SplFileInfo $file, string $name): string => $file->getPath() . '/' . $name, onDecision: static function (MergeDecision $decision) use (&$decisions): void {
@@ -359,7 +397,7 @@ final class CompanionClassificationSafetyTest extends TestCase
             $media      = new MediaTypeClassifier();
             $reporter   = new NullProgressReporter();
             $visual     = new PerceptualHashCalculator(new ImagickImageLoader($media, new NullProgressReporter()), new PerceptualHashMath());
-            $classifier = new SubgroupClassifier($this->createService(), $media, new OrphanLivePhotoVideoReconciler($media, $visual, $reporter), $reporter);
+            $classifier = new SubgroupClassifier($this->createContentClassifier(), $media, new OrphanLivePhotoVideoReconciler($media, $visual, $reporter), $reporter);
             $classifier->classify($groups);
 
             self::assertFalse($group->isClassificationDegraded());
@@ -379,10 +417,20 @@ final class CompanionClassificationSafetyTest extends TestCase
      */
     private function createService(): HashSubGroupingService
     {
+        return new HashSubGroupingService($this->createContentClassifier());
+    }
+
+    /**
+     * Wires the shared real content kernel independently of legacy target naming.
+     *
+     * @return ContentClassifier Real native analysis of synthetic source files
+     */
+    private function createContentClassifier(): ContentClassifier
+    {
         $media  = new MediaTypeClassifier();
         $loader = new ImagickImageLoader($media, new NullProgressReporter());
 
-        return new HashSubGroupingService(new SafeHashCalculator(), new NullProgressReporter(), $media, new PerceptualHashCalculator($loader, new PerceptualHashMath()), new LocalDifferenceAnalyzer(), $loader, new ComparisonWorkLimit(100000));
+        return new ContentClassifier(new SafeHashCalculator(), new NullProgressReporter(), $media, new PerceptualHashCalculator($loader, new PerceptualHashMath()), new LocalDifferenceAnalyzer(), $loader, new ComparisonWorkLimit(100000));
     }
 
     /**

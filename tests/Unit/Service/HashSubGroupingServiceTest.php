@@ -15,6 +15,7 @@ use Closure;
 use Imagick;
 use ImagickPixel;
 use MagicSunday\Renamer\Helper\FileHelper;
+use MagicSunday\Renamer\Model\Classification\ContentClassificationResult;
 use MagicSunday\Renamer\Model\Collection\FileList;
 use MagicSunday\Renamer\Model\Collection\RenameList;
 use MagicSunday\Renamer\Model\FileDuplicate;
@@ -23,6 +24,7 @@ use MagicSunday\Renamer\Model\MergeDecisionKind;
 use MagicSunday\Renamer\Model\MergeDecisionReason;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Service\ComparisonWorkLimit;
+use MagicSunday\Renamer\Service\ContentClassifier;
 use MagicSunday\Renamer\Service\DisjointSetUnion;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
@@ -68,6 +70,8 @@ use const DIRECTORY_SEPARATOR;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(HashSubGroupingService::class)]
+#[CoversClass(ContentClassifier::class)]
+#[UsesClass(ContentClassificationResult::class)]
 #[UsesClass(MergeDecision::class)]
 #[UsesClass(MergeDecisionKind::class)]
 #[UsesClass(MergeDecisionReason::class)]
@@ -988,15 +992,7 @@ final class HashSubGroupingServiceTest extends TestCase
     ): HashSubGroupingService {
         $imageLoader = new ImagickImageLoader(new MediaTypeClassifier(), new NullProgressReporter());
 
-        return new HashSubGroupingService(
-            $hashCalculator,
-            new NullProgressReporter(),
-            new MediaTypeClassifier(),
-            $perceptualHashCalculator,
-            new LocalDifferenceAnalyzer(),
-            $imageLoader,
-            new ComparisonWorkLimit($maximumPairs),
-        );
+        return new HashSubGroupingService(new ContentClassifier($hashCalculator, new NullProgressReporter(), new MediaTypeClassifier(), $perceptualHashCalculator, new LocalDifferenceAnalyzer(), $imageLoader, new ComparisonWorkLimit($maximumPairs)));
     }
 
     private function createTempDirectory(): string

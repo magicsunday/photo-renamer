@@ -29,6 +29,7 @@ use MagicSunday\Renamer\Metadata\MetadataQualityFlags;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
+use MagicSunday\Renamer\Model\Classification\ContentClassificationResult;
 use MagicSunday\Renamer\Model\Collection\AbstractCollection;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
@@ -56,6 +57,7 @@ use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\CanonicalScore;
 use MagicSunday\Renamer\Service\CanonicalScorer;
 use MagicSunday\Renamer\Service\ComparisonWorkLimit;
+use MagicSunday\Renamer\Service\ContentClassifier;
 use MagicSunday\Renamer\Service\ContentIdentifierCacheEntry;
 use MagicSunday\Renamer\Service\DisjointSetUnion;
 use MagicSunday\Renamer\Service\DuplicateDetectionService;
@@ -248,6 +250,8 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(FileSystemService::class)]
 #[UsesClass(DisjointSetUnion::class)]
 #[UsesClass(HashSubGroupingService::class)]
+#[UsesClass(ContentClassifier::class)]
+#[UsesClass(ContentClassificationResult::class)]
 #[UsesClass(ImagickImageLoader::class)]
 #[UsesClass(LivePhotoBasenameTargetMap::class)]
 #[UsesClass(LivePhotoConflictAsset::class)]
@@ -1157,7 +1161,7 @@ final class RenameByExifDateCommandTest extends TestCase
         $progressReporter = new ConsoleProgressReporter($style);
 
         $mediaTypeClassifier       = new MediaTypeClassifier();
-        $hashSubGroupingService    = new HashSubGroupingService(new SafeHashCalculator(), $progressReporter, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier(), new NullProgressReporter()), new ComparisonWorkLimit($maximumPairs));
+        $contentClassifier         = new ContentClassifier(new SafeHashCalculator(), $progressReporter, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier(), new NullProgressReporter()), new ComparisonWorkLimit($maximumPairs));
         $livePhotoConflictDetector = new LivePhotoConflictDetector($mediaTypeClassifier);
 
         $captureGroupBuilder = CaptureGroupBuilderFactory::create(
@@ -1167,7 +1171,7 @@ final class RenameByExifDateCommandTest extends TestCase
             new LivePhotoPairingService(),
         );
         $subgroupClassifier = new SubgroupClassifier(
-            $hashSubGroupingService,
+            $contentClassifier,
             $mediaTypeClassifier,
             new OrphanLivePhotoVideoReconciler($mediaTypeClassifier, new StubPerceptualHashCalculator(), $progressReporter),
             $progressReporter,
@@ -1188,7 +1192,7 @@ final class RenameByExifDateCommandTest extends TestCase
             $targetNameResolver,
             $collisionResolver,
             $renamePlanValidator,
-            $hashSubGroupingService,
+            $contentClassifier,
             new StubPerceptualHashCalculator(),
             $canonicalScorer,
             $crossGroupReconciler,

@@ -1,5 +1,7 @@
 # Structural Refactor Plan — Specialized Services and Thinner Orchestrators
 
+> Historical design snapshot from the date in this filename, not current implementation instructions or an acceptance checklist. Names, dependencies and proposed policies below may have been superseded. Use [README](../../../README.md), root [AGENTS.md](../../../AGENTS.md) and the [current decision matrix](../../decision-matrix.md) for present behavior; shared content decisions now live in `ContentClassifier`, with legacy naming retained at the caller boundary.
+
 > **Goal:** Move specialized business logic into clearly named, focused classes while keeping commands thin, preserving the current execution-path decisions, and improving structural alignment with established software design patterns.
 
 **Problem:** The project already has a strong architectural direction, but several classes still carry too many responsibilities or hold specialized logic that would be easier to reason about, test, and evolve in smaller named collaborators. The result is not random chaos, but uneven structural consistency: some areas follow clean policy/resolver/analyzer patterns, while other hotspots still behave like transitional aggregations of multiple concerns.

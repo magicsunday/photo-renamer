@@ -1,4 +1,6 @@
 # Phase 4 Plan — Execution/Output Migration + Legacy Finalization (Reviewed v3)
+
+> Historical design snapshot from the date in this filename, not current implementation instructions or an acceptance checklist. Names, dependencies and proposed policies below may have been superseded. Use [README](../../../README.md), root [AGENTS.md](../../../AGENTS.md) and the [current decision matrix](../../decision-matrix.md) for present behavior; shared content decisions now live in `ContentClassifier`, with legacy naming retained at the caller boundary.
 Branch target: `feature/asset-group-pipeline`
 
 > Goal: Complete the asset-group migration by removing the temporary `AssetGroupAdapter -> FileDuplicateCollection` bridge for `rename:exif`, migrating execution + output to a dedicated runtime model derived from `AssetGroupCollection`, and then explicitly deciding how the remaining legacy execution layer is retained, consolidated, or removed so the project does not keep two parallel runtime architectures by accident.

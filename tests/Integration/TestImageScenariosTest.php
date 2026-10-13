@@ -37,6 +37,7 @@ use MagicSunday\Renamer\Metadata\MetadataQualityFlags;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
+use MagicSunday\Renamer\Model\Classification\ContentClassificationResult;
 use MagicSunday\Renamer\Model\Collection\AbstractCollection;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
@@ -64,6 +65,7 @@ use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\CanonicalScore;
 use MagicSunday\Renamer\Service\CanonicalScorer;
 use MagicSunday\Renamer\Service\ComparisonWorkLimit;
+use MagicSunday\Renamer\Service\ContentClassifier;
 use MagicSunday\Renamer\Service\ContentIdentifierCacheEntry;
 use MagicSunday\Renamer\Service\DisjointSetUnion;
 use MagicSunday\Renamer\Service\DuplicateDetectionService;
@@ -262,6 +264,8 @@ use const PREG_SET_ORDER;
 #[UsesClass(FileSystemService::class)]
 #[UsesClass(FormatPriorityResolver::class)]
 #[UsesClass(HashSubGroupingService::class)]
+#[UsesClass(ContentClassifier::class)]
+#[UsesClass(ContentClassificationResult::class)]
 #[UsesClass(LegacyContentIdentifierCoordinator::class)]
 #[UsesClass(LegacyDuplicateTargetCandidateFactory::class)]
 #[UsesClass(LegacyLivePhotoCompanionDetector::class)]
@@ -1241,15 +1245,7 @@ final class TestImageScenariosTest extends TestCase
 
         $perceptualHashCalculator = new PerceptualHashCalculator($imageLoader, new PerceptualHashMath());
 
-        $hashSubGroupingService = new HashSubGroupingService(
-            new SafeHashCalculator(),
-            $progressReporter,
-            $mediaTypeClassifier,
-            $perceptualHashCalculator,
-            new LocalDifferenceAnalyzer(),
-            $imageLoader,
-            new ComparisonWorkLimit(100000),
-        );
+        $contentClassifier = new ContentClassifier(new SafeHashCalculator(), $progressReporter, $mediaTypeClassifier, $perceptualHashCalculator, new LocalDifferenceAnalyzer(), $imageLoader, new ComparisonWorkLimit(100000));
 
         $livePhotoConflictDetector = new LivePhotoConflictDetector($mediaTypeClassifier);
 
@@ -1260,7 +1256,7 @@ final class TestImageScenariosTest extends TestCase
             new LivePhotoPairingService(),
         );
         $subgroupClassifier = new SubgroupClassifier(
-            $hashSubGroupingService,
+            $contentClassifier,
             $mediaTypeClassifier,
             new OrphanLivePhotoVideoReconciler($mediaTypeClassifier, $perceptualHashCalculator, $progressReporter),
             $progressReporter,
@@ -1281,7 +1277,7 @@ final class TestImageScenariosTest extends TestCase
             $targetNameResolver,
             $collisionResolver,
             $renamePlanValidator,
-            $hashSubGroupingService,
+            $contentClassifier,
             $perceptualHashCalculator,
             $canonicalScorer,
         );

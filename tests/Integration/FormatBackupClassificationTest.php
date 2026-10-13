@@ -22,6 +22,7 @@ use MagicSunday\Renamer\Model\MergeDecisionKind;
 use MagicSunday\Renamer\Model\MergeDecisionReason;
 use MagicSunday\Renamer\Model\Rename;
 use MagicSunday\Renamer\Service\ComparisonWorkLimit;
+use MagicSunday\Renamer\Service\ContentClassifier;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
@@ -93,17 +94,10 @@ final class FormatBackupClassificationTest extends TestCase
 
             $similarity = self::createStub(PerceptualHashCalculatorInterface::class);
             $similarity->method('similarityScore')->willReturn(new SimilarityResult(100, 0, 0, 0.0, 0.0, null, $classification));
-            $media    = new MediaTypeClassifier();
-            $reporter = new NullProgressReporter();
-            $service  = new HashSubGroupingService(
-                new SafeHashCalculator(),
-                $reporter,
-                $media,
-                $similarity,
-                new LocalDifferenceAnalyzer(),
-                new ImagickImageLoader($media, new NullProgressReporter()),
-                new ComparisonWorkLimit(100000),
-            );
+            $media             = new MediaTypeClassifier();
+            $reporter          = new NullProgressReporter();
+            $contentClassifier = new ContentClassifier(new SafeHashCalculator(), $reporter, $media, $similarity, new LocalDifferenceAnalyzer(), new ImagickImageLoader($media, new NullProgressReporter()), new ComparisonWorkLimit(100000));
+            $service           = new HashSubGroupingService($contentClassifier);
             $service->setMaxMergeRmse($threshold);
 
             $renameA = new Rename($fileA, new SplFileInfo($workspace . '/capture.heic'));
@@ -151,7 +145,7 @@ final class FormatBackupClassificationTest extends TestCase
             $groups = new AssetGroupCollection();
             $groups->set('capture', $group);
             $classifier = new SubgroupClassifier(
-                $service,
+                $contentClassifier,
                 $media,
                 new OrphanLivePhotoVideoReconciler($media, $similarity, $reporter),
                 $reporter,

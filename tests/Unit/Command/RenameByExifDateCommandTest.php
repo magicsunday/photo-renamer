@@ -30,6 +30,7 @@ use MagicSunday\Renamer\Metadata\MetadataQualityFlags;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
+use MagicSunday\Renamer\Model\Classification\ContentClassificationResult;
 use MagicSunday\Renamer\Model\Collection\AbstractCollection;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
@@ -55,6 +56,8 @@ use MagicSunday\Renamer\Service\CanonicalScore;
 use MagicSunday\Renamer\Service\CanonicalScorer;
 use MagicSunday\Renamer\Service\CanonicalScorerInterface;
 use MagicSunday\Renamer\Service\ComparisonWorkLimit;
+use MagicSunday\Renamer\Service\ContentClassifier;
+use MagicSunday\Renamer\Service\ContentClassifierInterface;
 use MagicSunday\Renamer\Service\ContentIdentifierCacheEntry;
 use MagicSunday\Renamer\Service\DisjointSetUnion;
 use MagicSunday\Renamer\Service\DuplicateDetectionService;
@@ -70,7 +73,6 @@ use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\FormatPriorityResolver;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
-use MagicSunday\Renamer\Service\HashSubGroupingServiceInterface;
 use MagicSunday\Renamer\Service\LegacyContentIdentifierCoordinator;
 use MagicSunday\Renamer\Service\LegacyDuplicateTargetCandidateFactory;
 use MagicSunday\Renamer\Service\LegacyLivePhotoCompanionDetector;
@@ -220,6 +222,8 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(FileSystemService::class)]
 #[UsesClass(DisjointSetUnion::class)]
 #[UsesClass(HashSubGroupingService::class)]
+#[UsesClass(ContentClassifier::class)]
+#[UsesClass(ContentClassificationResult::class)]
 #[UsesClass(ImagickImageLoader::class)]
 #[UsesClass(LivePhotoBasenameTargetMap::class)]
 #[UsesClass(LivePhotoConflictDetector::class)]
@@ -321,7 +325,7 @@ final class RenameByExifDateCommandTest extends TestCase
         $visual->expects(self::exactly(4))->method('setSignalCache')->willReturnCallback(static function (?PerceptualSignalCache $cache) use (&$caches): void {
             $caches[] = $cache;
         });
-        $grouping = self::createMock(HashSubGroupingServiceInterface::class);
+        $grouping = self::createMock(ContentClassifierInterface::class);
         $selected = [];
         $grouping->expects(self::exactly(4))->method('setMaxMergeRmse')->willReturnCallback(static function (?float $threshold) use (&$selected): void {
             $selected[] = $threshold;
@@ -358,7 +362,7 @@ final class RenameByExifDateCommandTest extends TestCase
         $visual->expects(self::exactly(2))->method('setSignalCache')->willReturnCallback(static function (?PerceptualSignalCache $cache) use (&$caches): void {
             $caches[] = $cache;
         });
-        $grouping = self::createMock(HashSubGroupingServiceInterface::class);
+        $grouping = self::createMock(ContentClassifierInterface::class);
         $selected = [];
         $grouping->expects(self::exactly(2))->method('setMaxMergeRmse')->willReturnCallback(static function (?float $threshold) use (&$selected): void {
             $selected[] = $threshold;
@@ -390,7 +394,7 @@ final class RenameByExifDateCommandTest extends TestCase
         new Filesystem()->dumpFile($path, 'synthetic media');
 
         try {
-            $tester = new CommandTester($this->createConfigurationCommand(self::createStub(PerceptualHashCalculatorInterface::class), self::createStub(HashSubGroupingServiceInterface::class)));
+            $tester = new CommandTester($this->createConfigurationCommand(self::createStub(PerceptualHashCalculatorInterface::class), self::createStub(ContentClassifierInterface::class)));
             self::assertSame(0, $tester->execute(['source' => $path, '--dry-run' => true]));
             self::assertSame(0, $tester->execute(['source' => $workspace, '--dry-run' => true]));
             self::assertSame('synthetic media', new Filesystem()->readFile($path));
@@ -409,7 +413,7 @@ final class RenameByExifDateCommandTest extends TestCase
     public function alternateImplementationCannotBypassThresholdValidation(): void
     {
         $workspace = $this->createTempWorkspace('invalid-exif-run-');
-        $grouping  = self::createMock(HashSubGroupingServiceInterface::class);
+        $grouping  = self::createMock(ContentClassifierInterface::class);
         $grouping->expects(self::never())->method('setMaxMergeRmse');
 
         try {
@@ -427,12 +431,12 @@ final class RenameByExifDateCommandTest extends TestCase
      * without decoding media or granting any filesystem mutation authority.
      *
      * @param PerceptualHashCalculatorInterface $visual         Alternate signal calculator
-     * @param HashSubGroupingServiceInterface   $grouping       Alternate content grouping service
+     * @param ContentClassifierInterface        $grouping       Alternate content grouping service
      * @param bool                              $executionFails Whether the filesystem boundary fails before any action
      *
      * @return RenameByExifDateCommand Command with a deterministic empty pipeline
      */
-    private function createConfigurationCommand(PerceptualHashCalculatorInterface $visual, HashSubGroupingServiceInterface $grouping, bool $executionFails = false): RenameByExifDateCommand
+    private function createConfigurationCommand(PerceptualHashCalculatorInterface $visual, ContentClassifierInterface $grouping, bool $executionFails = false): RenameByExifDateCommand
     {
         $io                = new SymfonyStyle(new ArrayInput([]), new BufferedOutput());
         $filesystemService = self::createStub(FileSystemServiceInterface::class);
@@ -489,7 +493,7 @@ final class RenameByExifDateCommandTest extends TestCase
                 self::createStub(TargetNameResolverInterface::class),
                 self::createStub(CollisionResolverInterface::class),
                 new RenamePlanValidator(),
-                self::createStub(HashSubGroupingServiceInterface::class),
+                self::createStub(ContentClassifierInterface::class),
                 new StubPerceptualHashCalculator(),
                 self::createStub(CanonicalScorerInterface::class),
             ),
@@ -550,7 +554,8 @@ final class RenameByExifDateCommandTest extends TestCase
             $hashCalculator            = new SafeHashCalculator();
             $mediaTypeClassifier       = new MediaTypeClassifier();
             $progressReporter          = new ConsoleProgressReporter($style);
-            $hashSubGroupingService    = new HashSubGroupingService($hashCalculator, $progressReporter, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier(), new NullProgressReporter()), new ComparisonWorkLimit(100000));
+            $contentClassifier         = new ContentClassifier($hashCalculator, $progressReporter, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier(), new NullProgressReporter()), new ComparisonWorkLimit(100000));
+            $hashSubGroupingService    = new HashSubGroupingService($contentClassifier);
             $livePhotoConflictDetector = new LivePhotoConflictDetector($mediaTypeClassifier);
             $duplicateDetectionService = DuplicateDetectionServiceFactory::create(
                 $progressReporter,
@@ -566,7 +571,7 @@ final class RenameByExifDateCommandTest extends TestCase
                 new LivePhotoPairingService(),
             );
             $subgroupClassifier = new SubgroupClassifier(
-                $hashSubGroupingService,
+                $contentClassifier,
                 $mediaTypeClassifier,
                 new OrphanLivePhotoVideoReconciler($mediaTypeClassifier, new StubPerceptualHashCalculator(), $progressReporter),
                 $progressReporter,
@@ -587,7 +592,7 @@ final class RenameByExifDateCommandTest extends TestCase
                 $targetNameResolver,
                 $collisionResolver,
                 $renamePlanValidator,
-                $hashSubGroupingService,
+                $contentClassifier,
                 new StubPerceptualHashCalculator(),
                 $canonicalScorer,
             );

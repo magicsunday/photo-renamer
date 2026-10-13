@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Test\Integration;
 
 use DateTimeImmutable;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
+use MagicSunday\Renamer\Model\Classification\ContentClassificationResult;
 use MagicSunday\Renamer\Model\Execution\ExecutionItemType;
 use MagicSunday\Renamer\Model\OutputEntry;
 use MagicSunday\Renamer\Model\OutputEntryTag;
@@ -20,11 +21,11 @@ use MagicSunday\Renamer\Model\Pipeline\VideoFingerprintMatch;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Service\CanonicalScorer;
 use MagicSunday\Renamer\Service\ComparisonWorkLimit;
+use MagicSunday\Renamer\Service\ContentClassifierInterface;
 use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilder;
 use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
-use MagicSunday\Renamer\Service\HashSubGroupingServiceInterface;
 use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
@@ -120,10 +121,10 @@ final class VirtualRenameExifPipelineFlowTest extends TestCase
             file_put_contents($independentPath, 'independent-content');
             $files['independent'] = new SplFileInfo($independentPath);
             $strategy->withFile($independentPath, '2024-01-02_10-00-00-000.jpg', new TemporalMetadata(new DateTimeImmutable('2024-01-02T10:00:00+00:00'), null));
-            $hashService = $this->createMock(HashSubGroupingServiceInterface::class);
-            $hashService->expects(self::once())->method('apply')->willThrowException(new RuntimeException('synthetic analysis failure'));
-            $hashService->expects(self::once())->method('clearCache');
-            $pipeline = $this->createPipeline('', '', $hashService);
+            $contentService = $this->createMock(ContentClassifierInterface::class);
+            $contentService->expects(self::once())->method('classify')->willThrowException(new RuntimeException('synthetic analysis failure'));
+            $contentService->expects(self::once())->method('clearCache');
+            $pipeline = $this->createPipeline('', '', $contentService);
             $result   = $pipeline->run($this->createFileIterator($files), $strategy, new TargetBasenameStrategy(), $workspace, true, formatPriority: ['heic', 'jpg', 'mov']);
             self::assertTrue($result->validationResult->isValid());
             $plan = new ExecutionPlanBuilder()->build($result->groups, $result->context);
@@ -483,29 +484,29 @@ final class VirtualRenameExifPipelineFlowTest extends TestCase
      * real role assignment, real naming, real collision resolution, and real review
      * mapping, while the expensive hash and stream boundaries stay deterministic.
      *
-     * @param string                               $reviewLeftPath  First video of the review-only pair
-     * @param string                               $reviewRightPath Second video of the review-only pair
-     * @param HashSubGroupingServiceInterface|null $hashService     Injected analysis failure boundary, or null for normal grouping
+     * @param string                          $reviewLeftPath  First video of the review-only pair
+     * @param string                          $reviewRightPath Second video of the review-only pair
+     * @param ContentClassifierInterface|null $contentService  Injected analysis failure boundary, or null for normal grouping
      */
     private function createPipeline(
         string $reviewLeftPath,
         string $reviewRightPath,
-        ?HashSubGroupingServiceInterface $hashService = null,
+        ?ContentClassifierInterface $contentService = null,
     ): AssetGroupPipeline {
-        if (!$hashService instanceof HashSubGroupingServiceInterface) {
-            $hashService = self::createStub(HashSubGroupingServiceInterface::class);
-            $hashService->method('apply')->willReturn(null);
+        if (!$contentService instanceof ContentClassifierInterface) {
+            $contentService = self::createStub(ContentClassifierInterface::class);
+            $contentService->method('classify')->willReturn(new ContentClassificationResult([]));
         }
 
         $progressReporter          = new NullProgressReporter();
         $mediaTypeClassifier       = new MediaTypeClassifier();
         $mediaCompatibilityPolicy  = new MediaCompatibilityPolicy($mediaTypeClassifier);
-        $hashSubGroupingService    = $hashService;
+        $contentClassifier         = $contentService;
         $perceptualHashCalculator  = self::createStub(PerceptualHashCalculatorInterface::class);
         $videoFingerprintMatcher   = self::createStub(VideoStreamFingerprintMatcherInterface::class);
         $canonicalScorer           = new CanonicalScorer();
         $orphanVideoReconciler     = new OrphanLivePhotoVideoReconciler($mediaTypeClassifier, $perceptualHashCalculator, $progressReporter);
-        $subgroupClassifier        = new SubgroupClassifier($hashSubGroupingService, $mediaTypeClassifier, $orphanVideoReconciler, $progressReporter);
+        $subgroupClassifier        = new SubgroupClassifier($contentClassifier, $mediaTypeClassifier, $orphanVideoReconciler, $progressReporter);
         $captureGroupBuilder       = CaptureGroupBuilderFactory::create($progressReporter, $mediaTypeClassifier);
         $companionDetector         = new CompanionDetector($mediaCompatibilityPolicy);
         $roleAssigner              = new RoleAssigner($canonicalScorer, $companionDetector, $mediaCompatibilityPolicy);
@@ -541,7 +542,7 @@ final class VirtualRenameExifPipelineFlowTest extends TestCase
             TargetNameResolverFactory::create(),
             new CollisionResolver(),
             new RenamePlanValidator(),
-            $hashSubGroupingService,
+            $contentClassifier,
             $perceptualHashCalculator,
             $canonicalScorer,
             $crossGroupVideoReconciler,

@@ -16,7 +16,7 @@ use MagicSunday\Renamer\Exception\AnalysisMemoryBudgetExceededException;
 use MagicSunday\Renamer\Helper\AnalysisMemoryBudget;
 use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Service\CanonicalScorerInterface;
-use MagicSunday\Renamer\Service\HashSubGroupingServiceInterface;
+use MagicSunday\Renamer\Service\ContentClassifierInterface;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualSignalCache;
 use MagicSunday\Renamer\Service\RenamePlanValidator;
@@ -46,7 +46,7 @@ final readonly class AssetGroupPipeline
      * @param TargetNameResolverInterface                      $targetNameResolver                 Compute proposed target names
      * @param CollisionResolverInterface                       $collisionResolver                  Deduplicate proposed names against disk index
      * @param RenamePlanValidator                              $renamePlanValidator                Validate the rename plan for conflicts
-     * @param HashSubGroupingServiceInterface                  $hashSubGroupingService             Content classification and scoped merge preference
+     * @param ContentClassifierInterface                       $contentClassifier                  Content classification and scoped merge preference
      * @param PerceptualHashCalculatorInterface                $perceptualHashCalculator           Scoped persistent signals and native cleanup
      * @param CanonicalScorerInterface                         $canonicalScorer                    Scoring configured from explicit run values
      * @param CrossGroupVideoDuplicateReconcilerInterface|null $crossGroupVideoDuplicateReconciler Reconciles exact-content videos across groups before subgroup classification
@@ -58,7 +58,7 @@ final readonly class AssetGroupPipeline
         private TargetNameResolverInterface $targetNameResolver,
         private CollisionResolverInterface $collisionResolver,
         private RenamePlanValidator $renamePlanValidator,
-        private HashSubGroupingServiceInterface $hashSubGroupingService,
+        private ContentClassifierInterface $contentClassifier,
         private PerceptualHashCalculatorInterface $perceptualHashCalculator,
         private CanonicalScorerInterface $canonicalScorer,
         private ?CrossGroupVideoDuplicateReconcilerInterface $crossGroupVideoDuplicateReconciler = null,
@@ -99,7 +99,7 @@ final readonly class AssetGroupPipeline
     ): ExifRenamePipelineResult {
         try {
             $this->perceptualHashCalculator->setSignalCache($signalCache);
-            $this->hashSubGroupingService->setMaxMergeRmse($mergeThreshold);
+            $this->contentClassifier->setMaxMergeRmse($mergeThreshold);
             $this->canonicalScorer->setFormatPriority($formatPriority);
             $this->canonicalScorer->setSourceDirectory($sourceDirectory);
 
@@ -141,7 +141,7 @@ final readonly class AssetGroupPipeline
             // Classification clears each group while sources still exist. This
             // boundary only releases transient state and restores run defaults.
             $this->perceptualHashCalculator->setSignalCache(null);
-            $this->hashSubGroupingService->setMaxMergeRmse(null);
+            $this->contentClassifier->setMaxMergeRmse(null);
         }
     }
 }

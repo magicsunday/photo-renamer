@@ -11,7 +11,6 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service\Pipeline;
 
-use Closure;
 use DateTimeImmutable;
 use Error;
 use LogicException;
@@ -19,12 +18,9 @@ use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
+use MagicSunday\Renamer\Model\Classification\ContentClassificationResult;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
-use MagicSunday\Renamer\Model\Collection\FileList;
-use MagicSunday\Renamer\Model\Collection\RenameList;
-use MagicSunday\Renamer\Model\FileDuplicate;
-use MagicSunday\Renamer\Model\Rename;
-use MagicSunday\Renamer\Service\HashSubGroupingServiceInterface;
+use MagicSunday\Renamer\Service\ContentClassifierInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
 use MagicSunday\Renamer\Service\Pipeline\ExistingCompanionVideoCandidate;
@@ -42,7 +38,7 @@ use RuntimeException;
 use SplFileInfo;
 
 /**
- * Verifies SubgroupClassifier delegates to HashSubGroupingService and maps results
+ * Verifies SubgroupClassifier delegates to the shared source-only content classifier and maps results
  * back to AssetItem clusterIds within AssetGroups.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
@@ -52,12 +48,9 @@ use SplFileInfo;
 #[CoversClass(SubgroupClassifier::class)]
 #[UsesClass(AssetGroup::class)]
 #[UsesClass(AssetItem::class)]
+#[UsesClass(ContentClassificationResult::class)]
 #[UsesClass(AssetGroupCollection::class)]
-#[UsesClass(FileList::class)]
-#[UsesClass(FileDuplicate::class)]
 #[UsesClass(FileHelper::class)]
-#[UsesClass(Rename::class)]
-#[UsesClass(RenameList::class)]
 #[UsesClass(TemporalMetadata::class)]
 #[UsesClass(MediaTypeClassifier::class)]
 #[UsesClass(ExistingCompanionVideoCandidate::class)]
@@ -65,7 +58,7 @@ use SplFileInfo;
 #[UsesClass(NullProgressReporter::class)]
 final class SubgroupClassifierTest extends TestCase
 {
-    private HashSubGroupingServiceInterface&MockObject $hashSubGroupingService;
+    private ContentClassifierInterface&MockObject $contentClassifier;
 
     private PerceptualHashCalculatorInterface $perceptualHashCalculator;
 
@@ -73,10 +66,10 @@ final class SubgroupClassifierTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->hashSubGroupingService   = $this->createMock(HashSubGroupingServiceInterface::class);
+        $this->contentClassifier        = $this->createMock(ContentClassifierInterface::class);
         $this->perceptualHashCalculator = self::createStub(PerceptualHashCalculatorInterface::class);
         $this->classifier               = new SubgroupClassifier(
-            $this->hashSubGroupingService,
+            $this->contentClassifier,
             new MediaTypeClassifier(),
             new OrphanLivePhotoVideoReconciler(
                 new MediaTypeClassifier(),
@@ -101,9 +94,9 @@ final class SubgroupClassifierTest extends TestCase
         $groups = new AssetGroupCollection();
         $groups->set('2024-01-01_12-00-00', $group);
 
-        $this->hashSubGroupingService
+        $this->contentClassifier
             ->expects(self::never())
-            ->method('apply');
+            ->method('classify');
 
         $this->classifier->classify($groups);
 
@@ -128,12 +121,12 @@ final class SubgroupClassifierTest extends TestCase
         $groups = new AssetGroupCollection();
         $groups->set('2024-01-01_12-00-00', $group);
 
-        $this->hashSubGroupingService
+        $this->contentClassifier
             ->expects(self::once())
-            ->method('apply')
-            ->willReturn(null);
+            ->method('classify')
+            ->willReturn(new ContentClassificationResult([]));
 
-        $this->hashSubGroupingService
+        $this->contentClassifier
             ->expects(self::once())
             ->method('clearCache');
 
@@ -160,15 +153,16 @@ final class SubgroupClassifierTest extends TestCase
         $groups = new AssetGroupCollection();
         $groups->set('2024-01-01_12-00-00', $group);
 
-        $this->hashSubGroupingService
+        $this->contentClassifier
             ->expects(self::once())
-            ->method('apply')
-            ->willReturn([
-                '/photos/IMG_0001.jpg' => '000_abc123',
-                '/photos/IMG_0002.jpg' => '002_def456',
-            ]);
+            ->method('classify')
+            ->willReturn(new ContentClassificationResult(
+                [$item1->file, $item2->file],
+                ['abc123' => [$item1->file], 'def456' => [$item2->file]],
+                canonicalHash: 'abc123',
+            ));
 
-        $this->hashSubGroupingService
+        $this->contentClassifier
             ->expects(self::once())
             ->method('clearCache');
 
@@ -198,11 +192,11 @@ final class SubgroupClassifierTest extends TestCase
         $groups->set('group-1', $group1);
         $groups->set('group-2', $group2);
 
-        $this->hashSubGroupingService
-            ->method('apply')
-            ->willReturn(null);
+        $this->contentClassifier
+            ->method('classify')
+            ->willReturn(new ContentClassificationResult([]));
 
-        $this->hashSubGroupingService
+        $this->contentClassifier
             ->expects(self::exactly(2))
             ->method('clearCache');
 
@@ -226,13 +220,14 @@ final class SubgroupClassifierTest extends TestCase
         $groups = new AssetGroupCollection();
         $groups->set('2024-01-01_12-00-00', $group);
 
-        $this->hashSubGroupingService
+        $this->contentClassifier
             ->expects(self::once())
-            ->method('apply')
-            ->willReturn([
-                '/photos/IMG_0001.jpg' => '000_abc123',
-                '/photos/IMG_0002.jpg' => '002_def456',
-            ]);
+            ->method('classify')
+            ->willReturn(new ContentClassificationResult(
+                [$item1->file, $item2->file],
+                ['abc123' => [$item1->file], 'def456' => [$item2->file]],
+                canonicalHash: 'abc123',
+            ));
 
         $this->classifier->classify($groups);
 
@@ -278,22 +273,35 @@ final class SubgroupClassifierTest extends TestCase
         /** @var array<string, TemporalMetadata|null>|null $capturedTemporalMap */
         $capturedTemporalMap = null;
 
-        $this->hashSubGroupingService
+        $this->contentClassifier
             ->expects(self::once())
-            ->method('apply')
+            ->method('classify')
             ->willReturnCallback(
+                /**
+                 * @param list<SplFileInfo>                    $files                Actual sources passed by the pipeline
+                 * @param SplFileInfo|null                     $canonical            Preferred still source
+                 * @param SplFileInfo|null                     $companion            Explicit paired video source
+                 * @param array<string, string>                $contentIdentifierMap Source identifiers
+                 * @param array<string, TemporalMetadata|null> $temporalMetadataMap  Source metadata
+                 *
+                 * @return ContentClassificationResult Unsplit content membership
+                 */
                 static function (
-                    FileDuplicate $fileDuplicate,
-                    ?Rename $canonicalRename,
-                    ?Rename $companionRename,
+                    array $files,
+                    ?SplFileInfo $canonical,
+                    ?SplFileInfo $companion,
                     array $contentIdentifierMap,
-                    Closure $targetPathnameResolver,
                     array $temporalMetadataMap,
-                ) use (&$capturedContentIdMap, &$capturedTemporalMap): ?array {
+                ) use (&$capturedContentIdMap, &$capturedTemporalMap): ContentClassificationResult {
                     $capturedContentIdMap = $contentIdentifierMap;
                     $capturedTemporalMap  = $temporalMetadataMap;
 
-                    return null;
+                    self::assertSame('/photos/IMG_0001.heic', $canonical?->getPathname());
+                    self::assertSame('/photos/IMG_0001.mov', $companion?->getPathname());
+
+                    self::assertSame([$canonical, $companion], $files);
+
+                    return new ContentClassificationResult([]);
                 },
             );
 
@@ -311,18 +319,18 @@ final class SubgroupClassifierTest extends TestCase
     }
 
     /**
-     * An empty AssetGroupCollection should result in no calls to apply().
+     * An empty AssetGroupCollection should result in no calls to classify().
      */
     #[Test]
     public function emptyGroupCollectionIsNoOp(): void
     {
         $groups = new AssetGroupCollection();
 
-        $this->hashSubGroupingService
+        $this->contentClassifier
             ->expects(self::never())
-            ->method('apply');
+            ->method('classify');
 
-        $this->hashSubGroupingService
+        $this->contentClassifier
             ->expects(self::never())
             ->method('clearCache');
 
@@ -349,10 +357,10 @@ final class SubgroupClassifierTest extends TestCase
         $groups = new AssetGroupCollection();
         $groups->set('2024-01-01_12-00-00', $group);
 
-        $this->hashSubGroupingService
+        $this->contentClassifier
             ->expects(self::once())
-            ->method('apply')
-            ->willReturn(null);
+            ->method('classify')
+            ->willReturn(new ContentClassificationResult([]));
 
         $this->classifier->classify($groups);
 
@@ -361,7 +369,7 @@ final class SubgroupClassifierTest extends TestCase
     }
 
     /**
-     * When apply() returns a cluster map and sub-grouping succeeds, the group
+     * When classify() returns independent content groups and sub-grouping succeeds, the group
      * should be marked as classification succeeded.
      */
     #[Test]
@@ -377,13 +385,14 @@ final class SubgroupClassifierTest extends TestCase
         $groups = new AssetGroupCollection();
         $groups->set('2024-01-01_12-00-00', $group);
 
-        $this->hashSubGroupingService
+        $this->contentClassifier
             ->expects(self::once())
-            ->method('apply')
-            ->willReturn([
-                '/photos/IMG_0001.jpg' => '000_abc123',
-                '/photos/IMG_0002.jpg' => '002_def456',
-            ]);
+            ->method('classify')
+            ->willReturn(new ContentClassificationResult(
+                [$item1->file, $item2->file],
+                ['abc123' => [$item1->file], 'def456' => [$item2->file]],
+                canonicalHash: 'abc123',
+            ));
 
         $this->classifier->classify($groups);
 
@@ -413,9 +422,9 @@ final class SubgroupClassifierTest extends TestCase
         $groups = new AssetGroupCollection();
         $groups->set('2024-01-01_12-00-00', $group);
 
-        $this->hashSubGroupingService
+        $this->contentClassifier
             ->expects(self::once())
-            ->method('apply')
+            ->method('classify')
             ->willThrowException(new RuntimeException('Imagick failed to decode image'));
 
         $this->classifier->classify($groups);
@@ -437,7 +446,7 @@ final class SubgroupClassifierTest extends TestCase
     }
 
     /**
-     * When apply() returns a cluster map, each item must have a clusterRank set
+     * When classify() returns independent content groups, each item must have a clusterRank set
      * based on the order it appears within its cluster.
      */
     #[Test]
@@ -456,14 +465,14 @@ final class SubgroupClassifierTest extends TestCase
         $groups->set('2024-01-01_12-00-00', $group);
 
         // Items 1 and 2 in same cluster, item 3 in a different cluster
-        $this->hashSubGroupingService
+        $this->contentClassifier
             ->expects(self::once())
-            ->method('apply')
-            ->willReturn([
-                '/photos/IMG_0001.jpg' => '000_abc123',
-                '/photos/IMG_0002.jpg' => '000_abc123',
-                '/photos/IMG_0003.jpg' => '002_def456',
-            ]);
+            ->method('classify')
+            ->willReturn(new ContentClassificationResult(
+                [$item1->file, $item2->file, $item3->file],
+                ['abc123' => [$item1->file, $item2->file], 'def456' => [$item3->file]],
+                canonicalHash: 'abc123',
+            ));
 
         $this->classifier->classify($groups);
 
@@ -483,7 +492,7 @@ final class SubgroupClassifierTest extends TestCase
     }
 
     /**
-     * When apply() throws, clearCache() must still be called to release resources.
+     * When classify() throws, clearCache() must still be called to release resources.
      */
     #[Test]
     public function clearCacheCalledEvenOnException(): void
@@ -498,12 +507,12 @@ final class SubgroupClassifierTest extends TestCase
         $groups = new AssetGroupCollection();
         $groups->set('2024-01-01_12-00-00', $group);
 
-        $this->hashSubGroupingService
+        $this->contentClassifier
             ->expects(self::once())
-            ->method('apply')
+            ->method('classify')
             ->willThrowException(new RuntimeException('test error'));
 
-        $this->hashSubGroupingService
+        $this->contentClassifier
             ->expects(self::once())
             ->method('clearCache');
 
@@ -534,12 +543,12 @@ final class SubgroupClassifierTest extends TestCase
         $groups = new AssetGroupCollection();
         $groups->set('2024-01-01_12-00-00', $group);
 
-        $this->hashSubGroupingService
+        $this->contentClassifier
             ->expects(self::once())
-            ->method('apply')
+            ->method('classify')
             ->willThrowException($failure);
 
-        $this->hashSubGroupingService
+        $this->contentClassifier
             ->expects(self::once())
             ->method('clearCache');
 

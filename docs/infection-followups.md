@@ -1,5 +1,7 @@
 # Infection follow-ups
 
+> Historical mutation measurements and follow-up rationale, not the current CI result. The command setup and union-find ownership described below have since changed: the pipeline owns analysis setup, `ContentClassifier` owns shared merge decisions and `DisjointSetUnion` owns path compression. Current gates and runtime contracts are documented in [README](../README.md) and [AGENTS.md](../AGENTS.md).
+
 ## Timeout and skipped mutant review
 
 The Infection report generated after enabling the full mutation suite showed

@@ -1,5 +1,7 @@
 # Shared Command Policy Extraction Plan
 
+> Historical design snapshot from the date in this filename, not current implementation instructions or an acceptance checklist. Names, dependencies and proposed policies below may have been superseded. Use [README](../../../README.md), root [AGENTS.md](../../../AGENTS.md) and the [current decision matrix](../../decision-matrix.md) for present behavior; shared content decisions now live in `ContentClassifier`, with legacy naming retained at the caller boundary.
+
 > **Goal:** Reuse the same domain rules across commands where that brings consistency, without forcing every command through the full `rename:exif` asset-group pipeline.
 
 **Problem:** The project currently has the right architectural instinct for `rename:exif` versus simpler commands, but some policy decisions still live too locally inside individual commands or large services. That creates divergence risk: a user-facing concept such as format priority, extension normalization, media-family compatibility, or date reliability can drift subtly between commands even when the business meaning should be identical.
