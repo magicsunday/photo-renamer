@@ -65,6 +65,13 @@ holds the strategy interfaces the services program against. `Command` is the com
 (the console application and its commands); no layer depends on it. The file itself documents
 why each edge is allowed.
 
+PHPStan and Deptrac check types and dependency direction. PHPUnit tests protect
+observable CLI behavior, file state, analysis evidence and actual container wiring.
+Internal class suffixes, import lists, inheritance and constructor layouts are
+implementation choices; behavioral tests do not require a particular decomposition.
+Keep distinct source/target/deletion, classification-failure, cleanup and repeated-run
+cases even when internal services or models are simplified.
+
 Test the CLI:
 
 ```bash
