@@ -43,11 +43,6 @@ use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
-use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\CandidateOutputSkipReasonRule;
-use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\DefaultOutputSkipReasonRule;
-use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\FallbackOutputSkipReasonRule;
-use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\ReviewOutputSkipReasonRule;
-use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\WarningOutputSkipReasonRule;
 use MagicSunday\Renamer\Service\Output\SummaryRow;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
@@ -123,11 +118,6 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(RuntimeFileMoveExecutor::class)]
 #[UsesClass(OutputEntryPresenter::class)]
 #[UsesClass(OutputSkipReasonDecider::class)]
-#[UsesClass(CandidateOutputSkipReasonRule::class)]
-#[UsesClass(DefaultOutputSkipReasonRule::class)]
-#[UsesClass(FallbackOutputSkipReasonRule::class)]
-#[UsesClass(ReviewOutputSkipReasonRule::class)]
-#[UsesClass(WarningOutputSkipReasonRule::class)]
 #[UsesClass(ConsoleProgressReporter::class)]
 #[UsesClass(SummaryRow::class)]
 #[UsesClass(TimezoneRewritePlan::class)]

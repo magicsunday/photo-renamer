@@ -11,8 +11,6 @@ services:
     _instanceof:
         Symfony\Component\Console\Command\Command:
             tags: ['command']
-        MagicSunday\Renamer\Service\Output\OutputSkipReasonRuleInterface:
-            tags: ['renamer.output_skip_reason_rule']
 
     Symfony\Component\Filesystem\Filesystem: ~
 
@@ -56,10 +54,6 @@ services:
         class: MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter
         arguments:
             $io: '@Symfony\Component\Console\Style\SymfonyStyle'
-
-    MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider:
-        arguments:
-            $rules: !tagged_iterator renamer.output_skip_reason_rule
 
     MagicSunday\Renamer\Service\ContentClassifierInterface:
         alias: MagicSunday\Renamer\Service\ContentClassifier

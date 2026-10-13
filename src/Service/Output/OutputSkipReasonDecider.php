@@ -12,17 +12,14 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service\Output;
 
 use MagicSunday\Renamer\Model\OutputEntry;
-
-use function is_array;
-use function iterator_to_array;
-use function usort;
+use MagicSunday\Renamer\Model\OutputEntryTag;
 
 /**
- * Applies the ordered skip-reason rules for output entries.
+ * Selects semantic skip reasons from the exclusive output tag.
  *
- * The decider owns precedence so output rendering no longer relies on inline
- * `match` expressions. This keeps policy selection centralized and makes the
- * renderer responsible only for presentation.
+ * A closed tag mapping needs no rule priorities or DI registry. Selection stays
+ * centralized here, while the formatter owns plain text and the presenter owns
+ * console escaping/styling. Detail fields cannot override another tag's meaning.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -30,34 +27,6 @@ use function usort;
  */
 final readonly class OutputSkipReasonDecider
 {
-    /**
-     * @var list<OutputSkipReasonRuleInterface>
-     */
-    private array $rules;
-
-    /**
-     * @param iterable<OutputSkipReasonRuleInterface> $rules Ordered skip-reason rules supplied by DI or tests
-     */
-    public function __construct(iterable $rules)
-    {
-        $rules = is_array($rules)
-            ? $rules
-            : iterator_to_array($rules, false);
-
-        usort(
-            $rules,
-            static function (OutputSkipReasonRuleInterface $left, OutputSkipReasonRuleInterface $right): int {
-                $priorityComparison = $right->priority() <=> $left->priority();
-
-                return $priorityComparison !== 0
-                    ? $priorityComparison
-                    : $left::class <=> $right::class;
-            }
-        );
-
-        $this->rules = $rules;
-    }
-
     /**
      * Selects the semantic skip reason for the given entry.
      *
@@ -67,12 +36,12 @@ final readonly class OutputSkipReasonDecider
      */
     public function decide(OutputEntry $entry): OutputSkipReasonDecision
     {
-        foreach ($this->rules as $rule) {
-            if ($rule->supports($entry)) {
-                return $rule->decide($entry);
-            }
-        }
-
-        return OutputSkipReasonDecision::genericSkipped();
+        return match ($entry->tag) {
+            OutputEntryTag::Candidate => OutputSkipReasonDecision::candidateConflict(),
+            OutputEntryTag::Review    => OutputSkipReasonDecision::crossGroupVideoReview($entry->reason),
+            OutputEntryTag::Warning   => OutputSkipReasonDecision::warning($entry->warningReason),
+            OutputEntryTag::Fallback  => OutputSkipReasonDecision::fallbackDate(),
+            default                   => OutputSkipReasonDecision::genericSkipped(),
+        };
     }
 }
