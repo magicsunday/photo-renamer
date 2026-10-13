@@ -58,7 +58,6 @@ use MagicSunday\Renamer\Service\ComparisonWorkLimit;
 use MagicSunday\Renamer\Service\ContentIdentifierCacheEntry;
 use MagicSunday\Renamer\Service\DisjointSetUnion;
 use MagicSunday\Renamer\Service\DuplicateDetectionService;
-use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilder;
 use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
 use MagicSunday\Renamer\Service\Filesystem\FileCollector;
@@ -377,6 +376,30 @@ final class RenameByExifDateCommandTest extends TestCase
     }
 
     /**
+     * Reusing one command for a single file and then its directory must reset
+     * source mode. Otherwise the second invocation still takes the single-file
+     * branch and rejects a valid directory before its pipeline can run.
+     *
+     * @return void
+     */
+    #[Test]
+    public function directoryRunDoesNotInheritSingleFileMode(): void
+    {
+        $workspace = $this->createTempWorkspace('exif-source-mode-');
+        $path      = $workspace . '/synthetic.jpg';
+        new Filesystem()->dumpFile($path, 'synthetic media');
+
+        try {
+            $tester = new CommandTester($this->createConfigurationCommand(self::createStub(PerceptualHashCalculatorInterface::class), self::createStub(HashSubGroupingServiceInterface::class)));
+            self::assertSame(0, $tester->execute(['source' => $path, '--dry-run' => true]));
+            self::assertSame(0, $tester->execute(['source' => $workspace, '--dry-run' => true]));
+            self::assertSame('synthetic media', new Filesystem()->readFile($path));
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
      * Invalid selected input must be rejected even when grouping is provided by
      * an alternative implementation; validation cannot depend on class identity.
      *
@@ -425,14 +448,20 @@ final class RenameByExifDateCommandTest extends TestCase
 
         return new RenameByExifDateCommand(
             $filesystemService,
-            self::createStub(DuplicateDetectionServiceInterface::class),
             new SafeRegex(),
             new Filesystem(),
             $this->createExifMetadataProvider(),
-            $visual,
-            $grouping,
-            new AssetGroupPipeline($builder, self::createStub(SubgroupClassifierInterface::class), self::createStub(RoleAssignerInterface::class), self::createStub(TargetNameResolverInterface::class), self::createStub(CollisionResolverInterface::class), new RenamePlanValidator()),
-            self::createStub(CanonicalScorerInterface::class),
+            new AssetGroupPipeline(
+                $builder,
+                self::createStub(SubgroupClassifierInterface::class),
+                self::createStub(RoleAssignerInterface::class),
+                self::createStub(TargetNameResolverInterface::class),
+                self::createStub(CollisionResolverInterface::class),
+                new RenamePlanValidator(),
+                $grouping,
+                $visual,
+                self::createStub(CanonicalScorerInterface::class),
+            ),
             new ExecutionPlanBuilder(),
             new PipelineReviewMapper(),
             OutputRendererFactory::create($io),
@@ -450,12 +479,9 @@ final class RenameByExifDateCommandTest extends TestCase
 
         $command = new RenameByExifDateCommand(
             self::createStub(FileSystemServiceInterface::class),
-            self::createStub(DuplicateDetectionServiceInterface::class),
             new SafeRegex(),
             new Filesystem(),
             $this->createExifMetadataProvider(),
-            new StubPerceptualHashCalculator(),
-            self::createStub(HashSubGroupingServiceInterface::class),
             new AssetGroupPipeline(
                 self::createStub(CaptureGroupBuilderInterface::class),
                 self::createStub(SubgroupClassifierInterface::class),
@@ -463,8 +489,10 @@ final class RenameByExifDateCommandTest extends TestCase
                 self::createStub(TargetNameResolverInterface::class),
                 self::createStub(CollisionResolverInterface::class),
                 new RenamePlanValidator(),
+                self::createStub(HashSubGroupingServiceInterface::class),
+                new StubPerceptualHashCalculator(),
+                self::createStub(CanonicalScorerInterface::class),
             ),
-            self::createStub(CanonicalScorerInterface::class),
             new ExecutionPlanBuilder(),
             new PipelineReviewMapper(),
             OutputRendererFactory::create($io),
@@ -559,18 +587,17 @@ final class RenameByExifDateCommandTest extends TestCase
                 $targetNameResolver,
                 $collisionResolver,
                 $renamePlanValidator,
+                $hashSubGroupingService,
+                new StubPerceptualHashCalculator(),
+                $canonicalScorer,
             );
 
             $command = new RenameByExifDateCommand(
                 $fileSystemService,
-                $duplicateDetectionService,
                 new SafeRegex(),
                 new Filesystem(),
                 $metadataProvider,
-                new StubPerceptualHashCalculator(),
-                $hashSubGroupingService,
                 $pipeline,
-                $canonicalScorer,
                 $executionPlanBuilder,
                 new PipelineReviewMapper(),
                 OutputRendererFactory::create($style),

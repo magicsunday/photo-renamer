@@ -149,7 +149,6 @@ use MagicSunday\Renamer\Service\Video\VideoStreamFingerprintMatcherInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use MagicSunday\Renamer\Test\Fixtures\CaptureGroupBuilderFactory;
-use MagicSunday\Renamer\Test\Fixtures\DuplicateDetectionServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\TargetNameResolverFactory;
@@ -1189,6 +1188,9 @@ final class RenameByExifDateCommandTest extends TestCase
             $targetNameResolver,
             $collisionResolver,
             $renamePlanValidator,
+            $hashSubGroupingService,
+            new StubPerceptualHashCalculator(),
+            $canonicalScorer,
             $crossGroupReconciler,
         );
 
@@ -1196,19 +1198,10 @@ final class RenameByExifDateCommandTest extends TestCase
 
         $command = new RenameByExifDateCommand(
             FileSystemServiceFactory::create($renderer, $style),
-            DuplicateDetectionServiceFactory::create(
-                $progressReporter,
-                $hashSubGroupingService,
-                $mediaTypeClassifier,
-                $livePhotoConflictDetector,
-            ),
             new SafeRegex(),
             $cacheFilesystem ?? new Filesystem(),
             new ExifMetadataProvider($metadataExtractor),
-            new StubPerceptualHashCalculator(),
-            $hashSubGroupingService,
             $pipeline,
-            $canonicalScorer,
             $executionPlanBuilder,
             new PipelineReviewMapper(),
             $renderer,

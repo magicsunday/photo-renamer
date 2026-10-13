@@ -160,7 +160,6 @@ use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use MagicSunday\Renamer\Test\Fixtures\CaptureGroupBuilderFactory;
 use MagicSunday\Renamer\Test\Fixtures\ConsoleOutputParserTrait;
-use MagicSunday\Renamer\Test\Fixtures\DuplicateDetectionServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\TargetNameResolverFactory;
@@ -550,25 +549,19 @@ final class WriteDateFlowTest extends TestCase
             $targetNameResolver,
             $collisionResolver,
             $renamePlanValidator,
+            $hashSubGroupingService,
+            $perceptualHashCalculator,
+            $canonicalScorer,
         );
 
         $renderer = OutputRendererFactory::create($style);
 
         $command = new RenameByExifDateCommand(
             FileSystemServiceFactory::create($renderer, $style),
-            DuplicateDetectionServiceFactory::create(
-                $progressReporter,
-                $hashSubGroupingService,
-                $mediaTypeClassifier,
-                $livePhotoConflictDetector,
-            ),
             new SafeRegex(),
             new Filesystem(),
             new ExifMetadataProvider(new MetadataExtractor(MetadataReader::createDefault())),
-            $perceptualHashCalculator,
-            $hashSubGroupingService,
             $pipeline,
-            $canonicalScorer,
             $executionPlanBuilder,
             new PipelineReviewMapper(),
             $renderer,

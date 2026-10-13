@@ -21,20 +21,15 @@ use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Regex\SafeRegex;
-use MagicSunday\Renamer\Service\CanonicalScorerInterface;
-use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
 use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilderInterface;
 use MagicSunday\Renamer\Service\FileSystemServiceInterface;
-use MagicSunday\Renamer\Service\HashSubGroupingServiceInterface;
-use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
+use MagicSunday\Renamer\Service\PerceptualHash\PerceptualSignalCache;
 use MagicSunday\Renamer\Service\Pipeline\AssetGroupPipeline;
 use MagicSunday\Renamer\Service\Pipeline\PipelineReviewMapper;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\ValidationResult;
-use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
-use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use Override;
 use RecursiveDirectoryIterator;
 use RecursiveIterator;
@@ -66,41 +61,33 @@ use function sprintf;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-final class RenameByExifDateCommand extends AbstractRenameCommand
+final class RenameByExifDateCommand extends AbstractMediaRenameCommand
 {
     /**
      * Constructor.
      *
-     * @param FileSystemServiceInterface         $fileSystemService           Service to handle file system operations
-     * @param DuplicateDetectionServiceInterface $duplicateDetectionService   Service to handle grouping and duplicate resolution
-     * @param SafeRegex                          $safeRegex                   Safe regex wrapper used by the supported-media iterator filter
-     * @param Filesystem                         $filesystem                  Command-facing filesystem boundary reused by metadata-cache helpers
-     * @param ExifMetadataProvider               $exifMetadataProvider        Provider for EXIF metadata from files
-     * @param PerceptualHashCalculatorInterface  $perceptualHashCalculator    Calculator for perceptual image hashes (visual similarity)
-     * @param HashSubGroupingServiceInterface    $hashSubGroupingService      Service to further group files by perceptual hash
-     * @param AssetGroupPipeline                 $pipeline                    The main asset processing pipeline
-     * @param CanonicalScorerInterface           $canonicalScorer             Scorer to determine the "best" file in a group
-     * @param ExecutionPlanBuilderInterface      $executionPlanBuilder        Builder for the final execution plan
-     * @param PipelineReviewMapper               $pipelineReviewMapper        Maps structured pipeline review facts to output-ready entries
-     * @param RenameOutputRenderer               $renameOutputRenderer        Renderer for the rename operation output
-     * @param TargetBasenameStrategy             $duplicateIdentifierStrategy Fixed basename grouping strategy for EXIF rename groups
+     * @param FileSystemServiceInterface    $fileSystemService           Service to handle file system operations
+     * @param SafeRegex                     $safeRegex                   Safe regex wrapper used by the supported-media iterator filter
+     * @param Filesystem                    $filesystem                  Command-facing filesystem boundary reused by metadata-cache helpers
+     * @param ExifMetadataProvider          $exifMetadataProvider        Provider for EXIF metadata from files
+     * @param AssetGroupPipeline            $pipeline                    The main asset processing pipeline
+     * @param ExecutionPlanBuilderInterface $executionPlanBuilder        Builder for the final execution plan
+     * @param PipelineReviewMapper          $pipelineReviewMapper        Maps structured pipeline review facts to output-ready entries
+     * @param RenameOutputRenderer          $renameOutputRenderer        Renderer for the rename operation output
+     * @param TargetBasenameStrategy        $duplicateIdentifierStrategy Fixed basename grouping strategy for EXIF rename groups
      */
     public function __construct(
         FileSystemServiceInterface $fileSystemService,
-        DuplicateDetectionServiceInterface $duplicateDetectionService,
         SafeRegex $safeRegex,
         Filesystem $filesystem,
         private readonly ExifMetadataProvider $exifMetadataProvider,
-        private readonly PerceptualHashCalculatorInterface $perceptualHashCalculator,
-        private readonly HashSubGroupingServiceInterface $hashSubGroupingService,
         private readonly AssetGroupPipeline $pipeline,
-        private readonly CanonicalScorerInterface $canonicalScorer,
         private readonly ExecutionPlanBuilderInterface $executionPlanBuilder,
         private readonly PipelineReviewMapper $pipelineReviewMapper,
         private readonly RenameOutputRenderer $renameOutputRenderer,
         private readonly TargetBasenameStrategy $duplicateIdentifierStrategy,
     ) {
-        parent::__construct($fileSystemService, $duplicateDetectionService, $safeRegex, $filesystem);
+        parent::__construct($fileSystemService, $safeRegex, $filesystem);
     }
 
     /**
@@ -144,9 +131,9 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
     /**
      * Executes the command logic.
      *
-     * Initializes the filename pattern, configures metadata providers,
-     * perceptual hash calculation, and canonical scoring before running
-     * the asset group pipeline.
+     * Resolves CLI values and metadata/cache inputs, then delegates analysis
+     * setup, processing and cleanup to the pipeline. It observes the returned
+     * plan and actual execution result to preserve truthful exit status.
      *
      * @return int The exit code (0 for success, non-zero for failure).
      */
@@ -155,7 +142,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
     {
         $this->useFileExtensionFromSource = true;
 
-        // Existing pattern/provider/cache setup (unchanged)
+        // Filename strategy and metadata storage remain command-facing inputs.
         $targetFilenamePattern = $this->input->getOption('target-filename-pattern');
 
         if (is_string($targetFilenamePattern)) {
@@ -180,12 +167,7 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
         $memoryAborted = false;
 
         try {
-            $this->perceptualHashCalculator->setSignalCache($signalCache);
-            $this->hashSubGroupingService->setMaxMergeRmse($mergeThreshold);
-            $this->canonicalScorer->setFormatPriority($formatPriority);
-            $this->canonicalScorer->setSourceDirectory($this->sourceDirectory);
-
-            if (!$this->processWithAssetGroups()) {
+            if (!$this->processWithAssetGroups($mergeThreshold, $formatPriority, $signalCache)) {
                 $this->io->error('Completed with errors. See the summary for actual results.');
 
                 return self::FAILURE;
@@ -197,7 +179,6 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
         } catch (AnalysisMemoryBudgetExceededException $exception) {
             $memoryAborted = true;
             $this->exifMetadataProvider->clearCache();
-            $this->hashSubGroupingService->clearCache();
             $this->io->error(ConsoleText::neutralize($exception->getMessage()));
 
             return self::FAILURE;
@@ -208,15 +189,9 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
         } finally {
             // Serializing an optional full snapshot would reintroduce growth
             // after a planned low-memory stop; keep the previous disk cache.
-            try {
-                if (!$memoryAborted) {
-                    $this->flushCache($metadataCache, $this->io);
-                    $this->flushCache($signalCache, $this->io);
-                }
-            } finally {
-                // Other CLI workflows share these services, but not EXIF run settings.
-                $this->perceptualHashCalculator->setSignalCache(null);
-                $this->hashSubGroupingService->setMaxMergeRmse(null);
+            if (!$memoryAborted) {
+                $this->flushCache($metadataCache, $this->io);
+                $this->flushCache($signalCache, $this->io);
             }
         }
     }
@@ -264,35 +239,6 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
     }
 
     /**
-     * Returns the target filename strategy for EXIF-based renames.
-     *
-     * This strategy extracts the capture date from EXIF/QuickTime metadata
-     * and formats it into the target basename.
-     *
-     * @return RenameStrategyInterface The EXIF date rename strategy.
-     */
-    #[Override]
-    protected function getTargetFilenameStrategy(): RenameStrategyInterface
-    {
-        return $this->getExifDateFilenameStrategy();
-    }
-
-    /**
-     * Returns the duplicate identifier strategy.
-     *
-     * Uses the TargetBasenameStrategy to group files. This ensures that
-     * files with different extensions (e.g. .JPG and .MOV) that share the
-     * same capture time are placed in the same duplicate group.
-     *
-     * @return DuplicateIdentifierStrategyInterface The duplicate identifier strategy.
-     */
-    #[Override]
-    protected function getDuplicateIdentifierStrategy(): DuplicateIdentifierStrategyInterface
-    {
-        return $this->duplicateIdentifierStrategy;
-    }
-
-    /**
      * Executes the asset group processing pipeline.
      *
      * This follows an 8-step process:
@@ -305,20 +251,27 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
      * 7. Execution plan building
      * 8. Output rendering and optional execution
      *
+     * @param float                 $mergeThreshold Validated selected maximum RMSE
+     * @param list<string>          $formatPriority Selected canonical format preference
+     * @param PerceptualSignalCache $signalCache    Current run signal storage, flushed after observed results
+     *
      * @return bool Whether scanning, classification and execution completed without errors
      *
      * @throws RuntimeException                      If cross-group analysis exceeds its budget or circular swaps are detected
      * @throws AnalysisMemoryBudgetExceededException When analysis cannot retain sufficient pre-mutation headroom
      */
-    private function processWithAssetGroups(): bool
+    private function processWithAssetGroups(float $mergeThreshold, array $formatPriority, PerceptualSignalCache $signalCache): bool
     {
         // Steps 1-6: build groups, classify, assign roles, resolve names, resolve collisions, validate
         $pipelineResult = $this->pipeline->run(
             $this->createFileIterator(),
-            $this->getTargetFilenameStrategy(),
+            $this->getExifDateFilenameStrategy(),
             $this->duplicateIdentifierStrategy,
             $this->sourceDirectory,
             $this->useFileExtensionFromSource,
+            $mergeThreshold,
+            $formatPriority,
+            $signalCache,
         );
         $analysisComplete = true;
 
@@ -418,7 +371,6 @@ final class RenameByExifDateCommand extends AbstractRenameCommand
         );
 
         // Cleanup
-        $this->hashSubGroupingService->clearCache();
 
         foreach ($result->skippedFiles as $skippedFile) {
             if ($skippedFile->isError()) {
