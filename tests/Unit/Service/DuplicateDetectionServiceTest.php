@@ -74,11 +74,6 @@ use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
 use MagicSunday\Renamer\Service\Output\OutputEntryTagResolution;
 use MagicSunday\Renamer\Service\Output\OutputSkipFlags;
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
-use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\CandidateOutputSkipReasonRule;
-use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\DefaultOutputSkipReasonRule;
-use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\FallbackOutputSkipReasonRule;
-use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\ReviewOutputSkipReasonRule;
-use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\WarningOutputSkipReasonRule;
 use MagicSunday\Renamer\Service\Output\OutputSummaryRowBuilder;
 use MagicSunday\Renamer\Service\Output\PathPrefixSplit;
 use MagicSunday\Renamer\Service\Output\RenameSummaryCounters;
@@ -205,11 +200,6 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(OutputEntryTagResolution::class)]
 #[UsesClass(OutputSkipFlags::class)]
 #[UsesClass(OutputSkipReasonDecider::class)]
-#[UsesClass(CandidateOutputSkipReasonRule::class)]
-#[UsesClass(DefaultOutputSkipReasonRule::class)]
-#[UsesClass(FallbackOutputSkipReasonRule::class)]
-#[UsesClass(ReviewOutputSkipReasonRule::class)]
-#[UsesClass(WarningOutputSkipReasonRule::class)]
 #[UsesClass(OutputSummaryRowBuilder::class)]
 #[UsesClass(PathPrefixSplit::class)]
 #[UsesClass(RenameSummaryCounters::class)]

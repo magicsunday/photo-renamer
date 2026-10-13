@@ -16,7 +16,7 @@ namespace MagicSunday\Renamer\Service\Output;
  *
  * The decision keeps semantic selection separate from operator-facing text.
  * Downstream formatters can therefore project the same decision into CLI text
- * without re-implementing priority logic.
+ * without repeating semantic selection.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT

@@ -22,13 +22,7 @@ use MagicSunday\Renamer\Service\Output\OutputCounters;
 use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecider;
 use MagicSunday\Renamer\Service\Output\OutputSkipReasonDecision;
-use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\CandidateOutputSkipReasonRule;
-use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\DefaultOutputSkipReasonRule;
-use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\FallbackOutputSkipReasonRule;
-use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\ReviewOutputSkipReasonRule;
-use MagicSunday\Renamer\Service\Output\OutputSkipReasonRules\WarningOutputSkipReasonRule;
 use MagicSunday\Renamer\Service\Output\SkipReasonFormatter;
-use MagicSunday\Renamer\Test\Fixtures\OutputSkipReasonRuleFactory;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
@@ -62,11 +56,6 @@ use function substr_count;
 #[UsesClass(OutputEntryTag::class)]
 #[UsesClass(OutputSkipReasonDecider::class)]
 #[UsesClass(OutputSkipReasonDecision::class)]
-#[UsesClass(CandidateOutputSkipReasonRule::class)]
-#[UsesClass(DefaultOutputSkipReasonRule::class)]
-#[UsesClass(FallbackOutputSkipReasonRule::class)]
-#[UsesClass(ReviewOutputSkipReasonRule::class)]
-#[UsesClass(WarningOutputSkipReasonRule::class)]
 #[UsesClass(SkipReasonFormatter::class)]
 final class OutputEntryPresenterTest extends TestCase
 {
@@ -237,7 +226,7 @@ final class OutputEntryPresenterTest extends TestCase
         $io     = new SymfonyStyle(new ArrayInput([]), $output);
 
         $presenter = new OutputEntryPresenter(
-            new OutputSkipReasonDecider(OutputSkipReasonRuleFactory::createDefaultRules()),
+            new OutputSkipReasonDecider(),
             new SkipReasonFormatter(),
             new DiffHighlighter(),
         );
