@@ -1,33 +1,22 @@
-# Calibration Results — Scenario 59
+# Calibration — minimal edits and format backups
 
-Calibrated against regression fixtures for minimally edited still images.
+Measurements use the existing normalized Imagick loader at a 512-pixel working resolution. These fixture-specific values are regression evidence, not universal codec or retouch thresholds.
 
-## RMSE Measurements
+## Current fixture measurements
 
-| Pair | RMSE | Interpretation |
-|------|------|---------------|
-| Original vs -002 (heavy edit) | 0.189985 | Clearly different — well above any merge threshold |
-| Original vs -003 (minimal edit) | 0.042753 | Gray zone (0.015 < x < 0.05) — current code merges (wrong) |
-| -002 vs -003 | 0.184855 | Clearly different |
+| Scenario and pair | Grayscale RMSE | Mean chroma difference | Expected behavior |
+|---|---:|---:|---|
+| 59: minimal edit vs original | 0.036854 | 0.000000 | Separate subgroups; exceeds the near-gradient RMSE cap of 0.03. |
+| 59: heavy edit vs minimal edit | 0.097513 | 0.454051 | Separate subgroups. |
+| 59: heavy edit vs original | 0.090866 | 0.454051 | Separate subgroups. |
+| 42: HEIC/JPG format backup | 0.020514 | 0.012703 | Format duplicate within its applicable safe window. |
 
-## Perceptual Hash Scores
+The integration scenarios assert the resulting filenames and file counts. Stage B remains mandatory for still-image candidates even when dHash distance is zero. `ContentClassifier` owns the safe caps and chroma veto; user configuration cannot widen these internal caps.
 
-| Pair | Score | dHash | Classification |
-|------|-------|-------|---------------|
-| Original vs -003 | 99 | 1 | DuplicateLikely |
-| Original vs -002 | 89 | 2 | EditedVariant |
+## Interpretation limits
 
-## Key Findings
+RMSE and mean chroma are aggregate measurements. A small edit may fall below an aggregate threshold; these results do not establish complete local-edit detection. Evaluation of another signal requires labeled codec-conversion and edited-image cases, including negative controls, before changing automatic classification.
 
-- **dHash is NOT 0** for the minimal edit (dHash=1). The `dHash==0` fast-path is not the direct trigger for this bug.
-- **RMSE 0.043** falls between SAFE_MERGE_RMSE (0.015) and maxMergeRmse (0.05) — the gray zone.
-- Current code merges at RMSE < 0.05 → 0.043 < 0.05 → merge (wrong).
-- With the new conservative policy (gray zone → no merge), this case is correctly separated.
-- Step 1 alone (RMSE zones without blob) fixes this specific failure case.
-- Step 2 (blob analysis) is a hardening improvement, not mandatory for this case.
+The pre-removal detailed blob implementation flagged scenario 42 as a compact retouch with a largest changed region of 0.121445 (about 12% of the image). Using that flag as an automatic veto would reject this expected format backup. This counterexample justifies not activating that uncalibrated rule; it does not prove that every spatial-difference method is inferior.
 
-## Threshold Validation
-
-- SAFE_MERGE_RMSE = 0.015 safely covers codec noise (documented range 0.001–0.013)
-- The failure case (0.043) sits well above 0.015 — no risk of the safe-merge zone absorbing it
-- A simpler fix (lowering maxMergeRmse to 0.04) would also work for this specific case
+Perceptual classification is independent of permanent-deletion authority. Distinct bytes cannot pass the fresh SHA-256 equality requirement for deletion.

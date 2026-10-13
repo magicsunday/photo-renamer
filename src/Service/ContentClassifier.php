@@ -44,8 +44,8 @@ final class ContentClassifier implements ContentClassifierInterface
 {
     /**
      * RMSE threshold for dHash==0 pairs (identical gradient structure).
-     * Only codec noise can produce dHash==0 with non-zero RMSE — format
-     * conversions (HEIC→JPG) reach up to 0.035, so 0.04 covers them.
+     * Codec changes and local edits can both preserve dHash structure. Stage B
+     * still measures pixel differences; zero dHash distance alone permits no merge.
      */
     private const float SAFE_MERGE_RMSE_EXACT = 0.04;
 
@@ -91,7 +91,7 @@ final class ContentClassifier implements ContentClassifierInterface
      * @param ProgressReporterInterface         $progressReporter         Narrow reporting boundary for recoverable diagnostics
      * @param MediaTypeClassifierInterface      $mediaTypeClassifier      Classifies files as still or video
      * @param PerceptualHashCalculatorInterface $perceptualHashCalculator Multi-signal similarity scoring
-     * @param LocalDifferenceAnalyzer           $localDiffAnalyzer        Stage B: local blob analysis for score ≥ 95 pairs
+     * @param LocalDifferenceAnalyzer           $localDiffAnalyzer        Stage B: grayscale RMSE and mean chroma for likely still matches
      * @param ImagickImageLoader                $imageLoader              Image loader for Stage B pixel extraction
      * @param ComparisonWorkLimit               $comparisonWorkLimit      Finite pair-visit budget per capture group
      */
@@ -237,7 +237,7 @@ final class ContentClassifier implements ContentClassifierInterface
     /**
      * Merges hash groups whose representative files are perceptually similar.
      * Uses multi-signal scoring (dHash, wHash, HF-energy, color, duration) with
-     * Stage B blob analysis for near-identical pairs.
+     * Mandatory still-image Stage B RMSE/chroma analysis, including zero dHash distance.
      *
      * @param array<string, list<SplFileInfo>>     $hashGroups             Hash groups keyed by content hash.
      * @param array<string, TemporalMetadata|null> $temporalMetadataMap    Temporal metadata keyed by source pathname.
@@ -287,7 +287,7 @@ final class ContentClassifier implements ContentClassifierInterface
 
         // Pairwise comparison — 2-stage merge decision.
         // Stage A: multi-signal similarity score.
-        // Stage B: local blob analysis for near-identical pairs (score ≥ 95).
+        // Stage B: mandatory still-image RMSE/chroma, including zero dHash distance.
         try {
             for ($indexA = 0; $indexA < $count; ++$indexA) {
                 for ($indexB = $indexA + 1; $indexB < $count; ++$indexB) {
@@ -468,8 +468,8 @@ final class ContentClassifier implements ContentClassifierInterface
      * Utilizes a per-group image cache to avoid redundant Imagick loads when the
      * same file appears in multiple pairwise comparisons (O(K) loads instead of O(K^2)).
      *
-     * Returns the raw LocalDiffResult without interpretation, allowing the caller
-     * to apply zone-based or context-aware merge decisions.
+     * Returns measurements and availability without interpreting thresholds;
+     * decidePerceptualMerge() owns the conservative RMSE/chroma policy.
      *
      * @param SplFileInfo                 $fileA      First file to compare.
      * @param SplFileInfo                 $fileB      Second file to compare.
@@ -484,7 +484,7 @@ final class ContentClassifier implements ContentClassifierInterface
     ): LocalDiffResult {
         // Videos: return success with zero RMSE (duration-based comparison already done)
         if ($this->mediaTypeClassifier->isVideo($fileA) || $this->mediaTypeClassifier->isVideo($fileB)) {
-            return new LocalDiffResult(0.0, 0.0, 0.0, 0, false, success: true);
+            return new LocalDiffResult(0.0, success: true);
         }
 
         $keyA = $fileA->getPathname();
@@ -503,7 +503,7 @@ final class ContentClassifier implements ContentClassifierInterface
 
         // Imagick load failure: return unsuccessful result
         if ((!$imgA instanceof Imagick) || (!$imgB instanceof Imagick)) {
-            return new LocalDiffResult(0.0, 0.0, 0.0, 0, false, success: false);
+            return new LocalDiffResult(0.0, success: false);
         }
 
         return $this->localDiffAnalyzer->analyzeRmse($imgA, $imgB);

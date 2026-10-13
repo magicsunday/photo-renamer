@@ -220,7 +220,7 @@ This is an intentional bounded exception (End State B). These commands are too s
 | `ContentClassifier` | Shared source-only exact/perceptual membership and streamed evidence (Stage A/B, finite pair budgets) |
 | `HashSubGroupingService` | Legacy naming adapter over ContentClassifier; subgroup suffixes, directory conflicts and companion idempotency |
 | `PerceptualHashCalculator` | Multi-signal visual similarity scoring (Imagick-based, with decode hints and caching) |
-| `LocalDifferenceAnalyzer` | Pixel-level blob detection for near-identical pairs (Stage B) |
+| `LocalDifferenceAnalyzer` | Grayscale RMSE and mean chroma measurements with explicit availability (still-image Stage B) |
 | `FileSystemService` | File I/O, collision resolution |
 | `RenameOutputRenderer` | Output formatting, LCS diff highlighting, summary tables |
 | `ExifMetadataProvider` | Caching metadata layer, timezone conversion, reliability checks |

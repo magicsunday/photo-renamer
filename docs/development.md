@@ -75,6 +75,8 @@ MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:exif --dry-run --list-all /media
 
 `AbstractMediaRenameCommand` owns shared CLI behavior. `AssetGroupPipeline::run()` owns explicit analysis configuration and `finally` cleanup. Metadata timestamps and runtime plan values are immutable; the execution builder decides which quality-policy entries may mutate.
 
+Still-image Stage B uses `LocalDifferenceAnalyzer::analyzeRmse()`; the retained `analyze()` entry point returns the same measurements. `LocalDiffResult` contains grayscale RMSE, mean chroma difference and explicit availability. Thresholds belong to `ContentClassifier`, which performs Stage B even at zero dHash distance and keeps unavailable evidence separate from a measured match. These aggregate metrics do not locate every local edit or prove byte identity; permanent deletion uses its independent fresh SHA-256 guard.
+
 `OutputSkipReasonDecider` maps exclusive tags to semantic reasons, `SkipReasonFormatter` owns plain text, and the presenter owns Console escaping and styling. Link configuration and dedup format ranks are explicit per-run values.
 
 
