@@ -1,6 +1,6 @@
 # Calibration Results — Scenario 59
 
-Measured 2026-04-01 against real failure-case images from `/volume1/Fotos/MobileBackup/Test4/`.
+Calibrated against regression fixtures for minimally edited still images.
 
 ## RMSE Measurements
 

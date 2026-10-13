@@ -162,8 +162,8 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      * @param LegacyLivePhotoTargetPromoter           $livePhotoTargetPromoter            Promotes live-photo canonicals from video targets to still targets.
      * @param LegacyLivePhotoQualityFlagPropagator    $livePhotoQualityFlagPropagator     Propagates still-side quality flags to paired companion videos.
      * @param LegacyLivePhotoDuplicateCoordinator     $livePhotoDuplicateCoordinator      Coordinates companion detection and pair recording for legacy Live Photo groups.
-     * @param LegacyTargetPathResolver                $targetPathResolver                 Resolves absolute target pathnames while preserving legacy directory structure.
-     * @param LegacyTargetFileResolver                $targetFileResolver                 Resolves target-file results from generated filenames and strategy failures.
+     * @param TargetPathResolver                      $targetPathResolver                 Resolves absolute target pathnames while preserving legacy directory structure.
+     * @param TargetFileResolver                      $targetFileResolver                 Resolves target-file results from generated filenames and strategy failures.
      * @param LegacyTargetOccupancyChecker            $targetOccupancyChecker             Checks whether a target pathname is blocked by an external file.
      * @param LegacyDuplicateTargetCandidateFactory   $duplicateTargetCandidateFactory    Builds concrete `-duplicate-NNN` target candidates in the legacy directory layout.
      * @param LegacyContentIdentifierCoordinator      $legacyContentIdentifierCoordinator Coordinates pending/skipped Live Photo content-ID handling in the legacy grouping pass.
@@ -177,8 +177,8 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
         private readonly LegacyLivePhotoTargetPromoter $livePhotoTargetPromoter,
         private readonly LegacyLivePhotoQualityFlagPropagator $livePhotoQualityFlagPropagator,
         private readonly LegacyLivePhotoDuplicateCoordinator $livePhotoDuplicateCoordinator,
-        private readonly LegacyTargetPathResolver $targetPathResolver,
-        private readonly LegacyTargetFileResolver $targetFileResolver,
+        private readonly TargetPathResolver $targetPathResolver,
+        private readonly TargetFileResolver $targetFileResolver,
         private readonly LegacyTargetOccupancyChecker $targetOccupancyChecker,
         private readonly LegacyDuplicateTargetCandidateFactory $duplicateTargetCandidateFactory,
         private readonly LegacyContentIdentifierCoordinator $legacyContentIdentifierCoordinator,

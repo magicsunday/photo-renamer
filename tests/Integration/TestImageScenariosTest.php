@@ -85,8 +85,6 @@ use MagicSunday\Renamer\Service\LegacyDuplicateTargetCandidateFactory;
 use MagicSunday\Renamer\Service\LegacyLivePhotoCompanionDetector;
 use MagicSunday\Renamer\Service\LegacyLivePhotoDuplicateCoordinator;
 use MagicSunday\Renamer\Service\LegacyLivePhotoTargetPromoter;
-use MagicSunday\Renamer\Service\LegacyTargetFileResolver;
-use MagicSunday\Renamer\Service\LegacyTargetPathResolver;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoBasenameTargetMap;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictAsset;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictCandidateTiers;
@@ -266,8 +264,6 @@ use const PREG_SET_ORDER;
 #[UsesClass(LegacyLivePhotoCompanionDetector::class)]
 #[UsesClass(LegacyLivePhotoDuplicateCoordinator::class)]
 #[UsesClass(LegacyLivePhotoTargetPromoter::class)]
-#[UsesClass(LegacyTargetFileResolver::class)]
-#[UsesClass(LegacyTargetPathResolver::class)]
 #[UsesClass(LivePhotoBasenameTargetMap::class)]
 #[UsesClass(LivePhotoConflictAsset::class)]
 #[UsesClass(LivePhotoConflictCandidateTiers::class)]

@@ -19,6 +19,8 @@ use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use SplFileInfo;
 
+use function sprintf;
+
 use const DIRECTORY_SEPARATOR;
 
 /**
@@ -63,6 +65,62 @@ final class TargetPathResolverTest extends TestCase
             . DIRECTORY_SEPARATOR . 'Zoo'
             . DIRECTORY_SEPARATOR . '2019-09-28_16-57-59-738.jpg',
             $targetPath,
+        );
+    }
+
+    /**
+     * Verifies that nested relative directories are preserved beneath the source
+     * root when a target pathname is generated.
+     */
+    #[Test]
+    public function resolveRetainsNestedDirectoriesWithDuplicateNames(): void
+    {
+        $resolver   = new TargetPathResolver();
+        $sourceRoot = DIRECTORY_SEPARATOR . 'tmp' . DIRECTORY_SEPARATOR . 'Fotos';
+        $source     = new SplFileInfo(
+            $sourceRoot
+            . DIRECTORY_SEPARATOR . '2024'
+            . DIRECTORY_SEPARATOR . '2024-01-01'
+            . DIRECTORY_SEPARATOR . '2024-01-01'
+            . DIRECTORY_SEPARATOR . 'IMG_0001.jpg',
+        );
+
+        $result = $resolver->resolve($sourceRoot, $source, '2024-01-01_12-00-00-000.jpg');
+
+        self::assertSame(
+            $sourceRoot
+            . DIRECTORY_SEPARATOR . '2024'
+            . DIRECTORY_SEPARATOR . '2024-01-01'
+            . DIRECTORY_SEPARATOR . '2024-01-01'
+            . DIRECTORY_SEPARATOR . '2024-01-01_12-00-00-000.jpg',
+            $result,
+        );
+    }
+
+    /**
+     * Verifies that source files already living under an absolute nested source
+     * root keep their relative depth when the target pathname is built.
+     */
+    #[Test]
+    public function resolvePreservesRelativeDepthForAbsoluteDirectories(): void
+    {
+        $resolver   = new TargetPathResolver();
+        $sourceRoot = DIRECTORY_SEPARATOR . 'volume1' . DIRECTORY_SEPARATOR . 'Fotos';
+        $source     = new SplFileInfo(
+            $sourceRoot
+            . DIRECTORY_SEPARATOR . '2019'
+            . DIRECTORY_SEPARATOR . 'Zoo'
+            . DIRECTORY_SEPARATOR . 'IMG_0001.heic',
+        );
+
+        $result = $resolver->resolve($sourceRoot, $source, '2019-09-28_16-57-59-738.heic');
+
+        self::assertSame(
+            $sourceRoot
+            . DIRECTORY_SEPARATOR . '2019'
+            . DIRECTORY_SEPARATOR . 'Zoo'
+            . DIRECTORY_SEPARATOR . '2019-09-28_16-57-59-738.heic',
+            $result,
         );
     }
 

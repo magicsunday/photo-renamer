@@ -21,9 +21,7 @@ use MagicSunday\Renamer\Service\LegacyLivePhotoCompanionDetector;
 use MagicSunday\Renamer\Service\LegacyLivePhotoDuplicateCoordinator;
 use MagicSunday\Renamer\Service\LegacyLivePhotoQualityFlagPropagator;
 use MagicSunday\Renamer\Service\LegacyLivePhotoTargetPromoter;
-use MagicSunday\Renamer\Service\LegacyTargetFileResolver;
 use MagicSunday\Renamer\Service\LegacyTargetOccupancyChecker;
-use MagicSunday\Renamer\Service\LegacyTargetPathResolver;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetectorInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
 use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
@@ -58,11 +56,9 @@ final class DuplicateDetectionServiceFactory
         MediaTypeClassifierInterface $mediaTypeClassifier,
         ?LivePhotoConflictDetectorInterface $livePhotoConflictDetector = null,
     ): DuplicateDetectionService {
-        $targetPathResolver       = new TargetPathResolver();
-        $legacyTargetPathResolver = new LegacyTargetPathResolver($targetPathResolver);
-        $targetFileResolver       = new TargetFileResolver($targetPathResolver);
-        $legacyTargetFileResolver = new LegacyTargetFileResolver($targetFileResolver);
-        $companionDetector        = new LegacyLivePhotoCompanionDetector($mediaTypeClassifier);
+        $targetPathResolver = new TargetPathResolver();
+        $targetFileResolver = new TargetFileResolver($targetPathResolver);
+        $companionDetector  = new LegacyLivePhotoCompanionDetector($mediaTypeClassifier);
 
         return new DuplicateDetectionService(
             $progressReporter,
@@ -73,10 +69,10 @@ final class DuplicateDetectionServiceFactory
             new LegacyLivePhotoTargetPromoter($mediaTypeClassifier),
             new LegacyLivePhotoQualityFlagPropagator(),
             new LegacyLivePhotoDuplicateCoordinator($companionDetector, $mediaTypeClassifier),
-            $legacyTargetPathResolver,
-            $legacyTargetFileResolver,
+            $targetPathResolver,
+            $targetFileResolver,
             new LegacyTargetOccupancyChecker(),
-            new LegacyDuplicateTargetCandidateFactory($legacyTargetPathResolver),
+            new LegacyDuplicateTargetCandidateFactory($targetPathResolver),
             new LegacyContentIdentifierCoordinator($mediaTypeClassifier),
         );
     }
