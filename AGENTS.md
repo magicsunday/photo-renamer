@@ -128,7 +128,7 @@ Normal media runs (`renamer.sh`, `make run`) use the separate `runtime` service:
 
 ## PHPUnit
 
-- PHPUnit 13 with attributes: `#[Test]`, `#[CoversClass]`, `#[UsesClass]` — `requireCoverageMetadata` makes `#[CoversClass]`/`#[CoversNothing]` mandatory
+- PHPUnit 13 with attributes: `#[Test]`, `#[CoversClass]`, `#[UsesClass]` — `requireCoverageMetadata` makes `#[CoversClass]`/`#[CoversNothing]` mandatory. Broad CLI/media integration tests use `#[CoversNothing]`; focused rule and cache tests keep class-level coverage metadata.
 - Deptrac checks dependency direction; PHPUnit protects observable behavior, file state and actual wiring. Private class names, suffixes, imports and parameter layouts do not need separate source-scanning tests. `tests/Architecture/` stays free of PHPUnit tests (the template gate excludes it).
 - CamelCase test method names
 - `WorkspaceTrait` for temp directory management in tests
