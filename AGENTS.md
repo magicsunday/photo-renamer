@@ -215,7 +215,6 @@ This is an intentional bounded exception (End State B). These commands are too s
 | `CollisionResolver` | Target path deduplication via disk index |
 | `RenamePlanValidator` | Pre-execution safety: duplicate targets, case conflicts, circular swaps |
 | `ExecutionPlanBuilder` | Projects AssetGroupCollection into ExecutionPlan runtime model |
-| `AssetGroupAdapter` | **Deprecated** — retained for differential tests only |
 | `DuplicateDetectionService` | Grouping, canonical selection, Live Photo pairing (retained for non-exif commands) |
 | `ContentClassifier` | Shared source-only exact/perceptual membership and streamed evidence (Stage A/B, finite pair budgets) |
 | `HashSubGroupingService` | Legacy naming adapter over ContentClassifier; subgroup suffixes, directory conflicts and companion idempotency |
