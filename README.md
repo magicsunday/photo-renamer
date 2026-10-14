@@ -120,7 +120,7 @@ The runtime uses a private `/cache` volume. Development and standalone execution
 
 ## 🔒 Safe operation and collection size
 
-- Use a backup and a dry-run before mutation. An interrupted batch may be partially complete; its private journal supports inspection and reconciliation.
+- Use a backup and a dry-run before mutation. Ctrl+C interrupts Docker runs; a batch may be partially complete, with its private journal supporting inspection and reconciliation.
 - Exact/perceptual classification does not authorize permanent deletion. `rename:dedup --delete` requires fresh SHA-256 equality with a surviving original; distinct format conversions cannot pass that byte-identity check.
 - Cooperating mutating runs share a lock and verify source identity. Keep directories trusted and other media writers stopped; separate state volumes/hosts do not coordinate automatically.
 - The Docker runtime has no external network access and uses a read-only application filesystem, finite resource limits and a private cache. Standalone execution needs its own isolation.
