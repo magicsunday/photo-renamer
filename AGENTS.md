@@ -175,7 +175,7 @@ Exception, Constants < Regex < Model < Helper < Contract < Metadata < Service < 
 
 | Command | Purpose |
 |---------|---------|
-| `rename:exif` | Rename by EXIF date (primary command) |
+| `rename:exif` | Rename by EXIF date; `-p` / `--target-filename-pattern` selects the filename format |
 | `rename:hash` | Group duplicates by content hash |
 | `rename:pattern` | Regex-based renaming |
 | `rename:date` | Extract date from filename patterns |

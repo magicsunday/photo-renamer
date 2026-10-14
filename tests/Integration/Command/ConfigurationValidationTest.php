@@ -29,14 +29,89 @@ use function strtoupper;
 use const PHP_BINARY;
 
 /**
- * Uses the real mutating application to prove configuration failures occur
- * before media actions, even after confirmation and source-identity capture.
+ * Uses the real CLI argument parser to verify valid filename options and that
+ * configuration failures precede media actions, including confirmed runs.
  * All source content, cache paths and environment values are synthetic.
  */
 #[CoversNothing]
 final class ConfigurationValidationTest extends TestCase
 {
     use WorkspaceTrait;
+
+    /**
+     * Short and long filename-pattern options must survive actual argv parsing,
+     * preserve bytes during preview and rename only the selected source on execution.
+     *
+     * @param string $option       Short or long public filename-pattern option
+     * @param bool   $singleFile   Select one file instead of its containing directory
+     * @param bool   $relativePath Resolve the source relative to the child working directory
+     *
+     * @return void
+     */
+    #[Test]
+    #[DataProvider('filenamePatternInputs')]
+    public function filenamePatternOptionsWorkThroughRealCli(string $option, bool $singleFile, bool $relativePath): void
+    {
+        $workspace  = $this->createTempWorkspace();
+        $filesystem = new Filesystem();
+        $directory  = $workspace . '/Medien Grüße';
+        $source     = $directory . '/source.jpg';
+        $target     = $directory . '/2024_06_15.jpg';
+        $fixture    = dirname(__DIR__, 2) . '/Fixtures/Images/01-basic-rename/IMG_1234.jpg';
+
+        try {
+            $filesystem->mkdir($directory);
+            $filesystem->copy($fixture, $source);
+            $bytes = $filesystem->readFile($source);
+
+            if ($singleFile) {
+                $filesystem->copy($fixture, $directory . '/neighbor.jpg');
+            }
+
+            $selected = $singleFile ? $source : $directory;
+
+            if ($relativePath) {
+                $selected = 'Medien Grüße' . ($singleFile ? '/source.jpg' : '');
+            }
+
+            foreach ([true, false] as $dryRun) {
+                $arguments = [PHP_BINARY, dirname(__DIR__, 3) . '/src/Renamer.php', 'rename:exif', $option, 'Y_m_d', '--no-ansi', $selected];
+
+                if ($dryRun) {
+                    $arguments[] = '--dry-run';
+                }
+
+                $process = new Process($arguments, $workspace, ['CACHE_DIR' => $workspace . '/state', 'TIMEZONE' => 'UTC', 'MAX_DATE_DRIFT' => '0']);
+                $process->setInput("yes\n");
+                $process->setTimeout(30);
+                $process->run();
+                self::assertSame(0, $process->getExitCode(), $process->getOutput() . $process->getErrorOutput());
+                self::assertFileExists($dryRun ? $source : $target);
+                self::assertFileDoesNotExist($dryRun ? $target : $source);
+                self::assertSame($bytes, $filesystem->readFile($dryRun ? $source : $target));
+
+                if ($singleFile) {
+                    self::assertSame($bytes, $filesystem->readFile($directory . '/neighbor.jpg'));
+                }
+            }
+        } finally {
+            $filesystem->remove($workspace);
+        }
+    }
+
+    /**
+     * @return iterable<string, array{string, bool, bool}> Public option spellings and source-path partitions
+     */
+    public static function filenamePatternInputs(): iterable
+    {
+        foreach (['-p', '--target-filename-pattern'] as $option) {
+            foreach ([false, true] as $singleFile) {
+                foreach ([false, true] as $relativePath) {
+                    yield $option . ($singleFile ? ' file' : ' directory') . ($relativePath ? ' relative' : ' absolute') => [$option, $singleFile, $relativePath];
+                }
+            }
+        }
+    }
 
     /**
      * Malformed and out-of-range CLI/environment settings must fail visibly

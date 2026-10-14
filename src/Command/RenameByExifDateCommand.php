@@ -118,7 +118,7 @@ final class RenameByExifDateCommand extends AbstractMediaRenameCommand
             )
             ->addOption(
                 'target-filename-pattern',
-                'fp',
+                'p',
                 InputOption::VALUE_REQUIRED,
                 'The date pattern used to create the target filename.',
                 'Y-m-d_H-i-s-v'

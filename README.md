@@ -96,7 +96,7 @@ MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:dedup --dry-run /media
 MEDIA_DIR="$HOME/Photos" MEDIA_READ_ONLY=true ./renamer.sh help rename:exif
 ```
 
-Renaming commands support `--dry-run`, `--list-all`, `--show=TAGS` and `--skip-duplicates`. EXIF defaults to `YYYY-MM-DD_HH-MM-SS-mmm.ext`; `--timezone`, `--max-date-drift` and `--merge-threshold` control timestamp and comparison policy. CLI values take precedence over environment settings.
+Renaming commands support `--dry-run`, `--list-all` and `--show=TAGS`. EXIF defaults to `YYYY-MM-DD_HH-MM-SS-mmm.ext`; `--target-filename-pattern` (`-p`) selects another format. `--timezone`, `--max-date-drift` and `--merge-threshold` control timestamp and comparison policy. CLI values take precedence over environment settings.
 
 See [usage and output indicators](docs/usage.md) and the [media decision matrix](docs/decision-matrix.md) for detailed behavior and examples.
 
