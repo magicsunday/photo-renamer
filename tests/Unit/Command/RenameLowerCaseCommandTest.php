@@ -65,10 +65,8 @@ final class RenameLowerCaseCommandTest extends TestCase
     }
 
     /**
-     * Verifies that execute() wires LowerCaseFilenameStrategy for renaming and
-     * TargetPathnameStrategy for grouping, normalises the relative source directory
-     * to an absolute path, defaults the target to the source (in-place rename),
-     * and completes a successful dry-run preview.
+     * An empty-source dry-run succeeds with lowercase naming and full-target-path
+     * grouping strategies, using the same absolute source and target directory.
      */
     #[Test]
     public function executeNormalizesTargetDirectoryAndUsesLowerCaseStrategy(): void

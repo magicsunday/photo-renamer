@@ -12,12 +12,8 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service\Output;
 
 /**
- * Immutable render counter DTO shared by output rendering and legacy execution.
- *
- * The output module needs a stable contract for counts such as planned moves,
- * skips, and duplicates. Returning this DTO instead of an associative array
- * keeps the contract explicit while allowing the legacy executor and
- * RenameOutputRenderer to share the same counter semantics.
+ * Planned presentation counts, independent of the selected output filter.
+ * These are not observed execution successes; runtime results count actual moves.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -26,8 +22,8 @@ namespace MagicSunday\Renamer\Service\Output;
 final readonly class OutputCounters
 {
     /**
-     * @param int $fileCount      Number of files that will actually be processed
-     * @param int $duplicateCount Number of visible duplicate targets
+     * @param int $fileCount      Number of files planned for a move
+     * @param int $duplicateCount Number of duplicate targets before output filtering
      * @param int $plannedMoves   Number of planned move operations
      * @param int $plannedSkips   Number of planned execution skips
      */

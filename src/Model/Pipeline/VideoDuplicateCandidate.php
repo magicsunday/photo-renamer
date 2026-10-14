@@ -14,10 +14,8 @@ namespace MagicSunday\Renamer\Model\Pipeline;
 /**
  * Captures a conservative cross-group video duplicate finding for later review.
  *
- * Feature Track A must not silently merge every suspicious video pair. This DTO
- * therefore records the exact pair and the reason why the pipeline stopped short
- * of auto-merging it. The fact stays structured inside PipelineContext until a
- * dedicated mapper turns it into output-ready review entries.
+ * Keeps the exact source pair and review reason in PipelineContext for output.
+ * A candidate is review-only and does not authorize duplicate grouping or deletion.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
