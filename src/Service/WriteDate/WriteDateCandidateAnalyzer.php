@@ -157,7 +157,7 @@ final readonly class WriteDateCandidateAnalyzer
 
             // For timezone reason: fix QuickTime timestamps lacking timezone info.
             // --local-as-utc: camera stored local time as "UTC" (non-Apple cameras).
-            //   → Keep the existing time, just add the timezone offset.
+            //   → Keep the local clock in Keys and normalize the raw movie clock to UTC.
             // Default: camera stored real UTC (Apple/DJI).
             //   → Convert UTC to local time using the configured timezone.
             // For all other reasons: use the filename date as the write value.

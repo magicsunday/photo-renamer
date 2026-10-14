@@ -41,7 +41,9 @@ The `--detail` flag on `rename:verify` shows per-file diagnostics with copy-past
 > - **Apple/DJI cameras** store real UTC. `--reason=timezone` converts it to local time: `14:00 UTC` → `16:00+02:00`.
 > - **Non-Apple cameras** (Android, Panasonic, Canon) store local time as "UTC". Use `--local-as-utc` to add the offset without converting: `14:00 "UTC"` → `14:00+02:00`.
 >
-> Both modes write `Keys:CreationDate` with the timezone offset. The original `CreateDate` stays untouched.
+> Both modes write `Keys:CreationDate` with the timezone offset. The default mode preserves raw QuickTime timestamps. With `--local-as-utc`, the local clock is retained in Keys while raw QuickTime `CreateDate`/`ModifyDate` are normalized to actual UTC: local `14:00+02:00` becomes raw `12:00 UTC`.
+>
+> `--force` repairs timezone tags even when existing Keys appear reliable, using the raw movie-header timestamp. Apply forced local-clock reinterpretation deliberately: repeating `--force --local-as-utc` reinterprets the already normalized raw clock again.
 
 ### Phase 2: Rename
 

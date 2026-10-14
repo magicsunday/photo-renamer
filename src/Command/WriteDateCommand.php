@@ -148,7 +148,7 @@ final class WriteDateCommand extends Command
                 'local-as-utc',
                 null,
                 InputOption::VALUE_NONE,
-                'Treat QuickTime CreateDate as local time (not real UTC). Adds timezone offset without converting. Use for non-Apple cameras that store local time as "UTC".',
+                'Treat QuickTime CreateDate as local clock time: retain that clock with a timezone offset in Keys:CreationDate and normalize raw QuickTime timestamps to UTC.',
             )
             ->addOption(
                 'force',

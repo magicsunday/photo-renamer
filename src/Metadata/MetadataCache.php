@@ -46,7 +46,7 @@ final class MetadataCache
      * Bump for incompatible metadata interpretation or serialization changes.
      * Parser revisions are tracked separately so dependency updates also miss.
      */
-    private const int CACHE_VERSION = 1;
+    private const int CACHE_VERSION = 2;
 
     /**
      * Latest cold-cache diagnostic, without sensitive media paths.
