@@ -31,6 +31,8 @@ use const DIRECTORY_SEPARATOR;
  *
  * Immutability ensures that data flow between pipeline phases remains explicit
  * and predictable, preventing side effects when sharing items across groups.
+ * Native clone-with preserves independent fields and shared source/metadata
+ * identity; each wither names only its changed or derived values.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -71,48 +73,25 @@ final readonly class AssetItem
      *
      * @param ItemRole $role New role (Canonical, Duplicate, Companion).
      *
-     * @return self New instance with the updated role.
+     * @return AssetItem New instance with the updated role.
      */
     public function withRole(ItemRole $role): self
     {
-        return new self(
-            $this->file,
-            $role,
-            $this->metadata,
-            $this->contentIdentifier,
-            $this->proposedName,
-            $this->renameRequired,
-            $this->priorityScore,
-            $this->reasoning,
-            $this->sequenceNumber,
-            $this->clusterId,
-            $this->clusterRank,
-        );
+        return clone ($this, ['role' => $role]);
     }
 
     /**
-     * Returns a new instance with the given metadata and content identifier.
+     * Replaces metadata and the explicitly supplied content identifier.
+     * Omitting the identifier clears it; it is not inferred from metadata.
      *
      * @param TemporalMetadata|null $metadata          Capture date metadata (EXIF or filesystem).
      * @param string|null           $contentIdentifier Normalized Live Photo content identifier.
      *
-     * @return self New instance with updated metadata.
+     * @return AssetItem New instance with updated metadata.
      */
     public function withMetadata(?TemporalMetadata $metadata, ?string $contentIdentifier = null): self
     {
-        return new self(
-            $this->file,
-            $this->role,
-            $metadata,
-            $contentIdentifier,
-            $this->proposedName,
-            $this->renameRequired,
-            $this->priorityScore,
-            $this->reasoning,
-            $this->sequenceNumber,
-            $this->clusterId,
-            $this->clusterRank,
-        );
+        return clone ($this, ['metadata' => $metadata, 'contentIdentifier' => $contentIdentifier]);
     }
 
     /**
@@ -121,23 +100,11 @@ final readonly class AssetItem
      *
      * @param string $pathname Absolute target pathname.
      *
-     * @return self New instance with updated proposed name and rename flag.
+     * @return AssetItem New instance with updated proposed name and rename flag.
      */
     public function withProposedName(string $pathname): self
     {
-        return new self(
-            $this->file,
-            $this->role,
-            $this->metadata,
-            $this->contentIdentifier,
-            $pathname,
-            $pathname !== $this->file->getPathname(),
-            $this->priorityScore,
-            $this->reasoning,
-            $this->sequenceNumber,
-            $this->clusterId,
-            $this->clusterRank,
-        );
+        return clone ($this, ['proposedName' => $pathname, 'renameRequired' => $pathname !== $this->file->getPathname()]);
     }
 
     /**
@@ -147,23 +114,11 @@ final readonly class AssetItem
      * @param int          $score     Quality score (higher is better).
      * @param list<string> $reasoning Reasons for this score.
      *
-     * @return self New instance with updated score/reasoning.
+     * @return AssetItem New instance with updated score/reasoning.
      */
     public function withScore(int $score, array $reasoning): self
     {
-        return new self(
-            $this->file,
-            $this->role,
-            $this->metadata,
-            $this->contentIdentifier,
-            $this->proposedName,
-            $this->renameRequired,
-            $score,
-            $reasoning,
-            $this->sequenceNumber,
-            $this->clusterId,
-            $this->clusterRank,
-        );
+        return clone ($this, ['priorityScore' => $score, 'reasoning' => $reasoning]);
     }
 
     /**
@@ -172,23 +127,11 @@ final readonly class AssetItem
      *
      * @param int $number Sequential number (1-based).
      *
-     * @return self New instance with updated sequence number.
+     * @return AssetItem New instance with updated sequence number.
      */
     public function withSequenceNumber(int $number): self
     {
-        return new self(
-            $this->file,
-            $this->role,
-            $this->metadata,
-            $this->contentIdentifier,
-            $this->proposedName,
-            $this->renameRequired,
-            $this->priorityScore,
-            $this->reasoning,
-            $number,
-            $this->clusterId,
-            $this->clusterRank,
-        );
+        return clone ($this, ['sequenceNumber' => $number]);
     }
 
     /**
@@ -196,23 +139,11 @@ final readonly class AssetItem
      *
      * @param string|null $clusterId ID of the cluster (e.g., burst ID).
      *
-     * @return self New instance with updated cluster ID.
+     * @return AssetItem New instance with updated cluster ID.
      */
     public function withClusterId(?string $clusterId): self
     {
-        return new self(
-            $this->file,
-            $this->role,
-            $this->metadata,
-            $this->contentIdentifier,
-            $this->proposedName,
-            $this->renameRequired,
-            $this->priorityScore,
-            $this->reasoning,
-            $this->sequenceNumber,
-            $clusterId,
-            $this->clusterRank,
-        );
+        return clone ($this, ['clusterId' => $clusterId]);
     }
 
     /**
@@ -220,23 +151,11 @@ final readonly class AssetItem
      *
      * @param int|null $rank Rank within the cluster (0-based).
      *
-     * @return self New instance with updated cluster rank.
+     * @return AssetItem New instance with updated cluster rank.
      */
     public function withClusterRank(?int $rank): self
     {
-        return new self(
-            $this->file,
-            $this->role,
-            $this->metadata,
-            $this->contentIdentifier,
-            $this->proposedName,
-            $this->renameRequired,
-            $this->priorityScore,
-            $this->reasoning,
-            $this->sequenceNumber,
-            $this->clusterId,
-            $rank,
-        );
+        return clone ($this, ['clusterRank' => $rank]);
     }
 
     /**

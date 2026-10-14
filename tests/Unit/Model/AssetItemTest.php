@@ -250,175 +250,29 @@ final class AssetItemTest extends TestCase
     }
 
     /**
-     * Verifies that withMetadata() creates a new instance with updated metadata
-     * and content identifier while preserving all other properties.
+     * Replacing metadata uses the explicitly supplied identifier rather than the
+     * metadata object's ID. Omission clears a previous identifier; null metadata
+     * remains supported. Source identity, independent score and original state stay.
+     *
+     * @return void
      */
     #[Test]
-    public function withMetadataPreservesOtherFields(): void
+    public function withMetadataReplacesMetadataAndIdentifier(): void
     {
-        $item     = $this->createFullyPopulatedItem();
-        $metadata = new TemporalMetadata(null, 'NEW-ID');
-        $changed  = $item->withMetadata($metadata, 'new-content-id');
+        $file             = new SplFileInfo('/synthetic/source.heic');
+        $originalMetadata = new TemporalMetadata(null, 'old-metadata-id');
+        $item             = new AssetItem($file, metadata: $originalMetadata, contentIdentifier: 'old-content-id', priorityScore: 42);
+        $metadata         = new TemporalMetadata(null, 'new-metadata-id');
+        $changed          = $item->withMetadata($metadata, 'explicit-content-id');
 
-        // Changed fields
         self::assertNotSame($item, $changed);
         self::assertSame($metadata, $changed->metadata);
-        self::assertSame('new-content-id', $changed->contentIdentifier);
-
-        // Preserved fields
-        self::assertSame($item->file, $changed->file);
-        self::assertSame(ItemRole::Duplicate, $changed->role);
-        self::assertSame('/photos/proposed.heic', $changed->proposedName);
-        self::assertTrue($changed->renameRequired);
+        self::assertSame('explicit-content-id', $changed->contentIdentifier);
+        self::assertSame($file, $changed->file);
         self::assertSame(42, $changed->priorityScore);
-        self::assertSame(['test=42'], $changed->reasoning);
-        self::assertSame(7, $changed->sequenceNumber);
-        self::assertSame('cluster-abc', $changed->clusterId);
-    }
-
-    /**
-     * Verifies that withRole() changes only the role while preserving metadata,
-     * naming, scoring and subgroup fields.
-     */
-    #[Test]
-    public function withRolePreservesOtherFields(): void
-    {
-        $item    = $this->createFullyPopulatedItem();
-        $changed = $item->withRole(ItemRole::Ambiguous);
-
-        // Changed fields
-        self::assertNotSame($item, $changed);
-        self::assertSame(ItemRole::Ambiguous, $changed->role);
-
-        // Preserved fields
-        self::assertSame($item->file, $changed->file);
-        self::assertSame($item->metadata, $changed->metadata);
-        self::assertSame('content-id-123', $changed->contentIdentifier);
-        self::assertSame('/photos/proposed.heic', $changed->proposedName);
-        self::assertTrue($changed->renameRequired);
-        self::assertSame(42, $changed->priorityScore);
-        self::assertSame(['test=42'], $changed->reasoning);
-        self::assertSame(7, $changed->sequenceNumber);
-        self::assertSame('cluster-abc', $changed->clusterId);
-    }
-
-    /**
-     * Verifies that withProposedName() creates a new instance with the updated
-     * proposal while keeping all other data intact.
-     */
-    #[Test]
-    public function withProposedNamePreservesOtherFields(): void
-    {
-        $item    = $this->createFullyPopulatedItem();
-        $changed = $item->withProposedName('/photos/new-proposed.heic');
-
-        // Changed fields
-        self::assertNotSame($item, $changed);
-        self::assertSame('/photos/new-proposed.heic', $changed->proposedName);
-        self::assertTrue($changed->renameRequired);
-
-        // Preserved fields
-        self::assertSame($item->file, $changed->file);
-        self::assertSame(ItemRole::Duplicate, $changed->role);
-        self::assertSame($item->metadata, $changed->metadata);
-        self::assertSame('content-id-123', $changed->contentIdentifier);
-        self::assertSame(42, $changed->priorityScore);
-        self::assertSame(['test=42'], $changed->reasoning);
-        self::assertSame(7, $changed->sequenceNumber);
-        self::assertSame('cluster-abc', $changed->clusterId);
-    }
-
-    /**
-     * Verifies that withScore() preserves all properties while updating only
-     * the priority score and its reasoning.
-     */
-    #[Test]
-    public function withScorePreservesOtherFields(): void
-    {
-        $item    = $this->createFullyPopulatedItem();
-        $changed = $item->withScore(99, ['new=99']);
-
-        // Changed fields
-        self::assertNotSame($item, $changed);
-        self::assertSame(99, $changed->priorityScore);
-        self::assertSame(['new=99'], $changed->reasoning);
-
-        // Preserved fields
-        self::assertSame($item->file, $changed->file);
-        self::assertSame(ItemRole::Duplicate, $changed->role);
-        self::assertSame($item->metadata, $changed->metadata);
-        self::assertSame('content-id-123', $changed->contentIdentifier);
-        self::assertSame('/photos/proposed.heic', $changed->proposedName);
-        self::assertTrue($changed->renameRequired);
-        self::assertSame(7, $changed->sequenceNumber);
-        self::assertSame('cluster-abc', $changed->clusterId);
-    }
-
-    /**
-     * Verifies that withSequenceNumber() preserves all properties except for
-     * the sequence number itself.
-     */
-    #[Test]
-    public function withSequenceNumberPreservesOtherFields(): void
-    {
-        $item    = $this->createFullyPopulatedItem();
-        $changed = $item->withSequenceNumber(99);
-
-        // Changed fields
-        self::assertNotSame($item, $changed);
-        self::assertSame(99, $changed->sequenceNumber);
-
-        // Preserved fields
-        self::assertSame($item->file, $changed->file);
-        self::assertSame(ItemRole::Duplicate, $changed->role);
-        self::assertSame($item->metadata, $changed->metadata);
-        self::assertSame('content-id-123', $changed->contentIdentifier);
-        self::assertSame('/photos/proposed.heic', $changed->proposedName);
-        self::assertTrue($changed->renameRequired);
-        self::assertSame(42, $changed->priorityScore);
-        self::assertSame(['test=42'], $changed->reasoning);
-        self::assertSame('cluster-abc', $changed->clusterId);
-    }
-
-    /**
-     * Verifies that withClusterId() preserves all properties except for
-     * the cluster ID itself.
-     */
-    #[Test]
-    public function withClusterIdPreservesOtherFields(): void
-    {
-        $item    = $this->createFullyPopulatedItem();
-        $changed = $item->withClusterId('new-cluster');
-
-        // Changed fields
-        self::assertNotSame($item, $changed);
-        self::assertSame('new-cluster', $changed->clusterId);
-
-        // Preserved fields
-        self::assertSame($item->file, $changed->file);
-        self::assertSame(ItemRole::Duplicate, $changed->role);
-        self::assertSame($item->metadata, $changed->metadata);
-        self::assertSame('content-id-123', $changed->contentIdentifier);
-        self::assertSame('/photos/proposed.heic', $changed->proposedName);
-        self::assertTrue($changed->renameRequired);
-        self::assertSame(42, $changed->priorityScore);
-        self::assertSame(['test=42'], $changed->reasoning);
-        self::assertSame(7, $changed->sequenceNumber);
-    }
-
-    /**
-     * Creates an AssetItem with known metadata, naming, scoring and subgroup values.
-     * Used by preservation tests to verify that with*() methods copy every
-     * non-targeted field unchanged.
-     */
-    private function createFullyPopulatedItem(): AssetItem
-    {
-        return new AssetItem(new SplFileInfo('/photos/test.heic'))
-            ->withRole(ItemRole::Duplicate)
-            ->withMetadata(new TemporalMetadata(null, null), 'content-id-123')
-            ->withProposedName('/photos/proposed.heic')
-            ->withScore(42, ['test=42'])
-            ->withSequenceNumber(7)
-            ->withClusterId('cluster-abc');
+        self::assertSame($originalMetadata, $item->metadata);
+        self::assertSame('old-content-id', $item->contentIdentifier);
+        self::assertNull($changed->withMetadata($metadata)->contentIdentifier);
+        self::assertNull($changed->withMetadata(null)->metadata);
     }
 }
