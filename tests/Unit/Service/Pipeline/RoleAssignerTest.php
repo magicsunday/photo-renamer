@@ -21,7 +21,6 @@ use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\Pipeline\CompanionDetectorInterface;
 use MagicSunday\Renamer\Service\Pipeline\CompanionPathSet;
 use MagicSunday\Renamer\Service\Pipeline\RoleAssigner;
-use MagicSunday\Renamer\Service\Pipeline\RoleAssignerInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
@@ -469,7 +468,7 @@ final class RoleAssignerTest extends TestCase
     private function createAssigner(
         CanonicalScorerInterface $scorer,
         CompanionDetectorInterface $companionDetector,
-    ): RoleAssignerInterface {
+    ): RoleAssigner {
         return new RoleAssigner(
             $scorer,
             $companionDetector,

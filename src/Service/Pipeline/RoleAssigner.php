@@ -18,7 +18,6 @@ use MagicSunday\Renamer\Model\ItemRole;
 use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Service\CanonicalScorerInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
-use Override;
 
 use function implode;
 use function sprintf;
@@ -33,7 +32,7 @@ use function sprintf;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-final readonly class RoleAssigner implements RoleAssignerInterface
+final readonly class RoleAssigner
 {
     /**
      * @param CanonicalScorerInterface   $scorer              Scores items and selects the canonical
@@ -54,7 +53,6 @@ final readonly class RoleAssigner implements RoleAssignerInterface
      * @param AssetGroupCollection $groups  Groups whose items will receive roles
      * @param PipelineContext      $context Mutable pipeline state for quality flag propagation
      */
-    #[Override]
     public function assign(
         AssetGroupCollection $groups,
         PipelineContext $context,

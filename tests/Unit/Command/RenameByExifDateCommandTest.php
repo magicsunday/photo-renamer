@@ -54,7 +54,6 @@ use MagicSunday\Renamer\Regex\RegexMatchResult;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\CanonicalScore;
 use MagicSunday\Renamer\Service\CanonicalScorer;
-use MagicSunday\Renamer\Service\CanonicalScorerInterface;
 use MagicSunday\Renamer\Service\ComparisonWorkLimit;
 use MagicSunday\Renamer\Service\ContentClassifier;
 use MagicSunday\Renamer\Service\ContentClassifierInterface;
@@ -108,7 +107,6 @@ use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuilderInterface;
 use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuildState;
 use MagicSunday\Renamer\Service\Pipeline\CaptureGroupQualityTracker;
 use MagicSunday\Renamer\Service\Pipeline\CollisionResolver;
-use MagicSunday\Renamer\Service\Pipeline\CollisionResolverInterface;
 use MagicSunday\Renamer\Service\Pipeline\CompanionDetector;
 use MagicSunday\Renamer\Service\Pipeline\CompanionPathSet;
 use MagicSunday\Renamer\Service\Pipeline\ExifRenamePipelineResult;
@@ -118,12 +116,9 @@ use MagicSunday\Renamer\Service\Pipeline\OrphanLivePhotoVideoReconciler;
 use MagicSunday\Renamer\Service\Pipeline\PendingLivePhotoVideoResolver;
 use MagicSunday\Renamer\Service\Pipeline\PipelineReviewMapper;
 use MagicSunday\Renamer\Service\Pipeline\RoleAssigner;
-use MagicSunday\Renamer\Service\Pipeline\RoleAssignerInterface;
 use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifier;
-use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifierInterface;
 use MagicSunday\Renamer\Service\Pipeline\SubgroupPresenceDetector;
 use MagicSunday\Renamer\Service\Pipeline\TargetNameResolver;
-use MagicSunday\Renamer\Service\Pipeline\TargetNameResolverInterface;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\RenamePlanValidator;
 use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
@@ -417,7 +412,10 @@ final class RenameByExifDateCommandTest extends TestCase
      */
     private function createConfigurationCommand(PerceptualHashCalculatorInterface $visual, ContentClassifierInterface $grouping, bool $outputFails = false): RenameByExifDateCommand
     {
-        $io = new SymfonyStyle(new ArrayInput([]), new BufferedOutput());
+        $scorer              = new CanonicalScorer();
+        $mediaTypeClassifier = new MediaTypeClassifier();
+        $reporter            = new NullProgressReporter();
+        $io                  = new SymfonyStyle(new ArrayInput([]), new BufferedOutput());
 
         if ($outputFails) {
             $io = $this->getMockBuilder(SymfonyStyle::class)->setConstructorArgs([new ArrayInput([]), new BufferedOutput()])->onlyMethods(['text'])->getMock();
@@ -435,14 +433,14 @@ final class RenameByExifDateCommandTest extends TestCase
             $this->createExifMetadataProvider(),
             new AssetGroupPipeline(
                 $builder,
-                self::createStub(SubgroupClassifierInterface::class),
-                self::createStub(RoleAssignerInterface::class),
-                self::createStub(TargetNameResolverInterface::class),
-                self::createStub(CollisionResolverInterface::class),
+                new SubgroupClassifier($grouping, $mediaTypeClassifier, new OrphanLivePhotoVideoReconciler($mediaTypeClassifier, $visual, $reporter), $reporter),
+                new RoleAssigner($scorer, new CompanionDetector($mediaTypeClassifier), $mediaTypeClassifier),
+                TargetNameResolverFactory::create(),
+                new CollisionResolver(),
                 new RenamePlanValidator(),
                 $grouping,
                 $visual,
-                self::createStub(CanonicalScorerInterface::class),
+                $scorer,
             ),
             new ExecutionPlanBuilder(),
             new PipelineReviewMapper(),
@@ -457,7 +455,12 @@ final class RenameByExifDateCommandTest extends TestCase
     #[Test]
     public function configureExposesExifDateCommandWithAlias(): void
     {
-        $io = new SymfonyStyle(new ArrayInput([]), new BufferedOutput());
+        $visual              = new StubPerceptualHashCalculator();
+        $grouping            = self::createStub(ContentClassifierInterface::class);
+        $scorer              = new CanonicalScorer();
+        $mediaTypeClassifier = new MediaTypeClassifier();
+        $reporter            = new NullProgressReporter();
+        $io                  = new SymfonyStyle(new ArrayInput([]), new BufferedOutput());
 
         $command = new RenameByExifDateCommand(
             new FileCollector(new SafeRegex()),
@@ -467,14 +470,14 @@ final class RenameByExifDateCommandTest extends TestCase
             $this->createExifMetadataProvider(),
             new AssetGroupPipeline(
                 self::createStub(CaptureGroupBuilderInterface::class),
-                self::createStub(SubgroupClassifierInterface::class),
-                self::createStub(RoleAssignerInterface::class),
-                self::createStub(TargetNameResolverInterface::class),
-                self::createStub(CollisionResolverInterface::class),
+                new SubgroupClassifier($grouping, $mediaTypeClassifier, new OrphanLivePhotoVideoReconciler($mediaTypeClassifier, $visual, $reporter), $reporter),
+                new RoleAssigner($scorer, new CompanionDetector($mediaTypeClassifier), $mediaTypeClassifier),
+                TargetNameResolverFactory::create(),
+                new CollisionResolver(),
                 new RenamePlanValidator(),
                 self::createStub(ContentClassifierInterface::class),
                 new StubPerceptualHashCalculator(),
-                self::createStub(CanonicalScorerInterface::class),
+                $scorer,
             ),
             new ExecutionPlanBuilder(),
             new PipelineReviewMapper(),
