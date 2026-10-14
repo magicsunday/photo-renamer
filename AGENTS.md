@@ -45,6 +45,7 @@ make metadata-cache-benchmark COUNT=100000 # Isolated synthetic metadata load/fl
 make cache-permissions-check # Verify real two-UID cache privacy in disposable Docker
 make comparison-benchmark # Compare cold/warm stream-cache planning with 1,000 tiny synthetic videos
 make visual-comparison-benchmark # Offline labeled SSIM/regional comparison; no production heuristics
+make visual-comparison-benchmark PROFILE=regional # Focused independent regional validation, including 12-/24-MP sources
 make mixed-collection-benchmark COUNT=70000 # Real synthetic JPG/HEIC+MOV: pipeline, cache, mutation, idempotency
 ```
 
@@ -62,7 +63,7 @@ Quality Make recipes must propagate coverage/mutation tool failures; never prefi
 
 `make mixed-collection-benchmark` requires a rebuilt production image. It mounts only `scripts/` read-only, generates real 64×64 JPEG/HEIC and one-second MOV files with synthetic Apple IDs/dates, and profiles the real scanner/parser/pipeline/executor in fresh cold/warm/mutate/idempotency workers. The mutation worker uses the same DI-shared batch lock, source guard and journal as the CLI; renderer measurements use a non-buffering Console sink. Report fixed memory checkpoints for file-list/index, grouping, classification, plan, output and cache load/flush, including live PHP allocations, cumulative PHP/RSS peaks, effective PHP/container limits and tmpfs capacity. Profile limits: 4 GiB container RAM/no extra swap, 1 CPU, 128 PIDs, 1 GiB non-executable media/cache tmpfs, 3072 MiB worker PHP, 20 minutes per worker; a separate 1 MiB executable tmpfs holds only fixed native-launch counters. These increased profiling limits do not change production defaults; retain failed lower-budget measurements. Counts must be multiples of four from 4 to 100000. Report Linux worker peak RSS, PHP peak, 100-ms sampled temporary disk, consumed comparison plans and positively validated native-launch counts. The LP-heavy profile uses distinct known IDs and cannot represent unknown-ID worst cases, camera-size decoding or arbitrary collection throughput. Never run it on original media or mark missing measurements as passed.
 
-`make visual-comparison-benchmark` observes actual classification and candidate local vetoes on disjoint synthetic families using the immutable runtime, without original media, network or production heuristics. Follow the finite limits and labeling/calibration protocol in `docs/visual-comparison-benchmark.md`. JSON records native semantics, decisions, timing and resources; keep measured results in the evaluation issue, not README.
+`make visual-comparison-benchmark` observes actual classification and candidate local vetoes on disjoint synthetic families using the immutable runtime, without original media, network or production heuristics. `PROFILE=regional` reuses it for a focused 1024-pixel/max-tile veto with independent 12-/24-MP families, reverse-direction backups, a frozen transfer threshold and separate calibration. Follow the profile-specific finite limits and labeling/calibration protocol in `docs/visual-comparison-benchmark.md`; missing large-source measurements remain explicit. JSON records native semantics, decisions, timing and resources; keep measured results in the evaluation issue, not README.
 
 ### Focused commands
 

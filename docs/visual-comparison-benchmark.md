@@ -5,6 +5,8 @@ additional SSIM and regional-error vetoes. It does not change production merge
 rules, cache schemas, file mutation or deletion authority, and is not a CI gate.
 The measured comparison and implementation decision are recorded in
 [issue #190](https://github.com/magicsunday/photo-renamer/issues/190).
+The focused regional validation is tracked in
+[issue #224](https://github.com/magicsunday/photo-renamer/issues/224).
 
 ## Run
 
@@ -22,7 +24,7 @@ Only scripts and public synthetic regressions 42/59 are mounted read-only. All
 new images and signal snapshots live in disposable container tmpfs. No original
 collection, host credentials or network is available to the measurement.
 
-## Corpus and labels
+## Default comparison corpus and labels
 
 The fixed seed is `20261014`. Twelve independently drawn families cover smooth
 areas, texture and edges at 512×384 and 1536×1152. Families 00–05 calibrate;
@@ -99,8 +101,9 @@ benchmark source digest identify the measured code.
 Limits are explicit: container 1536 MiB with no extra swap, one CPU, 128 PIDs,
 256 MiB non-executable tmpfs, PHP 768 MiB, native memory/map 128 MiB each and native
 disk 64 MiB. Family workers have native time 30 seconds and process timeout
-90 seconds; the entire container has 1800 seconds. The generator shares the
-1800-second native ceiling. Effective cgroup limits are included; unavailable
+90 seconds; the entire container has 1800 seconds. The generator is also subject
+to the effective 30-second native policy ceiling; requesting 1800 seconds through
+Imagick does not raise that policy limit. Effective cgroup limits are included; unavailable
 kernel counters are reported as unavailable rather than invented.
 
 ## Interpretation
@@ -116,6 +119,69 @@ Only investigate it for a demonstrated relevant candidate-recall gap. LPIPS need
 an evidenced benefit over classical local analysis before introducing a separate
 offline model stack. Neither dependency belongs in the production runtime merely
 because the benchmark can expose an aggregate-metric limitation.
+
+## Focused regional profile
+
+```bash
+make --silent visual-comparison-benchmark PROFILE=regional > .build/regional-comparison.json
+```
+
+This reuses the same classifier, fixture generator, metrics and reporting. It
+evaluates only the maximum 32-pixel tile RMSE at a 1024-pixel reference cap, alongside
+the unchanged baseline. Other working resolutions and SSIM are not compared on
+this corpus; the shared tiny native SSIM preflight still runs. The reused metric
+function can also emit q99 diagnostics, but this profile does not use q99 as a veto.
+It still observes classifications without enabling a production rule.
+Full decodes are prepared sequentially: cap A to its 1024-pixel reference grid
+before loading B, then resize B to that grid. Keeping two full camera-size pixel
+buffers is unnecessary for this metric. `earlyPreparationMs` records this resizing
+separately from decode and the remaining grayscale/tile preparation. The auxiliary
+`rmse`/`chroma` fields consequently observe the prepared pixels in this profile;
+`baselineRmse`/`baselineChroma` remain the actual production decision evidence.
+
+The independent seed range is `20270101` plus family index. Twelve new families
+cover all three structure types at 4000×3000 and 6000×4000. Families 00–05 calibrate
+and 06–11 are held out. Each family contains the original ten positive and sixteen
+negative variants, two additional local edits inside/across a working tile boundary,
+and reversed JPEG-85, HEIC-70 and half-size backup pairs. The profile reports 376
+pairs per phase, including four separate regression pairs. Detail regions scale
+with source size; tiny 1/4/16/64-source-pixel controls remain. Pair rows include edit
+area fraction and direction. Encodings of one source never cross the family split.
+
+The frozen threshold from the earlier comparison (`0.10523550544427976`) is a
+separate transfer check. A second threshold uses only the maximum new
+baseline-accepted positive calibration metric. Both add a 1e-12 tolerance, retain
+all baseline vetoes and are evaluated without fitting holdout or regression data.
+Additional backup rejections and direction-dependent outcomes must be inspected
+before making an integration recommendation.
+
+Generators run in fresh family processes and report time, PHP and Linux RSS.
+The procedural base is drawn at 1536 pixels and enlarged before 12-/24-MP encoding;
+local variants are applied at the final source resolution. These synthetic
+large files exercise decoding and compression, not camera-sensor texture.
+Disposable variants are encoded without an additional pixel clone; encoder controls
+retain signatures rather than full decoded images. The independent ICC round-trip
+check uses a 512-pixel JPEG decode hint in this profile to bound temporary buffers;
+classification and candidate decoding retain their own explicitly measured paths.
+
+The container is bounded to 3 GiB with no extra swap, one CPU, 128 PIDs and 1536 MiB
+non-executable tmpfs; PHP remains 768 MiB. Native memory/map/disk limits are
+768/768/512 MiB with one thread and 300 seconds per family process. Process and
+container deadlines are 600 and 7200 seconds. These are profiling budgets, not
+changes to production settings. The wrapper mounts a disposable copy of the
+production ImageMagick policy with its time ceiling raised from 30 to 300
+seconds and memory/map/disk ceilings raised to the above finite profiling values.
+Coder/delegate/path, dimensions, list length and thread rules stay identical.
+This isolates metric quality from the cold/warm availability differences seen
+with large HEIC sources at the smaller production resource ceilings. The JSON includes the effective native time and policy digest.
+The production file and image remain unchanged. The default
+comparison profile retains its smaller budgets.
+
+Larger generation/decoding failures must be reported as missing measurements,
+not as successful validations or proof of collection capacity. No private media
+is mounted by either profile. A manually labeled private read-only sample, when
+available, remains a separate local validation and must not publish raw media,
+paths or metadata. A favorable synthetic result alone does not activate a rule.
 
 References: [SSIM authors](https://www.cns.nyu.edu/~lcv/ssim/),
 [ImageMagick metric options](https://imagemagick.org/command-line-options/#metric),

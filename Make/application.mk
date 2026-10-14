@@ -13,7 +13,7 @@ DI_CACHE       = .build/cache/DependencyContainer.php
 .PHONY: binary binary-init binary-clean cache-clear runtime-cache-clear cache-prune runtime-cache-prune cache-permissions-check comparison-benchmark visual-comparison-benchmark metadata-cache-benchmark mixed-collection-benchmark version
 
 visual-comparison-benchmark: ## Evaluate synthetic image-classification candidates offline; emit JSON.
-	bash scripts/benchmark-visual-classification.sh
+	bash scripts/benchmark-visual-classification.sh $(or $(PROFILE),comparison)
 
 comparison-benchmark: .logo ## Benchmark 1,000 synthetic video candidates under finite Docker resource limits.
 	bash scripts/benchmark-video-comparisons.sh

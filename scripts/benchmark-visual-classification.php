@@ -79,20 +79,35 @@ use const STDERR;
 require '/app/.build/vendor/autoload.php';
 
 /**
- * Draws deterministic texture/edge families with a real central detail for edit controls.
+ * Draws deterministic texture/edge families with a central detail for edit controls.
+ * Camera-size files enlarge the procedural drawing before encoding; this bounds
+ * generation work without claiming to reproduce high-resolution sensor texture.
  *
- * @param int $family       Fixed family index; determines seed, texture and source resolution
- * @param int $objectOffset Horizontal movement of the central detail for independent burst rendering
+ * @param int  $family       Fixed family index; determines seed, texture and source resolution
+ * @param int  $objectOffset Horizontal movement of the central detail for independent burst rendering
+ * @param bool $regional     Use independent validation seeds and camera-size sources
  *
  * @return Imagick Distinct sRGB pixels before lossy encoding
  */
-function familyImage(int $family, int $objectOffset = 0): Imagick
+function familyImage(int $family, int $objectOffset = 0, bool $regional = false): Imagick
 {
     $width = ($family % 2) === 0 ? 512 : 1536;
+
+    if ($regional) {
+        $width = ($family % 2) === 0 ? 4000 : 6000;
+    }
+    $outputWidth  = $width;
+    $outputHeight = ($regional && ($width === 6000)) ? 4000 : intdiv($width * 3, 4);
+
+    if ($regional) {
+        $width        = min($width, 1536);
+        $objectOffset = (int) round($objectOffset * $width / $outputWidth);
+    }
     $image = new Imagick();
-    $image->newImage($width, intdiv($width * 3, 4), '#467aaf');
+    $image->newImage($width, (int) round($outputHeight * $width / $outputWidth), '#467aaf');
     $image->setImageColorspace(Imagick::COLORSPACE_SRGB);
-    $random = new Randomizer(new Mt19937(20261014 + $family));
+
+    $random = new Randomizer(new Mt19937(($regional ? 20270101 : 20261014) + $family));
     $draw   = new ImagickDraw();
     $draw->setStrokeWidth(0);
 
@@ -116,27 +131,34 @@ function familyImage(int $family, int $objectOffset = 0): Imagick
     $y = intdiv($image->getImageHeight(), 2);
     $draw->setFillColor('#303030');
 
+    $scale = $regional ? $width / 512 : 1;
+
     for ($bar = 0; $bar < 4; ++$bar) {
-        $draw->rectangle($x + 3 + $bar * 6, $y + 3, $x + 5 + $bar * 6, $y + 26);
+        $draw->rectangle($x + (3 + $bar * 6) * $scale, $y + 3 * $scale, $x + (5 + $bar * 6) * $scale, $y + 26 * $scale);
     }
     $image->drawImage($draw);
     $draw->clear();
+
+    if ($outputWidth !== $width) {
+        $image->resizeImage($outputWidth, $outputHeight, Imagick::FILTER_LANCZOS, 1.0);
+    }
 
     return $image;
 }
 
 /**
- * Encodes a shallow image clone without changing the generation source.
+ * Encodes generated pixels, optionally consuming an already disposable variant.
  *
- * @param Imagick $image   Synthetic pixels to encode
- * @param string  $path    Owned temporary JPEG or HEIC pathname
- * @param int     $quality Explicit native encoder quality
+ * @param Imagick $image    Synthetic pixels to encode
+ * @param string  $path     Owned temporary JPEG or HEIC pathname
+ * @param int     $quality  Explicit native encoder quality
+ * @param bool    $preserve Keep source pixels intact; false avoids a redundant large-image copy
  *
  * @return void
  */
-function encode(Imagick $image, string $path, int $quality): void
+function encode(Imagick $image, string $path, int $quality, bool $preserve = true): void
 {
-    $copy = clone $image;
+    $copy = $preserve ? clone $image : $image;
 
     try {
         $copy->setImageFormat(str_ends_with($path, '.heic') ? 'heic' : 'jpeg');
@@ -151,33 +173,47 @@ function encode(Imagick $image, string $path, int $quality): void
 /**
  * Declares semantic labels and separate family splits before any score is measured.
  *
- * @param Filesystem $fs   Filesystem for owned synthetic fixtures and pinned CC0 profiles
- * @param string     $root Private temporary generation directory
+ * @param Filesystem $fs         Filesystem for owned synthetic fixtures and pinned CC0 profiles
+ * @param string     $root       Private temporary generation directory
+ * @param bool       $regional   Generate the focused independent regional validation corpus
+ * @param int|null   $onlyFamily Generate one family in a fresh process, or all families
  *
  * @return list<array<string, bool|int|float|string|null>> Pair labels with synthetic paths
  */
-function corpus(Filesystem $fs, string $root): array
+function corpus(Filesystem $fs, string $root, bool $regional = false, ?int $onlyFamily = null): array
 {
     $labels = [];
     $srgb   = $fs->readFile(__DIR__ . '/fixtures/icc/sRGB-v4.icc');
     $p3     = $fs->readFile(__DIR__ . '/fixtures/icc/DisplayP3-v4.icc');
 
     for ($family = 0; $family < 12; ++$family) {
-        $name = sprintf('family-%02d', $family);
+        if (($onlyFamily !== null) && ($family !== $onlyFamily)) {
+            continue;
+        }
+        $name = sprintf($regional ? 'regional-%02d' : 'family-%02d', $family);
         $dir  = $root . '/' . $name;
         $fs->mkdir($dir);
-        $base   = familyImage($family);
+        $base   = familyImage($family, regional: $regional);
         $source = $dir . '/source.jpg';
         encode($base, $source, 95);
         $heicControlPath = $dir . '/unedited-control.heic';
         encode($base, $heicControlPath, 95);
-        $heicControl = new Imagick($heicControlPath);
-        $jpegControl = new Imagick($source);
-        $variants    = ['identity', 'jpeg-85', 'jpeg-60', 'heic-70', 'heic-40', 'reencode', 'scale-half', 'orientation', 'srgb-profile', 'p3-profile', 'gray', 'hue', 'crop', 'rotation', 'blur-detail', 'remove-detail', 'insert-detail', 'near-burst'];
+        $heicControl   = new Imagick($heicControlPath);
+        $heicSignature = $heicControl->getImageSignature();
+        $heicControl->clear();
+        $jpegControl   = new Imagick($source);
+        $jpegSignature = $jpegControl->getImageSignature();
+        $jpegControl->clear();
+        $variants = ['identity', 'jpeg-85', 'jpeg-60', 'heic-70', 'heic-40', 'reencode', 'scale-half', 'orientation', 'srgb-profile', 'p3-profile', 'gray', 'hue', 'crop', 'rotation', 'blur-detail', 'remove-detail', 'insert-detail', 'near-burst'];
 
         foreach ([1, 4, 16, 64] as $side) {
             $variants[] = 'patch-' . $side . '-jpg';
             $variants[] = 'patch-' . $side . '-heic';
+        }
+
+        if ($regional) {
+            $variants[] = 'tile-inside';
+            $variants[] = 'tile-boundary';
         }
 
         foreach ($variants as $variant) {
@@ -210,7 +246,7 @@ function corpus(Filesystem $fs, string $root): array
                         }
                     } elseif ($variant === 'near-burst') {
                         $image->clear();
-                        $image = familyImage($family, 4);
+                        $image = familyImage($family, $regional ? intdiv($base->getImageWidth(), 128) : 4, $regional);
                     } elseif ($variant === 'gray') {
                         $image->modulateImage(100, 0, 100);
                     } elseif ($variant === 'hue') {
@@ -221,9 +257,15 @@ function corpus(Filesystem $fs, string $root): array
                     } elseif ($variant === 'rotation') {
                         $image->rotateImage('white', 90);
                     } else {
-                        $side = str_starts_with($variant, 'patch-') ? (int) explode('-', $variant)[1] : 32;
+                        $side = str_starts_with($variant, 'patch-') ? (int) explode('-', $variant)[1] : ($regional ? intdiv($image->getImageWidth(), 16) : 32);
                         $x    = intdiv($image->getImageWidth(), 2);
                         $y    = intdiv($image->getImageHeight(), 2);
+
+                        if (str_starts_with($variant, 'tile-')) {
+                            $side = max(1, (int) round($image->getImageWidth() * 16 / 1024));
+                            $x    = (int) round($image->getImageWidth() * ($variant === 'tile-inside' ? 520 : 504) / 1024);
+                            $y    = (int) round($image->getImageHeight() / 2 + $image->getImageWidth() * 8 / 1024);
+                        }
 
                         if ($variant === 'blur-detail') {
                             $patch = $image->getImageRegion($side, $side, $x, $y);
@@ -235,14 +277,15 @@ function corpus(Filesystem $fs, string $root): array
                             $draw->setFillColor($variant === 'remove-detail' ? '#8c9ca8' : '#e03c24');
 
                             if ($variant === 'insert-detail') {
-                                $x += 48;
+                                $x += $regional ? intdiv($image->getImageWidth(), 8) : 48;
                             }
                             $draw->rectangle($x, $y, $x + $side - 1, $y + $side - 1);
                             $image->drawImage($draw);
                             $draw->clear();
                         }
                     }
-                    encode($image, $target, $quality);
+                    encode($image, $target, $quality, preserve: !$regional);
+                    $image->clear();
 
                     if ($variant === 'orientation') {
                         $process = new Process(['exiftool', '-overwrite_original', '-Orientation#=6', $target]);
@@ -254,16 +297,23 @@ function corpus(Filesystem $fs, string $root): array
 
                 if (!$positive) {
                     $decoded      = new Imagick($target);
-                    $control      = $extension === 'heic' ? $heicControl : $jpegControl;
-                    $editSurvives = $decoded->getImageSignature() !== $control->getImageSignature();
+                    $control      = $extension === 'heic' ? $heicSignature : $jpegSignature;
+                    $editSurvives = $decoded->getImageSignature() !== $control;
                     $decoded->clear();
                 }
                 $roundTripRmse = null;
 
                 if ($variant === 'p3-profile') {
-                    $decoded = new Imagick($target);
+                    $decoded   = new Imagick();
+                    $reference = new Imagick();
+
+                    if ($regional) {
+                        $decoded->setOption('jpeg:size', '512x512');
+                        $reference->setOption('jpeg:size', '512x512');
+                    }
+                    $decoded->readImage($target);
                     $decoded->profileImage('icc', $srgb);
-                    $reference     = new Imagick($source);
+                    $reference->readImage($source);
                     $roundTripRmse = $reference->getImageDistortion($decoded, Imagick::METRIC_ROOTMEANSQUAREDERROR);
                     $reference->clear();
                     $decoded->clear();
@@ -272,15 +322,36 @@ function corpus(Filesystem $fs, string $root): array
                         throw new RuntimeException('Profile conversion fixture no longer preserves its displayed content');
                     }
                 }
-                $labels[] = ['encodedEditSurvives' => $editSurvives, 'profileRoundTripRmse' => $roundTripRmse, 'id' => $name . '/' . $variant, 'family' => $name, 'split' => $family < 6 ? 'calibration' : 'holdout', 'positive' => $positive, 'variant' => $variant, 'source' => $source, 'target' => $target, 'codec' => $extension, 'width' => $base->getImageWidth(), 'editSidePixels' => $side];
+                $labels[] = ['encodedEditSurvives' => $editSurvives, 'profileRoundTripRmse' => $roundTripRmse, 'id' => $name . '/' . $variant, 'family' => $name, 'split' => $family < 6 ? 'calibration' : 'holdout', 'positive' => $positive, 'variant' => $variant, 'source' => $source, 'target' => $target, 'codec' => $extension, 'width' => $base->getImageWidth(), 'height' => $base->getImageHeight(), 'editSidePixels' => $side, 'editAreaFraction' => $side === null ? null : $side * $side / ($base->getImageWidth() * $base->getImageHeight()), 'direction' => 'forward'];
+
+                if ($regional && in_array($variant, ['jpeg-85', 'heic-70', 'scale-half'], true)) {
+                    $reverse = $labels[array_key_last($labels)];
+                    $reverse['id'] .= '/reverse';
+                    $reverse['direction'] = 'reverse';
+                    $reverse['source']    = $target;
+                    $reverse['target']    = $source;
+                    $reverse['width']     = $variant === 'scale-half' ? intdiv($base->getImageWidth(), 2) : $base->getImageWidth();
+                    $reverse['height']    = $variant === 'scale-half' ? intdiv($base->getImageHeight(), 2) : $base->getImageHeight();
+                    $labels[]             = $reverse;
+                }
             } finally {
                 $image->clear();
             }
         }
         $base->clear();
-        $heicControl->clear();
-        $jpegControl->clear();
     }
+
+    return array_merge($labels, $onlyFamily === null ? regressionPairs() : []);
+}
+
+/**
+ * Keeps published format-backup and minimal-edit regressions out of calibration.
+ *
+ * @return list<array<string, bool|int|float|string|null>> Fixed public regression pairs
+ */
+function regressionPairs(): array
+{
+    $labels   = [];
     $r42      = '/evaluation/regression42/';
     $r59      = '/evaluation/regression59/';
     $labels[] = ['id' => 'regression-42/format-backup', 'family' => 'regression-42', 'split' => 'regression', 'positive' => true, 'source' => $r42 . 'photo.heic', 'target' => $r42 . 'photo.jpg'];
@@ -360,7 +431,7 @@ function preflight(): array
  *
  * @param Imagick $left  Normalized full-decode source
  * @param Imagick $right Normalized full-decode counterpart
- * @param int     $size  Maximum long edge, without enlarging smaller sources
+ * @param int     $size  Reference long-edge cap; the counterpart can be enlarged to its grid
  *
  * @return array<string, float> 32-pixel tile RMSE max/q99 and 512-only SSIM/tile scores
  */
@@ -435,22 +506,23 @@ function localMetrics(Imagick $left, Imagick $right, int $size): array
  * Cold is an empty snapshot pass; warm reloads its persisted signals in fresh workers.
  * Neither phase clears kernel caches. Native Stage B and extra measurements still decode.
  *
- * @param Filesystem $fs     Owned temporary labels and cache I/O
- * @param string     $root   Synthetic fixture workspace
- * @param string     $phase  Report label for cold or warm snapshot state
- * @param string     $family Independent family to measure within native/process deadlines
+ * @param Filesystem $fs       Owned temporary labels and cache I/O
+ * @param string     $root     Synthetic fixture workspace
+ * @param string     $phase    Report label for cold or warm snapshot state
+ * @param string     $family   Independent family to measure within native/process deadlines
+ * @param bool       $regional Measure only the preregistered regional candidate
  *
  * @return array{phase: string, rows: list<array<string, bool|int|float|string|null>>, seconds: float, phpPeakBytes: int, linuxPeakRssBytes: int, cpuSeconds: float} Actual worker measurements
  */
-function worker(Filesystem $fs, string $root, string $phase, string $family): array
+function worker(Filesystem $fs, string $root, string $phase, string $family, bool $regional = false): array
 {
     $rows     = array_values(array_filter(json_decode($fs->readFile($root . '/labels.json'), true, flags: JSON_THROW_ON_ERROR), static fn (array $row): bool => $row['family'] === $family));
     $media    = new MediaTypeClassifier();
     $reporter = new NullProgressReporter();
     $loader   = new ImagickImageLoader($media, $reporter);
-    Imagick::setResourceLimit(Imagick::RESOURCETYPE_MEMORY, 128 * 1024 * 1024);
-    Imagick::setResourceLimit(Imagick::RESOURCETYPE_MAP, 128 * 1024 * 1024);
-    Imagick::setResourceLimit(Imagick::RESOURCETYPE_TIME, 30);
+    Imagick::setResourceLimit(Imagick::RESOURCETYPE_MEMORY, ($regional ? 768 : 128) * 1024 * 1024);
+    Imagick::setResourceLimit(Imagick::RESOURCETYPE_MAP, ($regional ? 768 : 128) * 1024 * 1024);
+    Imagick::setResourceLimit(Imagick::RESOURCETYPE_TIME, $regional ? 300 : 30);
     $storage    = new PrivateCacheStorage($fs);
     $signals    = new PerceptualSignalCache($storage->directory($root . '/cache') . '/signals.json', $storage);
     $calculator = new PerceptualHashCalculator($loader, new PerceptualHashMath());
@@ -469,23 +541,40 @@ function worker(Filesystem $fs, string $root, string $phase, string $family): ar
         $row['baselineAccept'] = count($groups->groups) === 1;
         $last                  = $decisions === [] ? null : $decisions[array_key_last($decisions)];
         $row['reason']         = $last?->reason->value;
+        $row['baselineKind']   = $last?->kind->value;
         $row['baselineRmse']   = $last?->rmse;
         $row['baselineChroma'] = $last?->chromaDifference;
         $similarity            = $calculator->similarityScore($source, $target);
         $row['stageAAccept']   = $similarity->analysisAvailable && $similarity->isDuplicateLikely();
         $row['dhashDistance']  = $similarity->dhashDistance;
         $classifier->clearCache();
+        $start    = hrtime(true);
+        $a        = $loader->loadNormalized($source);
+        $decodeMs = (hrtime(true) - $start) / 1e6;
+        $start    = hrtime(true);
+
+        if ($regional && ($a !== null) && (max($a->getImageWidth(), $a->getImageHeight()) > 1024)) {
+            $a->resizeImage(1024, 1024, Imagick::FILTER_TRIANGLE, 1.0, true);
+        }
+        $earlyPreparationMs = (hrtime(true) - $start) / 1e6;
+        $start              = hrtime(true);
+        $b                  = $loader->loadNormalized($target);
+        $decodeMs += (hrtime(true) - $start) / 1e6;
         $start = hrtime(true);
-        $a     = $loader->loadNormalized($source);
-        $b     = $loader->loadNormalized($target);
+
+        if ($regional && ($a !== null) && ($b !== null)) {
+            $b->resizeImage($a->getImageWidth(), $a->getImageHeight(), Imagick::FILTER_TRIANGLE, 1.0);
+        }
+        $earlyPreparationMs += (hrtime(true) - $start) / 1e6;
 
         if ($a === null || $b === null) {
             throw new RuntimeException('Synthetic normalized decode unavailable: ' . $row['id']);
         }
 
         try {
-            $row['decodeMs'] = (hrtime(true) - $start) / 1e6;
-            $diff            = $analyzer->analyzeRmse($a, $b);
+            $row['decodeMs']           = $decodeMs;
+            $row['earlyPreparationMs'] = $earlyPreparationMs;
+            $diff                      = $analyzer->analyzeRmse($a, $b);
 
             if (!$diff->success) {
                 throw new RuntimeException('Synthetic Stage B measurement unavailable');
@@ -493,7 +582,7 @@ function worker(Filesystem $fs, string $root, string $phase, string $family): ar
             $row['rmse']   = $diff->rmse;
             $row['chroma'] = $diff->chromaDifference;
 
-            foreach ([256, 512, 1024] as $size) {
+            foreach ($regional ? [1024] : [256, 512, 1024] as $size) {
                 $start   = hrtime(true);
                 $metrics = localMetrics($a, $b, $size);
 
@@ -519,13 +608,18 @@ function worker(Filesystem $fs, string $root, string $phase, string $family): ar
  * Freezes candidate vetoes from accepted calibration backups, then evaluates unseen families.
  * Negative labels never select thresholds. Each candidate preserves all baseline vetoes.
  *
- * @param list<array<string, bool|int|float|string|null>> $rows Cold observations containing labels and measured signals
+ * @param list<array<string, bool|int|float|string|null>> $rows     Cold observations containing labels and measured signals
+ * @param bool                                            $regional Report the focused candidate and frozen transfer threshold
  *
  * @return array{calibrationAcceptedBackups: int, thresholds: array<string, float>, decisions: array<string, array<string, array<string, int|list<string>>>>} Thresholds and independent decisions
  */
-function summarize(array $rows): array
+function summarize(array $rows, bool $regional = false): array
 {
-    $metrics          = ['ssimDistance512', 'localSsimMax512', 'tileRmseMax256', 'tileRmseQ99256', 'tileRmseMax512', 'tileRmseQ99512', 'tileRmseMax1024', 'tileRmseQ991024'];
+    $metrics = ['ssimDistance512', 'localSsimMax512', 'tileRmseMax256', 'tileRmseQ99256', 'tileRmseMax512', 'tileRmseQ99512', 'tileRmseMax1024', 'tileRmseQ991024'];
+
+    if ($regional) {
+        $metrics = ['tileRmseMax1024'];
+    }
     $thresholds       = [];
     $calibrationCount = 0;
 
@@ -548,8 +642,14 @@ function summarize(array $rows): array
     foreach ($metrics as $metric) {
         $methods[$metric] = [$metric];
     }
-    $methods['localSsimAndRegional512'] = ['localSsimMax512', 'tileRmseMax512'];
-    $results                            = [];
+
+    if ($regional) {
+        $thresholds['regionalFrozen1024'] = 0.10523550544427976;
+        $methods['regionalFrozen1024']    = ['regionalFrozen1024'];
+    } else {
+        $methods['localSsimAndRegional512'] = ['localSsimMax512', 'tileRmseMax512'];
+    }
+    $results = [];
 
     foreach ($methods as $name => $signals) {
         foreach (['calibration', 'holdout', 'regression'] as $split) {
@@ -570,7 +670,7 @@ function summarize(array $rows): array
                 $accept = $row['baselineAccept'];
 
                 foreach ($signals as $metric) {
-                    $accept = $accept && $row[$metric] <= $thresholds[$metric] + 1e-12;
+                    $accept = $accept && $row[$metric === 'regionalFrozen1024' ? 'tileRmseMax1024' : $metric] <= $thresholds[$metric] + 1e-12;
                 }
 
                 if (!$row['positive'] && $accept) {
@@ -592,22 +692,47 @@ function summarize(array $rows): array
     return ['calibrationAcceptedBackups' => $calibrationCount, 'thresholds' => $thresholds, 'decisions' => $results];
 }
 
-$fs   = new Filesystem();
-$root = '/tmp/visual-evaluation';
+$fs       = new Filesystem();
+$root     = '/tmp/visual-evaluation';
+$regional = in_array('--regional', $argv, true);
 Imagick::setResourceLimit(Imagick::RESOURCETYPE_THREAD, 1);
-Imagick::setResourceLimit(Imagick::RESOURCETYPE_MEMORY, 128 * 1024 * 1024);
-Imagick::setResourceLimit(Imagick::RESOURCETYPE_MAP, 128 * 1024 * 1024);
-Imagick::setResourceLimit(Imagick::RESOURCETYPE_DISK, 64 * 1024 * 1024);
-Imagick::setResourceLimit(Imagick::RESOURCETYPE_TIME, 1800);
+Imagick::setResourceLimit(Imagick::RESOURCETYPE_MEMORY, ($regional ? 768 : 128) * 1024 * 1024);
+Imagick::setResourceLimit(Imagick::RESOURCETYPE_MAP, ($regional ? 768 : 128) * 1024 * 1024);
+Imagick::setResourceLimit(Imagick::RESOURCETYPE_DISK, ($regional ? 512 : 64) * 1024 * 1024);
+Imagick::setResourceLimit(Imagick::RESOURCETYPE_TIME, $regional ? 300 : 1800);
+
+if (($argv[1] ?? '') === 'generate') {
+    $started = hrtime(true);
+    $rows    = corpus($fs, $root, true, (int) $argv[2]);
+    echo json_encode(['rows' => $rows, 'seconds' => (hrtime(true) - $started) / 1e9, 'phpPeakBytes' => memory_get_peak_usage(true), 'linuxPeakRssBytes' => getrusage()['ru_maxrss'] * 1024], JSON_THROW_ON_ERROR), "\n";
+    exit(0);
+}
 
 if (($argv[1] ?? '') === 'worker') {
-    echo json_encode(worker($fs, $root, $argv[2], $argv[3]), JSON_THROW_ON_ERROR), "\n";
+    echo json_encode(worker($fs, $root, $argv[2], $argv[3], $regional), JSON_THROW_ON_ERROR), "\n";
     exit(0);
 }
 $native = preflight();
 $fs->mkdir($root, 0o700);
 $generationStart   = hrtime(true);
-$labels            = corpus($fs, $root);
+$labels            = [];
+$generationReports = [];
+
+if ($regional) {
+    for ($family = 0; $family < 12; ++$family) {
+        $child = new Process([PHP_BINARY, '-d', 'memory_limit=768M', __FILE__, 'generate', (string) $family, '--regional']);
+        $child->setTimeout(600);
+        $child->mustRun();
+        $generated = json_decode($child->getOutput(), true, flags: JSON_THROW_ON_ERROR);
+        $labels    = array_merge($labels, $generated['rows']);
+        unset($generated['rows']);
+        $generationReports[] = $generated;
+        fwrite(STDERR, 'generated regional-' . $family . " complete\n");
+    }
+    $labels = array_merge($labels, regressionPairs());
+} else {
+    $labels = corpus($fs, $root);
+}
 $generationSeconds = (hrtime(true) - $generationStart) / 1e9;
 $fs->dumpFile($root . '/labels.json', json_encode($labels, JSON_THROW_ON_ERROR));
 $reports  = [];
@@ -617,8 +742,13 @@ foreach (['cold', 'warm'] as $phase) {
     $reports[$phase] = ['rows' => [], 'seconds' => 0.0, 'cpuSeconds' => 0.0, 'phpPeakBytes' => 0, 'linuxPeakRssBytes' => 0];
 
     foreach ($families as $family) {
-        $child = new Process([PHP_BINARY, '-d', 'memory_limit=768M', __FILE__, 'worker', $phase, $family]);
-        $child->setTimeout(90);
+        $arguments = [PHP_BINARY, '-d', 'memory_limit=768M', __FILE__, 'worker', $phase, $family];
+
+        if ($regional) {
+            $arguments[] = '--regional';
+        }
+        $child = new Process($arguments);
+        $child->setTimeout($regional ? 600 : 90);
         $child->mustRun();
         $report                  = json_decode($child->getOutput(), true, flags: JSON_THROW_ON_ERROR);
         $reports[$phase]['rows'] = array_merge($reports[$phase]['rows'], $report['rows']);
@@ -643,7 +773,8 @@ $limits['php']                     = ini_get('memory_limit');
 $limits['nativeMemory']            = Imagick::getResourceLimit(Imagick::RESOURCETYPE_MEMORY);
 $limits['nativeMap']               = Imagick::getResourceLimit(Imagick::RESOURCETYPE_MAP);
 $limits['nativeDisk']              = Imagick::getResourceLimit(Imagick::RESOURCETYPE_DISK);
-$limits['nativeWorkerTimeSeconds'] = 30;
+$limits['nativeWorkerTimeSeconds'] = Imagick::getResourceLimit(Imagick::RESOURCETYPE_TIME);
+$limits['nativePolicySha256']      = hash('sha256', $fs->readFile('/etc/ImageMagick-7/policy.xml'));
 $limits['nativeThreads']           = Imagick::getResourceLimit(Imagick::RESOURCETYPE_THREAD);
 $comparisonStable                  = true;
 
@@ -666,8 +797,8 @@ foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, Rec
 $manifest   = json_decode($fs->readFile('/app/.build/build-inputs.json'), true, flags: JSON_THROW_ON_ERROR);
 $provenance = ['benchmark_sha256' => hash('sha256', $fs->readFile(__FILE__)), 'revision' => $manifest['revision'], 'workspace_modified' => $manifest['workspace_modified'], 'source_sha256' => $manifest['source_sha256'], 'composer_lock_sha256' => $manifest['composer_lock_sha256']];
 $memoryPeak = $fs->exists('/sys/fs/cgroup/memory.peak') ? trim($fs->readFile('/sys/fs/cgroup/memory.peak')) : null;
-$summary    = summarize($reports['cold']['rows']);
-echo json_encode(['schema' => 1, 'seed' => 20261014, 'native' => $native, 'imagick' => phpversion('imagick'), 'imagemagick' => Imagick::getVersion(), 'php' => PHP_VERSION, 'labelCount' => count($labels), 'coldWarmDecisionsAndSignalsIdentical' => $comparisonStable, 'summary' => $summary, 'runtimeProvenance' => $provenance, 'cgroupMemoryPeakBytes' => $memoryPeak, 'temporaryFileBytesAtEnd' => $temporaryBytes, 'generationSeconds' => $generationSeconds, 'effectiveLimits' => $limits, 'reports' => $reports], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR), "\n";
+$summary    = summarize($reports['cold']['rows'], $regional);
+echo json_encode(['schema' => 1, 'profile' => $regional ? 'regional' : 'comparison', 'seed' => $regional ? 20270101 : 20261014, 'native' => $native, 'imagick' => phpversion('imagick'), 'imagemagick' => Imagick::getVersion(), 'php' => PHP_VERSION, 'labelCount' => count($labels), 'coldWarmDecisionsAndSignalsIdentical' => $comparisonStable, 'summary' => $summary, 'runtimeProvenance' => $provenance, 'cgroupMemoryPeakBytes' => $memoryPeak, 'temporaryFileBytesAtEnd' => $temporaryBytes, 'generationSeconds' => $generationSeconds, 'generationWorkers' => $generationReports, 'effectiveLimits' => $limits, 'reports' => $reports], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR), "\n";
 
 if (!$comparisonStable) {
     throw new RuntimeException('Cold/warm decisions or measured signals differ');
