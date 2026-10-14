@@ -121,8 +121,9 @@ not a guarantee against every defect; CI integration is maintained separately.
 aggregate. Composer audit and full mutation testing remain separate local targets.
 The PR `build (8.5)` job also audits the complete locked production/development
 graph; audit failure fails that required build context, even if CPD succeeds.
-The Security workflow audits the lock on PRs, pushes, its weekly schedule and manual
-runs. Its full PCOV/Infection job runs weekly or through **Run workflow**, retaining
+The Security workflow audits the lock on pushes, its weekly schedule and manual
+runs; PRs use only the identical audit in the required build. Its full PCOV/Infection
+job runs weekly or through **Run workflow**, retaining
 the configured 68% covered-MSI gate and propagating failures.
 
 The full mutation lane has a 45-minute job timeout and 4 GiB RAM without additional
