@@ -19,9 +19,9 @@ use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\PathHelper;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Service\ExiftoolWriter;
+use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Service\Filesystem\MutationJournal;
 use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
-use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateCandidateAnalyzer;
 use MagicSunday\Renamer\Service\WriteDate\WriteDatePendingWrite;
@@ -71,7 +71,7 @@ final class WriteDateCommand extends Command
 
     /**
      * @param ExifMetadataProvider       $exifMetadataProvider       Metadata provider with caching
-     * @param FileSystemServiceInterface $fileSystemService          Provides file iteration
+     * @param FileCollector              $fileCollector              Provides file iteration
      * @param ExiftoolWriter             $exiftoolWriter             Writes metadata via exiftool
      * @param RenameOutputRenderer       $renderer                   Shared output rendering utilities
      * @param Filesystem                 $filesystem                 Command-facing filesystem boundary reused by metadata-cache helpers
@@ -83,7 +83,7 @@ final class WriteDateCommand extends Command
      */
     public function __construct(
         private readonly ExifMetadataProvider $exifMetadataProvider,
-        private readonly FileSystemServiceInterface $fileSystemService,
+        private readonly FileCollector $fileCollector,
         private readonly ExiftoolWriter $exiftoolWriter,
         private readonly RenameOutputRenderer $renderer,
         private readonly Filesystem $filesystem,
@@ -214,7 +214,7 @@ final class WriteDateCommand extends Command
 
         $files = $isSingleFile
             ? [new SplFileInfo($source)]
-            : $this->fileSystemService->collectFiles($sourceDirectory);
+            : $this->fileCollector->collectFiles($sourceDirectory);
 
         $progressBar = $files !== [] ? $io->createProgressBar(count($files)) : null;
         $progressBar?->setFormat(Constants::PROGRESS_BAR_FORMAT);

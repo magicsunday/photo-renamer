@@ -21,7 +21,7 @@ use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
 use MagicSunday\Renamer\Service\Reporting\NullProgressReporter;
-use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
+use MagicSunday\Renamer\Test\Fixtures\RuntimeExecutorFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -94,7 +94,7 @@ final class MutationJournalTest extends TestCase
 
             return Command::SUCCESS;
         });
-        $application = new Application([$command], $lockService, FileSystemServiceFactory::createSourceIdentityGuard(), FileSystemServiceFactory::createMutationJournal($workspace . '/state', $failingFilesystem));
+        $application = new Application([$command], $lockService, RuntimeExecutorFactory::createSourceIdentityGuard(), RuntimeExecutorFactory::createMutationJournal($workspace . '/state', $failingFilesystem));
         $application->setAutoExit(false);
 
         try {
@@ -127,8 +127,8 @@ final class MutationJournalTest extends TestCase
         $filesystem->dumpFile($source, 'synthetic source');
         $filesystem->dumpFile($planned, 'existing target');
 
-        $journal       = FileSystemServiceFactory::createMutationJournal($workspace . '/state');
-        $mover         = new RuntimeFileMoveExecutor(new NullProgressReporter(), $filesystem, new RuntimeCollisionPathAllocator(), FileSystemServiceFactory::createSourceIdentityGuard(), $journal);
+        $journal       = RuntimeExecutorFactory::createMutationJournal($workspace . '/state');
+        $mover         = new RuntimeFileMoveExecutor(new NullProgressReporter(), $filesystem, new RuntimeCollisionPathAllocator(), RuntimeExecutorFactory::createSourceIdentityGuard(), $journal);
         $previousUmask = umask(0o022);
 
         try {
@@ -205,8 +205,8 @@ final class MutationJournalTest extends TestCase
             self::assertSame(1, substr_count($interrupted, '"event":"completed"'));
             self::assertStringNotContainsString('"event":"run_finished"', $interrupted);
 
-            $guard    = FileSystemServiceFactory::createSourceIdentityGuard();
-            $journal  = FileSystemServiceFactory::createMutationJournal($workspace . '/state');
+            $guard    = RuntimeExecutorFactory::createSourceIdentityGuard();
+            $journal  = RuntimeExecutorFactory::createMutationJournal($workspace . '/state');
             $reporter = new NullProgressReporter();
             $executor = new ExecutionPlanExecutor($reporter, new RuntimeFileMoveExecutor($reporter, $filesystem, new RuntimeCollisionPathAllocator(), $guard, $journal), $journal);
             $result   = null;
@@ -284,8 +284,8 @@ final class MutationJournalTest extends TestCase
         $realFilesystem->dumpFile($first, 'synthetic still');
         $realFilesystem->dumpFile($second, 'synthetic companion');
 
-        $guard    = FileSystemServiceFactory::createSourceIdentityGuard();
-        $journal  = FileSystemServiceFactory::createMutationJournal($workspace . '/state', $filesystem);
+        $guard    = RuntimeExecutorFactory::createSourceIdentityGuard();
+        $journal  = RuntimeExecutorFactory::createMutationJournal($workspace . '/state', $filesystem);
         $reporter = new NullProgressReporter();
         $executor = new ExecutionPlanExecutor($reporter, new RuntimeFileMoveExecutor($reporter, $filesystem, new RuntimeCollisionPathAllocator(), $guard, $journal), $journal);
         $result   = null;

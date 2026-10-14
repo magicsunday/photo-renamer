@@ -28,7 +28,7 @@ use function sprintf;
  * Verifies the runtime collision path allocator used by filesystem execution.
  *
  * These tests cover the duplicate-suffix fallback policy directly, without
- * relying on reflection against FileSystemService internals.
+ * depending on command orchestration.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT

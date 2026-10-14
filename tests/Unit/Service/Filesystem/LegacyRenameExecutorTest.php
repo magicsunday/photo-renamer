@@ -9,7 +9,7 @@
 
 declare(strict_types=1);
 
-namespace MagicSunday\Renamer\Test\Unit\Service;
+namespace MagicSunday\Renamer\Test\Unit\Service\Filesystem;
 
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Helper\ConsoleText;
@@ -35,7 +35,6 @@ use MagicSunday\Renamer\Service\Filesystem\MutationJournal;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
 use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
-use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\Output\DiffHighlighter;
 use MagicSunday\Renamer\Service\Output\DiffTokenState;
 use MagicSunday\Renamer\Service\Output\OutputCounters;
@@ -50,8 +49,8 @@ use MagicSunday\Renamer\Service\Output\SkippedFileAppendResult;
 use MagicSunday\Renamer\Service\Output\SummaryRow;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
-use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
+use MagicSunday\Renamer\Test\Fixtures\RuntimeExecutorFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -79,7 +78,7 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(MutationJournal::class)]
 #[UsesClass(PrivateCacheStorage::class)]
 #[UsesClass(DateDriftCalculator::class)]
-#[CoversClass(FileSystemService::class)]
+#[CoversClass(LegacyRenameExecutor::class)]
 #[CoversClass(RenameOutputRenderer::class)]
 #[CoversClass(FileDuplicateCollection::class)]
 #[CoversClass(FileDuplicate::class)]
@@ -87,7 +86,7 @@ use const DIRECTORY_SEPARATOR;
 #[CoversClass(RenameOptions::class)]
 #[CoversClass(RenameResult::class)]
 /**
- * Verifies the FileSystemService, which executes the final stage of the rename
+ * Verifies the legacy rename executor, which executes the final stage of the rename
  * pipeline: creating target directories, moving or copying files, logging
  * operations with status prefixes, displaying summary statistics, and respecting
  * dry-run / copy-files options.
@@ -103,7 +102,6 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(FileHelper::class)]
 #[UsesClass(ExecutionPlanExecutor::class)]
 #[UsesClass(FileCollector::class)]
-#[UsesClass(LegacyRenameExecutor::class)]
 #[UsesClass(RuntimeFileMoveExecutor::class)]
 #[UsesClass(RuntimeCollisionPathAllocator::class)]
 #[UsesClass(FileList::class)]
@@ -126,7 +124,7 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(SummaryRow::class)]
 #[UsesClass(ConsoleProgressReporter::class)]
 #[UsesClass(ConsoleText::class)]
-final class FileSystemServiceTest extends TestCase
+final class LegacyRenameExecutorTest extends TestCase
 {
     use WorkspaceTrait;
 
@@ -744,7 +742,7 @@ final class FileSystemServiceTest extends TestCase
     }
 
     /**
-     * @return array{FileSystemService, BufferedOutput, SymfonyStyle&object{capturedProgressBar: ?ProgressBar}}
+     * @return array{LegacyRenameExecutor, BufferedOutput, SymfonyStyle&object{capturedProgressBar: ?ProgressBar}}
      */
     private function createService(): array
     {
@@ -763,7 +761,7 @@ final class FileSystemServiceTest extends TestCase
 
         $renderer = OutputRendererFactory::create($io);
 
-        return [FileSystemServiceFactory::create($renderer, $io), $output, $io];
+        return [RuntimeExecutorFactory::createLegacy($renderer, $io), $output, $io];
     }
 
     private function createFileDuplicateCollection(

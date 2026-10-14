@@ -19,9 +19,9 @@ use MagicSunday\Renamer\Service\Dedup\DedupOriginalMatcher;
 use MagicSunday\Renamer\Service\Dedup\DedupReportFormatter;
 use MagicSunday\Renamer\Service\Dedup\DuplicateDeletionGuard;
 use MagicSunday\Renamer\Service\Dedup\QuarantineTargetGuard;
+use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Service\Filesystem\MutationJournal;
 use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
-use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\FormatPriorityResolver;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use Override;
@@ -63,18 +63,18 @@ final class DedupCommand extends Command
     /**
      * Constructor.
      *
-     * @param FileSystemServiceInterface $fileSystemService    Service to handle file system operations like iteration
-     * @param DedupOriginalMatcher       $dedupOriginalMatcher Service that resolves actionable originals for duplicate files
-     * @param DedupReportFormatter       $dedupReportFormatter Formatter for dedup overviews, action blocks, and footer rows
-     * @param RenameOutputRenderer       $renderer             Service to render output in a consistent format
-     * @param Filesystem                 $filesystem           Symfony Filesystem component for file operations
-     * @param DuplicateDeletionGuard     $deletionGuard        Fresh byte-identity check for permanent removal
-     * @param QuarantineTargetGuard      $quarantineGuard      Confines quarantine paths to the selected source tree
-     * @param SourceIdentityGuard        $sourceIdentityGuard  Rejects delete/quarantine of sources changed since analysis began
-     * @param MutationJournal            $mutationJournal      Records destructive changes and stops writes if acknowledgement fails
+     * @param FileCollector          $fileCollector        Collects files for the command scan
+     * @param DedupOriginalMatcher   $dedupOriginalMatcher Service that resolves actionable originals for duplicate files
+     * @param DedupReportFormatter   $dedupReportFormatter Formatter for dedup overviews, action blocks, and footer rows
+     * @param RenameOutputRenderer   $renderer             Service to render output in a consistent format
+     * @param Filesystem             $filesystem           Symfony Filesystem component for file operations
+     * @param DuplicateDeletionGuard $deletionGuard        Fresh byte-identity check for permanent removal
+     * @param QuarantineTargetGuard  $quarantineGuard      Confines quarantine paths to the selected source tree
+     * @param SourceIdentityGuard    $sourceIdentityGuard  Rejects delete/quarantine of sources changed since analysis began
+     * @param MutationJournal        $mutationJournal      Records destructive changes and stops writes if acknowledgement fails
      */
     public function __construct(
-        private readonly FileSystemServiceInterface $fileSystemService,
+        private readonly FileCollector $fileCollector,
         private readonly DedupOriginalMatcher $dedupOriginalMatcher,
         private readonly DedupReportFormatter $dedupReportFormatter,
         private readonly RenameOutputRenderer $renderer,
@@ -178,7 +178,7 @@ final class DedupCommand extends Command
 
         $files = $isSingleFile
             ? [new SplFileInfo($resolved)]
-            : $this->fileSystemService->collectFiles($sourceDirectory);
+            : $this->fileCollector->collectFiles($sourceDirectory);
 
         $io->text(sprintf('<fg=cyan>Scanning:</> %s', ConsoleText::escape($sourceDirectory)));
 

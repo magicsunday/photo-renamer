@@ -64,9 +64,8 @@ use const PATHINFO_EXTENSION;
  * - Highlighting differences between source and target filenames for readability.
  * - Providing display-related query helpers (e.g., counting Live Photo groups).
  *
- * It was extracted from {@see FileSystemService} to strictly separate rendering
- * concerns from physical file I/O operations, making the display logic more
- * testable and maintainable.
+ * Rendering stays separate from physical mutations performed by the runtime
+ * executors so previews and summaries can be produced without changing files.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -424,7 +423,7 @@ final readonly class RenameOutputRenderer
     /**
      * Renders the output entries for an ExecutionPlan to the console.
      * Does NOT execute file operations — that is the responsibility of
-     * {@see FileSystemService::executePlan()}.
+     * the plan executor.
      *
      * @param ExecutionPlan     $plan                The runtime execution plan
      * @param RenameOptions     $options             Command options (skip flags, date drift, etc.)

@@ -18,7 +18,7 @@ use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
-use MagicSunday\Renamer\Service\FileSystemServiceInterface;
+use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\Verify\LivePhotoCompletenessAnalyzer;
 use MagicSunday\Renamer\Service\Verify\MetadataIssueScanner;
@@ -61,7 +61,7 @@ final class VerifyCommand extends Command
 
     /**
      * @param ExifMetadataProvider          $exifMetadataProvider          Metadata provider with caching
-     * @param FileSystemServiceInterface    $fileSystemService             Provides file iteration
+     * @param FileCollector                 $fileCollector                 Provides file iteration
      * @param RenameOutputRenderer          $renderer                      Shared output rendering utilities
      * @param Filesystem                    $filesystem                    Command-facing filesystem boundary reused by metadata-cache helpers
      * @param VerifyDetailEntryFormatter    $verifyDetailEntryFormatter    Formats detail-mode verify entries
@@ -71,7 +71,7 @@ final class VerifyCommand extends Command
      */
     public function __construct(
         private readonly ExifMetadataProvider $exifMetadataProvider,
-        private readonly FileSystemServiceInterface $fileSystemService,
+        private readonly FileCollector $fileCollector,
         private readonly RenameOutputRenderer $renderer,
         private readonly Filesystem $filesystem,
         private readonly VerifyDetailEntryFormatter $verifyDetailEntryFormatter,
@@ -171,7 +171,7 @@ final class VerifyCommand extends Command
 
         $files = $isSingleFile
             ? [new SplFileInfo($source)]
-            : $this->fileSystemService->collectFiles($sourceDirectory);
+            : $this->fileCollector->collectFiles($sourceDirectory);
 
         $progressBar = $files !== [] ? $io->createProgressBar(count($files)) : null;
         $progressBar?->setFormat(Constants::PROGRESS_BAR_FORMAT);

@@ -27,7 +27,7 @@ use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
 use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
 use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
-use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
+use MagicSunday\Renamer\Test\Fixtures\RuntimeExecutorFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -613,12 +613,12 @@ final class ExecutionPlanExecutorTest extends TestCase
     private function createExecutor(?SymfonyStyle $io = null): ExecutionPlanExecutor
     {
         $io ??= new SymfonyStyle(new ArrayInput([]), new BufferedOutput());
-        $journal                 = FileSystemServiceFactory::createMutationJournal();
+        $journal                 = RuntimeExecutorFactory::createMutationJournal();
         $runtimeFileMoveExecutor = new RuntimeFileMoveExecutor(
             new ConsoleProgressReporter($io),
             new Filesystem(),
             new RuntimeCollisionPathAllocator(),
-            FileSystemServiceFactory::createSourceIdentityGuard(),
+            RuntimeExecutorFactory::createSourceIdentityGuard(),
             $journal,
         );
 

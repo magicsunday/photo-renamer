@@ -12,26 +12,18 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Command;
 
 use MagicSunday\Renamer\Command\RenameByHashCommand;
-use MagicSunday\Renamer\Helper\ConsoleText;
-use MagicSunday\Renamer\Helper\FileHelper;
-use MagicSunday\Renamer\Model\Collection\AbstractCollection;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
-use MagicSunday\Renamer\Model\LinkConfig;
-use MagicSunday\Renamer\Model\OutputEntryTag;
-use MagicSunday\Renamer\Model\RenameOptions;
-use MagicSunday\Renamer\Model\RenameResult;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
-use MagicSunday\Renamer\Service\FileSystemServiceInterface;
+use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\ContentHashStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\InheritFilenameStrategy;
-use PHPUnit\Framework\Attributes\CoversClass;
+use MagicSunday\Renamer\Test\Fixtures\RuntimeExecutorFactory;
+use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
-use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
-use RecursiveArrayIterator;
 use RecursiveIteratorIterator;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -52,15 +44,7 @@ use function uniqid;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-#[CoversClass(RenameByHashCommand::class)]
-#[UsesClass(LinkConfig::class)]
-#[UsesClass(FileHelper::class)]
-#[UsesClass(AbstractCollection::class)]
-#[UsesClass(RenameOptions::class)]
-#[UsesClass(RenameResult::class)]
-#[UsesClass(OutputEntryTag::class)]
-#[UsesClass(ContentHashStrategy::class)]
-#[UsesClass(ConsoleText::class)]
+#[CoversNothing]
 final class RenameByHashCommandTest extends TestCase
 {
     /**
@@ -70,7 +54,8 @@ final class RenameByHashCommandTest extends TestCase
     public function configureExposesHashCommandWithAlias(): void
     {
         $command = new RenameByHashCommand(
-            self::createStub(FileSystemServiceInterface::class),
+            new FileCollector(new SafeRegex()),
+            RuntimeExecutorFactory::createLegacy(),
             self::createStub(DuplicateDetectionServiceInterface::class),
             new SafeRegex(),
             new Filesystem(),
@@ -84,7 +69,7 @@ final class RenameByHashCommandTest extends TestCase
     /**
      * Verifies that execute() wires the correct strategies (InheritFilenameStrategy
      * for renaming, ContentHashStrategy for grouping) and propagates --dry-run
-     * to RenameOptions.
+     * through the common command workflow.
      *
      * The mock expectations ensure that groupFilesByDuplicateIdentifier() receives
      * the hash-based strategy instances and that the source directory is normalised.
@@ -97,19 +82,8 @@ final class RenameByHashCommandTest extends TestCase
         mkdir($sourceDir);
 
         try {
-            /** @var FileSystemServiceInterface&MockObject $fileSystemService */
-            $fileSystemService = $this->createMock(FileSystemServiceInterface::class);
-
             /** @var DuplicateDetectionServiceInterface&MockObject $duplicateDetectionService */
             $duplicateDetectionService = $this->createMock(DuplicateDetectionServiceInterface::class);
-
-            $iterator = new RecursiveIteratorIterator(new RecursiveArrayIterator([]));
-
-            $fileSystemService
-                ->expects(self::once())
-                ->method('createFileIterator')
-                ->with($sourceDir)
-                ->willReturn($iterator);
 
             $duplicateCollection = new FileDuplicateCollection();
 
@@ -117,7 +91,7 @@ final class RenameByHashCommandTest extends TestCase
                 ->expects(self::once())
                 ->method('groupFilesByDuplicateIdentifier')
                 ->with(
-                    self::identicalTo($iterator),
+                    self::isInstanceOf(RecursiveIteratorIterator::class),
                     self::callback(static fn ($strategy): bool => $strategy instanceof InheritFilenameStrategy),
                     self::callback(static fn ($strategy): bool => $strategy instanceof ContentHashStrategy),
                     $sourceDir,
@@ -134,21 +108,9 @@ final class RenameByHashCommandTest extends TestCase
                 )
                 ->willReturn($duplicateCollection);
 
-            $fileSystemService
-                ->expects(self::once())
-                ->method('renameFiles')
-                ->with(
-                    self::identicalTo($duplicateCollection),
-                    self::callback(static function (RenameOptions $options): bool {
-                        self::assertTrue($options->dryRun);
-                        self::assertFalse($options->listAll);
-
-                        return true;
-                    }),
-                );
-
             $command = new RenameByHashCommand(
-                $fileSystemService,
+                new FileCollector(new SafeRegex()),
+                RuntimeExecutorFactory::createLegacy(),
                 $duplicateDetectionService,
                 new SafeRegex(),
                 new Filesystem(),

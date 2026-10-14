@@ -21,6 +21,7 @@ use MagicSunday\Renamer\Service\CanonicalScorer;
 use MagicSunday\Renamer\Service\ComparisonWorkLimit;
 use MagicSunday\Renamer\Service\ContentClassifier;
 use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilder;
+use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetector;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
@@ -42,8 +43,8 @@ use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Test\Fixtures\CaptureGroupBuilderFactory;
 use MagicSunday\Renamer\Test\Fixtures\ConsoleOutputParserTrait;
-use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
+use MagicSunday\Renamer\Test\Fixtures\RuntimeExecutorFactory;
 use MagicSunday\Renamer\Test\Fixtures\TargetNameResolverFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversNothing;
@@ -1022,7 +1023,8 @@ final class TestImageScenariosTest extends TestCase
         $renderer = OutputRendererFactory::create($style);
 
         $command = new RenameByExifDateCommand(
-            FileSystemServiceFactory::create($renderer, $style),
+            new FileCollector(new SafeRegex()),
+            RuntimeExecutorFactory::createPlan($style),
             new SafeRegex(),
             new Filesystem(),
             $metadataProvider,

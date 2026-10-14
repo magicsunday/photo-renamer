@@ -32,7 +32,6 @@ use MagicSunday\Renamer\Service\Filesystem\LegacyRenameExecutor;
 use MagicSunday\Renamer\Service\Filesystem\MutationJournal;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
 use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
-use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\FormatPriorityResolver;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
@@ -40,8 +39,8 @@ use MagicSunday\Renamer\Service\Output\SummaryRow;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
-use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
+use MagicSunday\Renamer\Test\Fixtures\RuntimeExecutorFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -86,7 +85,6 @@ use const PHP_EOL;
 #[UsesClass(FileHelper::class)]
 #[UsesClass(RegexMatchResult::class)]
 #[UsesClass(SafeRegex::class)]
-#[UsesClass(FileSystemService::class)]
 #[UsesClass(MediaTypeClassifier::class)]
 #[UsesClass(DedupOriginalMatcher::class)]
 #[UsesClass(DedupReportFormatter::class)]
@@ -136,7 +134,7 @@ final class DedupCommandTest extends TestCase
 
             $filesystem->appendToFile($path, $contents, $lock);
         });
-        $journal = FileSystemServiceFactory::createMutationJournal($workspace . '/state', $failingFilesystem);
+        $journal = RuntimeExecutorFactory::createMutationJournal($workspace . '/state', $failingFilesystem);
 
         try {
             $journal->begin('rename:dedup');
@@ -176,7 +174,7 @@ final class DedupCommandTest extends TestCase
         $filesystem->dumpFile($original, 'before');
         $filesystem->dumpFile($candidate, 'before');
 
-        $guard = FileSystemServiceFactory::createSourceIdentityGuard();
+        $guard = RuntimeExecutorFactory::createSourceIdentityGuard();
 
         try {
             $guard->begin($source);
@@ -867,22 +865,21 @@ final class DedupCommandTest extends TestCase
         $output = new BufferedOutput();
         $style  = new SymfonyStyle(new ArrayInput([]), $output);
 
-        $renderer          = OutputRendererFactory::create($style);
-        $fileSystemService = FileSystemServiceFactory::create($renderer, $style);
-        $matcher           = new DedupOriginalMatcher(
+        $renderer = OutputRendererFactory::create($style);
+        $matcher  = new DedupOriginalMatcher(
             new MediaTypeClassifier(),
         );
 
         return new DedupCommand(
-            $fileSystemService,
+            new FileCollector(new SafeRegex()),
             $matcher,
             new DedupReportFormatter(),
             $renderer,
             $filesystem ?? new Filesystem(),
             new DuplicateDeletionGuard(new SafeHashCalculator()),
             new QuarantineTargetGuard(),
-            $sourceIdentityGuard ?? FileSystemServiceFactory::createSourceIdentityGuard(),
-            $mutationJournal ?? FileSystemServiceFactory::createMutationJournal(),
+            $sourceIdentityGuard ?? RuntimeExecutorFactory::createSourceIdentityGuard(),
+            $mutationJournal ?? RuntimeExecutorFactory::createMutationJournal(),
         );
     }
 }

@@ -17,7 +17,7 @@ use MagicSunday\Renamer\Service\Filesystem\BatchRunLock;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
 use MagicSunday\Renamer\Service\Reporting\NullProgressReporter;
-use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
+use MagicSunday\Renamer\Test\Fixtures\RuntimeExecutorFactory;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputArgument;
@@ -39,8 +39,8 @@ if (!is_string($workspace) || ($workspace === '')) {
 }
 
 $filesystem = new Filesystem();
-$guard      = FileSystemServiceFactory::createSourceIdentityGuard();
-$journal    = FileSystemServiceFactory::createMutationJournal($workspace . '/state');
+$guard      = RuntimeExecutorFactory::createSourceIdentityGuard();
+$journal    = RuntimeExecutorFactory::createMutationJournal($workspace . '/state');
 $mover      = new RuntimeFileMoveExecutor(new NullProgressReporter(), $filesystem, new RuntimeCollisionPathAllocator(), $guard, $journal);
 $command    = new Command('rename:exif');
 $command->addArgument('source', InputArgument::REQUIRED);

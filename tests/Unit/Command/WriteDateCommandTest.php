@@ -39,7 +39,6 @@ use MagicSunday\Renamer\Service\Filesystem\LegacyRenameExecutor;
 use MagicSunday\Renamer\Service\Filesystem\MutationJournal;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
 use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
-use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
 use MagicSunday\Renamer\Service\Output\SummaryRow;
@@ -55,8 +54,8 @@ use MagicSunday\Renamer\Service\WriteDate\WriteDateReasonCatalog;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateReasonDecision;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateReportFormatter;
 use MagicSunday\Renamer\Service\WriteDate\WriteDateScanResult;
-use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
+use MagicSunday\Renamer\Test\Fixtures\RuntimeExecutorFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -106,7 +105,6 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(SafeRegex::class)]
 #[UsesClass(DateDriftAnalyzer::class)]
 #[UsesClass(ExiftoolWriter::class)]
-#[UsesClass(FileSystemService::class)]
 #[UsesClass(MediaTypeClassifier::class)]
 #[UsesClass(MetadataCache::class)]
 #[UsesClass(MetadataCacheEntry::class)]
@@ -162,7 +160,7 @@ final class WriteDateCommandTest extends TestCase
 
             $filesystem->appendToFile($path, $contents, $lock);
         });
-        $journal = FileSystemServiceFactory::createMutationJournal($workspace . '/state', $failingFilesystem);
+        $journal = RuntimeExecutorFactory::createMutationJournal($workspace . '/state', $failingFilesystem);
 
         try {
             $journal->begin('rename:write-date');
@@ -199,7 +197,7 @@ final class WriteDateCommandTest extends TestCase
         $filesystem->dumpFile($binary, "#!/bin/sh\nprintf invoked > " . escapeshellarg($marker) . "\n");
         $filesystem->chmod($binary, 0o700);
 
-        $guard = FileSystemServiceFactory::createSourceIdentityGuard();
+        $guard = RuntimeExecutorFactory::createSourceIdentityGuard();
 
         try {
             $guard->begin($workspace . '/media');
@@ -840,12 +838,11 @@ final class WriteDateCommandTest extends TestCase
         $metadataProvider    = new ExifMetadataProvider($metadataExtractor);
         $mediaTypeClassifier = new MediaTypeClassifier();
         $renderer            = OutputRendererFactory::create($style);
-        $fileSystemService   = FileSystemServiceFactory::create($renderer, $style);
         $exiftoolWriter      = new ExiftoolWriter();
 
         return new WriteDateCommand(
             $metadataProvider,
-            $fileSystemService,
+            new FileCollector(new SafeRegex()),
             $exiftoolWriter,
             $renderer,
             new Filesystem(),
@@ -856,8 +853,8 @@ final class WriteDateCommandTest extends TestCase
                 new TimezoneRewritePlanner($metadataProvider),
             ),
             new WriteDateReportFormatter(),
-            FileSystemServiceFactory::createSourceIdentityGuard(),
-            FileSystemServiceFactory::createMutationJournal(),
+            RuntimeExecutorFactory::createSourceIdentityGuard(),
+            RuntimeExecutorFactory::createMutationJournal(),
             static fn (): bool => false,
         );
     }
@@ -882,12 +879,11 @@ final class WriteDateCommandTest extends TestCase
         $metadataProvider    = new ExifMetadataProvider($metadataExtractor);
         $mediaTypeClassifier = new MediaTypeClassifier();
         $renderer            = OutputRendererFactory::create($style);
-        $fileSystemService   = FileSystemServiceFactory::create($renderer, $style);
         $exiftoolWriter ??= new ExiftoolWriter();
 
         return new WriteDateCommand(
             $metadataProvider,
-            $fileSystemService,
+            new FileCollector(new SafeRegex()),
             $exiftoolWriter,
             $renderer,
             new Filesystem(),
@@ -898,8 +894,8 @@ final class WriteDateCommandTest extends TestCase
                 new TimezoneRewritePlanner($metadataProvider),
             ),
             new WriteDateReportFormatter(),
-            $sourceIdentityGuard ?? FileSystemServiceFactory::createSourceIdentityGuard(),
-            $mutationJournal ?? FileSystemServiceFactory::createMutationJournal(),
+            $sourceIdentityGuard ?? RuntimeExecutorFactory::createSourceIdentityGuard(),
+            $mutationJournal ?? RuntimeExecutorFactory::createMutationJournal(),
             static fn (): bool => true,
         );
     }

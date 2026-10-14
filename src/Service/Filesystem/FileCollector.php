@@ -20,11 +20,10 @@ use RecursiveIteratorIterator;
 use SplFileInfo;
 
 /**
- * Collects files from a directory tree behind the command-facing filesystem facade.
+ * Collects files from a directory tree for commands and source identity checks.
  *
- * The legacy command path still needs a stable `FileSystemServiceInterface`, but
- * directory traversal itself is a separate concern from mutation and collision
- * handling. This collector owns iterator creation and flat file collection.
+ * Iterator creation and flat collection share filtering semantics without
+ * depending on rename execution, output presentation or mutation state.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT

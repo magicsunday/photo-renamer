@@ -18,7 +18,7 @@ use MagicSunday\Renamer\Model\LinkConfig;
 use MagicSunday\Renamer\Model\OutputEntryTag;
 use MagicSunday\Renamer\Model\RenameResult;
 use MagicSunday\Renamer\Regex\SafeRegex;
-use MagicSunday\Renamer\Service\FileSystemServiceInterface;
+use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use Override;
 use RecursiveDirectoryIterator;
 use RecursiveIterator;
@@ -118,12 +118,12 @@ abstract class AbstractMediaRenameCommand extends Command
     /**
      * Constructor.
      *
-     * @param FileSystemServiceInterface $fileSystemService Service to handle file system operations like iteration and renames
-     * @param SafeRegex                  $safeRegex         Safe regex wrapper shared by legacy iterator filters and pattern strategies
-     * @param Filesystem                 $filesystem        Command-facing filesystem boundary reused by metadata-cache helpers
+     * @param FileCollector $fileCollector Collects files for the command scan
+     * @param SafeRegex     $safeRegex     Safe regex wrapper shared by legacy iterator filters and pattern strategies
+     * @param Filesystem    $filesystem    Command-facing filesystem boundary reused by metadata-cache helpers
      */
     public function __construct(
-        protected FileSystemServiceInterface $fileSystemService,
+        protected FileCollector $fileCollector,
         protected readonly SafeRegex $safeRegex,
         protected readonly Filesystem $filesystem,
     ) {
@@ -460,7 +460,7 @@ abstract class AbstractMediaRenameCommand extends Command
             $basename = basename($resolved);
 
             // Use a regex filter on the parent directory that matches only the target file
-            return $this->fileSystemService->createFileIterator(
+            return $this->fileCollector->createFileIterator(
                 $this->sourceDirectory,
                 new RecursiveRegexFileFilterIterator(
                     new RecursiveDirectoryIterator(
@@ -479,7 +479,7 @@ abstract class AbstractMediaRenameCommand extends Command
             );
         }
 
-        return $this->fileSystemService
+        return $this->fileCollector
             ->createFileIterator($this->sourceDirectory);
     }
 }

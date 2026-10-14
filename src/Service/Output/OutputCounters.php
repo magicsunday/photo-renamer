@@ -16,7 +16,7 @@ namespace MagicSunday\Renamer\Service\Output;
  *
  * The output module needs a stable contract for counts such as planned moves,
  * skips, and duplicates. Returning this DTO instead of an associative array
- * keeps the contract explicit while allowing FileSystemService and
+ * keeps the contract explicit while allowing the legacy executor and
  * RenameOutputRenderer to share the same counter semantics.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>

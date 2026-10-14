@@ -18,7 +18,8 @@ use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Model\RenameResult;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
-use MagicSunday\Renamer\Service\FileSystemServiceInterface;
+use MagicSunday\Renamer\Service\Filesystem\FileCollector;
+use MagicSunday\Renamer\Service\Filesystem\LegacyRenameExecutor;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use RecursiveIterator;
@@ -43,18 +44,20 @@ abstract class AbstractRenameCommand extends AbstractMediaRenameCommand
     /**
      * Adds legacy duplicate grouping to the shared CLI collaborators.
      *
-     * @param FileSystemServiceInterface         $fileSystemService         Shared iteration and execution boundary
+     * @param LegacyRenameExecutor               $legacyRenameExecutor      Executes legacy rename operations with shared mutation guards
+     * @param FileCollector                      $fileCollector             Shared directory and file collection
      * @param DuplicateDetectionServiceInterface $duplicateDetectionService Legacy grouping and duplicate naming
      * @param SafeRegex                          $safeRegex                 Safe source filtering
      * @param Filesystem                         $filesystem                Command-facing filesystem boundary
      */
     public function __construct(
-        FileSystemServiceInterface $fileSystemService,
+        FileCollector $fileCollector,
+        private readonly LegacyRenameExecutor $legacyRenameExecutor,
         protected DuplicateDetectionServiceInterface $duplicateDetectionService,
         SafeRegex $safeRegex,
         Filesystem $filesystem,
     ) {
-        parent::__construct($fileSystemService, $safeRegex, $filesystem);
+        parent::__construct($fileCollector, $safeRegex, $filesystem);
     }
 
     /**
@@ -106,7 +109,7 @@ abstract class AbstractRenameCommand extends AbstractMediaRenameCommand
 
         $this->renderPostScanSummary($result);
 
-        $this->fileSystemService
+        $this->legacyRenameExecutor
             ->renameFiles(
                 $fileDuplicateCollection,
                 new RenameOptions(

@@ -27,13 +27,13 @@ use function rtrim;
 use const DIRECTORY_SEPARATOR;
 
 /**
- * Executes the legacy non-ExecutionPlan rename flow behind the stable filesystem facade.
+ * Executes the bounded legacy rename flow used by non-EXIF rename commands.
  *
  * Commands outside `rename:exif` still rely on the older `FileDuplicateCollection`
  * runtime model. This executor isolates the remaining legacy orchestration:
  * output projection, occupied-path tracking, runtime fallback moves, and final
- * summary rendering. Keeping that flow here lets `FileSystemService` stay a thin
- * command-facing facade while preserving the bounded-exception legacy path.
+ * summary rendering. Commands use it directly while both execution paths share
+ * the same runtime mover and mutation safeguards.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT

@@ -19,7 +19,7 @@ use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
-use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
+use MagicSunday\Renamer\Test\Fixtures\RuntimeExecutorFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -63,7 +63,7 @@ final class SourceIdentityGuardTest extends TestCase
         $filesystem->dumpFile($verified, 'verified bytes');
         $filesystem->chmod($blocked, 0o000);
 
-        $guard = FileSystemServiceFactory::createSourceIdentityGuard();
+        $guard = RuntimeExecutorFactory::createSourceIdentityGuard();
 
         try {
             $guard->begin($workspace);
@@ -90,7 +90,7 @@ final class SourceIdentityGuardTest extends TestCase
     {
         $workspace  = $this->createTempWorkspace();
         $filesystem = new Filesystem();
-        $guard      = FileSystemServiceFactory::createSourceIdentityGuard();
+        $guard      = RuntimeExecutorFactory::createSourceIdentityGuard();
 
         try {
             $guard->begin($workspace);
@@ -123,7 +123,7 @@ final class SourceIdentityGuardTest extends TestCase
         $filesystem->dumpFile($first, 'first bytes');
         $filesystem->dumpFile($second, 'second bytes');
 
-        $guard = FileSystemServiceFactory::createSourceIdentityGuard();
+        $guard = RuntimeExecutorFactory::createSourceIdentityGuard();
 
         try {
             $guard->begin($first);

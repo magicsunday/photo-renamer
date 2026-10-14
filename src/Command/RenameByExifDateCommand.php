@@ -22,7 +22,8 @@ use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Model\RenameOptions;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilderInterface;
-use MagicSunday\Renamer\Service\FileSystemServiceInterface;
+use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
+use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualSignalCache;
 use MagicSunday\Renamer\Service\Pipeline\AssetGroupPipeline;
 use MagicSunday\Renamer\Service\Pipeline\PipelineReviewMapper;
@@ -66,7 +67,8 @@ final class RenameByExifDateCommand extends AbstractMediaRenameCommand
     /**
      * Constructor.
      *
-     * @param FileSystemServiceInterface    $fileSystemService           Service to handle file system operations
+     * @param ExecutionPlanExecutor         $executionPlanExecutor       Executes the plan through the shared guarded runtime mover
+     * @param FileCollector                 $fileCollector               Collects files for the command scan
      * @param SafeRegex                     $safeRegex                   Safe regex wrapper used by the supported-media iterator filter
      * @param Filesystem                    $filesystem                  Command-facing filesystem boundary reused by metadata-cache helpers
      * @param ExifMetadataProvider          $exifMetadataProvider        Provider for EXIF metadata from files
@@ -77,7 +79,8 @@ final class RenameByExifDateCommand extends AbstractMediaRenameCommand
      * @param TargetBasenameStrategy        $duplicateIdentifierStrategy Fixed basename grouping strategy for EXIF rename groups
      */
     public function __construct(
-        FileSystemServiceInterface $fileSystemService,
+        FileCollector $fileCollector,
+        private readonly ExecutionPlanExecutor $executionPlanExecutor,
         SafeRegex $safeRegex,
         Filesystem $filesystem,
         private readonly ExifMetadataProvider $exifMetadataProvider,
@@ -87,7 +90,7 @@ final class RenameByExifDateCommand extends AbstractMediaRenameCommand
         private readonly RenameOutputRenderer $renameOutputRenderer,
         private readonly TargetBasenameStrategy $duplicateIdentifierStrategy,
     ) {
-        parent::__construct($fileSystemService, $safeRegex, $filesystem);
+        parent::__construct($fileCollector, $safeRegex, $filesystem);
     }
 
     /**
@@ -231,7 +234,7 @@ final class RenameByExifDateCommand extends AbstractMediaRenameCommand
             );
         }
 
-        return $this->fileSystemService
+        return $this->fileCollector
             ->createFileIterator(
                 $this->sourceDirectory,
                 $recursiveIterator
@@ -359,7 +362,7 @@ final class RenameByExifDateCommand extends AbstractMediaRenameCommand
         // where CollisionResolver could not predict a conflict at plan time)
         AnalysisMemoryBudget::assertHeadroom('pre-mutation execution gate');
 
-        $executionResult = $this->fileSystemService->executePlan($executionPlan, $this->dryRun);
+        $executionResult = $this->executionPlanExecutor->executePlan($executionPlan, $this->dryRun);
 
         // Render summary
         $this->renameOutputRenderer->renderPlanSummary(

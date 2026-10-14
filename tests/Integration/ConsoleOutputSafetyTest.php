@@ -14,7 +14,7 @@ namespace MagicSunday\Renamer\Test\Integration;
 use Imagick;
 use MagicSunday\Renamer\Application;
 use MagicSunday\Renamer\Service\Filesystem\BatchRunLock;
-use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
+use MagicSunday\Renamer\Test\Fixtures\RuntimeExecutorFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
@@ -123,7 +123,7 @@ final class ConsoleOutputSafetyTest extends TestCase
             $originalLine    = $failure->getLine();
             $command         = new Command('inspect:throw');
             $command->setCode(static fn (): never => throw $failure);
-            $application = new Application([$command], new BatchRunLock(new Filesystem(), $workspace), FileSystemServiceFactory::createSourceIdentityGuard(), FileSystemServiceFactory::createMutationJournal($workspace));
+            $application = new Application([$command], new BatchRunLock(new Filesystem(), $workspace), RuntimeExecutorFactory::createSourceIdentityGuard(), RuntimeExecutorFactory::createMutationJournal($workspace));
             $application->setAutoExit(false);
 
             foreach ([false, true] as $verbose) {
