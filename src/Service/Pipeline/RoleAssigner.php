@@ -17,7 +17,7 @@ use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\ItemRole;
 use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Service\CanonicalScorerInterface;
-use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
+use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use Override;
 
 use function implode;
@@ -36,14 +36,14 @@ use function sprintf;
 final readonly class RoleAssigner implements RoleAssignerInterface
 {
     /**
-     * @param CanonicalScorerInterface   $scorer                   Scores items and selects the canonical
-     * @param CompanionDetectorInterface $companionDetector        Detects Live Photo companions
-     * @param MediaCompatibilityPolicy   $mediaCompatibilityPolicy Shared still/video compatibility rules
+     * @param CanonicalScorerInterface   $scorer              Scores items and selects the canonical
+     * @param CompanionDetectorInterface $companionDetector   Detects Live Photo companions
+     * @param MediaTypeClassifier        $mediaTypeClassifier Shared still/video compatibility rules
      */
     public function __construct(
         private CanonicalScorerInterface $scorer,
         private CompanionDetectorInterface $companionDetector,
-        private MediaCompatibilityPolicy $mediaCompatibilityPolicy,
+        private MediaTypeClassifier $mediaTypeClassifier,
     ) {
     }
 
@@ -210,7 +210,7 @@ final readonly class RoleAssigner implements RoleAssignerInterface
         }
 
         $canonicalPath    = $canonical->file->getPathname();
-        $canonicalIsStill = $this->mediaCompatibilityPolicy->isStillImage($canonical->file);
+        $canonicalIsStill = $this->mediaTypeClassifier->isLivePhotoStill($canonical->file);
 
         $hasFallbackDate      = $canonicalIsStill && isset($context->getFallbackDateFiles()[$canonicalPath]);
         $hasAmbiguousTimezone = isset($context->getAmbiguousTimezoneFiles()[$canonicalPath]);

@@ -14,7 +14,7 @@ namespace MagicSunday\Renamer\Service\PerceptualHash;
 use Imagick;
 use ImagickPixel;
 use MagicSunday\Renamer\Helper\NativeToolError;
-use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
+use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use SplFileInfo;
 use Symfony\Component\Process\Exception\ExceptionInterface;
@@ -65,14 +65,14 @@ final class ImagickImageLoader
     private array $reportedToolFailures = [];
 
     /**
-     * @param MediaTypeClassifierInterface $mediaTypeClassifier Distinguishes still and video decoding paths.
-     * @param string                       $ffmpegBinary        Path to the ffmpeg binary used for frame extraction.
-     * @param ProgressReporterInterface    $progressReporter    Existing reporting boundary for lazy capability/failure diagnostics.
-     * @param string                       $ffprobeBinary       Path to the ffprobe binary used for duration probing.
-     * @param float                        $posterFrameSecond   The default second at which to extract a poster frame (0.1 to 2.0).
+     * @param MediaTypeClassifier       $mediaTypeClassifier Distinguishes still and video decoding paths.
+     * @param string                    $ffmpegBinary        Path to the ffmpeg binary used for frame extraction.
+     * @param ProgressReporterInterface $progressReporter    Existing reporting boundary for lazy capability/failure diagnostics.
+     * @param string                    $ffprobeBinary       Path to the ffprobe binary used for duration probing.
+     * @param float                     $posterFrameSecond   The default second at which to extract a poster frame (0.1 to 2.0).
      */
     public function __construct(
-        private readonly MediaTypeClassifierInterface $mediaTypeClassifier,
+        private readonly MediaTypeClassifier $mediaTypeClassifier,
         private readonly ProgressReporterInterface $progressReporter,
         private readonly string $ffmpegBinary = 'ffmpeg',
         private readonly string $ffprobeBinary = 'ffprobe',

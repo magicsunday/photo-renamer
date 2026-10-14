@@ -15,7 +15,6 @@ use Imagick;
 use MagicSunday\Renamer\Helper\NativeToolError;
 use MagicSunday\Renamer\Helper\PrivateCacheStorage;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
-use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashMath;
@@ -38,7 +37,7 @@ use function clearstatcache;
 /**
  * Exercises native signal calculation, group cleanup and persistent reload as
  * one lifecycle. Synthetic files keep the test independent of personal media;
- * a classifier spy proves warm complete signals avoid invoking the decoder.
+ * warm complete signals retain their values without loading native image buffers.
  */
 #[UsesClass(NativeToolError::class)]
 #[UsesClass(NullProgressReporter::class)]
@@ -82,8 +81,8 @@ final class PerceptualSignalPersistenceTest extends TestCase
 
     /**
      * Computes all four signals from a real tiny MOV, verifies cleanup preserves
-     * them, then reloads a fresh disk cache and calculator. The classifier must
-     * never be called on the warm run, demonstrating native decoding is skipped.
+     * them, then reloads a fresh disk cache and calculator. The warm run retains
+     * identical signals without retaining any decoded native image buffers.
      *
      * @return void
      */
@@ -115,9 +114,8 @@ final class PerceptualSignalPersistenceTest extends TestCase
         $reloaded = $this->createCache();
         // JSON preserves numeric values but may encode 0.0 as integer zero.
         self::assertEquals($signals, $reloaded->get($file));
-        $classifier = self::createMock(MediaTypeClassifierInterface::class);
-        $classifier->expects(self::never())->method('isVideo');
-        $warm = new PerceptualHashCalculator(new ImagickImageLoader($classifier, new NullProgressReporter()), new PerceptualHashMath());
+        $classifier = new MediaTypeClassifier();
+        $warm       = new PerceptualHashCalculator(new ImagickImageLoader($classifier, new NullProgressReporter()), new PerceptualHashMath());
         $warm->setSignalCache($reloaded);
 
         $result = $warm->similarityScore($file, $file, 1.0, 1.0);

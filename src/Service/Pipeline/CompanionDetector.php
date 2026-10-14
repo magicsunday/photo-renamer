@@ -15,7 +15,7 @@ use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
-use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
+use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use Override;
 
 use function count;
@@ -39,10 +39,10 @@ use function usort;
 final readonly class CompanionDetector implements CompanionDetectorInterface
 {
     /**
-     * @param MediaCompatibilityPolicy $mediaCompatibilityPolicy Shared still/video compatibility rules
+     * @param MediaTypeClassifier $mediaTypeClassifier Shared still/video compatibility rules
      */
     public function __construct(
-        private MediaCompatibilityPolicy $mediaCompatibilityPolicy,
+        private MediaTypeClassifier $mediaTypeClassifier,
     ) {
     }
 
@@ -77,12 +77,12 @@ final readonly class CompanionDetector implements CompanionDetectorInterface
             }
 
             // Only different media types can be companions
-            if (!$this->mediaCompatibilityPolicy->areDifferentMediaFamilies($canonical->file, $item->file)) {
+            if (!$this->mediaTypeClassifier->areDifferentMediaFamilies($canonical->file, $item->file)) {
                 continue;
             }
 
             if ($item->contentIdentifier === $canonical->contentIdentifier) {
-                $mediaType = $this->mediaCompatibilityPolicy->isStillImage($item->file)
+                $mediaType = $this->mediaTypeClassifier->isLivePhotoStill($item->file)
                     ? 'still'
                     : 'video';
                 $candidatesByMediaType[$mediaType][] = $item;
@@ -109,7 +109,7 @@ final readonly class CompanionDetector implements CompanionDetectorInterface
                     continue;
                 }
 
-                if (!$this->mediaCompatibilityPolicy->areDifferentMediaFamilies($canonical->file, $item->file)) {
+                if (!$this->mediaTypeClassifier->areDifferentMediaFamilies($canonical->file, $item->file)) {
                     continue;
                 }
 

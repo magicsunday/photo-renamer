@@ -36,9 +36,9 @@ use function count;
 final readonly class LegacyLivePhotoCompanionDetector
 {
     /**
-     * @param MediaTypeClassifierInterface $mediaTypeClassifier Classifier used to distinguish stills from companion videos.
+     * @param MediaTypeClassifier $mediaTypeClassifier Classifier used to distinguish stills from companion videos.
      */
-    public function __construct(private MediaTypeClassifierInterface $mediaTypeClassifier)
+    public function __construct(private MediaTypeClassifier $mediaTypeClassifier)
     {
     }
 

@@ -23,7 +23,6 @@ use MagicSunday\Renamer\Service\ContentClassifier;
 use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilder;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetector;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingService;
-use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
 use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzer;
@@ -838,7 +837,7 @@ final class RenameByExifDateCommandTest extends TestCase
         $metadata  = new StubMetadataExtractor();
         $matcher   = $this->createMock(VideoStreamFingerprintMatcherInterface::class);
         $matcher->expects(self::exactly(2))->method('match')->willReturn(new VideoFingerprintMatch(false, false, false, false, false));
-        $reconciler = new CrossGroupVideoDuplicateReconciler(new MediaCompatibilityPolicy(new MediaTypeClassifier()), $matcher, new NullProgressReporter(), new ComparisonWorkLimit(2));
+        $reconciler = new CrossGroupVideoDuplicateReconciler(new MediaTypeClassifier(), $matcher, new NullProgressReporter(), new ComparisonWorkLimit(2));
 
         try {
             foreach (['a', 'b', 'c'] as $index => $name) {
@@ -933,14 +932,13 @@ final class RenameByExifDateCommandTest extends TestCase
             new OrphanLivePhotoVideoReconciler($mediaTypeClassifier, new StubPerceptualHashCalculator(), $progressReporter),
             $progressReporter,
         );
-        $mediaCompatibilityPolicy = new MediaCompatibilityPolicy($mediaTypeClassifier);
-        $companionDetector        = new CompanionDetector($mediaCompatibilityPolicy);
-        $canonicalScorer          = new CanonicalScorer();
-        $roleAssigner             = new RoleAssigner($canonicalScorer, $companionDetector, $mediaCompatibilityPolicy);
-        $targetNameResolver       = TargetNameResolverFactory::create();
-        $collisionResolver        = new CollisionResolver();
-        $renamePlanValidator      = new RenamePlanValidator();
-        $executionPlanBuilder     = new ExecutionPlanBuilder();
+        $companionDetector    = new CompanionDetector($mediaTypeClassifier);
+        $canonicalScorer      = new CanonicalScorer();
+        $roleAssigner         = new RoleAssigner($canonicalScorer, $companionDetector, $mediaTypeClassifier);
+        $targetNameResolver   = TargetNameResolverFactory::create();
+        $collisionResolver    = new CollisionResolver();
+        $renamePlanValidator  = new RenamePlanValidator();
+        $executionPlanBuilder = new ExecutionPlanBuilder();
 
         $pipeline = new AssetGroupPipeline(
             $captureGroupBuilder,

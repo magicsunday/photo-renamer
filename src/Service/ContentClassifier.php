@@ -89,7 +89,7 @@ final class ContentClassifier implements ContentClassifierInterface
     /**
      * @param SafeHashCalculatorInterface       $hashCalculator           Computes file content hashes for sub-group keying
      * @param ProgressReporterInterface         $progressReporter         Narrow reporting boundary for recoverable diagnostics
-     * @param MediaTypeClassifierInterface      $mediaTypeClassifier      Classifies files as still or video
+     * @param MediaTypeClassifier               $mediaTypeClassifier      Classifies files as still or video
      * @param PerceptualHashCalculatorInterface $perceptualHashCalculator Multi-signal similarity scoring
      * @param LocalDifferenceAnalyzer           $localDiffAnalyzer        Stage B: grayscale RMSE and mean chroma for likely still matches
      * @param ImagickImageLoader                $imageLoader              Image loader for Stage B pixel extraction
@@ -98,7 +98,7 @@ final class ContentClassifier implements ContentClassifierInterface
     public function __construct(
         private readonly SafeHashCalculatorInterface $hashCalculator,
         private readonly ProgressReporterInterface $progressReporter,
-        private readonly MediaTypeClassifierInterface $mediaTypeClassifier,
+        private readonly MediaTypeClassifier $mediaTypeClassifier,
         private readonly PerceptualHashCalculatorInterface $perceptualHashCalculator,
         private readonly LocalDifferenceAnalyzer $localDiffAnalyzer,
         private readonly ImagickImageLoader $imageLoader,

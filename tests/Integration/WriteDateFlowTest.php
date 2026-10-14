@@ -25,7 +25,6 @@ use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilder;
 use MagicSunday\Renamer\Service\ExiftoolWriter;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetector;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoPairingService;
-use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\PerceptualHash\ImagickImageLoader;
 use MagicSunday\Renamer\Service\PerceptualHash\LocalDifferenceAnalyzer;
@@ -268,14 +267,13 @@ final class WriteDateFlowTest extends TestCase
             new OrphanLivePhotoVideoReconciler($mediaTypeClassifier, $perceptualHashCalculator, $progressReporter),
             $progressReporter,
         );
-        $mediaCompatibilityPolicy = new MediaCompatibilityPolicy($mediaTypeClassifier);
-        $companionDetector        = new CompanionDetector($mediaCompatibilityPolicy);
-        $canonicalScorer          = new CanonicalScorer();
-        $roleAssigner             = new RoleAssigner($canonicalScorer, $companionDetector, $mediaCompatibilityPolicy);
-        $targetNameResolver       = TargetNameResolverFactory::create();
-        $collisionResolver        = new CollisionResolver();
-        $renamePlanValidator      = new RenamePlanValidator();
-        $executionPlanBuilder     = new ExecutionPlanBuilder();
+        $companionDetector    = new CompanionDetector($mediaTypeClassifier);
+        $canonicalScorer      = new CanonicalScorer();
+        $roleAssigner         = new RoleAssigner($canonicalScorer, $companionDetector, $mediaTypeClassifier);
+        $targetNameResolver   = TargetNameResolverFactory::create();
+        $collisionResolver    = new CollisionResolver();
+        $renamePlanValidator  = new RenamePlanValidator();
+        $executionPlanBuilder = new ExecutionPlanBuilder();
 
         $pipeline = new AssetGroupPipeline(
             $captureGroupBuilder,

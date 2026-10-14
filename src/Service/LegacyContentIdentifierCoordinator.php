@@ -39,10 +39,10 @@ use function array_key_exists;
 final readonly class LegacyContentIdentifierCoordinator
 {
     /**
-     * @param MediaTypeClassifierInterface $mediaTypeClassifier Distinguishes Live Photo stills from deferred companion videos.
+     * @param MediaTypeClassifier $mediaTypeClassifier Distinguishes Live Photo stills from deferred companion videos.
      */
     public function __construct(
-        private MediaTypeClassifierInterface $mediaTypeClassifier,
+        private MediaTypeClassifier $mediaTypeClassifier,
     ) {
     }
 

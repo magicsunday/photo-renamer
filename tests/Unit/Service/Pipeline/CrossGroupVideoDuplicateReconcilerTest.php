@@ -20,7 +20,6 @@ use MagicSunday\Renamer\Model\Pipeline\VideoDuplicateCandidate;
 use MagicSunday\Renamer\Model\Pipeline\VideoFingerprintMatch;
 use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Service\ComparisonWorkLimit;
-use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\Pipeline\CrossGroupVideoComparisonPlan;
 use MagicSunday\Renamer\Service\Pipeline\CrossGroupVideoDuplicateReconciler;
@@ -68,7 +67,6 @@ use const PHP_INT_MAX;
 #[UsesClass(PipelineContext::class)]
 #[UsesClass(VideoFingerprintMatch::class)]
 #[UsesClass(VideoDuplicateCandidate::class)]
-#[UsesClass(MediaCompatibilityPolicy::class)]
 #[UsesClass(MediaTypeClassifier::class)]
 #[UsesClass(ConsoleProgressReporter::class)]
 #[UsesClass(DurationBucketedVideoCandidate::class)]
@@ -87,7 +85,7 @@ final class CrossGroupVideoDuplicateReconcilerTest extends TestCase
         $this->matcher    = $this->createMock(VideoStreamFingerprintMatcherInterface::class);
         $this->output     = new BufferedOutput();
         $this->reconciler = new CrossGroupVideoDuplicateReconciler(
-            new MediaCompatibilityPolicy(new MediaTypeClassifier()),
+            new MediaTypeClassifier(),
             $this->matcher,
             new ConsoleProgressReporter(new SymfonyStyle(new ArrayInput([]), $this->output)),
             new ComparisonWorkLimit(100000),
@@ -285,7 +283,7 @@ final class CrossGroupVideoDuplicateReconcilerTest extends TestCase
             return new VideoFingerprintMatch(false, false, false, false, false);
         });
         $reconciler = new CrossGroupVideoDuplicateReconciler(
-            new MediaCompatibilityPolicy(new MediaTypeClassifier()),
+            new MediaTypeClassifier(),
             $this->matcher,
             new ConsoleProgressReporter(new SymfonyStyle(new ArrayInput([]), $this->output)),
             new ComparisonWorkLimit(2),
@@ -406,7 +404,7 @@ final class CrossGroupVideoDuplicateReconcilerTest extends TestCase
     public function enforcesOneBudgetAcrossDurationBuckets(): void
     {
         $this->matcher->expects(self::once())->method('match')->willReturn(new VideoFingerprintMatch(false, false, false, false, false));
-        $reconciler = new CrossGroupVideoDuplicateReconciler(new MediaCompatibilityPolicy(new MediaTypeClassifier()), $this->matcher, new ConsoleProgressReporter(new SymfonyStyle(new ArrayInput([]), $this->output)), new ComparisonWorkLimit(1));
+        $reconciler = new CrossGroupVideoDuplicateReconciler(new MediaTypeClassifier(), $this->matcher, new ConsoleProgressReporter(new SymfonyStyle(new ArrayInput([]), $this->output)), new ComparisonWorkLimit(1));
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageMatches('/cross-group video batch/');
         $reconciler->reconcile($this->createDistinctGroups(4, 2), new PipelineContext('/synthetic'));
@@ -431,7 +429,7 @@ final class CrossGroupVideoDuplicateReconcilerTest extends TestCase
         }
 
         $this->matcher->expects(self::never())->method('match');
-        $reconciler = new CrossGroupVideoDuplicateReconciler(new MediaCompatibilityPolicy(new MediaTypeClassifier()), $this->matcher, new ConsoleProgressReporter(new SymfonyStyle(new ArrayInput([]), $this->output)), new ComparisonWorkLimit(1));
+        $reconciler = new CrossGroupVideoDuplicateReconciler(new MediaTypeClassifier(), $this->matcher, new ConsoleProgressReporter(new SymfonyStyle(new ArrayInput([]), $this->output)), new ComparisonWorkLimit(1));
         $reconciler->reconcile($groups, new PipelineContext('/synthetic'));
         self::assertCount($count, $groups);
         self::assertSame('', $this->output->fetch());
@@ -463,7 +461,7 @@ final class CrossGroupVideoDuplicateReconcilerTest extends TestCase
         $groups = new AssetGroupCollection();
         $groups->set('single', $single);
         $this->matcher->expects(self::never())->method('match');
-        $reconciler = new CrossGroupVideoDuplicateReconciler(new MediaCompatibilityPolicy(new MediaTypeClassifier()), $this->matcher, new ConsoleProgressReporter(new SymfonyStyle(new ArrayInput([]), $this->output)), new ComparisonWorkLimit(1));
+        $reconciler = new CrossGroupVideoDuplicateReconciler(new MediaTypeClassifier(), $this->matcher, new ConsoleProgressReporter(new SymfonyStyle(new ArrayInput([]), $this->output)), new ComparisonWorkLimit(1));
         $reconciler->reconcile($groups, new PipelineContext('/synthetic'));
         self::assertSame(4, $single->itemCount());
         self::assertSame('', $this->output->fetch());
@@ -477,7 +475,7 @@ final class CrossGroupVideoDuplicateReconcilerTest extends TestCase
     public function resetsVisitedPairCountForEachBatch(): void
     {
         $this->matcher->expects(self::exactly(2))->method('match')->willReturn(new VideoFingerprintMatch(false, false, false, false, false));
-        $reconciler = new CrossGroupVideoDuplicateReconciler(new MediaCompatibilityPolicy(new MediaTypeClassifier()), $this->matcher, new ConsoleProgressReporter(new SymfonyStyle(new ArrayInput([]), $this->output)), new ComparisonWorkLimit(1));
+        $reconciler = new CrossGroupVideoDuplicateReconciler(new MediaTypeClassifier(), $this->matcher, new ConsoleProgressReporter(new SymfonyStyle(new ArrayInput([]), $this->output)), new ComparisonWorkLimit(1));
         $first      = $this->createDistinctGroups(2);
         $second     = $this->createDistinctGroups(2);
         $reconciler->reconcile($first, new PipelineContext('/synthetic'));

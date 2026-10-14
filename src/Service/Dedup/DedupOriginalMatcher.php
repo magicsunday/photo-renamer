@@ -13,7 +13,7 @@ namespace MagicSunday\Renamer\Service\Dedup;
 
 use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Helper\FileHelper;
-use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
+use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use SplFileInfo;
 
 use function str_contains;
@@ -38,10 +38,10 @@ use function substr_count;
 final readonly class DedupOriginalMatcher
 {
     /**
-     * @param MediaCompatibilityPolicy $mediaCompatibilityPolicy Shared still/video compatibility rules
+     * @param MediaTypeClassifier $mediaTypeClassifier Shared still/video compatibility rules
      */
     public function __construct(
-        private MediaCompatibilityPolicy $mediaCompatibilityPolicy,
+        private MediaTypeClassifier $mediaTypeClassifier,
     ) {
     }
 
@@ -172,7 +172,7 @@ final readonly class DedupOriginalMatcher
             return true;
         }
 
-        return $this->mediaCompatibilityPolicy->areBothStillImages($duplicateFile, $candidate);
+        return $this->mediaTypeClassifier->areBothStillImages($duplicateFile, $candidate);
     }
 
     /**

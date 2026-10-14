@@ -32,9 +32,9 @@ use function str_starts_with;
 final readonly class LegacyLivePhotoTargetPromoter
 {
     /**
-     * @param MediaTypeClassifierInterface $mediaTypeClassifier Classifier used to distinguish still targets from video targets.
+     * @param MediaTypeClassifier $mediaTypeClassifier Classifier used to distinguish still targets from video targets.
      */
-    public function __construct(private MediaTypeClassifierInterface $mediaTypeClassifier)
+    public function __construct(private MediaTypeClassifier $mediaTypeClassifier)
     {
     }
 

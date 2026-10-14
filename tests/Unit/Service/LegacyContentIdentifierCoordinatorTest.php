@@ -19,7 +19,7 @@ use MagicSunday\Renamer\Model\SkippedFile;
 use MagicSunday\Renamer\Model\TargetFileResult;
 use MagicSunday\Renamer\Service\ContentIdentifierCacheEntry;
 use MagicSunday\Renamer\Service\LegacyContentIdentifierCoordinator;
-use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
+use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
@@ -39,6 +39,7 @@ use SplFileInfo;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(LegacyContentIdentifierCoordinator::class)]
+#[UsesClass(MediaTypeClassifier::class)]
 #[UsesClass(ContentIdentifierCacheEntry::class)]
 #[UsesClass(FileDuplicateCollection::class)]
 #[UsesClass(FileList::class)]
@@ -54,7 +55,7 @@ final class LegacyContentIdentifierCoordinatorTest extends TestCase
     #[Test]
     public function resolveCacheEntryCreatesSharedEntry(): void
     {
-        $coordinator            = new LegacyContentIdentifierCoordinator(self::createStub(MediaTypeClassifierInterface::class));
+        $coordinator            = new LegacyContentIdentifierCoordinator(new MediaTypeClassifier());
         $contentIdentifierCache = [];
 
         $entryA = $coordinator->resolveCacheEntry('abc-123', $contentIdentifierCache);
@@ -71,8 +72,7 @@ final class LegacyContentIdentifierCoordinatorTest extends TestCase
     #[Test]
     public function handleDeferredVideoCompanionQueuesPendingVideo(): void
     {
-        $classifier = $this->createMock(MediaTypeClassifierInterface::class);
-        $classifier->expects(self::once())->method('isLivePhotoStill')->willReturn(false);
+        $classifier = new MediaTypeClassifier();
 
         $coordinator            = new LegacyContentIdentifierCoordinator($classifier);
         $contentIdentifierCache = [];
@@ -105,7 +105,7 @@ final class LegacyContentIdentifierCoordinatorTest extends TestCase
     #[Test]
     public function attachToResolvedGroupReplaysPendingFiles(): void
     {
-        $coordinator            = new LegacyContentIdentifierCoordinator(self::createStub(MediaTypeClassifierInterface::class));
+        $coordinator            = new LegacyContentIdentifierCoordinator(new MediaTypeClassifier());
         $contentIdentifierCache = [];
         $cacheEntry             = $coordinator->resolveCacheEntry('abc-123', $contentIdentifierCache);
         $fileDuplicate          = new FileDuplicate();
@@ -138,7 +138,7 @@ final class LegacyContentIdentifierCoordinatorTest extends TestCase
     #[Test]
     public function handleSkippedFileAttachesToResolvedGroup(): void
     {
-        $coordinator            = new LegacyContentIdentifierCoordinator(self::createStub(MediaTypeClassifierInterface::class));
+        $coordinator            = new LegacyContentIdentifierCoordinator(new MediaTypeClassifier());
         $contentIdentifierCache = [];
         $cacheEntry             = $coordinator->resolveCacheEntry('abc-123', $contentIdentifierCache);
         $collection             = new FileDuplicateCollection();
@@ -175,7 +175,7 @@ final class LegacyContentIdentifierCoordinatorTest extends TestCase
     #[Test]
     public function resolvePendingFallbackGroupsCreatesFallbackGroup(): void
     {
-        $coordinator            = new LegacyContentIdentifierCoordinator(self::createStub(MediaTypeClassifierInterface::class));
+        $coordinator            = new LegacyContentIdentifierCoordinator(new MediaTypeClassifier());
         $contentIdentifierCache = [];
         $cacheEntry             = $coordinator->resolveCacheEntry('abc-123', $contentIdentifierCache);
         $collection             = new FileDuplicateCollection();

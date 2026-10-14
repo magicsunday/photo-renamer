@@ -18,7 +18,7 @@ use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\Pipeline\VideoDuplicateCandidate;
 use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Service\ComparisonWorkLimit;
-use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
+use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use MagicSunday\Renamer\Service\Video\VideoStreamFingerprintMatcherInterface;
 
@@ -46,13 +46,13 @@ use const PHP_INT_MAX;
 final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVideoDuplicateReconcilerInterface
 {
     /**
-     * @param MediaCompatibilityPolicy               $mediaCompatibilityPolicy      Distinguishes video/still families consistently with the rest of the project
+     * @param MediaTypeClassifier                    $mediaTypeClassifier           Distinguishes video/still families consistently with the rest of the project
      * @param VideoStreamFingerprintMatcherInterface $videoStreamFingerprintMatcher Stream-level exact-content matcher for videos
      * @param ProgressReporterInterface              $progressReporter              Narrow reporting boundary for progress headings and diagnostics
      * @param ComparisonWorkLimit                    $comparisonWorkLimit           Finite pair-visit budget for the entire cross-group batch
      */
     public function __construct(
-        private MediaCompatibilityPolicy $mediaCompatibilityPolicy,
+        private MediaTypeClassifier $mediaTypeClassifier,
         private VideoStreamFingerprintMatcherInterface $videoStreamFingerprintMatcher,
         private ProgressReporterInterface $progressReporter,
         private ComparisonWorkLimit $comparisonWorkLimit,
@@ -187,7 +187,7 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
             usort($items, static fn (AssetItem $itemA, AssetItem $itemB): int => $itemA->file->getPathname() <=> $itemB->file->getPathname());
 
             foreach ($items as $item) {
-                if (!$this->mediaCompatibilityPolicy->isVideo($item->file)) {
+                if (!$this->mediaTypeClassifier->isVideo($item->file)) {
                     continue;
                 }
 

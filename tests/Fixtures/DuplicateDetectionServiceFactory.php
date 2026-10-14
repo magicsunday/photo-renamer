@@ -23,7 +23,7 @@ use MagicSunday\Renamer\Service\LegacyLivePhotoQualityFlagPropagator;
 use MagicSunday\Renamer\Service\LegacyLivePhotoTargetPromoter;
 use MagicSunday\Renamer\Service\LegacyTargetOccupancyChecker;
 use MagicSunday\Renamer\Service\LivePhoto\LivePhotoConflictDetectorInterface;
-use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
+use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use MagicSunday\Renamer\Service\TargetFileResolver;
 use MagicSunday\Renamer\Service\TargetPathResolver;
@@ -47,13 +47,13 @@ final class DuplicateDetectionServiceFactory
      *
      * @param ProgressReporterInterface               $progressReporter          Reporter used for recoverable progress and diagnostics.
      * @param HashSubGroupingServiceInterface         $hashSubGroupingService    Legacy subgrouping service shared with the old execution path.
-     * @param MediaTypeClassifierInterface            $mediaTypeClassifier       Media classifier shared with legacy Live Photo helpers.
+     * @param MediaTypeClassifier                     $mediaTypeClassifier       Media classifier shared with legacy Live Photo helpers.
      * @param LivePhotoConflictDetectorInterface|null $livePhotoConflictDetector Optional conflict detector for tests that model mismatched LP IDs.
      */
     public static function create(
         ProgressReporterInterface $progressReporter,
         HashSubGroupingServiceInterface $hashSubGroupingService,
-        MediaTypeClassifierInterface $mediaTypeClassifier,
+        MediaTypeClassifier $mediaTypeClassifier,
         ?LivePhotoConflictDetectorInterface $livePhotoConflictDetector = null,
     ): DuplicateDetectionService {
         $targetPathResolver = new TargetPathResolver();

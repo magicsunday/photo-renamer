@@ -13,7 +13,7 @@ namespace MagicSunday\Renamer\Service\LivePhoto;
 
 use DateTimeInterface;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
-use MagicSunday\Renamer\Service\MediaTypeClassifierInterface;
+use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use Override;
 
 use function abs;
@@ -54,7 +54,7 @@ use function sqrt;
 final readonly class LivePhotoConflictDetector implements LivePhotoConflictDetectorInterface
 {
     public function __construct(
-        private MediaTypeClassifierInterface $mediaTypeClassifier,
+        private MediaTypeClassifier $mediaTypeClassifier,
         private float $maxVideoDurationSeconds = 3.0,
         private float $maxGpsDistanceMeters = 30.0,
         private int $fallbackSecondWindow = 1,
