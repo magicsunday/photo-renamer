@@ -82,9 +82,8 @@ abstract class AbstractRenameCommand extends AbstractMediaRenameCommand
     }
 
     /**
-     * Executes the full pipeline: creates the file iterator, counts files, groups
-     * them by duplicate identifier, assigns duplicate filenames and invokes the
-     * file system service to perform the actual rename/copy operations.
+     * Collects sources, plans legacy duplicate names and delegates guarded moves
+     * or a non-mutating preview to the legacy executor.
      *
      * @throws AnalysisMemoryBudgetExceededException When retained files reach the pre-mutation budget
      */

@@ -36,9 +36,8 @@ use function trim;
  * Hashes video and audio streams via ffmpeg's streamhash muxer.
  *
  * Unlike whole-file hashing, stream-level hashing ignores container metadata
- * rewrites and additional non-A/V data tracks. That makes it suitable for the
- * exact-content duplicate checks required by Feature Track A while still keeping
- * the duplicate policy conservative around missing or mismatched audio.
+ * rewrites and non-A/V data tracks. Missing/mismatched audio or additional AV
+ * streams prevent automatic exact-duplicate grouping.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT

@@ -12,12 +12,9 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Model\Pipeline;
 
 /**
- * Describes the exact-content evidence produced by VideoStreamFingerprintMatcher.
- *
- * Feature Track A needs an explicit policy result model instead of ad-hoc booleans
- * spread across the reconciler. This DTO captures whether the video stream matched,
- * how the optional audio streams compare, and which operator-facing review reason
- * applies when the pair is suspicious but not safe to auto-merge.
+ * Measured video/audio equality and availability from VideoStreamFingerprintMatcher.
+ * Missing or mismatched audio and additional AV streams remain review evidence,
+ * preventing primary-video equality alone from authorizing group consolidation.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT

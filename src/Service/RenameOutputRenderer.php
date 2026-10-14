@@ -55,17 +55,9 @@ use function usort;
 use const PATHINFO_EXTENSION;
 
 /**
- * Handles all console output rendering for the rename phase.
- *
- * This class centralizes all display logic, including:
- * - Building merged and sorted output entry lists from rename operations.
- * - Rendering summary statistics tables with aligned columns.
- * - Managing different output tags (Canonical, Duplicate, Warning, etc.).
- * - Highlighting differences between source and target filenames for readability.
- * - Providing display-related query helpers (e.g., counting Live Photo groups).
- *
- * Rendering stays separate from physical mutations performed by the runtime
- * executors so previews and summaries can be produced without changing files.
+ * Projects rename plans into sorted Console entries, diffs and summary tables.
+ * Rendering does not mutate media. Previews use planned counts; execution
+ * summaries use observed runtime results where supplied.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT

@@ -171,8 +171,8 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
     /**
      * Collects videos into normalized-duration buckets for conservative comparison.
      *
-     * Missing duration metadata currently blocks Feature Track A because the cheap
-     * duration guard is part of the safety policy.
+     * Missing duration metadata excludes a video from cross-group comparison;
+     * the duration guard is required before stream-identity analysis.
      *
      * @param AssetGroupCollection $groups Capture groups to inspect
      *

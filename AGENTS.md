@@ -114,10 +114,10 @@ Normal media runs (`renamer.sh`, `make run`) use the separate `runtime` service:
     - README is the concise current entry point: purpose, requirements, quick start, usage/configuration, contribution/help/license links. Keep detailed operating and architecture guidance in linked docs; do not add change histories, removed-symbol inventories or past benchmark runs to README.
     - When deleting or moving code, review adjacent inline comments and the enclosing DocBlocks. Remove orphan section labels, references to removed symbols, and claims that no longer match the implementation. Include comments, examples and current documentation in every code review; retain historical plans only with an explicit historical-status notice.
     - Every class and method MUST have a DocBlock.
-    - **Classes:** Describe the specific purpose, high-level responsibility, and architecture. Explain *why* certain design choices were made (e.g., immutability, transitional mapping).
-    - **Methods:** Describe *what* they do and *why* they do it that way. Document all parameters (`@param`) with meaningful descriptions and specify return values (`@return`). Explain any critical implementation details or side effects.
-    - **Tests:** Every test method must be analyzed and described in detail (what is specifically tested under which conditions). Avoid generic "tests X" descriptions. Explain the business or technical requirement the test verifies.
-    - **Enums & Constants:** Document the meaning and use cases of each case or constant. Provide context on how they influence the application's behavior.
+    - **Classes:** State the concrete responsibility briefly; explain design choices only when their reason is not evident from the code.
+    - **Methods:** Keep DocBlocks concise. Do not restate trivial typed assignments or the method name in prose. Retain meaningful `@param`/`@return`, PHPStan types, generics and checked `@throws`; explain non-obvious units, null semantics, normalization, side effects and safety/lifecycle constraints.
+    - **Tests:** Briefly name the condition and observable requirement protected. Explain unusual setup or failure boundaries when needed; do not narrate each assertion or claim behavior that the test does not observe.
+    - **Enums & Constants:** Document meaning, units and non-obvious policy effects without repeating self-explanatory names. Existing safety explanations remain substantive.
 
 ## PHPStan
 
