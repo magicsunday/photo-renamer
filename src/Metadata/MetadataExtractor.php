@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Metadata;
 
+use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
 use MagicSunday\ImageMeta\Core\ParseError;
@@ -36,9 +37,8 @@ use function trim;
  * - QuickTime: Keys:CreationDate or mvhd:CreateDate for videos.
  * - MakerNotes: Apple-specific Live Photo identifiers to pair JPG/HEIC with MOV.
  *
- * It implements a fallback logic where it prefers high-precision creation dates
- * (including timezone offsets if present) but falls back to file modification
- * time (mtime) if no internal metadata is found.
+ * It prefers capture timestamps with explicit offsets and retains metadata
+ * modification dates as fallback evidence, separately from the raw movie clock.
  */
 final readonly class MetadataExtractor implements MetadataExtractorInterface
 {
@@ -133,11 +133,6 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
             return null;
         }
 
-        // Raw QuickTime CreateDate for --force re-writes (bypasses Keys:CreationDate resolution)
-        $rawQuickTimeCreateDate = $isQuickTimeContainer
-            ? $structured->locationTime->capture->dateTime
-            : null;
-
         return new TemporalMetadata(
             $captureTimestampExtraction->captureDateTime,
             $livePhotoId,
@@ -151,8 +146,27 @@ final readonly class MetadataExtractor implements MetadataExtractorInterface
             $longitude,
             $videoDurationSeconds,
             $hasQuickTimeLivePhotoMarker,
-            $rawQuickTimeCreateDate,
+            $this->extractRawQuickTimeCreateDate($metadata),
         );
+    }
+
+    /**
+     * Reads the movie-header clock independently of preferred Keys/EXIF dates.
+     * Zero denotes an uninitialized header; Mac-epoch seconds become UTC Unix time.
+     *
+     * @param Metadata $metadata Parsed container exposing the original mvhd field
+     *
+     * @return DateTimeImmutable|null Raw UTC clock, or null when absent/uninitialized
+     */
+    private function extractRawQuickTimeCreateDate(Metadata $metadata): ?DateTimeImmutable
+    {
+        $seconds = $metadata->quickTime?->intValue(QuickTimeMeta::CREATE_DATE_KEY);
+
+        if (($seconds === null) || ($seconds === 0)) {
+            return null;
+        }
+
+        return DateTimeImmutable::createFromTimestamp($seconds - 2_082_844_800);
     }
 
     /**

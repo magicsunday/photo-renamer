@@ -14,6 +14,7 @@ namespace MagicSunday\Renamer\Test\Integration;
 use MagicSunday\ImageMeta\MetadataReader;
 use MagicSunday\Renamer\Command\RenameByExifDateCommand;
 use MagicSunday\Renamer\Command\WriteDateCommand;
+use MagicSunday\Renamer\Helper\PrivateCacheStorage;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\MetadataExtractor;
 use MagicSunday\Renamer\Regex\SafeRegex;
@@ -54,8 +55,10 @@ use MagicSunday\Renamer\Test\Fixtures\RuntimeExecutorFactory;
 use MagicSunday\Renamer\Test\Fixtures\TargetNameResolverFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use SplFileInfo;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
@@ -65,9 +68,17 @@ use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
 
 use function copy;
+use function dirname;
+use function explode;
+use function json_decode;
+use function json_encode;
+use function trim;
+
+use const JSON_THROW_ON_ERROR;
+use const PHP_BINARY;
 
 /**
- * Multi-step integration tests that exercise write-date → rename:exif flows.
+ * Exercises write-date → rename:exif flows and real CLI timezone repair across caches.
  * Requires exiftool to be available in the test environment.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
@@ -80,9 +91,116 @@ final class WriteDateFlowTest extends TestCase
     use ConsoleOutputParserTrait;
     use WorkspaceTrait;
 
+    /**
+     * @return string Directory containing public synthetic media fixtures
+     */
     private function testImagesDir(): string
     {
         return __DIR__ . '/../Fixtures/Images';
+    }
+
+    /**
+     * Forced repairs must use the movie-header clock even when an earlier Keys
+     * value is wrong, both cold and through persisted or obsolete metadata caches.
+     *
+     * @param bool   $localAsUtc Interpret the raw clock as local time instead of actual UTC
+     * @param string $cacheMode  Start cold, reuse current entries, or reject previous interpretation
+     *
+     * @return void
+     */
+    #[Test]
+    #[DataProvider('forcedRepairModes')]
+    public function forcedRepairsReadMovieHeaderInsteadOfExistingKeys(bool $localAsUtc, string $cacheMode): void
+    {
+        $workspace  = $this->createTempWorkspace();
+        $filesystem = new Filesystem();
+        $source     = $workspace . '/2025-02-15_13-00-00.mov';
+        $state      = $workspace . '/state';
+        $env        = ['CACHE_DIR' => $state, 'TIMEZONE' => 'Europe/Berlin', 'MAX_DATE_DRIFT' => '0'];
+
+        try {
+            $filesystem->copy($this->testImagesDir() . '/33-mov-with-timezone/clip.mov', $source);
+            $prepare = new Process(['exiftool', '-overwrite_original', '-Keys:CreationDate=2025:02:15 16:00:00+01:00', $source]);
+            $prepare->mustRun();
+
+            if ($cacheMode !== 'cold') {
+                $verify = new Process([PHP_BINARY, dirname(__DIR__, 2) . '/src/Renamer.php', 'rename:verify', $source], $workspace, $env);
+                $verify->mustRun();
+
+                if ($cacheMode === 'previous') {
+                    $cacheFile = new PrivateCacheStorage($filesystem)->directory($state) . '/metadata-cache.json';
+                    $payload   = json_decode($filesystem->readFile($cacheFile), true, flags: JSON_THROW_ON_ERROR);
+                    self::assertIsArray($payload);
+                    $payload['_version'] = 1;
+                    self::assertIsArray($payload['entries']);
+                    self::assertIsArray($payload['entries'][$source]);
+                    $payload['entries'][$source]['rawQuickTimeCreateDate'] = null;
+                    $filesystem->dumpFile($cacheFile, json_encode($payload, JSON_THROW_ON_ERROR));
+                }
+            }
+
+            $args = [PHP_BINARY, dirname(__DIR__, 2) . '/src/Renamer.php', 'rename:write-date', '--force', '--reason=timezone', $source];
+
+            if ($localAsUtc) {
+                $args[] = '--local-as-utc';
+            }
+
+            $repair = new Process($args, $workspace, $env);
+            $repair->setInput("yes\n");
+            $repair->mustRun();
+            $observed = new Process(['exiftool', '-s3', '-QuickTime:CreateDate', '-Keys:CreationDate', $source]);
+            $observed->mustRun();
+            self::assertSame(
+                $localAsUtc
+                    ? ['2025:02:15 12:00:00', '2025:02:15 13:00:00+01:00']
+                    : ['2025:02:15 13:00:00', '2025:02:15 14:00:00+01:00'],
+                explode("\n", trim($observed->getOutput())),
+            );
+        } finally {
+            $filesystem->remove($workspace);
+        }
+    }
+
+    /**
+     * @return iterable<string, array{bool, string}> Both repair policies across real cache boundaries
+     */
+    public static function forcedRepairModes(): iterable
+    {
+        foreach ([false, true] as $localAsUtc) {
+            foreach (['cold', 'warm', 'previous'] as $mode) {
+                yield ($localAsUtc ? 'local clock ' : 'real UTC ') . $mode => [$localAsUtc, $mode];
+            }
+        }
+    }
+
+    /**
+     * Missing and uninitialized movie-header timestamps must remain unavailable
+     * rather than borrowing the valid preferred Keys or still-image EXIF date.
+     *
+     * @return void
+     */
+    #[Test]
+    public function absentRawMovieDatesDoNotBorrowPreferredCaptureDates(): void
+    {
+        $workspace  = $this->createTempWorkspace();
+        $filesystem = new Filesystem();
+        $movie      = $workspace . '/zero.mov';
+
+        try {
+            $filesystem->copy($this->testImagesDir() . '/33-mov-with-timezone/clip.mov', $movie);
+            $prepare = new Process(['exiftool', '-overwrite_original', '-QuickTime:CreateDate=1904:01:01 00:00:00', $movie]);
+            $prepare->mustRun();
+            $extractor = new MetadataExtractor(MetadataReader::createDefault());
+
+            foreach ([$movie, $this->testImagesDir() . '/14-heic-image/IMG_0042.heic'] as $path) {
+                $metadata = $extractor->extractTemporalMetadata(new SplFileInfo($path));
+                self::assertNotNull($metadata);
+                self::assertNotNull($metadata->getCaptureDateTime());
+                self::assertNull($metadata->getRawQuickTimeCreateDate());
+            }
+        } finally {
+            $filesystem->remove($workspace);
+        }
     }
 
     /**

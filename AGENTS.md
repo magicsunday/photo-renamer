@@ -175,7 +175,7 @@ Exception, Constants < Regex < Model < Helper < Contract < Metadata < Service < 
 
 | Command | Purpose |
 |---------|---------|
-| `rename:exif` | Rename by EXIF date (primary command) |
+| `rename:exif` | Rename by EXIF date; `-p` / `--target-filename-pattern` selects the filename format |
 | `rename:hash` | Group duplicates by content hash |
 | `rename:pattern` | Regex-based renaming |
 | `rename:date` | Extract date from filename patterns |
@@ -278,7 +278,7 @@ This is an intentional bounded exception (End State B). These commands are too s
 ### Timezone Handling
 
 - QuickTime/MP4 timestamps are stored in UTC (Mac epoch). The `TIMEZONE` env var converts them to local time.
-- **Non-Apple cameras** (Panasonic, Canon, etc.) store **local time as UTC** in QuickTime containers. `write-date --reason=timezone` preserves the raw CreateDate and adds `Keys:CreationDate` with the configured TZ offset.
+- **QuickTime timezone repairs** — default `write-date --reason=timezone` preserves raw UTC and adds offset-bearing `Keys:CreationDate`. Cameras storing local clock time as UTC require `--local-as-utc`: preserve that clock in Keys, normalize raw CreateDate/ModifyDate to UTC. Force reads the actual mvhd clock via `QuickTimeMeta::CREATE_DATE_KEY`, never the resolved Keys or environmental capture date; absent/zero headers stay null. Cache interpretation changes invalidate older snapshots. Repeated forced local-clock reinterpretation is not idempotent; ordinary reliable metadata is skipped without force.
 - EXIF dates in JPEG/HEIC are already in local camera time — never convert these.
 - `TemporalMetadata` accepts `DateTimeInterface` inputs but stores and exposes only `DateTimeImmutable` timestamps. Normalize both capture/raw dates in the constructor and capture replacements in the wither; preserve null, timezone, microseconds and already immutable input identity. `withCaptureDateTime()` updates only the capture timestamp through native PHP 8.5 clone-with, retaining raw QuickTime provenance and every other field automatically. The constructor is not called again, so normalization must remain explicit in the wither. Keep derived markers and normalized identifiers unchanged, and test all independent fields with synthetic metadata.
 - Ambiguous timezone detection uses metadata structure (`QuickTimeMeta` presence + no `temporal->tz` + no offset tags), **not** file extensions.
