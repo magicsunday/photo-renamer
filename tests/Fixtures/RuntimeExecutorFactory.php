@@ -20,54 +20,68 @@ use MagicSunday\Renamer\Service\Filesystem\MutationJournal;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
 use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
-use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
+use Symfony\Component\Console\Input\ArrayInput;
+use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Filesystem\Filesystem;
 
 /**
- * Creates fully wired FileSystemService instances for tests.
+ * Wires real runtime executors and mutation scopes for synthetic filesystem tests.
  *
- * The production container now provides explicit constructor wiring for the
- * filesystem facade and its runtime executors. This fixture keeps manual test
- * setup aligned with that DI shape without duplicating the same nested object
- * graph across unit and integration tests.
+ * The fixture constructs the same shared mover/journal graph as production DI;
+ * callers receive the particular executor they exercise directly.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-final readonly class FileSystemServiceFactory
+final readonly class RuntimeExecutorFactory
 {
     /**
-     * Creates a FileSystemService with its concrete filesystem collaborators.
+     * Creates the legacy executor with its renderer and shared mutation journal.
      *
-     * @param RenameOutputRenderer $renderer Shared output renderer used by the legacy rename executor
-     * @param SymfonyStyle         $io       Console IO used by the progress reporter
+     * @param RenameOutputRenderer|null $renderer Optional renderer for output assertions
+     * @param SymfonyStyle|null         $io       Optional console used by the progress reporter
      *
-     * @return FileSystemService Fully wired filesystem facade instance for tests
+     * @return LegacyRenameExecutor Real legacy executor for synthetic file mutations
      */
-    public static function create(RenameOutputRenderer $renderer, SymfonyStyle $io): FileSystemService
+    public static function createLegacy(?RenameOutputRenderer $renderer = null, ?SymfonyStyle $io = null): LegacyRenameExecutor
     {
-        $progressReporter              = new ConsoleProgressReporter($io);
-        $filesystem                    = new Filesystem();
-        $runtimeCollisionPathAllocator = new RuntimeCollisionPathAllocator();
-        $journal                       = self::createMutationJournal();
-        $runtimeFileMoveExecutor       = new RuntimeFileMoveExecutor(
-            $progressReporter,
-            $filesystem,
-            $runtimeCollisionPathAllocator,
-            self::createSourceIdentityGuard(),
-            $journal,
-        );
+        $io ??= new SymfonyStyle(new ArrayInput([]), new BufferedOutput());
+        $journal = self::createMutationJournal();
 
-        return new FileSystemService(
-            new FileCollector(new SafeRegex()),
-            new ExecutionPlanExecutor($progressReporter, $runtimeFileMoveExecutor, $journal),
-            new LegacyRenameExecutor($progressReporter, $renderer, $runtimeFileMoveExecutor, $journal),
-        );
+        return new LegacyRenameExecutor(new ConsoleProgressReporter($io), $renderer ?? OutputRendererFactory::create($io), self::createMover($io, $journal), $journal);
+    }
+
+    /**
+     * Creates the plan executor with its own shared mover and journal.
+     *
+     * @param SymfonyStyle|null $io Optional console for observed runtime diagnostics
+     *
+     * @return ExecutionPlanExecutor Real executor for synthetic execution plans
+     */
+    public static function createPlan(?SymfonyStyle $io = null): ExecutionPlanExecutor
+    {
+        $io ??= new SymfonyStyle(new ArrayInput([]), new BufferedOutput());
+        $journal = self::createMutationJournal();
+
+        return new ExecutionPlanExecutor(new ConsoleProgressReporter($io), self::createMover($io, $journal), $journal);
+    }
+
+    /**
+     * Shares the journal with the executor and keeps source observation explicit.
+     *
+     * @param SymfonyStyle    $io      Console for native mutation diagnostics
+     * @param MutationJournal $journal Same journal passed to the enclosing executor
+     *
+     * @return RuntimeFileMoveExecutor Mover using actual temporary-file operations
+     */
+    private static function createMover(SymfonyStyle $io, MutationJournal $journal): RuntimeFileMoveExecutor
+    {
+        return new RuntimeFileMoveExecutor(new ConsoleProgressReporter($io), new Filesystem(), new RuntimeCollisionPathAllocator(), self::createSourceIdentityGuard(), $journal);
     }
 
     /**

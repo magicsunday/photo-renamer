@@ -36,10 +36,10 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(RegexMatchResult::class)]
 #[UsesClass(SafeRegex::class)]
 /**
- * Verifies the dedicated filesystem collector extracted from FileSystemService.
+ * Verifies directory traversal and filename filtering at the actual collector.
  *
  * The collector owns directory traversal and flat file collection so those
- * responsibilities can be tested without going through the broader filesystem facade.
+ * responsibilities are independent of rename execution and mutation state.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT

@@ -26,7 +26,7 @@ use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
 use MagicSunday\Renamer\Service\Reporting\NullProgressReporter;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Service\SafeHashCalculatorInterface;
-use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
+use MagicSunday\Renamer\Test\Fixtures\RuntimeExecutorFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -85,7 +85,7 @@ final class StaleSourceMutationTest extends TestCase
 
         try {
             $guard->begin($source);
-            $mover    = new RuntimeFileMoveExecutor(new NullProgressReporter(), $filesystem, new RuntimeCollisionPathAllocator(), $guard, FileSystemServiceFactory::createMutationJournal());
+            $mover    = new RuntimeFileMoveExecutor(new NullProgressReporter(), $filesystem, new RuntimeCollisionPathAllocator(), $guard, RuntimeExecutorFactory::createMutationJournal());
             $occupied = [$source => true];
             $blocked  = false;
 
@@ -128,8 +128,8 @@ final class StaleSourceMutationTest extends TestCase
 
         $mtime    = new SplFileInfo($source)->getMTime();
         $reporter = new NullProgressReporter();
-        $guard    = FileSystemServiceFactory::createSourceIdentityGuard();
-        $journal  = FileSystemServiceFactory::createMutationJournal($workspace . '/state', $filesystem);
+        $guard    = RuntimeExecutorFactory::createSourceIdentityGuard();
+        $journal  = RuntimeExecutorFactory::createMutationJournal($workspace . '/state', $filesystem);
         $executor = new ExecutionPlanExecutor($reporter, new RuntimeFileMoveExecutor($reporter, $filesystem, new RuntimeCollisionPathAllocator(), $guard, $journal), $journal);
         $result   = null;
         $command  = new Command('rename:exif');

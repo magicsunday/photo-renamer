@@ -87,7 +87,7 @@ MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:exif --dry-run --list-all /media
 
 Still-image Stage B uses `LocalDifferenceAnalyzer::analyzeRmse()`; the retained `analyze()` entry point returns the same measurements. `LocalDiffResult` contains grayscale RMSE, mean chroma difference and explicit availability. Thresholds belong to `ContentClassifier`, which performs Stage B even at zero dHash distance and keeps unavailable evidence separate from a measured match. These aggregate metrics do not locate every local edit or prove byte identity; permanent deletion uses its independent fresh SHA-256 guard.
 
-`OutputEntryPresenter` selects plain skip text from exclusive tags and escapes it at the Console boundary before styling. Null, empty and custom details keep distinct meanings. Link configuration and dedup format ranks are explicit per-run values. `MediaTypeClassifier` is the shared source for extension classification and still/video pair rules.
+`OutputEntryPresenter` selects plain skip text from exclusive tags and escapes it at the Console boundary before styling. Null, empty and custom details keep distinct meanings. Link configuration and dedup format ranks are explicit per-run values. `MediaTypeClassifier` is the shared source for extension classification and still/video pair rules. Commands collect files through `FileCollector`; EXIF uses `ExecutionPlanExecutor` and the other rename commands use `LegacyRenameExecutor`. Both executors use the same DI-shared runtime mover, source guard and mutation journal.
 
 
 ### Individual CI targets

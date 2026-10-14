@@ -53,7 +53,6 @@ use MagicSunday\Renamer\Service\Filesystem\MutationJournal;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
 use MagicSunday\Renamer\Service\Filesystem\SortedFileIteratorCollector;
 use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
-use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
 use MagicSunday\Renamer\Service\LegacyContentIdentifierCoordinator;
 use MagicSunday\Renamer\Service\LegacyDuplicateTargetCandidateFactory;
@@ -92,8 +91,8 @@ use MagicSunday\Renamer\Strategy\RenameStrategy\LivePhotoAwareRenameStrategyInte
 use MagicSunday\Renamer\Strategy\RenameStrategy\MetadataAwareRenameStrategyInterface;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use MagicSunday\Renamer\Test\Fixtures\DuplicateDetectionServiceFactory;
-use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
+use MagicSunday\Renamer\Test\Fixtures\RuntimeExecutorFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubPerceptualHashCalculator;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -171,7 +170,6 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(RenameResult::class)]
 #[UsesClass(SkippedFile::class)]
 #[UsesClass(TargetFileResult::class)]
-#[UsesClass(FileSystemService::class)]
 #[UsesClass(ExecutionPlanExecutor::class)]
 #[UsesClass(FileCollector::class)]
 #[UsesClass(LegacyRenameExecutor::class)]
@@ -690,7 +688,7 @@ final class DuplicateDetectionServiceTest extends TestCase
     #[Test]
     public function createDuplicateFilenamesKeepsLivePhotoVideoWithoutDuplicateSuffix(): void
     {
-        [$service, $output, $fileSystemService] = $this->createService();
+        [$service, $output, $legacyRenameExecutor] = $this->createService();
 
         $sourceDirectory = $this->createTempDirectory();
 
@@ -754,7 +752,7 @@ final class DuplicateDetectionServiceTest extends TestCase
         // Clear progress output from duplicate generation.
         $output->fetch();
 
-        $fileSystemService->renameFiles($collection, new RenameOptions(dryRun: true));
+        $legacyRenameExecutor->renameFiles($collection, new RenameOptions(dryRun: true));
 
         $renameOutput = $output->fetch();
 
@@ -2935,21 +2933,21 @@ final class DuplicateDetectionServiceTest extends TestCase
     }
 
     /**
-     * @return array{DuplicateDetectionService, BufferedOutput, FileSystemService}
+     * @return array{DuplicateDetectionService, BufferedOutput, LegacyRenameExecutor}
      */
     private function createService(): array
     {
         $output = new BufferedOutput();
         $io     = new SymfonyStyle(new ArrayInput([]), $output);
 
-        $fileSystemService      = FileSystemServiceFactory::create(OutputRendererFactory::create($io), $io);
+        $legacyRenameExecutor   = RuntimeExecutorFactory::createLegacy(OutputRendererFactory::create($io), $io);
         $hashCalculator         = new SafeHashCalculator();
         $progressReporter       = new ConsoleProgressReporter($io);
         $mediaTypeClassifier    = new MediaTypeClassifier();
         $hashSubGroupingService = new HashSubGroupingService(new ContentClassifier($hashCalculator, $progressReporter, $mediaTypeClassifier, new StubPerceptualHashCalculator(), new LocalDifferenceAnalyzer(), new ImagickImageLoader(new MediaTypeClassifier(), new NullProgressReporter()), new ComparisonWorkLimit(100000)));
         $service                = DuplicateDetectionServiceFactory::create($progressReporter, $hashSubGroupingService, $mediaTypeClassifier);
 
-        return [$service, $output, $fileSystemService];
+        return [$service, $output, $legacyRenameExecutor];
     }
 
     /**

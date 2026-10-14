@@ -16,7 +16,8 @@ use MagicSunday\Renamer\Exception\RegexExecutionException;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
-use MagicSunday\Renamer\Service\FileSystemServiceInterface;
+use MagicSunday\Renamer\Service\Filesystem\FileCollector;
+use MagicSunday\Renamer\Service\Filesystem\LegacyRenameExecutor;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetPathnameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\DatePattern\DatePlaceholderExpressionMap;
@@ -55,20 +56,22 @@ final class RenameByDatePatternCommand extends AbstractRenameCommand
     private string $replacement = '';
 
     /**
-     * @param FileSystemServiceInterface         $fileSystemService           Service to handle file system operations
+     * @param LegacyRenameExecutor               $legacyRenameExecutor        Executes legacy rename operations with shared mutation guards
+     * @param FileCollector                      $fileCollector               Collects files for the command scan
      * @param DuplicateDetectionServiceInterface $duplicateDetectionService   Service to handle grouping and duplicate resolution
      * @param SafeRegex                          $safeRegex                   Safe regex wrapper used by the shared legacy file iterator path
      * @param Filesystem                         $filesystem                  Command-facing filesystem boundary reused by metadata-cache helpers
      * @param TargetPathnameStrategy             $duplicateIdentifierStrategy Fixed target-path grouping strategy for this command
      */
     public function __construct(
-        FileSystemServiceInterface $fileSystemService,
+        FileCollector $fileCollector,
+        LegacyRenameExecutor $legacyRenameExecutor,
         DuplicateDetectionServiceInterface $duplicateDetectionService,
         SafeRegex $safeRegex,
         Filesystem $filesystem,
         private readonly TargetPathnameStrategy $duplicateIdentifierStrategy,
     ) {
-        parent::__construct($fileSystemService, $duplicateDetectionService, $safeRegex, $filesystem);
+        parent::__construct($fileCollector, $legacyRenameExecutor, $duplicateDetectionService, $safeRegex, $filesystem);
     }
 
     /**
@@ -154,7 +157,7 @@ final class RenameByDatePatternCommand extends AbstractRenameCommand
             throw new RuntimeException('Pattern regex has not been initialised.');
         }
 
-        return $this->fileSystemService
+        return $this->fileCollector
             ->createFileIterator(
                 $this->sourceDirectory,
                 new RecursiveRegexFileFilterIterator(

@@ -24,9 +24,9 @@ use MagicSunday\Renamer\Service\CanonicalScorer;
 use MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilder;
 use MagicSunday\Renamer\Service\Filesystem\BatchRunLock;
 use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
+use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Service\Filesystem\MutationJournal;
 use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
-use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\Pipeline\AssetGroupPipeline;
 use MagicSunday\Renamer\Service\RenameOutputRenderer;
 use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
@@ -161,7 +161,7 @@ if ($mode === 'worker') {
     $container->register(SymfonyStyle::class)->setPublic(true)->setSynthetic(true);
     $container->register(ProgressReporterInterface::class, BenchmarkProgressReporter::class)->setPublic(true);
 
-    foreach ([AssetGroupPipeline::class, FileSystemService::class, ExecutionPlanBuilder::class, ExecutionPlanExecutor::class, ExifMetadataProvider::class, CanonicalScorer::class, RenameOutputRenderer::class, BatchRunLock::class, SourceIdentityGuard::class, MutationJournal::class] as $service) {
+    foreach ([AssetGroupPipeline::class, FileCollector::class, ExecutionPlanBuilder::class, ExecutionPlanExecutor::class, ExifMetadataProvider::class, CanonicalScorer::class, RenameOutputRenderer::class, BatchRunLock::class, SourceIdentityGuard::class, MutationJournal::class] as $service) {
         $container->getDefinition($service)->setPublic(true);
     }
     $container->compile(true);
@@ -194,11 +194,11 @@ if ($mode === 'worker') {
         requireProfileInvariant($provider instanceof ExifMetadataProvider, 'Invalid metadata provider.');
         $provider->setDefaultTimezone(new DateTimeZone('UTC'));
         $provider->setCache($cache);
-        $files    = $container->get(FileSystemService::class);
+        $files    = $container->get(FileCollector::class);
         $pipeline = $container->get(AssetGroupPipeline::class);
         $builder  = $container->get(ExecutionPlanBuilder::class);
         $executor = $container->get(ExecutionPlanExecutor::class);
-        requireProfileInvariant(($files instanceof FileSystemService) && ($pipeline instanceof AssetGroupPipeline) && ($builder instanceof ExecutionPlanBuilder) && ($executor instanceof ExecutionPlanExecutor), 'Invalid pipeline wiring.');
+        requireProfileInvariant(($files instanceof FileCollector) && ($pipeline instanceof AssetGroupPipeline) && ($builder instanceof ExecutionPlanBuilder) && ($executor instanceof ExecutionPlanExecutor), 'Invalid pipeline wiring.');
         $result = $pipeline->run($files->createFileIterator($media), new ExifDateFilenameStrategy('Y-m-d_H-i-s-v', $provider), new TargetBasenameStrategy(), $media, true);
         requireProfileInvariant($result->validationResult->isValid() && ($result->context->getSkippedFiles() === []), 'Real media parsing or plan validation failed.');
         $reporter->measure('pipeline_complete');

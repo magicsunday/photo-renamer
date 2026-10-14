@@ -12,25 +12,17 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Command;
 
 use MagicSunday\Renamer\Command\RenameLowerCaseCommand;
-use MagicSunday\Renamer\Helper\ConsoleText;
-use MagicSunday\Renamer\Helper\FileHelper;
-use MagicSunday\Renamer\Model\Collection\AbstractCollection;
 use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
-use MagicSunday\Renamer\Model\LinkConfig;
-use MagicSunday\Renamer\Model\OutputEntryTag;
-use MagicSunday\Renamer\Model\RenameOptions;
-use MagicSunday\Renamer\Model\RenameResult;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
-use MagicSunday\Renamer\Service\FileSystemServiceInterface;
+use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetPathnameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\LowerCaseFilenameStrategy;
-use PHPUnit\Framework\Attributes\CoversClass;
+use MagicSunday\Renamer\Test\Fixtures\RuntimeExecutorFactory;
+use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
-use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
-use RecursiveArrayIterator;
 use RecursiveIteratorIterator;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -50,14 +42,7 @@ use function uniqid;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-#[CoversClass(RenameLowerCaseCommand::class)]
-#[UsesClass(LinkConfig::class)]
-#[UsesClass(FileHelper::class)]
-#[UsesClass(AbstractCollection::class)]
-#[UsesClass(RenameOptions::class)]
-#[UsesClass(OutputEntryTag::class)]
-#[UsesClass(RenameResult::class)]
-#[UsesClass(ConsoleText::class)]
+#[CoversNothing]
 final class RenameLowerCaseCommandTest extends TestCase
 {
     /**
@@ -67,7 +52,8 @@ final class RenameLowerCaseCommandTest extends TestCase
     public function configureExposesLowerCaseCommandWithAlias(): void
     {
         $command = new RenameLowerCaseCommand(
-            self::createStub(FileSystemServiceInterface::class),
+            new FileCollector(new SafeRegex()),
+            RuntimeExecutorFactory::createLegacy(),
             self::createStub(DuplicateDetectionServiceInterface::class),
             new SafeRegex(),
             new Filesystem(),
@@ -82,7 +68,7 @@ final class RenameLowerCaseCommandTest extends TestCase
      * Verifies that execute() wires LowerCaseFilenameStrategy for renaming and
      * TargetPathnameStrategy for grouping, normalises the relative source directory
      * to an absolute path, defaults the target to the source (in-place rename),
-     * and propagates --dry-run to RenameOptions.
+     * and completes a successful dry-run preview.
      */
     #[Test]
     public function executeNormalizesTargetDirectoryAndUsesLowerCaseStrategy(): void
@@ -92,19 +78,8 @@ final class RenameLowerCaseCommandTest extends TestCase
         mkdir($sourceDir);
 
         try {
-            /** @var FileSystemServiceInterface&MockObject $fileSystemService */
-            $fileSystemService = $this->createMock(FileSystemServiceInterface::class);
-
             /** @var DuplicateDetectionServiceInterface&MockObject $duplicateDetectionService */
             $duplicateDetectionService = $this->createMock(DuplicateDetectionServiceInterface::class);
-
-            $iterator = new RecursiveIteratorIterator(new RecursiveArrayIterator([]));
-
-            $fileSystemService
-                ->expects(self::once())
-                ->method('createFileIterator')
-                ->with($sourceDir)
-                ->willReturn($iterator);
 
             $duplicateCollection = new FileDuplicateCollection();
 
@@ -112,7 +87,7 @@ final class RenameLowerCaseCommandTest extends TestCase
                 ->expects(self::once())
                 ->method('groupFilesByDuplicateIdentifier')
                 ->with(
-                    self::identicalTo($iterator),
+                    self::isInstanceOf(RecursiveIteratorIterator::class),
                     self::callback(static fn ($strategy): bool => $strategy instanceof LowerCaseFilenameStrategy),
                     self::callback(static fn ($strategy): bool => $strategy instanceof TargetPathnameStrategy),
                     $sourceDir,
@@ -129,21 +104,9 @@ final class RenameLowerCaseCommandTest extends TestCase
                 )
                 ->willReturn($duplicateCollection);
 
-            $fileSystemService
-                ->expects(self::once())
-                ->method('renameFiles')
-                ->with(
-                    self::identicalTo($duplicateCollection),
-                    self::callback(static function (RenameOptions $options): bool {
-                        self::assertTrue($options->dryRun);
-                        self::assertFalse($options->listAll);
-
-                        return true;
-                    }),
-                );
-
             $command = new RenameLowerCaseCommand(
-                $fileSystemService,
+                new FileCollector(new SafeRegex()),
+                RuntimeExecutorFactory::createLegacy(),
                 $duplicateDetectionService,
                 new SafeRegex(),
                 new Filesystem(),

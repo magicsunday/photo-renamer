@@ -24,7 +24,7 @@ use SplFileInfo;
  * source-to-target Rename pairs assigned to a single duplicate group.
  *
  * RenameList is the final output of createDuplicateFilenames() and is consumed
- * by FileSystemService::renameFiles() to execute the actual file operations.
+ * by LegacyRenameExecutor::renameFiles() to execute the actual file operations.
  * Correct ordering, removal, and re-indexing are essential for the rename pipeline.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>

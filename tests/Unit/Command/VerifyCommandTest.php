@@ -35,7 +35,6 @@ use MagicSunday\Renamer\Service\Filesystem\LegacyRenameExecutor;
 use MagicSunday\Renamer\Service\Filesystem\MutationJournal;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
 use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
-use MagicSunday\Renamer\Service\FileSystemService;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\Output\OutputEntryPresenter;
 use MagicSunday\Renamer\Service\Output\SummaryRow;
@@ -49,7 +48,6 @@ use MagicSunday\Renamer\Service\Verify\VerifyCategorySection;
 use MagicSunday\Renamer\Service\Verify\VerifyDetailEntryFormatter;
 use MagicSunday\Renamer\Service\Verify\VerifyReportFormatter;
 use MagicSunday\Renamer\Service\Verify\VerifyScanResult;
-use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
@@ -90,7 +88,6 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(RegexMatchResult::class)]
 #[UsesClass(SafeRegex::class)]
 #[UsesClass(DateDriftAnalyzer::class)]
-#[UsesClass(FileSystemService::class)]
 #[UsesClass(MediaTypeClassifier::class)]
 #[UsesClass(MetadataCache::class)]
 #[UsesClass(MetadataCacheEntry::class)]
@@ -673,11 +670,10 @@ final class VerifyCommandTest extends TestCase
         $metadataProvider    = new ExifMetadataProvider($metadataExtractor);
         $mediaTypeClassifier = new MediaTypeClassifier();
         $renderer            = OutputRendererFactory::create($style);
-        $fileSystemService   = FileSystemServiceFactory::create($renderer, $style);
 
         return new VerifyCommand(
             $metadataProvider,
-            $fileSystemService,
+            new FileCollector(new SafeRegex()),
             $renderer,
             new Filesystem(),
             new VerifyDetailEntryFormatter(),

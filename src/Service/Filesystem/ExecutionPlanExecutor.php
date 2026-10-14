@@ -28,8 +28,8 @@ use const PATHINFO_FILENAME;
  * Executes runtime `ExecutionPlan` items against the filesystem while tracking
  * occupied paths and last-resort duplicate-suffix fallbacks.
  *
- * This collaborator isolates the plan-specific execution path from the
- * command-facing `FileSystemService` facade. It owns occupied-path indexing,
+ * The EXIF command calls this plan-specific executor directly. It owns
+ * occupied-path indexing,
  * runtime collision fallback handling, and the resulting `ExecutionResult`
  * counters for the execution-plan branch.
  *

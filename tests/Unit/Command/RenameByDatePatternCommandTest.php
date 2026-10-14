@@ -12,19 +12,14 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Unit\Command;
 
 use MagicSunday\Renamer\Command\RenameByDatePatternCommand;
-use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
-use MagicSunday\Renamer\Model\RenameOptions;
-use MagicSunday\Renamer\Model\RenameResult;
-use MagicSunday\Renamer\Regex\RegexMatchResult;
 use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\DuplicateDetectionServiceInterface;
-use MagicSunday\Renamer\Service\FileSystemServiceInterface;
+use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetPathnameStrategy;
-use PHPUnit\Framework\Attributes\CoversClass;
+use MagicSunday\Renamer\Test\Fixtures\RuntimeExecutorFactory;
+use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
-use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
-use RecursiveArrayIterator;
 use RecursiveIterator;
 use RecursiveIteratorIterator;
 use ReflectionMethod;
@@ -49,12 +44,7 @@ use const DIRECTORY_SEPARATOR;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-#[UsesClass(RenameOptions::class)]
-#[UsesClass(RenameResult::class)]
-#[UsesClass(RecursiveRegexFileFilterIterator::class)]
-#[UsesClass(RegexMatchResult::class)]
-#[UsesClass(SafeRegex::class)]
-#[CoversClass(RenameByDatePatternCommand::class)]
+#[CoversNothing]
 final class RenameByDatePatternCommandTest extends TestCase
 {
     /**
@@ -65,7 +55,8 @@ final class RenameByDatePatternCommandTest extends TestCase
     public function configureExposesPatternDateCommandWithAlias(): void
     {
         $command = new RenameByDatePatternCommand(
-            self::createStub(FileSystemServiceInterface::class),
+            new FileCollector(new SafeRegex()),
+            RuntimeExecutorFactory::createLegacy(),
             self::createStub(DuplicateDetectionServiceInterface::class),
             new SafeRegex(),
             new Filesystem(),
@@ -92,20 +83,10 @@ final class RenameByDatePatternCommandTest extends TestCase
         file_put_contents($workspace . DIRECTORY_SEPARATOR . '2024-01-02_10-00-00.jpg', 'other');
 
         try {
-            $fileSystemService = $this->createMock(FileSystemServiceInterface::class);
-            $fileSystemService
-                ->expects(self::once())
-                ->method('createFileIterator')
-                ->with(
-                    $workspace,
-                    self::callback(static fn (RecursiveIterator $iterator): bool => self::assertIteratorBasenames($iterator, ['2024-01-01_10-00-00.jpg'])),
-                )
-                ->willReturn($this->emptyIterator());
-
-            $command = $this->createCommand($fileSystemService);
+            $command = $this->createCommand();
             $this->configureCommandState($command, $workspace, $sourceFile, isSingleFile: true);
 
-            $this->invokeCreateFileIterator($command);
+            $this->assertIteratorBasenames($this->invokeCreateFileIterator($command), ['2024-01-01_10-00-00.jpg']);
         } finally {
             $filesystem->remove($workspace);
         }
@@ -126,29 +107,20 @@ final class RenameByDatePatternCommandTest extends TestCase
         file_put_contents($workspace . DIRECTORY_SEPARATOR . 'IMG_0001.jpg', 'skip');
 
         try {
-            $fileSystemService = $this->createMock(FileSystemServiceInterface::class);
-            $fileSystemService
-                ->expects(self::once())
-                ->method('createFileIterator')
-                ->with(
-                    $workspace,
-                    self::callback(static fn (RecursiveIterator $iterator): bool => self::assertIteratorBasenames($iterator, ['2024-01-01_10-00-00.jpg'])),
-                )
-                ->willReturn($this->emptyIterator());
-
-            $command = $this->createCommand($fileSystemService);
+            $command = $this->createCommand();
             $this->configureCommandState($command, $workspace, $workspace, isSingleFile: false);
 
-            $this->invokeCreateFileIterator($command);
+            $this->assertIteratorBasenames($this->invokeCreateFileIterator($command), ['2024-01-01_10-00-00.jpg']);
         } finally {
             $filesystem->remove($workspace);
         }
     }
 
-    private function createCommand(?FileSystemServiceInterface $fileSystemService = null): RenameByDatePatternCommand
+    private function createCommand(): RenameByDatePatternCommand
     {
         return new RenameByDatePatternCommand(
-            $fileSystemService ?? self::createStub(FileSystemServiceInterface::class),
+            new FileCollector(new SafeRegex()),
+            RuntimeExecutorFactory::createLegacy(),
             self::createStub(DuplicateDetectionServiceInterface::class),
             new SafeRegex(),
             new Filesystem(),
@@ -168,10 +140,21 @@ final class RenameByDatePatternCommandTest extends TestCase
         $this->setProperty($command, 'patternRegex', '/^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.jpg$/');
     }
 
-    private function invokeCreateFileIterator(RenameByDatePatternCommand $command): void
+    /**
+     * Invokes the command's protected scanner and returns its actual filtered files.
+     *
+     * @param RenameByDatePatternCommand $command Configured command whose source selection is exercised
+     *
+     * @return RecursiveIteratorIterator<RecursiveIterator<string, SplFileInfo>> Actual filtered files
+     */
+    private function invokeCreateFileIterator(RenameByDatePatternCommand $command): RecursiveIteratorIterator
     {
         $method = new ReflectionMethod($command, 'createFileIterator');
-        $method->invoke($command);
+        /** @var RecursiveIteratorIterator<RecursiveIterator<string, SplFileInfo>> $iterator */
+        $iterator = $method->invoke($command);
+        self::assertInstanceOf(RecursiveIteratorIterator::class, $iterator);
+
+        return $iterator;
     }
 
     private function setProperty(RenameByDatePatternCommand $command, string $property, mixed $value): void
@@ -181,25 +164,14 @@ final class RenameByDatePatternCommandTest extends TestCase
     }
 
     /**
-     * @return RecursiveIteratorIterator<RecursiveArrayIterator<int, mixed>>
+     * @param RecursiveIteratorIterator<RecursiveIterator<string, SplFileInfo>> $iterator
+     * @param list<string>                                                      $expectedBasenames
      */
-    private function emptyIterator(): RecursiveIteratorIterator
-    {
-        /** @var array<int, mixed> $empty */
-        $empty = [];
-
-        return new RecursiveIteratorIterator(new RecursiveArrayIterator($empty));
-    }
-
-    /**
-     * @param RecursiveIterator<string, SplFileInfo> $iterator
-     * @param list<string>                           $expectedBasenames
-     */
-    private static function assertIteratorBasenames(RecursiveIterator $iterator, array $expectedBasenames): bool
+    private function assertIteratorBasenames(RecursiveIteratorIterator $iterator, array $expectedBasenames): bool
     {
         $basenames = [];
 
-        foreach (new RecursiveIteratorIterator($iterator) as $fileInfo) {
+        foreach ($iterator as $fileInfo) {
             /** @var SplFileInfo $fileInfo */
             $basenames[] = basename($fileInfo->getPathname());
         }

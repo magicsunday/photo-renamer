@@ -47,9 +47,6 @@ services:
             $commands: !tagged_iterator command
 
     # Service interfaces and implementations
-    MagicSunday\Renamer\Service\FileSystemServiceInterface:
-        class: MagicSunday\Renamer\Service\FileSystemService
-
     MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface:
         class: MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter
         arguments:

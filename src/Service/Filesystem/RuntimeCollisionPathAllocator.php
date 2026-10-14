@@ -26,7 +26,7 @@ use const PATHINFO_FILENAME;
 /**
  * Allocates safe fallback paths when a runtime rename target is already occupied.
  *
- * FileSystemService uses this allocator as a last-resort execution safety net:
+ * The shared runtime mover uses this allocator as a last-resort execution safety net:
  * if a target path becomes occupied during the batch, the allocator appends the
  * next available duplicate suffix without nesting already-existing suffixes.
  *

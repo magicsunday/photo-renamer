@@ -69,8 +69,6 @@ use MagicSunday\Renamer\Service\Filesystem\MutationJournal;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
 use MagicSunday\Renamer\Service\Filesystem\SortedFileIteratorCollector;
 use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
-use MagicSunday\Renamer\Service\FileSystemService;
-use MagicSunday\Renamer\Service\FileSystemServiceInterface;
 use MagicSunday\Renamer\Service\FormatPriorityResolver;
 use MagicSunday\Renamer\Service\HashSubGroupingService;
 use MagicSunday\Renamer\Service\LegacyContentIdentifierCoordinator;
@@ -138,8 +136,8 @@ use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use MagicSunday\Renamer\Test\Fixtures\CaptureGroupBuilderFactory;
 use MagicSunday\Renamer\Test\Fixtures\DuplicateDetectionServiceFactory;
-use MagicSunday\Renamer\Test\Fixtures\FileSystemServiceFactory;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
+use MagicSunday\Renamer\Test\Fixtures\RuntimeExecutorFactory;
 use MagicSunday\Renamer\Test\Fixtures\TargetNameResolverFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
@@ -210,7 +208,6 @@ use const DIRECTORY_SEPARATOR;
 #[UsesClass(RegexMatchResult::class)]
 #[UsesClass(SafeRegex::class)]
 #[UsesClass(DuplicateDetectionService::class)]
-#[UsesClass(FileSystemService::class)]
 #[UsesClass(DisjointSetUnion::class)]
 #[UsesClass(HashSubGroupingService::class)]
 #[UsesClass(ContentClassifier::class)]
@@ -329,14 +326,14 @@ final class RenameByExifDateCommandTest extends TestCase
     }
 
     /**
-     * A failing execution must still detach EXIF storage and restore default
+     * A failing summary output must still detach EXIF storage and restore default
      * grouping policy, so the next workflow cannot inherit an aborted run's
      * settings. The empty real pipeline grants no physical media mutations.
      *
      * @return void
      */
     #[Test]
-    public function executionFailureReleasesRunConfiguration(): void
+    public function summaryFailureReleasesRunConfiguration(): void
     {
         $workspace = $this->createTempWorkspace('failed-exif-run-');
         $visual    = self::createMock(PerceptualHashCalculatorInterface::class);
@@ -412,28 +409,27 @@ final class RenameByExifDateCommandTest extends TestCase
      * Keeping the pipeline/plan/renderer real checks the CLI setup lifecycle
      * without decoding media or granting any filesystem mutation authority.
      *
-     * @param PerceptualHashCalculatorInterface $visual         Alternate signal calculator
-     * @param ContentClassifierInterface        $grouping       Alternate content grouping service
-     * @param bool                              $executionFails Whether the filesystem boundary fails before any action
+     * @param PerceptualHashCalculatorInterface $visual      Alternate signal calculator
+     * @param ContentClassifierInterface        $grouping    Alternate content grouping service
+     * @param bool                              $outputFails Whether summary output fails after the empty plan executes
      *
      * @return RenameByExifDateCommand Command with a deterministic empty pipeline
      */
-    private function createConfigurationCommand(PerceptualHashCalculatorInterface $visual, ContentClassifierInterface $grouping, bool $executionFails = false): RenameByExifDateCommand
+    private function createConfigurationCommand(PerceptualHashCalculatorInterface $visual, ContentClassifierInterface $grouping, bool $outputFails = false): RenameByExifDateCommand
     {
-        $io                = new SymfonyStyle(new ArrayInput([]), new BufferedOutput());
-        $filesystemService = self::createStub(FileSystemServiceInterface::class);
+        $io = new SymfonyStyle(new ArrayInput([]), new BufferedOutput());
 
-        if ($executionFails) {
-            $filesystemService->method('executePlan')->willThrowException(new RuntimeException('synthetic executor failure'));
-        } else {
-            $filesystemService->method('executePlan')->willReturn(new ExecutionResult());
+        if ($outputFails) {
+            $io = $this->getMockBuilder(SymfonyStyle::class)->setConstructorArgs([new ArrayInput([]), new BufferedOutput()])->onlyMethods(['text'])->getMock();
+            $io->expects(self::once())->method('text')->willThrowException(new RuntimeException('synthetic summary output failure'));
         }
 
         $builder = self::createStub(CaptureGroupBuilderInterface::class);
         $builder->method('build')->willReturn(new AssetGroupCollection());
 
         return new RenameByExifDateCommand(
-            $filesystemService,
+            new FileCollector(new SafeRegex()),
+            RuntimeExecutorFactory::createPlan($io),
             new SafeRegex(),
             new Filesystem(),
             $this->createExifMetadataProvider(),
@@ -464,7 +460,8 @@ final class RenameByExifDateCommandTest extends TestCase
         $io = new SymfonyStyle(new ArrayInput([]), new BufferedOutput());
 
         $command = new RenameByExifDateCommand(
-            self::createStub(FileSystemServiceInterface::class),
+            new FileCollector(new SafeRegex()),
+            RuntimeExecutorFactory::createPlan($io),
             new SafeRegex(),
             new Filesystem(),
             $this->createExifMetadataProvider(),
@@ -515,8 +512,6 @@ final class RenameByExifDateCommandTest extends TestCase
         try {
             $output = new BufferedOutput();
             $style  = new SymfonyStyle(new ArrayInput([]), $output);
-
-            $fileSystemService = FileSystemServiceFactory::create(OutputRendererFactory::create($style), $style);
 
             $metadataExtractor = new StubMetadataExtractor();
             $metadataExtractor->withResponse(
@@ -579,7 +574,8 @@ final class RenameByExifDateCommandTest extends TestCase
             );
 
             $command = new RenameByExifDateCommand(
-                $fileSystemService,
+                new FileCollector(new SafeRegex()),
+                RuntimeExecutorFactory::createPlan($style),
                 new SafeRegex(),
                 new Filesystem(),
                 $metadataProvider,

@@ -185,17 +185,17 @@ Exception, Constants < Regex < Model < Helper < Contract < Metadata < Service < 
 ```
 CaptureGroupBuilder.build() → SubgroupClassifier.classify() → RoleAssigner.assign()
 → TargetNameResolver.resolve() → CollisionResolver.resolve() → RenamePlanValidator.validate()
-→ ExecutionPlanBuilder.build() → RenameOutputRenderer → FileSystemService.executePlan()
+→ ExecutionPlanBuilder.build() → RenameOutputRenderer → ExecutionPlanExecutor.executePlan()
 ```
 
-Canonical selection uses format-dominant weighted scoring. Subgroup classification happens before role assignment. The pipeline operates on `AssetGroupCollection` / `AssetGroup` / `AssetItem` models. `ExecutionPlanBuilder` projects the group collection into a flat `ExecutionPlan` runtime model consumed by `RenameOutputRenderer` and `FileSystemService.executePlan()`.
+Canonical selection uses format-dominant weighted scoring. Subgroup classification happens before role assignment. The pipeline operates on `AssetGroupCollection` / `AssetGroup` / `AssetItem` models. `ExecutionPlanBuilder` projects the group collection into a flat `ExecutionPlan` runtime model consumed by `RenameOutputRenderer` and `ExecutionPlanExecutor.executePlan()`.
 
 ### Legacy Execution Path
 
 Commands other than `rename:exif` (`rename:hash`, `rename:pattern`, `rename:date`, `rename:lower`) use the legacy execution path via `AbstractRenameCommand`:
 
 ```
-DuplicateDetectionService → FileDuplicateCollection → FileSystemService.renameFiles()
+DuplicateDetectionService → FileDuplicateCollection → LegacyRenameExecutor.renameFiles()
 ```
 
 `AbstractMediaRenameCommand` shares only CLI/options/source/confirmation/scan reporting. `AbstractRenameCommand` adds the legacy duplicate execution; EXIF extends the common base directly. The pipeline owns scoring/classification setup and nullable detach/default cleanup in finally, receiving explicit scalar merge/list format values and cache storage separately. Per-group classification cleanup precedes physical mutation. Keep source-mode reset on every invocation, existing single-file/filter/confirmation semantics and truthful result-to-exit propagation; never hide collaborators in a service-locator bundle.
@@ -220,7 +220,9 @@ This is an intentional bounded exception (End State B). These commands are too s
 | `HashSubGroupingService` | Legacy naming adapter over ContentClassifier; subgroup suffixes, directory conflicts and companion idempotency |
 | `PerceptualHashCalculator` | Multi-signal visual similarity scoring (Imagick-based, with decode hints and caching) |
 | `LocalDifferenceAnalyzer` | Grayscale RMSE and mean chroma measurements with explicit availability (still-image Stage B) |
-| `FileSystemService` | File I/O, collision resolution |
+| `FileCollector` | Shared file scanning and collection |
+| `ExecutionPlanExecutor` | EXIF plan execution with the shared guarded runtime mover |
+| `LegacyRenameExecutor` | Legacy rename output and execution with the shared guarded runtime mover |
 | `RenameOutputRenderer` | Output formatting, LCS diff highlighting, summary tables |
 | `ExifMetadataProvider` | Caching metadata layer, timezone conversion, reliability checks |
 | `MetadataExtractor` | Extract EXIF/QuickTime data via imagemeta library |
