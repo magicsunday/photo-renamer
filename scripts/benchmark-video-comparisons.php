@@ -17,7 +17,6 @@ use MagicSunday\Renamer\Model\AssetItem;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Service\ComparisonWorkLimit;
-use MagicSunday\Renamer\Service\MediaCompatibilityPolicy;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\Pipeline\CrossGroupVideoDuplicateReconciler;
 use MagicSunday\Renamer\Service\Reporting\NullProgressReporter;
@@ -58,7 +57,7 @@ $workspace = sys_get_temp_dir() . '/comparison-benchmark-' . bin2hex(random_byte
 $filesystem->mkdir($workspace, 0o700);
 $matcher = new VideoStreamFingerprintMatcher();
 $reconciler = new CrossGroupVideoDuplicateReconciler(
-    new MediaCompatibilityPolicy(new MediaTypeClassifier()),
+    new MediaTypeClassifier(),
     $matcher,
     new NullProgressReporter(),
     new ComparisonWorkLimit(100000),
