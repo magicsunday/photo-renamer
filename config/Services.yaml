@@ -73,7 +73,7 @@ services:
     MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface:
         class: MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculator
 
-    # New pipeline services
+    # Pipeline collaborators
     MagicSunday\Renamer\Service\CanonicalScorerInterface:
         class: MagicSunday\Renamer\Service\CanonicalScorer
 
@@ -83,23 +83,11 @@ services:
     MagicSunday\Renamer\Service\Pipeline\CrossGroupVideoDuplicateReconcilerInterface:
         class: MagicSunday\Renamer\Service\Pipeline\CrossGroupVideoDuplicateReconciler
 
-    MagicSunday\Renamer\Service\Pipeline\SubgroupClassifierInterface:
-        class: MagicSunday\Renamer\Service\Pipeline\SubgroupClassifier
-
     MagicSunday\Renamer\Service\Video\VideoStreamFingerprintMatcherInterface:
         class: MagicSunday\Renamer\Service\Video\VideoStreamFingerprintMatcher
 
     MagicSunday\Renamer\Service\Pipeline\CompanionDetectorInterface:
         class: MagicSunday\Renamer\Service\Pipeline\CompanionDetector
-
-    MagicSunday\Renamer\Service\Pipeline\RoleAssignerInterface:
-        class: MagicSunday\Renamer\Service\Pipeline\RoleAssigner
-
-    MagicSunday\Renamer\Service\Pipeline\TargetNameResolverInterface:
-        class: MagicSunday\Renamer\Service\Pipeline\TargetNameResolver
-
-    MagicSunday\Renamer\Service\Pipeline\CollisionResolverInterface:
-        class: MagicSunday\Renamer\Service\Pipeline\CollisionResolver
 
     MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilderInterface:
         class: MagicSunday\Renamer\Service\Execution\ExecutionPlanBuilder

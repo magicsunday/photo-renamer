@@ -29,21 +29,25 @@ use MagicSunday\Renamer\Service\Filesystem\ExecutionPlanExecutor;
 use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeCollisionPathAllocator;
 use MagicSunday\Renamer\Service\Filesystem\RuntimeFileMoveExecutor;
+use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface;
 use MagicSunday\Renamer\Service\Pipeline\AssetGroupPipeline;
 use MagicSunday\Renamer\Service\Pipeline\CaptureGroupBuilderInterface;
-use MagicSunday\Renamer\Service\Pipeline\CollisionResolverInterface;
+use MagicSunday\Renamer\Service\Pipeline\CollisionResolver;
+use MagicSunday\Renamer\Service\Pipeline\CompanionDetector;
+use MagicSunday\Renamer\Service\Pipeline\OrphanLivePhotoVideoReconciler;
 use MagicSunday\Renamer\Service\Pipeline\PipelineReviewMapper;
-use MagicSunday\Renamer\Service\Pipeline\RoleAssignerInterface;
-use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifierInterface;
-use MagicSunday\Renamer\Service\Pipeline\TargetNameResolverInterface;
+use MagicSunday\Renamer\Service\Pipeline\RoleAssigner;
+use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifier;
 use MagicSunday\Renamer\Service\RenamePlanValidator;
 use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
+use MagicSunday\Renamer\Service\Reporting\NullProgressReporter;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\DuplicateIdentifierStrategyInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\RenameStrategyInterface;
 use MagicSunday\Renamer\Test\Fixtures\OutputRendererFactory;
 use MagicSunday\Renamer\Test\Fixtures\RuntimeExecutorFactory;
+use MagicSunday\Renamer\Test\Fixtures\TargetNameResolverFactory;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use Override;
@@ -535,16 +539,22 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
             }
         };
 
+        $scorer              = new CanonicalScorer();
+        $mediaTypeClassifier = new MediaTypeClassifier();
+        $reporter            = new NullProgressReporter();
+        $grouping            = self::createStub(ContentClassifierInterface::class);
+        $visual              = self::createStub(PerceptualHashCalculatorInterface::class);
+
         $pipeline = new AssetGroupPipeline(
             $captureGroupBuilder,
-            self::createStub(SubgroupClassifierInterface::class),
-            self::createStub(RoleAssignerInterface::class),
-            self::createStub(TargetNameResolverInterface::class),
-            self::createStub(CollisionResolverInterface::class),
+            new SubgroupClassifier($grouping, $mediaTypeClassifier, new OrphanLivePhotoVideoReconciler($mediaTypeClassifier, $visual, $reporter), $reporter),
+            new RoleAssigner($scorer, new CompanionDetector($mediaTypeClassifier), $mediaTypeClassifier),
+            TargetNameResolverFactory::create(),
+            new CollisionResolver(),
             new RenamePlanValidator(),
-            self::createStub(ContentClassifierInterface::class),
-            self::createStub(PerceptualHashCalculatorInterface::class),
-            new CanonicalScorer(),
+            $grouping,
+            $visual,
+            $scorer,
         );
 
         $executionPlanBuilder = new readonly class($executionPlan) implements ExecutionPlanBuilderInterface {

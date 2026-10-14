@@ -15,7 +15,6 @@ use MagicSunday\Renamer\Constants;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\PipelineContext;
-use Override;
 use RuntimeException;
 use SplFileInfo;
 
@@ -37,7 +36,7 @@ use const PATHINFO_EXTENSION;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-final readonly class CollisionResolver implements CollisionResolverInterface
+final readonly class CollisionResolver
 {
     /**
      * Iterates all items with a proposed name, claiming free targets and resolving
@@ -46,7 +45,6 @@ final readonly class CollisionResolver implements CollisionResolverInterface
      * @param AssetGroupCollection $groups  Groups with proposed names to deduplicate
      * @param PipelineContext      $context Pipeline state tracking occupied paths and collision count
      */
-    #[Override]
     public function resolve(
         AssetGroupCollection $groups,
         PipelineContext $context,

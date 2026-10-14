@@ -17,7 +17,6 @@ use MagicSunday\Renamer\Model\MergeDecision;
 use MagicSunday\Renamer\Service\ContentClassifierInterface;
 use MagicSunday\Renamer\Service\MediaTypeClassifier;
 use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
-use Override;
 use RuntimeException;
 use SplFileInfo;
 
@@ -33,7 +32,7 @@ use function sprintf;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-final readonly class SubgroupClassifier implements SubgroupClassifierInterface
+final readonly class SubgroupClassifier
 {
     /**
      * @param ContentClassifierInterface     $contentClassifier     Shared source-only content and evidence rules
@@ -56,7 +55,6 @@ final readonly class SubgroupClassifier implements SubgroupClassifierInterface
      *
      * @param AssetGroupCollection $groups The groups to classify
      */
-    #[Override]
     public function classify(
         AssetGroupCollection $groups,
     ): void {

@@ -16,7 +16,6 @@ use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\ItemRole;
-use Override;
 
 /**
  * Pure semantic naming: computes proposed target names from role + group key.
@@ -29,7 +28,7 @@ use Override;
  * @license https://opensource.org/licenses/MIT
  * @link    https://github.com/magicsunday/photo-renamer/
  */
-final readonly class TargetNameResolver implements TargetNameResolverInterface
+final readonly class TargetNameResolver
 {
     /**
      * @param FlatGroupNameResolver         $flatGroupNameResolver         Resolves the simple naming path when a group does not split into subgroups.
@@ -52,7 +51,6 @@ final readonly class TargetNameResolver implements TargetNameResolverInterface
      * @param AssetGroupCollection $groups                     Groups with role-assigned items
      * @param bool                 $useFileExtensionFromSource When true, preserve source extension in target
      */
-    #[Override]
     public function resolve(
         AssetGroupCollection $groups,
         bool $useFileExtensionFromSource = false,

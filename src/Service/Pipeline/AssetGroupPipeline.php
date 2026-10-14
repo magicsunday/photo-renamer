@@ -41,10 +41,10 @@ final readonly class AssetGroupPipeline
 {
     /**
      * @param CaptureGroupBuilderInterface                     $captureGroupBuilder                Build capture groups from file iterator
-     * @param SubgroupClassifierInterface                      $subgroupClassifier                 Classify items into content-identity clusters
-     * @param RoleAssignerInterface                            $roleAssigner                       Assign Canonical/Duplicate/Companion roles
-     * @param TargetNameResolverInterface                      $targetNameResolver                 Compute proposed target names
-     * @param CollisionResolverInterface                       $collisionResolver                  Deduplicate proposed names against disk index
+     * @param SubgroupClassifier                               $subgroupClassifier                 Classify items into content-identity clusters
+     * @param RoleAssigner                                     $roleAssigner                       Assign Canonical/Duplicate/Companion roles
+     * @param TargetNameResolver                               $targetNameResolver                 Compute proposed target names
+     * @param CollisionResolver                                $collisionResolver                  Deduplicate proposed names against disk index
      * @param RenamePlanValidator                              $renamePlanValidator                Validate the rename plan for conflicts
      * @param ContentClassifierInterface                       $contentClassifier                  Content classification and scoped merge preference
      * @param PerceptualHashCalculatorInterface                $perceptualHashCalculator           Scoped persistent signals and native cleanup
@@ -53,10 +53,10 @@ final readonly class AssetGroupPipeline
      */
     public function __construct(
         private CaptureGroupBuilderInterface $captureGroupBuilder,
-        private SubgroupClassifierInterface $subgroupClassifier,
-        private RoleAssignerInterface $roleAssigner,
-        private TargetNameResolverInterface $targetNameResolver,
-        private CollisionResolverInterface $collisionResolver,
+        private SubgroupClassifier $subgroupClassifier,
+        private RoleAssigner $roleAssigner,
+        private TargetNameResolver $targetNameResolver,
+        private CollisionResolver $collisionResolver,
         private RenamePlanValidator $renamePlanValidator,
         private ContentClassifierInterface $contentClassifier,
         private PerceptualHashCalculatorInterface $perceptualHashCalculator,

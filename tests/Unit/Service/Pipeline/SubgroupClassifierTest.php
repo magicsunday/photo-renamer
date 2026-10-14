@@ -26,7 +26,6 @@ use MagicSunday\Renamer\Service\PerceptualHash\PerceptualHashCalculatorInterface
 use MagicSunday\Renamer\Service\Pipeline\ExistingCompanionVideoCandidate;
 use MagicSunday\Renamer\Service\Pipeline\OrphanLivePhotoVideoReconciler;
 use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifier;
-use MagicSunday\Renamer\Service\Pipeline\SubgroupClassifierInterface;
 use MagicSunday\Renamer\Service\Reporting\NullProgressReporter;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -62,7 +61,7 @@ final class SubgroupClassifierTest extends TestCase
 
     private PerceptualHashCalculatorInterface $perceptualHashCalculator;
 
-    private SubgroupClassifierInterface $classifier;
+    private SubgroupClassifier $classifier;
 
     protected function setUp(): void
     {
