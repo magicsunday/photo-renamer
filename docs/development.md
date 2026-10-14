@@ -132,6 +132,10 @@ not a required PR merge context. Other Security scanner contexts also follow the
 repository's separate branch-protection policy; their existence does not imply
 that they are required. The configured mutation-score guard remains mandatory for that lane.
 
+The optional [visual comparison benchmark](visual-comparison-benchmark.md) evaluates
+SSIM and regional errors against actual source classification on fixed synthetic
+families. It is observational, offline and separate from CI and production rules.
+
 ### Test images
 
 Generate synthetic test files covering all renamer scenarios (duplicates, Live Photos, timezone, drift, HEIC, cross-directory, perceptual hashing, etc.):
