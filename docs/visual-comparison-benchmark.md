@@ -54,13 +54,16 @@ integration tests retain those contracts.
 
 Additional images use the current normalized loader, full decoding, explicit
 triangle downsampling and 8-bit Imagick grayscale exports. Working long edges are
-256, 512 and 1024 pixels; smaller sources are never enlarged. This can lose very
-small edits. The baseline itself retains its production JPEG decode hints.
+256, 512 and 1024 pixels for the reference image, without enlarging that reference.
+The counterpart is resized to the reference grid and can therefore be enlarged,
+including half-size backups. Resampling can lose very small edits. The baseline
+itself retains its production JPEG decode hints.
 
 - Native SSIM/DSSIM uses Gaussian radius 5 (11-pixel window), sigma 1.5 and
   k1/k2 0.01/0.03. The installed API is probed for identity, a changed pixel and
   failure. On the measured ImageMagick API both constants return the same
-  normalized distance `(1 − SSIM) / 2`: zero is equality, failure is unavailable.
+  normalized distance `(1 − SSIM) / 2`: identical pixels measure zero; failure is
+  unavailable. A zero metric alone supplies no byte-identity or deletion proof.
 - Global SSIM distance and the maximum distance over non-overlapping 128-pixel
   crops are separate observations. Cropped-window boundaries differ from a
   full-image local map; the returned comparison image is not used as an SSIM map.
