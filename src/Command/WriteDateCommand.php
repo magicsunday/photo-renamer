@@ -154,7 +154,7 @@ final class WriteDateCommand extends Command
                 'force',
                 'f',
                 InputOption::VALUE_NONE,
-                'Overwrite existing metadata even when it is already reliable. Use to correct previously wrong writes.',
+                'Reinterpret QuickTime timezone metadata even when it is already reliable. Use to correct a previous timezone write.',
             );
     }
 
