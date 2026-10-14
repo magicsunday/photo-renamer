@@ -8,6 +8,7 @@ services:
                 APP_SOURCE_DIRTY: ${APP_SOURCE_DIRTY:-1}
         profiles: [runtime]
         user: "${USERID:-1000}:${GROUPID:-1000}"
+        init: true
         read_only: true
         network_mode: none
         cap_drop: [ALL]

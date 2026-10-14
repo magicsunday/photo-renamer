@@ -6,7 +6,16 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 configuration_workspace="$(mktemp -d "${TMPDIR:-/tmp}/renamer configuration.XXXXXX")"
-trap 'rm -rf -- "${configuration_workspace}"' EXIT
+signal_container=''
+
+# Remove only this check's disposable signal process and synthetic workspace.
+cleanup_configuration_workspace() {
+    if [[ -n "${signal_container}" ]]; then
+        docker rm --force "${signal_container}" > /dev/null 2>&1 || true
+    fi
+    rm -rf -- "${configuration_workspace}"
+}
+trap cleanup_configuration_workspace EXIT
 chmod 755 "${configuration_workspace}"
 export MEDIA_DIR="${configuration_workspace}/media with spaces"
 export MEDIA_READ_ONLY=true
@@ -146,5 +155,42 @@ export TIMEZONE=UTC MAX_DATE_DRIFT=0 MERGE_THRESHOLD=0.06
 [[ "$(<"${configuration_workspace}/wrapper.log")" = *'[OK] done'* ]]
 [[ -f "${MEDIA_DIR}/filename with spaces.jpg" && -f "${MEDIA_DIR}/canonical/same a.jpg" && -f "${MEDIA_DIR}/canonical/same b.heic" ]]
 
+# Exercise the actual runtime service: PID 1 must forward both interruption
+# signals to PHP. Readiness and exit checks are bounded; no media is processed.
+for signal in INT TERM; do
+    signal_container="renamer-signal-${configuration_workspace##*.}-${signal}"
+    docker compose --env-file /dev/null run --detach --name "${signal_container}" \
+        --entrypoint php runtime -r 'echo "ready\n"; while (true) { usleep(100000); }' > /dev/null
+
+    ready=false
+    for attempt in {1..50}; do
+        if [[ "$(docker logs "${signal_container}")" = ready ]]; then
+            ready=true
+            break
+        fi
+        sleep 0.1
+    done
+    [[ "${ready}" = true ]]
+
+    docker kill --signal "${signal}" "${signal_container}" > /dev/null
+    stopped=false
+    for attempt in {1..50}; do
+        if [[ "$(docker inspect --format '{{.State.Running}}' "${signal_container}")" = false ]]; then
+            stopped=true
+            break
+        fi
+        sleep 0.1
+    done
+    [[ "${stopped}" = true ]]
+
+    expected_status=130
+    if [[ "${signal}" = TERM ]]; then
+        expected_status=143
+    fi
+    [[ "$(docker inspect --format '{{.State.ExitCode}}' "${signal_container}")" = "${expected_status}" ]]
+    docker rm "${signal_container}" > /dev/null
+    signal_container=''
+done
+
 [[ "$(media_digest)" = "${initial_media_digest}" ]]
-echo "Docker configuration, actual CLI policies, defaults, precedence and external paths with spaces verified; all synthetic media names and bytes preserved."
+echo "Docker configuration, CLI policies, paths with spaces and interruption signals verified; all synthetic media names and bytes preserved."

@@ -101,6 +101,8 @@ Collaborators are explicit constructor dependencies wired by the container and s
 
 Normal media runs (`renamer.sh`, `make run`) use the separate `runtime` service: no dev credentials/mounts, network none, read-only root, media at `/media`, private JSON in the `media-cache` volume at `/cache`. Build with `make runtime-build` after code/vendor/config changes; its precompiled DI file is immutable. `buildbox` remains for installation/development. `make runtime-image-check` verifies the actual production image, default resource limits, dummy-host credential isolation, all supported formats and tiny-policy rejection (32 pixels, list length 2, separate 1-KiB disk budget). The check runs on PRs as well as pushes. New shell scripts use `.sh`.
 
+Runtime uses Compose `init: true` to forward SIGINT/SIGTERM to PHP rather than relying on default PID-1 signal handling; `renamer.sh` execs Compose. The existing configuration/runtime check exercises both signals with readiness handshakes and finite exit polling. Keep wrapper interruption nonzero and verify real terminal Ctrl+C through wrapper/Make using owned disposable probes. Changes affect new containers; interruption promises neither rollback nor completed cleanup/cache flush, and uncertain journals require reconciliation.
+
 ## Code Style
 
 - `declare(strict_types=1)` in every PHP file

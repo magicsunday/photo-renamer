@@ -20,4 +20,4 @@ else
     COMPOSE_BIN="docker compose"
 fi
 
-$COMPOSE_BIN run --rm runtime "$@"
+exec $COMPOSE_BIN run --rm runtime "$@"
