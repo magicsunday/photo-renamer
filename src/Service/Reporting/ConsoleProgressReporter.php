@@ -50,7 +50,7 @@ final class ConsoleProgressReporter implements ProgressReporterInterface
     public function startProgress(int $max): void
     {
         $this->progressBar = $this->io->createProgressBar(max($max, 0));
-        $this->progressBar->setFormat($max > 0 ? Constants::PROGRESS_BAR_FORMAT : '%current% file(s) | Elapsed: %elapsed:6s%');
+        $this->progressBar->setFormat($max > 0 ? Constants::PROGRESS_BAR_FORMAT : '%current% file(s) | Elapsed: %elapsed%');
         $this->progressBar->start();
     }
 
