@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service;
 
 use MagicSunday\Renamer\Constants;
+use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\PathHelper;
@@ -42,7 +43,9 @@ use MagicSunday\Renamer\Service\Output\SkippedFileAppendResult;
 use MagicSunday\Renamer\Service\Output\SummaryRow;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
+use function array_first;
 use function count;
+use function implode;
 use function is_string;
 use function pathinfo;
 use function sprintf;
@@ -115,7 +118,9 @@ final readonly class RenameOutputRenderer
         foreach ($fileDuplicateCollection as $fileDuplicate) {
             $canonicalTargetPath   = $fileDuplicate->getTarget()->getPathname();
             $canonicalBasename     = FileHelper::basenameWithoutExtension($fileDuplicate->getTarget());
-            $referenceTargetsByExt = $this->buildReferenceTargetsByExtension($fileDuplicate->getRenames());
+            $referenceSourcesByExt = $this->buildReferenceSourcesByExtension($fileDuplicate->getRenames());
+            $canonicalSourcePath   = $referenceSourcesByExt[FileHelper::normalizeExtension(pathinfo($canonicalTargetPath, PATHINFO_EXTENSION))]
+                ?? array_first($referenceSourcesByExt);
 
             foreach ($fileDuplicate->getRenames() as $rename) {
                 $renameBasename = FileHelper::basenameWithoutExtension($rename->getTarget());
@@ -163,9 +168,8 @@ final readonly class RenameOutputRenderer
                         $rename->getSource()->getPathname(),
                         $sourcePath,
                         $targetPath,
-                        $canonicalTargetPath,
-                        $referenceTargetsByExt,
-                        $sourceBaseDirectory,
+                        $canonicalSourcePath,
+                        $referenceSourcesByExt,
                     );
                 }
             }
@@ -304,6 +308,36 @@ final readonly class RenameOutputRenderer
         $this->io->newLine();
 
         $this->renderSummarySection($this->summaryRowBuilder->build($counters, $dryRun));
+
+        if ($counters->duplicateCount > 0) {
+            $this->io->text('Duplicate grouping may use exact content or visual similarity; grouping alone never authorizes deletion.');
+        }
+
+        $skipped = $counters->plannedSkips + $counters->skippedCount + $counters->errorCount;
+        $message = sprintf($dryRun ? 'Dry-run complete: %d file(s) would be renamed.' : 'Rename run complete: %d file(s) renamed.', $counters->fileCount);
+        $details = [];
+
+        if ($skipped > 0) {
+            $details[] = sprintf('%d file(s) skipped', $skipped);
+        }
+
+        if ($counters->crossGroupVideoReviewCount > 0) {
+            $details[] = sprintf('%d video comparison(s) need review', $counters->crossGroupVideoReviewCount);
+        }
+
+        if ($counters->runtimeErrors > 0) {
+            $details[] = sprintf('%d file operation(s) failed', $counters->runtimeErrors);
+        }
+
+        if ($counters->partialLivePhotoGroups > 0) {
+            $details[] = sprintf('%d incomplete Live Photo group(s)', $counters->partialLivePhotoGroups);
+        }
+
+        if ($details !== []) {
+            $this->io->warning($message . ' ' . implode('; ', $details) . '. Inspect the summary and reasons above.');
+        } else {
+            $this->io->success($message);
+        }
     }
 
     /**
@@ -345,12 +379,12 @@ final readonly class RenameOutputRenderer
         $outputEntries = [];
 
         foreach ($plan->groups as $group) {
-            $canonicalTargetPath   = null;
-            $referenceTargetsByExt = [];
+            $canonicalSourcePath   = null;
+            $referenceSourcesByExt = [];
 
             foreach ($group->items as $item) {
-                if (($item->type === ExecutionItemType::Canonical) && ($canonicalTargetPath === null)) {
-                    $canonicalTargetPath = $item->targetPath;
+                if (($item->type === ExecutionItemType::Canonical) && ($canonicalSourcePath === null)) {
+                    $canonicalSourcePath = $item->sourcePath;
                 }
 
                 if ($item->isDuplicateTarget) {
@@ -365,7 +399,7 @@ final readonly class RenameOutputRenderer
                     continue;
                 }
 
-                $referenceTargetsByExt[$normalizedExtension] ??= $item->targetPath;
+                $referenceSourcesByExt[$normalizedExtension] ??= $item->sourcePath;
             }
 
             foreach ($group->items as $item) {
@@ -389,15 +423,14 @@ final readonly class RenameOutputRenderer
                     counterpartPath: $result->livePhotoConflictFiles[$item->sourcePath] ?? null,
                 );
 
-                if (($tag === OutputEntryTag::Duplicate) && !$item->isNoOp && ($canonicalTargetPath !== null)) {
+                if (($tag === OutputEntryTag::Duplicate) && !$item->isNoOp && ($canonicalSourcePath !== null)) {
                     $this->appendDuplicateReferenceEntry(
                         $outputEntries,
                         $item->sourcePath,
                         $sourcePath,
                         $item->targetPath,
-                        $canonicalTargetPath,
-                        $referenceTargetsByExt,
-                        $sourceBaseDirectory,
+                        $canonicalSourcePath,
+                        $referenceSourcesByExt,
                     );
                 }
             }
@@ -447,6 +480,7 @@ final readonly class RenameOutputRenderer
             plannedMoves: $counters->plannedMoves,
             plannedSkips: $counters->plannedSkips,
             duplicateCount: $counters->duplicateCount,
+            unchangedCount: $counters->unchangedCount,
         );
     }
 
@@ -493,6 +527,7 @@ final readonly class RenameOutputRenderer
             runtimeErrors: $executionResult->runtimeErrors,
             runtimeFallbacks: $executionResult->runtimeFallbacks,
             partialLivePhotoGroups: $executionResult->partialLivePhotoGroups,
+            unchangedCount: $preview->unchangedCount,
         ), $dryRun);
     }
 
@@ -636,30 +671,24 @@ final readonly class RenameOutputRenderer
      * Appends an explanatory info row for a duplicate target.
      *
      * @param list<OutputEntry>     $outputEntries         Output entries array modified by reference
-     * @param array<string, string> $referenceTargetsByExt First non-duplicate target path per extension
+     * @param array<string, string> $referenceSourcesByExt First non-duplicate source path per target extension
      */
     private function appendDuplicateReferenceEntry(
         array &$outputEntries,
         string $sortKey,
         string $sourcePath,
         string $duplicateTargetPath,
-        string $canonicalTargetPath,
-        array $referenceTargetsByExt,
-        ?string $sourceBaseDirectory,
+        ?string $canonicalSourcePath,
+        array $referenceSourcesByExt,
     ): void {
+        $extension       = FileHelper::normalizeExtension(pathinfo($duplicateTargetPath, PATHINFO_EXTENSION));
+        $counterpartPath = $referenceSourcesByExt[$extension] ?? $canonicalSourcePath;
         $outputEntries[] = OutputEntry::info(
             sortKey: $sortKey,
             sourcePath: $sourcePath,
-            reason: sprintf(
-                'Duplicate of %s',
-                $this->resolveDuplicateReferenceTargetPath(
-                    $duplicateTargetPath,
-                    $canonicalTargetPath,
-                    $referenceTargetsByExt,
-                    $sourceBaseDirectory,
-                ),
-            ),
+            reason: 'Grouped as duplicate; byte identity is not guaranteed',
             tag: OutputEntryTag::Duplicate,
+            counterpartPath: $counterpartPath,
         );
     }
 
@@ -694,6 +723,10 @@ final readonly class RenameOutputRenderer
         ?array $showFilter = null,
         ?LinkConfig $linkConfig = null,
     ): OutputCounters {
+        if ($showFilter !== null) {
+            $this->io->text(sprintf('Display filter: %s; summary counts cover the whole run.', ConsoleText::escape(implode(',', $showFilter))));
+        }
+
         return $this->entryPresenter->render(
             $outputEntries,
             $this->io,
@@ -747,18 +780,18 @@ final readonly class RenameOutputRenderer
     }
 
     /**
-     * Builds the first non-duplicate target path per extension for a duplicate group.
+     * Builds the first non-duplicate comparison source per target extension.
      *
      * This lets duplicate MOV explanations point at the matching non-duplicate MOV
-     * target instead of always falling back to the canonical still target.
+     * source instead of always falling back to the canonical still source.
      *
      * @param iterable<Rename> $renames Planned renames inside one duplicate group
      *
-     * @return array<string, string> First non-duplicate target path per normalized extension
+     * @return array<string, string> First non-duplicate source pathname per normalized target extension
      */
-    private function buildReferenceTargetsByExtension(iterable $renames): array
+    private function buildReferenceSourcesByExtension(iterable $renames): array
     {
-        $referenceTargetsByExt = [];
+        $referenceSourcesByExt = [];
 
         foreach ($renames as $rename) {
             $renameBasename = FileHelper::basenameWithoutExtension($rename->getTarget());
@@ -775,37 +808,10 @@ final readonly class RenameOutputRenderer
                 continue;
             }
 
-            $referenceTargetsByExt[$normalizedExtension] ??= $rename->getTarget()->getPathname();
+            $referenceSourcesByExt[$normalizedExtension] ??= $rename->getSource()->getPathname();
         }
 
-        return $referenceTargetsByExt;
-    }
-
-    /**
-     * Resolves the explanatory target used in "Duplicate of ..." info lines.
-     *
-     * The method prefers a non-duplicate target with the same extension and only
-     * falls back to the canonical target when no extension-specific reference exists.
-     *
-     * @param string                $duplicateTargetPath   Duplicate target path being explained
-     * @param string                $canonicalTargetPath   Canonical group target path
-     * @param array<string, string> $referenceTargetsByExt First non-duplicate target path per extension
-     * @param string|null           $sourceBaseDirectory   Base directory for relative display
-     *
-     * @return string Relative explanatory target path for CLI output
-     */
-    private function resolveDuplicateReferenceTargetPath(
-        string $duplicateTargetPath,
-        string $canonicalTargetPath,
-        array $referenceTargetsByExt,
-        ?string $sourceBaseDirectory,
-    ): string {
-        $normalizedExtension = FileHelper::normalizeExtension(
-            pathinfo($duplicateTargetPath, PATHINFO_EXTENSION),
-        );
-        $duplicateReferenceTargetPath = $referenceTargetsByExt[$normalizedExtension] ?? $canonicalTargetPath;
-
-        return PathHelper::relativizePath($duplicateReferenceTargetPath, $sourceBaseDirectory);
+        return $referenceSourcesByExt;
     }
 
     /**

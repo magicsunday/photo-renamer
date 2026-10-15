@@ -72,6 +72,7 @@ final readonly class OutputEntryPresenter
         $duplicateCount      = 0;
         $plannedMoves        = 0;
         $plannedSkips        = 0;
+        $unchangedCount      = 0;
         $lastRenderedSortKey = null;
 
         foreach ($outputEntries as $entry) {
@@ -94,6 +95,7 @@ final readonly class OutputEntryPresenter
                     $this->renderTwoLineReasonBlock($entry->tag, $linkedPath, $entry->reason ?? '', $io);
                 }
 
+                $this->renderCounterpart($entry, $sourceBaseDirectory, $linkConfig, $io);
                 $lastRenderedSortKey = $entry->sortKey;
 
                 continue;
@@ -112,11 +114,7 @@ final readonly class OutputEntryPresenter
                 if ($entry->shouldSkip) {
                     $this->renderTwoLineReasonBlock($entry->tag, $linkedPath, $this->skipReason($entry), $io);
 
-                    if (($entry->tag === OutputEntryTag::Candidate) && ($entry->counterpartPath !== null)) {
-                        $counterpartPath   = PathHelper::relativizePath($entry->counterpartPath, $sourceBaseDirectory);
-                        $linkedCounterpart = PathHelper::linkifyPath($counterpartPath, $counterpartPath, $sourceBaseDirectory, $linkConfig, 'yellow');
-                        $io->text(sprintf('     <fg=cyan>→</> Possible counterpart: %s', $linkedCounterpart));
-                    }
+                    $this->renderCounterpart($entry, $sourceBaseDirectory, $linkConfig, $io);
                 } else {
                     $io->text(sprintf(
                         ' %s %s' . $padding . ' <fg=cyan>→</> %s',
@@ -138,6 +136,8 @@ final readonly class OutputEntryPresenter
             } elseif ($entry->shouldPerformOperation) {
                 ++$plannedMoves;
                 ++$fileCount;
+            } else {
+                ++$unchangedCount;
             }
         }
 
@@ -146,7 +146,32 @@ final readonly class OutputEntryPresenter
             duplicateCount: $duplicateCount,
             plannedMoves: $plannedMoves,
             plannedSkips: $plannedSkips,
+            unchangedCount: $unchangedCount,
         );
+    }
+
+    /**
+     * Links a recorded comparison source without interpreting it as pairing or deletion authority.
+     *
+     * @param OutputEntry  $entry               Semantic entry carrying an optional raw counterpart
+     * @param string|null  $sourceBaseDirectory Root used for relative display and host mapping
+     * @param LinkConfig   $linkConfig          Explicit run link configuration
+     * @param SymfonyStyle $io                  Console receiving the safe related-file line
+     */
+    private function renderCounterpart(OutputEntry $entry, ?string $sourceBaseDirectory, LinkConfig $linkConfig, SymfonyStyle $io): void
+    {
+        if ($entry->counterpartPath === null) {
+            return;
+        }
+
+        $path       = PathHelper::relativizePath($entry->counterpartPath, $sourceBaseDirectory);
+        $linkedPath = PathHelper::linkifyPath($path, $path, $sourceBaseDirectory, $linkConfig, 'yellow');
+        $label      = match ($entry->tag) {
+            OutputEntryTag::Candidate => 'Possible counterpart',
+            OutputEntryTag::Duplicate => 'Comparison source',
+            default                   => 'Compared with',
+        };
+        $io->text(sprintf('     <fg=cyan>→</> %s: %s', $label, $linkedPath));
     }
 
     /**
@@ -205,7 +230,7 @@ final readonly class OutputEntryPresenter
             OutputEntryTag::Candidate => 'Possible Live Photo pair with different content IDs; skipped for manual review',
             OutputEntryTag::Review    => $entry->reason ?? 'Cross-group video review required',
             OutputEntryTag::Warning   => $entry->warningReason ?? 'Warning',
-            OutputEntryTag::Fallback  => 'Fallback date: DateTime (0x0132) used instead of DateTimeOriginal',
+            OutputEntryTag::Fallback  => $entry->warningReason ?? 'Fallback date: DateTimeOriginal/CreateDate missing; using EXIF modification date (DateTime 0x0132). Verify the capture date; consider rename:write-date --reason=fallback.',
             default                   => 'Skipped',
         };
     }

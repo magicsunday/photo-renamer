@@ -194,7 +194,15 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
             $executionBlockReason = 'Ambiguous timezone: QuickTime UTC without offset — use --timezone or rename:write-date --reason=timezone';
         } elseif ($isFallbackDate) {
             $isExecutable         = false;
-            $executionBlockReason = 'Fallback date: DateTime (0x0132) used instead of DateTimeOriginal — use rename:write-date --reason=fallback';
+            $executionBlockReason = (($item->role === ItemRole::Companion) && ($item->metadata?->isFallbackDateTime() !== true))
+                ? sprintf(
+                    "Live Photo still lacks DateTimeOriginal/CreateDate and uses fallback DateTime (0x0132); companion rename withheld. Proposed filename: %s. Verify the still's capture date; consider rename:write-date --reason=fallback.",
+                    basename($targetPath),
+                )
+                : sprintf(
+                    'Fallback date: DateTimeOriginal/CreateDate missing; using EXIF modification date %s (DateTime 0x0132). Verify the capture date; consider rename:write-date --reason=fallback.',
+                    $item->metadata?->getCaptureDateTime()?->format('Y-m-d H:i:sP') ?? '(unavailable)',
+                );
         }
 
         if ($isExecutable && !$this->isDuplicateTarget($targetPath)) {

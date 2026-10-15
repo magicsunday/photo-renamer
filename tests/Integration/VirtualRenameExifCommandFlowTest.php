@@ -153,7 +153,7 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
             self::assertFileDoesNotExist($still);
             self::assertFileDoesNotExist($companionTarget);
             $summary = $output->fetch();
-            self::assertMatchesRegularExpression('/Files processed\s+1/', $summary);
+            self::assertMatchesRegularExpression('/Renamed\s+1/', $summary);
             self::assertMatchesRegularExpression('/Runtime errors\s+1/', $summary);
             self::assertMatchesRegularExpression('/Partial Live Photo groups\s+1/', $summary);
         } finally {
@@ -206,7 +206,7 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
             self::assertSame('synthetic still', $filesystem->readFile($stillTarget));
             self::assertSame('synthetic companion', $filesystem->readFile($workspace . '/capture-duplicate-001.mov'));
             $summary = $output->fetch();
-            self::assertMatchesRegularExpression('/Files processed\s+2/', $summary);
+            self::assertMatchesRegularExpression('/Renamed\s+2/', $summary);
             self::assertMatchesRegularExpression('/Runtime fallbacks\s+1/', $summary);
             self::assertMatchesRegularExpression('/Partial Live Photo groups\s+1/', $summary);
             self::assertStringNotContainsString('Runtime errors', $summary);
@@ -253,7 +253,7 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
             self::assertSame('synthetic still', $filesystem->readFile($stillTarget));
             self::assertSame('synthetic companion', $filesystem->readFile($companionTarget));
             $summary = $output->fetch();
-            self::assertMatchesRegularExpression('/Files processed\s+2/', $summary);
+            self::assertMatchesRegularExpression('/Renamed\s+2/', $summary);
             self::assertStringNotContainsString('Partial Live Photo groups', $summary);
         } finally {
             $this->removeWorkspace($workspace);
@@ -313,7 +313,7 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
             $tester->setInputs(['yes']);
             self::assertSame(Command::FAILURE, $tester->execute(['source' => $workspace]));
             $summary = $output->fetch();
-            self::assertMatchesRegularExpression('/Files processed\s+2/', $summary);
+            self::assertMatchesRegularExpression('/Renamed\s+2/', $summary);
             self::assertMatchesRegularExpression('/Runtime errors\s+1/', $summary);
             self::assertMatchesRegularExpression('/Runtime fallbacks\s+1/', $summary);
             self::assertSame('first', file_get_contents($workspace . '/shared.jpg'));
@@ -373,11 +373,12 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
 
             self::assertSame(Command::FAILURE, $tester->execute(['source' => $workspace]));
             $summary = $output->fetch();
-            self::assertMatchesRegularExpression('/Planned moves\s+1/', $summary);
-            self::assertMatchesRegularExpression('/Files processed\s+0/', $summary);
+            self::assertMatchesRegularExpression('/Planned renames\s+1/', $summary);
+            self::assertMatchesRegularExpression('/Renamed\s+0/', $summary);
             self::assertMatchesRegularExpression('/Runtime errors\s+1/', $summary);
             self::assertStringNotContainsString('[OK] done', $tester->getDisplay());
-            self::assertStringNotContainsString('[OK] done', $summary);
+            self::assertStringNotContainsString('[OK]', $summary);
+            self::assertStringContainsString('file operation(s) failed', $summary);
             $diagnostics = $runtimeOutput->fetch();
             self::assertStringContainsString('Failed to rename', $diagnostics);
             self::assertStringContainsString('Synthetic storage failure', $diagnostics);
@@ -446,9 +447,12 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
         self::assertStringContainsString('rename:exif', $commandDisplay);
         self::assertStringContainsString('Performing dry run. No files will be changed.', $commandDisplay);
         self::assertStringContainsString('Renaming files', $commandDisplay);
-        self::assertStringContainsString('Cross-group video review: review-b.mov — video stream identical, audio differs', $buffer);
+        self::assertStringContainsString('Video comparison requires review: video stream identical, audio differs', $buffer);
+        self::assertStringContainsString('Compared with: review-b.mov', $buffer);
+        self::assertStringContainsString('[WARNING]', $buffer);
+        self::assertStringNotContainsString('[OK]', $buffer);
         self::assertStringContainsString('Scanned files', $buffer);
-        self::assertStringContainsString('Planned moves', $buffer);
+        self::assertStringContainsString('Planned renames', $buffer);
     }
 
     /**
@@ -502,6 +506,33 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
         self::assertStringContainsString('[O] photo.jpg', $buffer);
         self::assertStringContainsString('Summary', $buffer);
         self::assertStringContainsString('Scanned files', $buffer);
+    }
+
+    /**
+     * Multiple quality findings for one source count as one affected file;
+     * a second skipped source remains distinct. The command retains its skip policy.
+     */
+    #[Test]
+    public function scanSummarySeparatesDistinctFilesFromOverlappingFindings(): void
+    {
+        [$command] = $this->createCommandHarness(
+            function (PipelineContext $context): void {
+                $first  = $this->workspace . '/first.jpg';
+                $second = $this->workspace . '/second.mov';
+                $context->setScannedFileCount(2);
+                $context->addFallbackDateFile($first);
+                $context->addAmbiguousTimezoneFile($first);
+                $context->addLivePhotoConflictFile($first, $second);
+                $context->addSkippedFile(new SkippedFile(new SplFileInfo($first), 'Synthetic missing date'));
+                $context->addSkippedFile(new SkippedFile(new SplFileInfo($second), 'Synthetic read error', true));
+            },
+            new ExecutionPlan([]),
+        );
+        $tester = new CommandTester($command);
+        self::assertSame(Command::FAILURE, $tester->execute(['source' => $this->workspace, '--dry-run' => true]));
+        $display = $tester->getDisplay();
+        self::assertStringContainsString('2 affected file(s), 5 finding(s):', $display);
+        self::assertStringContainsString('1 ambiguous timezone, 1 fallback date, 2 skipped, 1 LP conflict', $display);
     }
 
     /**

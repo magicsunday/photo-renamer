@@ -273,11 +273,15 @@ This is an intentional bounded exception (End State B). These commands are too s
 
 ### Output Tags (OutputEntryTag enum)
 
-`OutputEntryPresenter` selects plain skip text directly from the exclusive Candidate/Review/Warning/Fallback tags, with a generic default for other tags. Review uses `reason`, Warning uses `warningReason`; null and empty details remain distinct. Escaping and styling follow at the actual output boundary. The existing parameterized output matrix protects every tag and conditional detail.
+`OutputEntryPresenter` selects plain skip text directly from the exclusive Candidate/Review/Warning/Fallback tags, with a generic default for other tags. Review uses `reason`, Warning and Fallback use `warningReason`; null and empty details remain distinct. Escaping and styling follow at the actual output boundary. The existing parameterized output matrix protects every tag and conditional detail.
 
-`[R]` Rename, `[F]` Fallback, `[D]` Duplicate, `[O]` Original, `[W]` Warning, `[S]` Skipped, `[E]` Error, `[C]` Candidate (possible Live Photo pair with different content IDs)
+`[R]` Rename, `[F]` Fallback, `[D]` Duplicate, `[O]` Original, `[W]` Warning, `[S]` Skipped, `[E]` Error, `[V]` Review, `[C]` Candidate (possible Live Photo pair with different content IDs)
 
 Live Photo conflict maps retain candidate pathname → possible counterpart pathname in both EXIF and legacy detection. `[C]` keeps manual-review wording and shows the counterpart through the same relative-path, escaping and explicit-link boundary as the source. Preserve existing detection, skip policy, filters and counts; the diagnostic is neither confirmed pairing nor frame-analysis evidence or metadata-write authority.
+
+`[D]` and `[V]` info entries carry raw comparison sources through `OutputEntry::counterpartPath`, using the same explicit safe-link boundary as `[C]`. Duplicate references prefer existing non-duplicate sources by extension, never future targets; grouping is not byte identity or deletion authority. Links refer to preview inputs and can become stale after mutation. Do not add analysis or retain evidence just for presentation. Fallback reasons use available metadata and distinguish inherited companion restrictions; date drift includes both dates and the selected limit.
+
+Scan summaries distinguish unique affected paths from overlapping findings. Output counters include unchanged no-ops separately from blocked renames; preserve them through EXIF preview and legacy summary. `--show` affects lines only, announces its active filter, and never changes counts or operations. Completion distinguishes dry-run/observed renames and warns on skips, video review or execution failures; preserve exit policy and fresh safety guards.
 
 ### Timezone Handling
 

@@ -301,9 +301,11 @@ final class VirtualRenameExifPipelineFlowTest extends TestCase
         ));
         self::assertCount(1, $duplicateInfoEntries);
         self::assertSame(
-            'Duplicate of main/2024-01-01_10-00-00-123.heic',
+            'Grouped as duplicate; byte identity is not guaranteed',
             $duplicateInfoEntries[0]->reason,
         );
+
+        self::assertSame($sourceDirectory . '/main/2024-01-01_10-00-00-123.HEIC', $duplicateInfoEntries[0]->counterpartPath);
 
         $reviewEntries = array_values(array_filter(
             $infoEntries,
@@ -312,7 +314,7 @@ final class VirtualRenameExifPipelineFlowTest extends TestCase
         self::assertCount(1, $reviewEntries);
         self::assertSame('alt/review-a.MOV', $reviewEntries[0]->sourcePath);
         self::assertSame(
-            'Cross-group video review: archive/review-b.MOV — video stream identical, audio differs',
+            'Video comparison requires review: video stream identical, audio differs',
             $reviewEntries[0]->reason,
         );
     }

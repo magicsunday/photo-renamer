@@ -83,34 +83,36 @@ final class OutputEntryPresenterTest extends TestCase
     }
 
     /**
-     * Candidate source and counterpart links share the host mapping while hostile
+     * Review source and counterpart links share the host mapping while hostile
      * path bytes stay inert. Filtering hides the entire diagnostic without changing
      * planned skips; disabled links retain the same readable relative paths.
      */
     #[Test]
-    public function candidateCounterpartUsesSafeRelativeLinksAndRespectsFilters(): void
+    #[DataProvider('relatedSourceTags')]
+    public function relatedSourcesUseSafeRelativeLinksAndRespectFilters(OutputEntryTag $tag, string $label): void
     {
         [$presenter, $io, $output] = $this->createPresenter();
         $output->setDecorated(true);
-        $entries = [OutputEntry::rename(
+        $counterpart = "/synthetic/Trips/<fg=red>école\n\x1B[2J.mov";
+        $entries     = [$tag === OutputEntryTag::Candidate ? OutputEntry::rename(
             sortKey: '/synthetic/Trips/école.jpg',
             sourcePath: 'Trips/école.jpg',
             targetPath: 'Trips/renamed.jpg',
-            tag: OutputEntryTag::Candidate,
+            tag: $tag,
             shouldSkip: true,
-            counterpartPath: "/synthetic/Trips/<fg=red>école\n\x1B[2J.mov",
-        )];
+            counterpartPath: $counterpart,
+        ) : OutputEntry::info('/synthetic/Trips/école.jpg', 'Trips/école.jpg', 'Synthetic comparison', $tag, $counterpart)];
         $config = new LinkConfig('/synthetic', 'F:\\Photos', 'photo-select');
 
-        $visible = $presenter->render($entries, $io, '/synthetic', ['C'], $config);
+        $visible = $presenter->render($entries, $io, '/synthetic', [$tag->letter()], $config);
         $buffer  = $output->fetch();
         self::assertTrue(str_contains($buffer, 'photo-select:///F:/Photos/Trips/%C3%A9cole.jpg'));
         self::assertTrue(str_contains($buffer, 'photo-select:///F:/Photos/Trips/%3Cfg%3Dred%3E%C3%A9cole%0A%1B%5B2J.mov'));
-        self::assertTrue(str_contains($buffer, 'Possible counterpart: '));
+        self::assertTrue(str_contains($buffer, $label . ': '));
         self::assertTrue(str_contains($buffer, 'Trips/<fg=red>école\\n\\u001b[2J.mov'));
         self::assertFalse(str_contains($buffer, "\x1B[2J"));
         self::assertSame(4, substr_count($buffer, "\x1B]8;;"));
-        self::assertSame(1, $visible->plannedSkips);
+        self::assertSame($tag === OutputEntryTag::Candidate ? 1 : 0, $visible->plannedSkips);
         self::assertSame(0, $visible->plannedMoves);
 
         $hidden = $presenter->render($entries, $io, '/synthetic', ['R'], $config);
@@ -119,10 +121,20 @@ final class OutputEntryPresenterTest extends TestCase
         self::assertSame($visible->plannedMoves, $hidden->plannedMoves);
 
         $output->setDecorated(false);
-        $presenter->render($entries, $io, '/synthetic', ['C']);
+        $presenter->render($entries, $io, '/synthetic', [$tag->letter()]);
         $plain = $output->fetch();
-        self::assertTrue(str_contains($plain, 'Possible counterpart: Trips/<fg=red>école\\n\\u001b[2J.mov'));
+        self::assertTrue(str_contains($plain, $label . ': Trips/<fg=red>école\\n\\u001b[2J.mov'));
         self::assertFalse(str_contains($plain, 'photo-select:'));
+    }
+
+    /**
+     * @return iterable<string, array{OutputEntryTag, string}> Related-source tags and visible labels
+     */
+    public static function relatedSourceTags(): iterable
+    {
+        yield 'Live Photo candidate' => [OutputEntryTag::Candidate, 'Possible counterpart'];
+        yield 'duplicate comparison' => [OutputEntryTag::Duplicate, 'Comparison source'];
+        yield 'video review' => [OutputEntryTag::Review, 'Compared with'];
     }
 
     /**
@@ -298,7 +310,8 @@ final class OutputEntryPresenterTest extends TestCase
     public static function tagDecisions(): iterable
     {
         yield 'candidate ignores other details' => [OutputEntryTag::Candidate, 'unrelated reason', 'unrelated warning', 'Possible Live Photo pair with different content IDs; skipped for manual review'];
-        yield 'fallback ignores other details' => [OutputEntryTag::Fallback, 'unrelated reason', 'unrelated warning', 'Fallback date: DateTime (0x0132) used instead of DateTimeOriginal'];
+        yield 'fallback default' => [OutputEntryTag::Fallback, 'unrelated reason', null, 'Fallback date: DateTimeOriginal/CreateDate missing; using EXIF modification date (DateTime 0x0132). Verify the capture date; consider rename:write-date --reason=fallback.'];
+        yield 'fallback dated' => [OutputEntryTag::Fallback, null, 'Fallback date: using 2024-01-15 10:30:00+00:00', 'Fallback date: using 2024-01-15 10:30:00+00:00'];
         yield 'review null' => [OutputEntryTag::Review, null, 'unrelated warning', 'Cross-group video review required'];
         yield 'review empty' => [OutputEntryTag::Review, '', 'unrelated warning', ''];
         yield 'review custom' => [OutputEntryTag::Review, 'Synthetic video review', 'unrelated warning', 'Synthetic video review'];

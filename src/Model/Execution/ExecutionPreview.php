@@ -25,11 +25,13 @@ final readonly class ExecutionPreview
      * @param int $plannedMoves   The number of file moves that are planned.
      * @param int $plannedSkips   The number of files that will be skipped.
      * @param int $duplicateCount The number of files identified as duplicates.
+     * @param int $unchangedCount Files already at their requested path, excluding withheld entries
      */
     public function __construct(
         public int $plannedMoves = 0,
         public int $plannedSkips = 0,
         public int $duplicateCount = 0,
+        public int $unchangedCount = 0,
     ) {
     }
 }

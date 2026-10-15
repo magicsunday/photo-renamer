@@ -36,7 +36,7 @@ final readonly class PipelineReviewMapper
      * Maps cross-group video duplicate candidates to output-ready review entries.
      *
      * The resulting entries intentionally anchor the first path on its own line
-     * and carry the counterpart path plus the review reason in the secondary text.
+     * and carry the raw counterpart separately from the plain review reason.
      * This keeps the review signal readable in large runs while still showing both
      * files involved.
      *
@@ -54,11 +54,11 @@ final readonly class PipelineReviewMapper
                 sortKey: $candidate->sourcePath,
                 sourcePath: PathHelper::relativizePath($candidate->sourcePath, $sourceBaseDirectory),
                 reason: sprintf(
-                    'Cross-group video review: %s — %s',
-                    PathHelper::relativizePath($candidate->counterpartPath, $sourceBaseDirectory),
+                    'Video comparison requires review: %s',
                     $candidate->reason,
                 ),
                 tag: OutputEntryTag::Review,
+                counterpartPath: $candidate->counterpartPath,
             );
         }
 

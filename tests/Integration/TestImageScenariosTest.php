@@ -422,7 +422,10 @@ final class TestImageScenariosTest extends TestCase
             }
 
             // The file should be skipped (no actual rename performed)
-            self::assertStringContainsString('Planned skips', $consoleOutput);
+            self::assertStringContainsString('Withheld for review', $consoleOutput);
+            self::assertStringContainsString('DateTimeOriginal/CreateDate missing', $consoleOutput);
+            self::assertStringContainsString('2023-12-25 08:00:00+00:00', $consoleOutput);
+            self::assertStringContainsString('rename:write-date --reason=fallback', $consoleOutput);
         } finally {
             $this->removeWorkspace($workspace);
         }
@@ -453,6 +456,7 @@ final class TestImageScenariosTest extends TestCase
             self::assertArrayHasKey('IMG_0001.mov', $tags, 'MOV companion must appear in output');
             self::assertSame('F', $tags['IMG_0001.jpg'], 'JPG still must be tagged [F] (fallback date)');
             self::assertSame('F', $tags['IMG_0001.mov'], 'MOV companion must inherit [F] from still');
+            self::assertStringContainsString('companion rename withheld', $consoleOutput);
         } finally {
             $this->removeWorkspace($workspace);
         }

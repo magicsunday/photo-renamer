@@ -33,13 +33,14 @@ final readonly class RenameSummaryCounters
      * @param int $livePhotoGroups            Live Photo groups detected in the run
      * @param int $namingCollisions           Pre-execution naming collisions detected by validation
      * @param int $fileCount                  Files that would or did perform a rename operation
-     * @param int $duplicateCount             Visible duplicate targets in the rendered output
-     * @param int $plannedMoves               Planned move operations in the rendered output
-     * @param int $plannedSkips               Planned execution skips in the rendered output
+     * @param int $duplicateCount             Duplicate targets before display filtering
+     * @param int $plannedMoves               Planned move operations before display filtering
+     * @param int $plannedSkips               Planned execution skips before display filtering
      * @param int $crossGroupVideoReviewCount Cross-group video review entries detected during reconciliation
      * @param int $runtimeErrors              Failed file operations observed during execution
      * @param int $runtimeFallbacks           Successful moves whose actual target differs from the plan
      * @param int $partialLivePhotoGroups     Incomplete or separated Live Photo component groups after execution
+     * @param int $unchangedCount             Files already at their requested path, excluding withheld entries
      */
     public function __construct(
         public int $scannedFiles,
@@ -55,6 +56,7 @@ final readonly class RenameSummaryCounters
         public int $runtimeErrors = 0,
         public int $runtimeFallbacks = 0,
         public int $partialLivePhotoGroups = 0,
+        public int $unchangedCount = 0,
     ) {
     }
 }
