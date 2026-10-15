@@ -19,7 +19,7 @@ cp .env.dist .env
 | `MAX_COMPARISON_PAIRS` | `100000` | Positive finite pair-visit limit per capture group and cross-group video batch; excess reports incomplete analysis and fails. |
 | `CANONICAL_FORMAT_PRIORITY` | `heic,heif,dng,arw,...` | Ordered format preference used for canonical selection; see [`.env.dist`](../.env.dist) for the full default. |
 | `MERGE_THRESHOLD` | `0.06`  | Maximum RMSE (0.0–1.0) for merging visually similar files. Internal safe limits still cap the effective threshold. See `--merge-threshold`. |
-| `CACHE_DIR` | `.build/cache` | Development/standalone JSON cache base. Isolated Docker runtime uses `/cache` in the `media-cache` volume. |
+| `CACHE_DIR` | Runtime-dependent | Shared host base for mutation locks, journals and media JSON. Source: project `.build/cache`; standalone: `$HOME/.cache/renamer`, or `<system temp>/renamer-cache` without `HOME`; Docker: `/cache` volume. Relative overrides resolve against the command’s working directory. |
 | `MEDIA_DIR` | `./images` | Existing host directory bound at `/media` for runtime commands. |
 | `MEDIA_READ_ONLY` | `false` | Read-only media mount for analysis; mutating commands need write access. |
 | `PHP_MEMORY_LIMIT` | `1024M` | Positive finite PHP byte quantity (optionally K/M/G); unlimited and malformed values fail before startup. |

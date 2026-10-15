@@ -36,7 +36,8 @@ make install        # Composer install
 make no-dev-smoke   # Verify the isolated production vendor tree and runtime dependencies
 make runtime-image-check # Verify the runtime image and native media decoder contract
 make runtime-build # Build immutable production code/vendor/DI artifact
-make binary         # Build SPC binary (always via Docker)
+make binary         # Build SPC binary + actual native default-state/failure regression (Docker)
+make binary-check   # All eight native command/file-state contracts using synthetic media/runtime tools
 make cache-clear    # Purge current-user JSON caches, owned legacy files and DI cache
 make runtime-cache-clear # Purge runtime-volume JSON only, preserving immutable DI
 make cache-prune    # Prune missing development cache paths, expected media must be accessible
@@ -57,7 +58,7 @@ Quality Make recipes must propagate coverage/mutation tool failures; never prefi
 
 `composer ci:test:php:cpd` runs the installed `node_modules/.bin/jscpd`, so the Node dependencies must be installed first (`make install` runs `npm ci`). jscpd is pinned to an exact version in `package.json`. CI runs it as its own job through the shared `cpd.yml` workflow of the `.github` repository, reported as `cpd / Copy-paste detection`.
 
-`make no-dev-smoke` builds a temporary `--no-dev` Composer tree and starts the CLI with it. The smoke test also exercises the production `symfony/process` dependency, video fingerprinting, Write-Date, and the missing-`exiftool` capability diagnostic without using the repository's normal development vendor tree.
+`make no-dev-smoke` builds a temporary `--no-dev` Composer tree and starts the CLI with it. The smoke test runs real command/file-state contracts for all eight CLI commands against source and a compressed production PHAR, with inherited CACHE_DIR removed and HOME/temp/absolute/relative state variants plus I/O failures. `scripts/check-command-contracts.php` also drives `make binary-check` against the real executable. Verify preview immutability, actual names/bytes, fixed-point repeats, metadata writes, read-only analysis and dedup quarantine/delete/refusal. `make binary` always runs the lightweight native state-mutation/error-path regression; a passing image test with CACHE_DIR inherited is not standalone-default evidence. For CLI, bootstrap, state or packaging changes, run `make no-dev-smoke` alongside `make test`; before replacing or distributing a native executable, run `make binary-check` against that exact artifact. The smoke test also exercises the production `symfony/process` dependency, video fingerprinting, Write-Date, and the missing-`exiftool` capability diagnostic without using the repository's normal development vendor tree.
 
 `make cache-permissions-check` uses root only inside a disposable Docker container to launch children that permanently drop to UID/GID 1000 and 1001. It checks actual denied access to synthetic GPS/path JSON and foreign-owner rejection. The runtime-image CI lane runs this check with production dependencies.
 
@@ -95,7 +96,7 @@ Application installs consume the versioned `composer.lock`; `scripts/check-lock.
 
 ### Dependency injection container
 
-Symfony DI uses autowiring from `config/Services.yaml`. All `src/` classes are auto-registered except `Renamer.php`, `Dependencies.php`, `Constants.php`, and `Model/`; service interfaces are bound explicitly, `MediaTypeClassifier` owns extension and media-family pair rules directly, and `MetadataReader` is created through its static factory. The compiled container is cached at `.build/cache/DependencyContainer.php` with Symfony resource metadata (`.meta`/`.meta.json`). `ConfigCache(..., true)` validates YAML/class wiring and installed-package resources before normal reuse; never use `debug=false` as a freshness check. Development rebuilds stale resources automatically. Ship the resource files with the immutable runtime image and rebuild that image after code/vendor/config changes; runtime cache-clear preserves all DI artifacts. Only an actually running immutable PHAR (`Phar::running()`) uses its packaged container without checking obsolete external build paths; a missing packaged container fails explicitly. Test a real small archive after deleting its synthetic build tree. Keep executable cache/resource parents trusted.
+Symfony DI uses autowiring from `config/Services.yaml`. All `src/` classes are auto-registered except `Renamer.php`, `Dependencies.php`, `Constants.php`, and `Model/`; service interfaces are bound explicitly, `MediaTypeClassifier` owns extension and media-family pair rules directly, and `MetadataReader` is created through its static factory. The compiled container is cached at `.build/cache/DependencyContainer.php` with Symfony resource metadata (`.meta`/`.meta.json`). `ConfigCache(..., true)` validates YAML/class wiring and installed-package resources before normal reuse; never use `debug=false` as a freshness check. Development rebuilds stale resources automatically. Ship the resource files with the immutable runtime image and rebuild that image after code/vendor/config changes; runtime cache-clear preserves all DI artifacts. Never create DI directories inside an immutable PHAR. Only an actually running immutable PHAR (`Phar::running()`) uses its packaged container without checking obsolete external build paths; a missing packaged container fails explicitly. Test a real small archive after deleting its synthetic build tree. Keep executable cache/resource parents trusted.
 
 Collaborators are explicit constructor dependencies wired by the container and supplied by tests. Compiled-container and CLI tests verify actual wiring and its failure behavior. The pipeline uses concrete subgroup, role, naming and collision stages; source-building and plan-projection contracts retain controlled failure and filesystem-execution test boundaries.
 
@@ -292,6 +293,8 @@ Scan summaries distinguish unique affected paths from overlapping findings. Outp
 - Ambiguous timezone detection uses metadata structure (`QuickTimeMeta` presence + no `temporal->tz` + no offset tags), **not** file extensions.
 - The PHP container runs in UTC — EXIF dates only appear UTC but are local.
 
+All host state uses `FileHelper::resolveCacheDirectory()` at runtime: explicit CACHE_DIR (relative to cwd), source project `.build/cache`, or standalone HOME `.cache/renamer` / system-temp `renamer-cache`. DI injects a nullable override rather than a build-time fallback path. Locks, journals and command media caches must share this policy; never resolve their defaults against PHAR code paths. Preserve source/journal/ownership guards.
+
 ## Project Layout
 
 ```
@@ -336,7 +339,7 @@ scripts/               # Build and utility scripts
 | `TIMEZONE` | Convert UTC video timestamps to local time | `Europe/Berlin` |
 | `MAX_DATE_DRIFT` | Max days drift between filename and metadata date | `7` |
 | `MAX_COMPARISON_PAIRS` | Finite pair visits per capture group and entire cross-group video batch | `100000` |
-| `CACHE_DIR` | Dev/standalone JSON base; runtime uses `/cache` volume (0700/0600); DI separate | `.build/cache` |
+| `CACHE_DIR` | Shared host locks/journals/JSON base; relative to cwd; DI separate | Source `.build/cache`; standalone HOME `.cache/renamer` or temp `renamer-cache`; runtime `/cache` |
 | `MEDIA_DIR` / `MEDIA_READ_ONLY` | Existing host collection mounted at `/media`, optional read-only analysis | `./images` / `false` |
 | `PHP_MEMORY_LIMIT` | Positive finite PHP budget, invalid/unlimited overrides rejected | `1024M` |
 | `RUNTIME_MEMORY_LIMIT` / `RUNTIME_CPUS` | Container RAM (swap equal) and CPU budget | `2g` / `2.0` |

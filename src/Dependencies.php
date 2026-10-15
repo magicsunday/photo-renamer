@@ -42,8 +42,10 @@ $filesystem         = new Filesystem();
 $configCache        = new ConfigCache($cachedContainer, true);
 $isImmutableArchive = Phar::running() !== '';
 
-// Ensure the build cache directory exists for the compiled container
-$filesystem->mkdir(__DIR__ . '/../.build/cache');
+// Only source builds create a compiled-container directory; archives are immutable.
+if (!$isImmutableArchive) {
+    $filesystem->mkdir(__DIR__ . '/../.build/cache');
+}
 
 // Check the actual framework resources rather than file existence alone.
 // PHAR resources refer to build paths; its code/config/container form one

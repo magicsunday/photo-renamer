@@ -159,9 +159,12 @@ Compiles a Linux standalone executable with PHP, production packages and Imagick
 `make binary-init` preserves an existing `.env` byte for byte, including comments and runtime settings. Its builder invocation uses the calling user's UID/GID through transient environment overrides. If `.env` is missing, initialization copies all `.env.dist` defaults and substitutes those initial numeric IDs. Docker/authentication failure does not erase existing configuration.
 
 ```bash
-make binary         # Init SPC environment + compile the renamer binary
+make binary         # Build and verify native default-state mutation/failure paths
+make binary-check   # Exercise all native commands with synthetic media; requires runtime image
 make binary-clean   # Remove SPC build artifacts to free space
 ```
+
+`make no-dev-smoke` runs the same real command/file-state contracts against an isolated production source tree and a compressed PHAR built by the production packer. These checks run in PR CI. `make binary` additionally checks the native executable with `CACHE_DIR` removed, HOME/temp defaults and a real I/O failure. `make binary-check` uses the existing runtime image’s native tools to exercise all eight commands through that executable: preview, actual mutation, fixed-point repeat, absolute/relative directory/single-file inputs and trailing slashes, verified duplicate deletion/refusal, quarantine, read-only verification and actual EXIF writes. All fixtures and state are disposable; inherited cache/link settings are removed explicitly. These targeted contracts complement the detailed unit/integration suites; they do not claim an exhaustive Cartesian product of arbitrary regexes, paths and options.
 
 The output is `renamer` in the repository root. Install it on a compatible Linux host:
 

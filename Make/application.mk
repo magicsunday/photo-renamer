@@ -10,7 +10,7 @@ DI_CACHE       = .build/cache/DependencyContainer.php
 
 #### Application
 
-.PHONY: binary binary-init binary-clean cache-clear runtime-cache-clear cache-prune runtime-cache-prune cache-permissions-check comparison-benchmark visual-comparison-benchmark metadata-cache-benchmark mixed-collection-benchmark version
+.PHONY: binary binary-check binary-init binary-clean cache-clear runtime-cache-clear cache-prune runtime-cache-prune cache-permissions-check comparison-benchmark visual-comparison-benchmark metadata-cache-benchmark mixed-collection-benchmark version
 
 visual-comparison-benchmark: ## Evaluate synthetic image-classification candidates offline; emit JSON.
 	bash scripts/benchmark-visual-classification.sh $(or $(PROFILE),comparison)
@@ -27,6 +27,9 @@ mixed-collection-benchmark: .logo ## Profile synthetic JPG/HEIC+MOV through the 
 binary: .logo ## Build the self-contained renamer binary.
 	$(COMPOSE_BUILD) php scripts/clear-cache.php
 	@bash scripts/build-with-docker.sh
+
+binary-check: .logo ## Test all native CLI commands using synthetic media in the existing runtime image.
+	bash scripts/check-binary-commands.sh
 
 binary-init: .logo ## Initialize SPC build environment (download + compile PHP).
 	@bash scripts/init-with-docker
