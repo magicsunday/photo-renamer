@@ -16,6 +16,7 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
 use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\Process\InputStream;
 use Symfony\Component\Process\Process;
 
 use function array_keys;
@@ -38,6 +39,7 @@ use function str_contains;
 use function str_ends_with;
 use function str_starts_with;
 use function strlen;
+use function strpos;
 use function substr;
 use function sys_get_temp_dir;
 use function trim;
@@ -144,10 +146,30 @@ try {
             if ($singleFile) {
                 $filesystem->copy($fixtures . '/10-already-correct/2024-10-20_16-45-00-000.jpg', $sibling);
             }
-            $before = mediaSnapshot($directory);
-            runCli($prefix, [$command, $input, ...$options, '--dry-run', '--show=R'], $workspace . '/cwd', $environment);
+            $before  = mediaSnapshot($directory);
+            $preview = runCli($prefix, [$command, $input, ...$options, '--dry-run', '--show=R'], $workspace . '/cwd', $environment);
+            requireContract(!str_contains($preview->getOutput(), 'Verifying source file safety') && !str_contains($preview->getOutput(), 'Are you sure?'), $command . ' dry-run entered mutation startup');
             requireContract(mediaSnapshot($directory) === $before, $command . ' dry-run changed paths/bytes');
-            runCli($prefix, [$command, $input, ...$options], $workspace . '/cwd', $environment);
+            $answer  = new InputStream();
+            $decline = new Process([...$prefix, $command, $input, ...$options, '--no-ansi'], $workspace . '/cwd', $environment, $answer);
+            $decline->setTimeout(30.0);
+
+            try {
+                $decline->start();
+                requireContract($decline->waitUntil(static fn (): bool => str_contains($decline->getOutput(), 'Are you sure?')), $command . ' did not display confirmation before waiting for input');
+                requireContract(!str_contains($decline->getOutput(), 'Verifying source file safety'), $command . ' began verification before the answer');
+                $answer->write("no\n");
+                $answer->close();
+                $decline->wait();
+            } finally {
+                $decline->stop();
+            }
+            requireContract(($decline->getExitCode() === 1) && str_contains($decline->getOutput(), 'Are you sure?') && !str_contains($decline->getOutput(), 'Verifying source file safety'), $command . ' refusal entered safety verification');
+            requireContract(mediaSnapshot($directory) === $before, $command . ' refusal changed paths/bytes');
+            $confirmed = runCli($prefix, [$command, $input, ...$options], $workspace . '/cwd', $environment);
+            $prompt    = strpos($confirmed->getOutput(), 'Are you sure?');
+            $phase     = strpos($confirmed->getOutput(), 'Verifying source file safety');
+            requireContract(($prompt !== false) && ($phase !== false) && ($prompt < $phase), $command . ' did not confirm before safety verification');
             requireContract(!file_exists($source) && is_file($target), $command . ' did not perform the expected rename: ' . json_encode(array_keys(mediaSnapshot($directory)), JSON_THROW_ON_ERROR));
             requireContract(hash_file('sha256', $target) === $before[$sourceName], $command . ' changed media bytes');
             $after       = mediaSnapshot($directory);

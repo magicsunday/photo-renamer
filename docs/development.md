@@ -39,7 +39,7 @@ SPC bootstrap uses the reviewed release and archive/binary SHA-256 values in `co
 
 These records support rebuilding and diagnosing the selected inputs; they do not promise bit-for-bit identity across compilers, system repositories and archive generation. Review manifests and run no-dev/runtime/artifact checks when updating dependencies or build inputs.
 
-The production dependency tree can be checked separately with `make no-dev-smoke`. It installs the application into a temporary isolated `--no-dev` vendor tree, starts the CLI, exercises the runtime process and video fingerprinting paths, and verifies the Write-Date and missing-`exiftool` diagnostics without inheriting development packages.
+Changes that can affect CLI behavior require both `make test` and `make no-dev-smoke`, including changes to shared services, dependencies, configuration, bootstrap or packaging. The no-dev check executes all eight commands against an isolated production source tree and a compressed production PHAR using disposable synthetic media. It checks actual file state and failure behavior, as well as runtime processes, video fingerprinting and missing-`exiftool` diagnostics. Before replacing or distributing a native executable, also run `make binary-check` against that exact artifact. The mandatory verification rules in [AGENTS.md](../AGENTS.md#running-ci) define the required evidence; use existing behavior tests and extend them only for uncovered contracts.
 
 The tooling configuration is shared with the other `magicsunday/*` projects through
 [`magicsunday/coding-standard`](https://github.com/magicsunday/coding-standard), the only
@@ -104,7 +104,7 @@ Still-image Stage B uses `LocalDifferenceAnalyzer::analyzeRmse()`; the retained 
 | `make coverage` | Run PHPUnit with HTML + Clover coverage report (`.build/coverage/`). |
 | `make mutation` | Run Infection with the configured mutation-score gates. |
 | `make cpd`     | Run copy-paste detection.            |
-| `make no-dev-smoke` | Verify the isolated production vendor tree and runtime dependencies. |
+| `make no-dev-smoke` | Exercise all eight commands against production source and compressed PHAR. |
 | `make runtime-image-check` | Build the runtime image and verify its native media decoder contract. |
 
 Quality targets propagate tool failures, including risky coverage tests and failed
