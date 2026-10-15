@@ -11,15 +11,18 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer;
 
+use MagicSunday\Renamer\Command\AbstractMediaRenameCommand;
 use MagicSunday\Renamer\Exception\AnalysisMemoryBudgetExceededException;
 use MagicSunday\Renamer\Helper\ConsoleText;
 use MagicSunday\Renamer\Service\Filesystem\BatchRunLock;
 use MagicSunday\Renamer\Service\Filesystem\MutationJournal;
 use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
+use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use Override;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Filesystem\Exception\IOException;
 use Symfony\Component\Filesystem\Filesystem;
 use Throwable;
@@ -37,6 +40,7 @@ use const PHP_EOL;
  * version file and displays the ASCII art logo in help output.
  * Mutation coordination lives at this boundary so every writing command,
  * including dedup and write-date, is locked before its own analysis starts.
+ * Standard rename commands obtain consent before opening that mutation scope.
  * Source identity is captured within that lock and released after cleanup;
  * read-only commands and help remain available without a mutation scope.
  *
@@ -98,8 +102,9 @@ final class Application extends \Symfony\Component\Console\Application
     }
 
     /**
-     * Holds the shared mutation lock throughout command analysis, confirmation,
-     * execution and cache cleanup. New rename commands are protected by default;
+     * Holds the shared mutation lock throughout command analysis, execution and
+     * cache cleanup. Standard rename confirmation precedes source fingerprinting.
+     * New rename commands are protected by default;
      * verification and explicitly parsed dry runs do not mutate media.
      *
      * @param Command         $command Resolved command, including aliases
@@ -126,13 +131,31 @@ final class Application extends \Symfony\Component\Console\Application
             return parent::doRunCommand($command, $input, $output);
         }
 
+        if ($command instanceof AbstractMediaRenameCommand) {
+            return $command->runAfterConfirmation($input, $output, fn (): int => $this->runMutatingCommand($command, $input, $output));
+        }
+
+        return $this->runMutatingCommand($command, $input, $output);
+    }
+
+    /**
+     * Captures source identity under the shared lock before any analysis and
+     * retains all protections until command execution and cleanup finish.
+     *
+     * @return int Protected command status
+     *
+     * @throws AnalysisMemoryBudgetExceededException When retained source identities reach the memory budget
+     */
+    private function runMutatingCommand(Command $command, InputInterface $input, OutputInterface $output): int
+    {
+        $name   = $command->getName() ?? '';
         $lock   = $this->batchRunLock->acquire();
         $status = Command::FAILURE;
 
         try {
             $this->mutationJournal->begin($name);
             $source = $input->hasArgument('source') ? $input->getArgument('source') : null;
-            $this->sourceIdentityGuard->begin(is_string($source) ? $source : null);
+            $this->sourceIdentityGuard->begin(is_string($source) ? $source : null, new ConsoleProgressReporter(new SymfonyStyle($input, $output)));
             $status = parent::doRunCommand($command, $input, $output);
         } finally {
             try {

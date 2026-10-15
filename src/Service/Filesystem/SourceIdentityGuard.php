@@ -15,6 +15,7 @@ use MagicSunday\Renamer\Exception\AnalysisMemoryBudgetExceededException;
 use MagicSunday\Renamer\Exception\HashComputationException;
 use MagicSunday\Renamer\Helper\AnalysisMemoryBudget;
 use MagicSunday\Renamer\Model\SourceFileFingerprint;
+use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use MagicSunday\Renamer\Service\SafeHashCalculatorInterface;
 use RuntimeException;
 use SplFileInfo;
@@ -60,13 +61,14 @@ final class SourceIdentityGuard
      * as unverified rather than aborting unrelated, readable sources. Traversal
      * failures still abort before command execution and before any media mutation.
      *
-     * @param string|null $source Source argument, or null for a command without one
+     * @param string|null                    $source   Source argument, or null for a command without one
+     * @param ProgressReporterInterface|null $reporter Optional observer for the streamed full-file verification pass
      *
      * @return void
      *
      * @throws AnalysisMemoryBudgetExceededException When retained fingerprints reach the pre-mutation budget
      */
-    public function begin(?string $source): void
+    public function begin(?string $source, ?ProgressReporterInterface $reporter = null): void
     {
         $this->sources = [];
         $this->active  = true;
@@ -81,19 +83,29 @@ final class SourceIdentityGuard
             throw new RuntimeException('Source does not exist; pre-analysis identity cannot be captured.');
         }
 
-        if (is_file($resolved)) {
-            $this->observe($resolved);
+        $reporter?->section('Verifying source file safety');
+        $reporter?->text('Reading source files before analysis; large videos may take a while. No media files are changed in this phase.');
+        $reporter?->startProgress(0);
 
-            return;
-        }
+        try {
+            if (is_file($resolved)) {
+                $this->observe($resolved);
+                $reporter?->advance();
 
-        /** @var SplFileInfo $file */
-        foreach ($this->fileCollector->createFileIterator($resolved) as $file) {
-            AnalysisMemoryBudget::assertHeadroom('source identity collection');
-
-            if ($file->isFile() || $file->isLink()) {
-                $this->observe($file->getPathname());
+                return;
             }
+
+            /** @var SplFileInfo $file */
+            foreach ($this->fileCollector->createFileIterator($resolved) as $file) {
+                AnalysisMemoryBudget::assertHeadroom('source identity collection');
+
+                if ($file->isFile() || $file->isLink()) {
+                    $this->observe($file->getPathname());
+                    $reporter?->advance();
+                }
+            }
+        } finally {
+            $reporter?->finish();
         }
     }
 

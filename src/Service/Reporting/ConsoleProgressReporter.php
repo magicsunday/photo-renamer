@@ -49,8 +49,8 @@ final class ConsoleProgressReporter implements ProgressReporterInterface
      */
     public function startProgress(int $max): void
     {
-        $this->progressBar = $this->io->createProgressBar(max($max, 1));
-        $this->progressBar->setFormat(Constants::PROGRESS_BAR_FORMAT);
+        $this->progressBar = $this->io->createProgressBar(max($max, 0));
+        $this->progressBar->setFormat($max > 0 ? Constants::PROGRESS_BAR_FORMAT : '%current% file(s) | Elapsed: %elapsed:6s%');
         $this->progressBar->start();
     }
 
@@ -69,6 +69,11 @@ final class ConsoleProgressReporter implements ProgressReporterInterface
     {
         if (!$this->progressBar instanceof ProgressBar) {
             return;
+        }
+
+        if ($this->progressBar->getMaxSteps() === 0) {
+            // Unknown totals never hit a final numbered step to force a redraw.
+            $this->progressBar->display();
         }
 
         $this->progressBar->finish();

@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Command;
 
+use Closure;
 use FilesystemIterator;
 use MagicSunday\Renamer\Command\Concern\ConfiguresMetadataProvider;
 use MagicSunday\Renamer\Helper\FilterIterator\RecursiveRegexFileFilterIterator;
@@ -67,6 +68,9 @@ abstract class AbstractMediaRenameCommand extends Command
     protected InputInterface $input;
 
     protected SymfonyStyle $io;
+
+    /** Whether the enclosing application invocation already obtained confirmation. */
+    private bool $prepared = false;
 
     /**
      * When true, duplicate targets preserve the source file's original extension
@@ -186,35 +190,59 @@ abstract class AbstractMediaRenameCommand extends Command
     }
 
     /**
-     * Main execution entry point.
+     * Obtains confirmation before the application opens its expensive mutation
+     * scope. Preparation lasts only for the supplied run, including failures;
+     * direct CommandTester/service callers retain the normal Console lifecycle.
      *
-     * Called by Symfony Console. It performs the following steps:
-     * 1. Initializes IO (SymfonyStyle)
-     * 2. Parses input and initializes command parameters
-     * 3. Validates command options
-     * 4. Handles dry-run confirmation
-     * 5. Normalizes directory paths
-     * 6. Delegates to {@see executeCommand()} for the actual pipeline execution
+     * @param Closure(): int $run Application execution with lock, identity and journal protection
      *
-     * @param InputInterface  $input  The input interface
-     * @param OutputInterface $output The output interface
-     *
-     * @return int The exit code (0 for success, non-zero for failure)
+     * @return int Command status, or failure when confirmation is declined
      */
-    #[Override]
-    final protected function execute(InputInterface $input, OutputInterface $output): int
+    final public function runAfterConfirmation(InputInterface $input, OutputInterface $output, Closure $run): int
+    {
+        $input->validate();
+
+        if ($this->prepareExecution($input, $output) !== self::SUCCESS) {
+            return self::FAILURE;
+        }
+
+        $this->prepared = true;
+
+        try {
+            return $run();
+        } finally {
+            $this->prepared = false;
+        }
+    }
+
+    /**
+     * Initializes command IO/options and obtains consent without reading sources.
+     *
+     * @return int SUCCESS for a dry run or confirmed mutation, FAILURE otherwise
+     */
+    private function prepareExecution(InputInterface $input, OutputInterface $output): int
     {
         $this->io = new SymfonyStyle($input, $output);
         $this->io->title($this->getName() ?? '');
 
         $this->input = $input;
-
         $this->initializeCommandParameters($input);
 
-        $confirmationResult = $this->handleDryRunConfirmation();
+        return $this->handleDryRunConfirmation();
+    }
 
-        if ($confirmationResult !== self::SUCCESS) {
-            return $confirmationResult;
+    /**
+     * Runs the selected workflow after confirmation and source normalization.
+     * The application can prepare confirmation before capturing source identity;
+     * standalone command calls prepare here instead.
+     *
+     * @return int Workflow exit status
+     */
+    #[Override]
+    final protected function execute(InputInterface $input, OutputInterface $output): int
+    {
+        if (!$this->prepared && ($this->prepareExecution($input, $output) !== self::SUCCESS)) {
+            return self::FAILURE;
         }
 
         $this->normalizeDirectoryPaths();

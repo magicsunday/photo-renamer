@@ -115,8 +115,9 @@ final class ConfigurationValidationTest extends TestCase
 
     /**
      * Malformed and out-of-range CLI/environment settings must fail visibly
-     * before parsing/renaming the synthetic source. Check the real journal has
-     * no mutation intents and the original name and bytes survive unchanged.
+     * before parsing/renaming the synthetic source. Any opened journal must have
+     * no mutation intents; early validation can reject before a scope is opened.
+     * The original name and bytes must survive unchanged.
      *
      * @param string $option  Configuration option whose boundary is verified
      * @param string $value   Invalid explicit value
@@ -158,8 +159,10 @@ final class ConfigurationValidationTest extends TestCase
             self::assertSame([$source], $remaining);
             $journals = glob(new PrivateCacheStorage($filesystem)->directory($state) . '/mutation-*.jsonl');
             self::assertIsArray($journals);
-            self::assertCount(1, $journals);
-            self::assertFalse(str_contains($filesystem->readFile($journals[0]), '"event":"intent"'));
+
+            foreach ($journals as $journal) {
+                self::assertFalse(str_contains($filesystem->readFile($journal), '"event":"intent"'));
+            }
         } finally {
             $filesystem->remove($workspace);
         }
