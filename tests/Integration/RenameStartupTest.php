@@ -17,6 +17,7 @@ use MagicSunday\Renamer\Regex\SafeRegex;
 use MagicSunday\Renamer\Service\Filesystem\BatchRunLock;
 use MagicSunday\Renamer\Service\Filesystem\FileCollector;
 use MagicSunday\Renamer\Service\Filesystem\SourceIdentityGuard;
+use MagicSunday\Renamer\Service\Reporting\ConsoleProgressReporter;
 use MagicSunday\Renamer\Service\SafeHashCalculator;
 use MagicSunday\Renamer\Service\SafeHashCalculatorInterface;
 use MagicSunday\Renamer\Test\Fixtures\RuntimeExecutorFactory;
@@ -26,8 +27,12 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Input\ArrayInput;
+use Symfony\Component\Console\Output\BufferedOutput;
+use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Tester\ApplicationTester;
 use Symfony\Component\Console\Tester\CommandTester;
 use Symfony\Component\Filesystem\Filesystem;
@@ -93,12 +98,15 @@ final class RenameStartupTest extends TestCase
 
         $tester = new ApplicationTester($application);
         $calculator->expects(self::exactly($willMove ? 2 : 0))->method('hashFile')->willReturnCallback(static function (SplFileInfo $file, string $algorithm) use ($actualHasher, $tester): string {
-            $display = $tester->getDisplay();
-            $prompt  = strpos($display, 'Are you sure?');
-            $phase   = strpos($display, 'Verifying source file safety');
+            $display  = $tester->getDisplay();
+            $prompt   = strpos($display, 'Are you sure?');
+            $counting = strpos($display, 'Counting source files');
+            $phase    = strpos($display, 'Verifying source file safety');
             self::assertNotFalse($prompt);
             self::assertNotFalse($phase);
-            self::assertLessThan($phase, $prompt);
+            self::assertNotFalse($counting);
+            self::assertLessThan($counting, $prompt);
+            self::assertLessThan($phase, $counting);
 
             return $actualHasher->hashFile($file, $algorithm);
         });
@@ -112,11 +120,14 @@ final class RenameStartupTest extends TestCase
             self::assertSame($willMove, $filesystem->exists($target));
             self::assertSame('synthetic source bytes', $filesystem->readFile($willMove ? $target : $source));
             self::assertSame($willMove ? 1 : 0, substr_count($display, 'Verifying source file safety'));
+            self::assertSame($willMove ? 1 : 0, substr_count($display, 'Counting source files'));
             self::assertSame($dryRun || !$interactive ? 0 : 1, substr_count($display, 'Are you sure?'));
 
             if ($willMove) {
-                self::assertStringContainsString('1 file(s)', $display);
-                self::assertStringNotContainsString('100%', $display);
+                self::assertStringContainsString('Counting source files', $display);
+                self::assertStringContainsString('1/1', $display);
+                self::assertStringContainsString('100%', $display);
+                self::assertStringContainsString('Remaining:', $display);
             }
 
             $lock?->release();
@@ -129,6 +140,76 @@ final class RenameStartupTest extends TestCase
             $lock?->release();
             $this->removeWorkspace($workspace);
         }
+    }
+
+    /**
+     * Counting uses the fixed candidate inventory without reading contents.
+     * A file arriving during hashing stays outside that inventory and cannot
+     * acquire mutation authority; empty inputs do not invent a progress total.
+     *
+     * @param int  $files      Number of existing nested source files
+     * @param bool $singleFile Whether only one source is selected
+     */
+    #[Test]
+    #[DataProvider('inventoryModes')]
+    public function countedInventoryHasTruthfulProgress(int $files, bool $singleFile): void
+    {
+        $workspace  = $this->createTempWorkspace();
+        $filesystem = new Filesystem();
+        $filesystem->mkdir($workspace . '/nested with spaces');
+
+        for ($index = 0; $index < $files; ++$index) {
+            $filesystem->dumpFile($workspace . '/nested with spaces/' . $index . '.jpg', 'synthetic bytes');
+        }
+
+        $output       = new BufferedOutput();
+        $reporter     = new ConsoleProgressReporter(new SymfonyStyle(new ArrayInput([]), $output));
+        $expected     = $singleFile ? 1 : $files;
+        $late         = $workspace . '/late.jpg';
+        $calculator   = self::createMock(SafeHashCalculatorInterface::class);
+        $actualHasher = new SafeHashCalculator();
+        $calculator->expects(self::exactly($expected))->method('hashFile')->willReturnCallback(static function (SplFileInfo $file, string $algorithm) use ($output, $filesystem, $late, $actualHasher): string {
+            $display = $output->fetch();
+            $output->write($display);
+            self::assertStringContainsString('Counting source files', $display);
+            self::assertStringContainsString('Verifying source file safety', $display);
+            $filesystem->dumpFile($late, 'late synthetic source');
+
+            return $actualHasher->hashFile($file, $algorithm);
+        });
+        $guard = new SourceIdentityGuard($calculator, new FileCollector(new SafeRegex()));
+
+        try {
+            $guard->begin($singleFile ? $workspace . '/nested with spaces/0.jpg' : $workspace, $reporter);
+            $display = $output->fetch();
+
+            if ($expected === 0) {
+                self::assertStringContainsString('No source files found.', $display);
+                self::assertStringNotContainsString('100%', $display);
+                self::assertStringNotContainsString('Verifying source file safety', $display);
+                $filesystem->dumpFile($late, 'late synthetic source');
+            } else {
+                self::assertStringContainsString($expected . '/' . $expected, $display);
+                self::assertStringContainsString('100%', $display);
+                self::assertStringContainsString('Elapsed:', $display);
+                self::assertStringContainsString('Remaining:', $display);
+            }
+
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessageMatches('/was not verified before analysis/');
+            $guard->assertUnchanged($late);
+        } finally {
+            $guard->finish();
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /** @return iterable<string, array{int, bool}> Inventory boundaries */
+    public static function inventoryModes(): iterable
+    {
+        yield 'nested directory' => [3, false];
+        yield 'single file only' => [3, true];
+        yield 'empty directory' => [0, false];
     }
 
     /** @return iterable<string, array{string, bool, bool, int, bool}> Distinct consent policies */

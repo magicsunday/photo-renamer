@@ -70,7 +70,7 @@ Keep a backup, inspect the preview and stop importers/editors before applying ch
 MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:exif /media
 ```
 
-Mutating commands ask for confirmation. Standard renames then display source safety verification before scanning; this reads each source fully and can take time for large videos. See the [collection workflow](docs/usage.md#collection-workflow) for metadata repair, verification and duplicate cleanup.
+Mutating commands ask for confirmation. Standard renames then count source files and display safety verification with progress and a remaining-time estimate before analysis; this reads each source fully and can take time for large videos. See the [collection workflow](docs/usage.md#collection-workflow) for metadata repair, verification and duplicate cleanup.
 
 ## 🧩 Commands
 

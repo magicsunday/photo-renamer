@@ -170,6 +170,9 @@ try {
             $prompt    = strpos($confirmed->getOutput(), 'Are you sure?');
             $phase     = strpos($confirmed->getOutput(), 'Verifying source file safety');
             requireContract(($prompt !== false) && ($phase !== false) && ($prompt < $phase), $command . ' did not confirm before safety verification');
+            $expectedCount = $singleFile ? 1 : count($before);
+            $progressOutput = $confirmed->getOutput() . $confirmed->getErrorOutput();
+            requireContract(str_contains($progressOutput, $expectedCount . '/' . $expectedCount) && str_contains($progressOutput, 'Remaining:'), $command . ' did not display counted verification progress');
             requireContract(!file_exists($source) && is_file($target), $command . ' did not perform the expected rename: ' . json_encode(array_keys(mediaSnapshot($directory)), JSON_THROW_ON_ERROR));
             requireContract(hash_file('sha256', $target) === $before[$sourceName], $command . ' changed media bytes');
             $after       = mediaSnapshot($directory);
