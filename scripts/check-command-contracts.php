@@ -35,6 +35,7 @@ use function ksort;
 use function pathinfo;
 use function preg_grep;
 use function sort;
+use function sprintf;
 use function str_contains;
 use function str_ends_with;
 use function str_starts_with;
@@ -119,6 +120,27 @@ function mediaSnapshot(string $directory): array
 }
 
 try {
+    // Real cold reads must outnumber the descriptor budget; tiny smoke batches
+    // cannot detect stream ownership cycles that wait for automatic collection.
+    $pressureDirectory = $workspace . '/metadata-descriptor-pressure';
+    $filesystem->mkdir($pressureDirectory);
+
+    for ($index = 0; $index < 384; ++$index) {
+        $filesystem->copy($fixtures . '/10-already-correct/2024-10-20_16-45-00-000.jpg', $pressureDirectory . '/' . sprintf('%04d.jpg', $index));
+    }
+
+    $pressureBefore = mediaSnapshot($pressureDirectory);
+    $limitedPrefix = ['sh', '-c', 'set -e; ulimit -n 128; exec "$@"', 'metadata-descriptor-pressure', ...$prefix];
+    runCli($limitedPrefix, ['rename:exif', $pressureDirectory, '--dry-run', '--show=E'], $workspace . '/cwd', $environment);
+    requireContract(mediaSnapshot($pressureDirectory) === $pressureBefore, 'Descriptor-pressure dry-run changed media');
+    $filesystem->dumpFile($pressureDirectory . '/zz-corrupt.jpg', 'synthetic invalid media');
+    $pressureBefore = mediaSnapshot($pressureDirectory);
+    $pressureResult = runCli($limitedPrefix, ['rename:verify', $pressureDirectory, '--show=E'], $workspace . '/cwd', [...$environment, 'CACHE_DIR' => $workspace . '/fresh-pressure-cache']);
+    requireContract(str_contains($pressureResult->getOutput(), 'zz-corrupt.jpg'), 'Late damaged input was not reported after descriptor-pressure reads');
+    requireContract(!str_contains($pressureResult->getOutput() . $pressureResult->getErrorOutput(), 'No file descriptors'), 'Descriptor budget exhausted');
+    requireContract(mediaSnapshot($pressureDirectory) === $pressureBefore, 'Descriptor-pressure verification changed media');
+    echo 'Metadata descriptors: 384 cold files with a 128-descriptor limit, dry-run and late damaged-input diagnostics passed' . PHP_EOL;
+
     $renameCases = [
         ['rename:lower', 'PHOTO.JPG', 'photo.jpg', []],
         ['rename:pattern', 'PHOTO.jpeg', 'PHOTO.jpg', ['--pattern=/^(.+)\\.jpe?g$/', '--replacement=${1}.jpg']],

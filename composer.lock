@@ -12,12 +12,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/magicsunday/imagemeta.git",
-                "reference": "77bf7d288abfab87701df068f99cd497a56f5b46"
+                "reference": "a976739365fc64679604948eb5c7b7c8e797054a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/magicsunday/imagemeta/zipball/77bf7d288abfab87701df068f99cd497a56f5b46",
-                "reference": "77bf7d288abfab87701df068f99cd497a56f5b46",
+                "url": "https://api.github.com/repos/magicsunday/imagemeta/zipball/a976739365fc64679604948eb5c7b7c8e797054a",
+                "reference": "a976739365fc64679604948eb5c7b7c8e797054a",
                 "shasum": ""
             },
             "require": {
@@ -143,7 +143,7 @@
                 "source": "https://github.com/magicsunday/imagemeta/tree/main",
                 "issues": "https://github.com/magicsunday/imagemeta/issues"
             },
-            "time": "2026-10-05T13:09:40+00:00"
+            "time": "2026-10-15T19:10:03+00:00"
         },
         {
             "name": "psr/container",
