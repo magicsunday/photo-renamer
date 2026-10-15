@@ -1,6 +1,5 @@
 parameters:
     env(MAX_COMPARISON_PAIRS): '100000'
-    default_state_directory: '.build/cache'
 
 services:
     _defaults:
@@ -22,11 +21,11 @@ services:
 
     MagicSunday\Renamer\Service\Filesystem\BatchRunLock:
         arguments:
-            $stateDirectory: '%env(default:default_state_directory:string:CACHE_DIR)%'
+            $stateDirectory: '%env(default::string:CACHE_DIR)%'
 
     MagicSunday\Renamer\Service\Filesystem\MutationJournal:
         arguments:
-            $stateDirectory: '%env(default:default_state_directory:string:CACHE_DIR)%'
+            $stateDirectory: '%env(default::string:CACHE_DIR)%'
 
     # Source checks must not flush or reuse classification's hash cache.
     renamer.source_hash_calculator:

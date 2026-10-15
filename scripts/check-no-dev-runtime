@@ -10,9 +10,11 @@ COMPOSER_BIN="${COMPOSER_BIN:-composer}"
 PHP_BIN="$(command -v "${PHP_BIN}")"
 COMPOSER_BIN="$(command -v "${COMPOSER_BIN}")"
 SMOKE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/photo-renamer-no-dev.XXXXXX")"
+PHAR_FILE="${SMOKE_ROOT}.phar"
 
 cleanup() {
     rm -rf "${SMOKE_ROOT}"
+    rm -f -- "${PHAR_FILE}"
 }
 
 trap cleanup EXIT
@@ -135,4 +137,15 @@ if ! grep -q 'exiftool is not installed or not found in PATH' "${NO_TOOL_OUTPUT}
     exit 1
 fi
 
-echo "No-dev runtime smoke passed"
+# Exercise actual source commands, then package the same production inputs.
+"${PHP_BIN}" scripts/check-command-contracts.php "${VENDOR_DIR}/autoload.php" "${PWD}/tests/Fixtures/Images" "${SMOKE_ROOT}/src/Renamer.php" "${PHP_BIN}"
+bash scripts/strip-vendor.sh "${VENDOR_DIR}"
+PACKAGE_ROOT="${SMOKE_ROOT}/package"
+mkdir -p "${PACKAGE_ROOT}/.build"
+cp -r "${SMOKE_ROOT}/src" "${SMOKE_ROOT}/config" "${PACKAGE_ROOT}/"
+cp "${SMOKE_ROOT}/composer.json" "${SMOKE_ROOT}/composer.lock" "${SMOKE_ROOT}/version" "${PACKAGE_ROOT}/"
+# Composer's generated paths remain valid at the same relative vendor location.
+mv "${VENDOR_DIR}" "${PACKAGE_ROOT}/.build/vendor"
+"${PHP_BIN}" -d phar.readonly=0 scripts/build.php "${PACKAGE_ROOT}" "${PHAR_FILE}"
+"${PHP_BIN}" scripts/check-command-contracts.php "${PACKAGE_ROOT}/.build/vendor/autoload.php" "${PWD}/tests/Fixtures/Images" "${PHAR_FILE}" "${PHP_BIN}"
+echo "No-dev source and compressed-PHAR command contracts passed"

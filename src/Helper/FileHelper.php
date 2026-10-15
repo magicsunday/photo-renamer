@@ -12,8 +12,13 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Helper;
 
 use MagicSunday\Renamer\Constants;
+use Phar;
+use RuntimeException;
 use SplFileInfo;
+use Symfony\Component\Filesystem\Path;
 
+use function dirname;
+use function getcwd;
 use function getenv;
 use function is_string;
 use function preg_quote;
@@ -23,6 +28,7 @@ use function str_replace;
 use function strrpos;
 use function strtolower;
 use function substr;
+use function sys_get_temp_dir;
 
 /**
  * Shared file-related utility methods used across the rename pipeline.
@@ -39,13 +45,47 @@ final class FileHelper
      * @param string $name The name of the environment variable to retrieve.
      *
      * @return string|null The value of the environment variable, or null if it
-     *                     is not set, is empty, or consists only of whitespace.
+     *                     is not set or is empty.
      */
     public static function env(string $name): ?string
     {
         $value = getenv($name);
 
         return is_string($value) && ($value !== '') ? $value : null;
+    }
+
+    /**
+     * Resolves the shared host state base for locks, journals and media caches.
+     * Explicit relative paths are anchored to the process working directory.
+     * PHAR defaults must stay outside the immutable archive and be resolved at
+     * runtime rather than baked into the compiled dependency container.
+     *
+     * @param string|null $configuredDirectory Explicit CACHE_DIR override, or null/empty for the runtime default
+     *
+     * @return string Absolute host state directory
+     */
+    public static function resolveCacheDirectory(?string $configuredDirectory): string
+    {
+        if (($configuredDirectory === null) || ($configuredDirectory === '')) {
+            $configuredDirectory = dirname(__DIR__, 2) . '/.build/cache';
+
+            if (Phar::running() !== '') {
+                $home                = self::env('HOME');
+                $configuredDirectory = $home !== null ? $home . '/.cache/renamer' : sys_get_temp_dir() . '/renamer-cache';
+            }
+        }
+
+        if (Path::isAbsolute($configuredDirectory)) {
+            return $configuredDirectory;
+        }
+
+        $workingDirectory = getcwd();
+
+        if ($workingDirectory === false) {
+            throw new RuntimeException('Cannot resolve the configured state directory without a working directory.');
+        }
+
+        return Path::makeAbsolute($configuredDirectory, $workingDirectory);
     }
 
     /**

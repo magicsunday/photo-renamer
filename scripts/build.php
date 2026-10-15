@@ -9,8 +9,8 @@
 
 declare(strict_types=1);
 
-$pharFile = dirname(__DIR__) . '/renamer.phar';
-$buildDir = dirname(__DIR__) . '/.build/renamer';
+$buildDir = $argv[1] ?? dirname(__DIR__) . '/.build/renamer';
+$pharFile = $argv[2] ?? dirname(__DIR__) . '/renamer.phar';
 
 // Build the DI container cache before packing
 require_once $buildDir . '/src/Dependencies.php';
@@ -30,7 +30,14 @@ $phar->setStub("#!/usr/bin/env php \n" . $defaultStub);
 $phar->stopBuffering();
 $phar->compressFiles(Phar::GZ);
 
-//  Make the file executable
+// Read every compressed entry before accepting the package, including cold error paths.
+foreach (new RecursiveIteratorIterator($phar) as $entry) {
+    if ($entry->isFile() && (strlen($entry->getContent()) !== $entry->getSize())) {
+        throw new RuntimeException('Packaged PHAR entry size mismatch: ' . $entry->getPathname());
+    }
+}
+
+// Make the file executable
 chmod($pharFile, 0755);
 
 echo basename($pharFile) . " successfully created" . PHP_EOL;

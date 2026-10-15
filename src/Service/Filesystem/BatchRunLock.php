@@ -11,16 +11,15 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Filesystem;
 
+use MagicSunday\Renamer\Helper\FileHelper;
 use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Filesystem\Filesystem;
-use Symfony\Component\Filesystem\Path;
 use Symfony\Component\Lock\LockFactory;
 use Symfony\Component\Lock\SharedLockInterface;
 use Symfony\Component\Lock\Store\FlockStore;
 
 use function clearstatcache;
-use function dirname;
 use function is_link;
 use function posix_geteuid;
 
@@ -32,10 +31,10 @@ use function posix_geteuid;
 final readonly class BatchRunLock
 {
     /**
-     * @param Filesystem $filesystem     Creates the persistent lock directory
-     * @param string     $stateDirectory Shared state root, relative to the project or absolute
+     * @param Filesystem  $filesystem     Creates the persistent lock directory
+     * @param string|null $stateDirectory Explicit host state base, relative to cwd or absolute; null selects the runtime default
      */
-    public function __construct(private Filesystem $filesystem, private string $stateDirectory)
+    public function __construct(private Filesystem $filesystem, private ?string $stateDirectory)
     {
     }
 
@@ -48,7 +47,7 @@ final readonly class BatchRunLock
      */
     public function acquire(): SharedLockInterface
     {
-        $directory = Path::makeAbsolute($this->stateDirectory, dirname(__DIR__, 3)) . '/locks';
+        $directory = FileHelper::resolveCacheDirectory($this->stateDirectory) . '/locks';
         $this->filesystem->mkdir($directory, 0o700);
         clearstatcache(true, $directory);
 

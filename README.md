@@ -116,7 +116,7 @@ Docker Compose reads `.env`. Common settings are:
 | `PHP_MEMORY_LIMIT` | `1024M` | Finite PHP analysis budget. |
 | `RUNTIME_MEMORY_LIMIT` | `2g` | Container RAM, with no extra swap. |
 
-The runtime uses a private `/cache` volume. Development and standalone execution use `CACHE_DIR` (default `.build/cache`). See [configuration](docs/configuration.md) for all limits, cache settings and clickable terminal links.
+The runtime uses a private `/cache` volume. All workflows use `CACHE_DIR` when set. Source execution defaults to the project’s `.build/cache`; the standalone binary uses `$HOME/.cache/renamer` or, without `HOME`, the system temporary directory’s `renamer-cache`. See [configuration](docs/configuration.md) for all limits, cache settings and clickable terminal links.
 
 ## 🔒 Safe operation and collection size
 

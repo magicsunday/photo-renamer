@@ -23,24 +23,18 @@ use MagicSunday\Renamer\Metadata\MetadataCache;
 use MagicSunday\Renamer\Model\LinkConfig;
 use MagicSunday\Renamer\Service\FormatPriorityResolver;
 use MagicSunday\Renamer\Service\PerceptualHash\PerceptualSignalCache;
-use Phar;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Filesystem\Exception\IOException;
 use Symfony\Component\Filesystem\Filesystem;
 
-use function dirname;
 use function filter_var;
-use function getenv;
 use function in_array;
 use function is_finite;
 use function is_int;
 use function is_numeric;
 use function is_string;
-use function realpath;
-use function sys_get_temp_dir;
 
-use const DIRECTORY_SEPARATOR;
 use const FILTER_VALIDATE_INT;
 
 /**
@@ -48,7 +42,7 @@ use const FILTER_VALIDATE_INT;
  *
  * This trait centralizes the setup of the `ExifMetadataProvider`, including:
  * - Timezone resolution for video files (CLI option > ENV > default).
- * - Persistent metadata cache management (ENV > project default > PHAR fallback).
+ * - Persistent metadata cache management (ENV > source/PHAR runtime default).
  * - Configuration of perceptual signal caches for duplicate detection.
  * - Resolution of various thresholds (date drift, merge similarity).
  *
@@ -210,37 +204,13 @@ trait ConfiguresMetadataProvider
     }
 
     /**
-     * Resolves the absolute path to the cache directory.
+     * Selects the shared host state base using the current command configuration.
      *
-     * The method determines the directory based on environment variables,
-     * whether the application is running as a PHAR archive (which is read-only),
-     * or the default project structure.
-     *
-     * @return string The resolved absolute path to the cache directory.
+     * @return string Absolute runtime state base outside an immutable archive
      */
     protected function resolveCacheDir(): string
     {
-        $envDir = FileHelper::env('CACHE_DIR');
-
-        if ($envDir !== null) {
-            return $envDir;
-        }
-
-        // Inside a PHAR, __DIR__ points into the archive — use home directory instead
-        if (Phar::running() !== '') {
-            $home = getenv('HOME');
-
-            return is_string($home) && ($home !== '')
-                ? $home . DIRECTORY_SEPARATOR . '.cache' . DIRECTORY_SEPARATOR . 'renamer'
-                : sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'renamer-cache';
-        }
-
-        $projectRootPath = dirname(__DIR__, 3);
-        $projectRoot     = realpath($projectRootPath);
-
-        return ($projectRoot !== false ? $projectRoot : $projectRootPath)
-            . DIRECTORY_SEPARATOR . '.build'
-            . DIRECTORY_SEPARATOR . 'cache';
+        return FileHelper::resolveCacheDirectory(FileHelper::env('CACHE_DIR'));
     }
 
     /**

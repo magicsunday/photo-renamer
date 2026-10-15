@@ -20,7 +20,13 @@ Collection size alone does not determine capacity: retained file/group/cache mod
 
 ### Capability prerequisites and failure behavior
 
-The normal Docker runtime includes PHP, production dependencies, Imagick/ImageMagick, `ffmpeg`, `ffprobe` and `exiftool`; rebuild it with `make runtime-build` after code or dependency changes. It requires Docker Compose, writable media for mutations, a writable private state volume, and enough finite memory/temporary storage for the collection. Building the standalone binary also requires Docker and access to the pinned build inputs. Executing it requires a compatible Linux architecture, readable media, trusted writable temporary/cache directories and external tools on `PATH` as applicable. The standalone executable does not inherit Docker's network, filesystem, PID or container memory isolation; apply appropriate OS isolation when processing untrusted media.
+The normal Docker runtime includes PHP, production dependencies, Imagick/ImageMagick, `ffmpeg`, `ffprobe` and `exiftool`; rebuild it with `make runtime-build` after code or dependency changes. It requires Docker Compose, writable media for mutations, a writable private state volume, and enough finite memory/temporary storage for the collection.
+
+Building the standalone binary also requires Docker and access to the pinned build inputs. Executing it requires a compatible Linux architecture, readable media, trusted writable temporary/cache directories and external tools on `PATH` as applicable.
+
+Without an explicit `CACHE_DIR`, the standalone executable stores locks, journals and JSON below `$HOME/.cache/renamer` (or `<system temp>/renamer-cache` without `HOME`), outside its immutable archive. Use an explicit shared persistent base when processes must coordinate across different homes or temporary environments. Relative overrides resolve against the invoking working directory.
+
+The standalone executable does not inherit Docker's network, filesystem, PID or container memory isolation; apply appropriate OS isolation when processing untrusted media.
 
 | Capability | Docker runtime | Standalone execution host | Failure behavior |
 |---|---|---|---|

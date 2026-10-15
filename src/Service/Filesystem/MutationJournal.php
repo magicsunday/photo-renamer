@@ -16,16 +16,15 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
 use JsonException;
+use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\PrivateCacheStorage;
 use MagicSunday\Renamer\Model\Execution\ExecutionGroup;
 use MagicSunday\Renamer\Model\Execution\ExecutionItemType;
 use RuntimeException;
 use Symfony\Component\Filesystem\Filesystem;
-use Symfony\Component\Filesystem\Path;
 use Throwable;
 
 use function base64_encode;
-use function dirname;
 use function json_encode;
 
 use const JSON_THROW_ON_ERROR;
@@ -62,12 +61,12 @@ final class MutationJournal
     /**
      * @param Filesystem          $filesystem     Creates a private unique journal inode
      * @param PrivateCacheStorage $storage        Enforces owner, single-link and append-only leaf checks
-     * @param string              $stateDirectory Persistent state base shared with the mutation lock
+     * @param string|null         $stateDirectory Host state base shared with the mutation lock; null selects the runtime default
      */
     public function __construct(
         private readonly Filesystem $filesystem,
         private readonly PrivateCacheStorage $storage,
-        private readonly string $stateDirectory,
+        private readonly ?string $stateDirectory,
     ) {
     }
 
@@ -83,7 +82,7 @@ final class MutationJournal
     {
         $this->failure       = null;
         $this->nextOperation = 0;
-        $directory           = $this->storage->directory(Path::makeAbsolute($this->stateDirectory, dirname(__DIR__, 3)));
+        $directory           = $this->storage->directory(FileHelper::resolveCacheDirectory($this->stateDirectory));
         $this->pathname      = $this->filesystem->tempnam($directory, 'mutation-', '.jsonl');
         $this->append(['event' => 'run_started', 'schema' => 1, 'command_b64' => base64_encode($command)]);
     }
