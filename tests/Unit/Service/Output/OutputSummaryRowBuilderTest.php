@@ -46,10 +46,11 @@ final class OutputSummaryRowBuilderTest extends TestCase
         self::assertEquals(
             [
                 new SummaryRow('Scanned files', '10'),
+                new SummaryRow('Already correctly named', '1'),
                 new SummaryRow('Skipped (no metadata)', '2'),
-                new SummaryRow('Planned moves', '7'),
-                new SummaryRow('Duplicates found', '6'),
-                new SummaryRow('Files processed', '5'),
+                new SummaryRow('Planned renames', '7'),
+                new SummaryRow('Grouped as duplicates', '6'),
+                new SummaryRow('Renamed', '5'),
             ],
             $builder->build(new RenameSummaryCounters(
                 scannedFiles: 10,
@@ -61,6 +62,7 @@ final class OutputSummaryRowBuilderTest extends TestCase
                 duplicateCount: 6,
                 plannedMoves: 7,
                 plannedSkips: 0,
+                unchangedCount: 1,
             ), false),
         );
     }
@@ -78,7 +80,7 @@ final class OutputSummaryRowBuilderTest extends TestCase
             [
                 new SummaryRow('Scanned files', '12'),
                 new SummaryRow('Cross-group video review', '3'),
-                new SummaryRow('Files to process', '4'),
+                new SummaryRow('Would rename', '4'),
             ],
             $builder->build(new RenameSummaryCounters(
                 scannedFiles: 12,

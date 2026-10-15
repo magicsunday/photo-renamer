@@ -49,9 +49,11 @@ final class DateDriftCalculator
         }
 
         return sprintf(
-            'Date drift: %d days between filename and metadata (max %d) — verify EXIF date or use rename:write-date',
+            'Date drift: %d days between filename and metadata (max %d); filename date %s, proposed metadata date %s — verify EXIF date or use rename:write-date',
             $driftDays,
             $maxDateDrift,
+            FilenameDateParser::extractDateFromPath($sourcePath)?->format('Y-m-d') ?? 'unavailable',
+            FilenameDateParser::extractDateFromPath($targetPath)?->format('Y-m-d') ?? 'unavailable',
         );
     }
 

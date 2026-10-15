@@ -120,7 +120,7 @@ final class RuntimeMemoryLimitTest extends TestCase
             self::assertStringContainsString('Analysis incomplete during ', $output);
             self::assertStringContainsString('No media mutation started', $output);
             self::assertFalse(str_contains($output, 'Allowed memory size'));
-            self::assertFalse(str_contains($output, 'done'));
+            self::assertFalse(str_contains($output, '[OK]'));
             self::assertSame($sentinel, $filesystem->readFile($cacheFile));
             $remaining = glob($media . '/*.jpg');
             self::assertIsArray($remaining);

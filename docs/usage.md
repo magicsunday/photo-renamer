@@ -25,7 +25,7 @@ MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:write-date --reason=timezone --time
 MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:write-date --reason=timezone --timezone=Europe/Berlin --local-as-utc /media
 ```
 
-All commands show a post-scan summary before processing, so you can see what will happen without reading documentation first.
+Rename workflows report scan findings before processing. Affected-file counts are distinct paths; one file may contribute several findings (for example a fallback date and a Live Photo conflict). Each category retains its own count.
 
 The `--detail` flag on `rename:verify` shows per-file diagnostics with copy-pasteable fix commands:
 
@@ -120,9 +120,9 @@ Each file in the output is prefixed with a status indicator:
 |-------|--------------------------------------------------------------------------------------|
 | `[O]` | **Original** -- file already has the correct name; no action taken.                  |
 | `[R]` | **Rename** -- file will be moved to a new name.                                      |
-| `[D]` | **Duplicate** -- file is a duplicate and receives a suffix. An info line below shows which file it duplicates. |
-| `[F]` | **Fallback** -- date derived from DateTime (0x0132) instead of DateTimeOriginal.     |
-| `[W]` | **Warning** -- date drift between source filename and target exceeds `--max-date-drift` (default 7 days); file is skipped. |
+| `[D]` | **Duplicate** -- grouped by exact content or accepted visual similarity and receives a suffix. The comparison source is shown below; byte identity is not guaranteed. |
+| `[F]` | **Fallback** -- capture date uses DateTime (0x0132) because DateTimeOriginal/CreateDate is missing. The file is withheld; a Live Photo companion can inherit this restriction from its still.     |
+| `[W]` | **Warning** -- ambiguous timezone, excessive date drift or unavailable analysis; file is withheld. Drift warnings show both dates and `--max-date-drift` (default 7 days). |
 | `[S]` | **Skipped** -- file has no usable metadata (no capture date found).                   |
 | `[E]` | **Error** -- metadata could not be read (parser error).                               |
 | `[C]` | **Candidate** -- possible Live Photo pair with different Content Identifiers; skipped for manual review. |
@@ -131,7 +131,13 @@ Each file in the output is prefixed with a status indicator:
 
 `[C]` entries identify the possible counterpart on a separate line. Both filenames use the configured [terminal links](configuration.md#clickable-file-paths-in-terminal-output). This is a heuristic review hint, not proof of a wrong pair, corruption or a changed key photo. The files remain skipped; this diagnostic does not compare video frames or repair metadata.
 
-After processing, a summary table shows scanned files, skipped files (no metadata), read errors, planned moves/skips, Live Photo groups, duplicates found, naming collisions, and total files to process.
+`[D]` and `[V]` also show a separate comparison-source line with the configured optional terminal link. Duplicate references prefer the non-duplicate source with the same extension (for example MOV → MOV), rather than a future target filename. These links identify input paths at preview time; a completed rename may move those inputs. Grouping alone never authorizes deletion: `rename:dedup --delete` retains its independent fresh-byte checks.
+
+Fallback warnings show the available replacement timestamp and suggest checking the capture date before considering `rename:write-date --reason=fallback`. For an inherited Live Photo restriction, the warning identifies the still as the cause and shows the proposed companion filename. No metadata is repaired automatically.
+
+After processing, the summary separates `Already correctly named`, `Planned renames`, `Withheld for review`, scan skips/read errors and `Would rename` (dry-run) or `Renamed` (observed execution). Non-zero review, collision, duplicate and runtime counters are included. These categories describe different aspects and are not all additive: duplicate counts, for example, overlap planned renames. An active display filter is announced explicitly; all summary counts cover the whole run.
+
+Completion states whether this was a preview or execution and reports the rename count. Skipped files, video review findings, failed operations or incomplete Live Photo groups produce a warning completion with the relevant counts. Existing failure exit codes remain unchanged; a review warning alone does not imply execution failure.
 
 > **Debug output:** Use `-vvv` to see detailed merge decisions for each pairwise comparison, including RMSE, chroma difference, dHash distance, and timing.
 

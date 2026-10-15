@@ -189,21 +189,21 @@ final class RenameOutputRendererTest extends TestCase
         self::assertSame(OutputEntryTag::Duplicate, $entries[0]->tag);
         self::assertTrue($entries[0]->isDuplicateTarget);
         self::assertTrue($entries[1]->isInfo());
-        self::assertStringContainsString('Duplicate of', $entries[1]->reason ?? '');
+        self::assertSame('Grouped as duplicate; byte identity is not guaranteed', $entries[1]->reason);
     }
 
     /**
      * Verifies that legacy duplicate companion videos reference the matching
-     * non-duplicate video target instead of the canonical still target.
+     * non-duplicate video source instead of the canonical still source.
      *
      * The legacy rename path still renders duplicate info lines through
      * buildOutputEntries(). When a Live Photo group contains a canonical still,
      * a non-duplicate MOV companion, and a duplicate MOV target, the info line
-     * must point at the unsuffixed MOV target so the operator sees the correct
+     * must point at the existing MOV source so the operator sees the correct
      * media-equivalent reference.
      */
     #[Test]
-    public function legacyDuplicateCompanionUsesMatchingExtensionReferenceTarget(): void
+    public function legacyDuplicateCompanionUsesMatchingExtensionReferenceSource(): void
     {
         [$renderer] = $this->createRenderer();
 
@@ -252,7 +252,8 @@ final class RenameOutputRendererTest extends TestCase
         self::assertNotNull($duplicateEntry);
         self::assertNotNull($infoEntry);
         self::assertSame(OutputEntryTag::Duplicate, $duplicateEntry->tag);
-        self::assertSame('Duplicate of 2025-01-01_10-00-00-000.mov', $infoEntry->reason);
+        self::assertSame('Grouped as duplicate; byte identity is not guaranteed', $infoEntry->reason);
+        self::assertSame('/tmp/source/primary.mov', $infoEntry->counterpartPath);
     }
 
     /**
@@ -370,14 +371,17 @@ final class RenameOutputRendererTest extends TestCase
         self::assertStringContainsString('Skipped (read errors)', $buffer);
         self::assertStringContainsString('Live Photo groups', $buffer);
         self::assertStringContainsString('Naming collisions', $buffer);
-        self::assertStringContainsString('Duplicates found', $buffer);
-        self::assertStringContainsString('Planned moves', $buffer);
-        self::assertStringContainsString('Planned skips', $buffer);
-        self::assertStringContainsString('Files processed', $buffer);
+        self::assertStringContainsString('Grouped as duplicates', $buffer);
+        self::assertStringContainsString('Planned renames', $buffer);
+        self::assertStringContainsString('Withheld for review', $buffer);
+        self::assertStringContainsString('Renamed', $buffer);
+        self::assertStringContainsString('[WARNING]', $buffer);
+        self::assertStringNotContainsString('[OK]', $buffer);
+        self::assertStringContainsString('grouping alone never authorizes deletion', $buffer);
     }
 
     /**
-     * Verifies that renderSummary shows "Files to process" instead of "Files processed"
+     * Verifies that renderSummary shows "Would rename" instead of "Renamed"
      * when dryRun is true.
      */
     #[Test]
@@ -399,8 +403,9 @@ final class RenameOutputRendererTest extends TestCase
 
         $buffer = $output->fetch();
 
-        self::assertStringContainsString('Files to process', $buffer);
-        self::assertStringNotContainsString('Files processed', $buffer);
+        self::assertStringContainsString('Would rename', $buffer);
+        self::assertStringContainsString('[OK] Dry-run complete: 3 file(s) would be renamed.', $buffer);
+        self::assertStringNotContainsString('Renamed', $buffer);
     }
 
     /**
@@ -429,8 +434,9 @@ final class RenameOutputRendererTest extends TestCase
         self::assertStringNotContainsString('Skipped (read errors)', $buffer);
         self::assertStringNotContainsString('Live Photo groups', $buffer);
         self::assertStringNotContainsString('Naming collisions', $buffer);
-        self::assertStringNotContainsString('Duplicates found', $buffer);
-        self::assertStringNotContainsString('Planned skips', $buffer);
+        self::assertStringNotContainsString('Grouped as duplicates', $buffer);
+        self::assertStringNotContainsString('Withheld for review', $buffer);
+        self::assertStringContainsString('[OK] Rename run complete: 3 file(s) renamed.', $buffer);
     }
 
     /**
@@ -1217,6 +1223,18 @@ final class RenameOutputRendererTest extends TestCase
                     groupKey: 'group-b',
                 ),
             ]),
+            new ExecutionGroup('group-c', false, null, [
+                new ExecutionItem(
+                    $baseDir . '/blocked.jpg',
+                    $baseDir . '/withheld.jpg',
+                    ExecutionItemType::Canonical,
+                    renameRequired: true,
+                    isNoOp: false,
+                    groupKey: 'group-c',
+                    isExecutable: false,
+                    executionBlockReason: 'Synthetic analysis unavailable',
+                ),
+            ]),
         ]);
 
         // Only show [R] entries — the [O] no-op should not render
@@ -1232,6 +1250,11 @@ final class RenameOutputRendererTest extends TestCase
         self::assertStringContainsString('a.jpg', $buffer);
         self::assertStringNotContainsString('2025-02-01', $buffer);
         self::assertSame(1, $preview->plannedMoves);
+        self::assertSame(1, $preview->unchangedCount);
+        self::assertSame(1, $preview->plannedSkips);
+        self::assertStringNotContainsString('blocked.jpg', $buffer);
+        self::assertStringContainsString('Display filter: R; summary counts cover the whole run.', $buffer);
+        self::assertEquals($preview, $renderer->renderPlanEntries($plan, new RenameOptions(), $baseDir));
     }
 
     /**
@@ -1350,15 +1373,15 @@ final class RenameOutputRendererTest extends TestCase
 
     /**
      * Verifies that duplicate companion videos reference the matching non-duplicate
-     * video target, not the canonical still target, in the "Duplicate of ..." info line.
+     * video source in the duplicate explanation.
      *
      * Live Photo groups can contain a canonical still plus a non-duplicate companion
      * MOV. When another MOV in the same group becomes a duplicate target, the operator
-     * expects the explanatory info line to point at the unsuffixed MOV target rather
-     * than at the canonical JPG/HEIC target of the group.
+     * expects the explanatory info line to point at the existing MOV source rather
+     * than at the canonical JPG/HEIC source of the group.
      */
     #[Test]
-    public function duplicateCompanionUsesMatchingExtensionReferenceTarget(): void
+    public function duplicateCompanionUsesMatchingExtensionReferenceSource(): void
     {
         [$renderer] = $this->createRenderer();
 
@@ -1419,7 +1442,8 @@ final class RenameOutputRendererTest extends TestCase
         self::assertNotNull($duplicateEntry);
         self::assertNotNull($infoEntry);
         self::assertSame(OutputEntryTag::Duplicate, $duplicateEntry->tag);
-        self::assertSame('Duplicate of 2025-01-01_10-00-00-000.mov', $infoEntry->reason);
+        self::assertSame('Grouped as duplicate; byte identity is not guaranteed', $infoEntry->reason);
+        self::assertSame('/tmp/source/primary.mov', $infoEntry->counterpartPath);
     }
 
     /**

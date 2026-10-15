@@ -887,7 +887,7 @@ final class RenameByExifDateCommandTest extends TestCase
             self::assertSame('synthetic media', file_get_contents($workspace . '/2024-01-15_10-30-00-000.jpg'));
             self::assertStringContainsString('Cache persistence failed', $output);
             self::assertStringContainsString('Completed media operations remain counted', $output);
-            self::assertMatchesRegularExpression('/Files processed\s+1/', $output);
+            self::assertMatchesRegularExpression('/Renamed\s+1/', $output);
         } finally {
             if ($previousCacheDir === false) {
                 putenv('CACHE_DIR');

@@ -30,8 +30,8 @@ final class OutputSummaryRowBuilder
      * Builds the ordered summary rows for the given counters.
      *
      * Optional rows are included only when their counters are non-zero so the
-     * summary stays compact. The final row switches between "Files processed"
-     * and "Files to process" based on dry-run mode.
+     * summary stays compact. The final row switches between "Renamed"
+     * and "Would rename" based on dry-run mode.
      *
      * @param RenameSummaryCounters $counters Runtime or preview counters for the summary footer.
      * @param bool                  $dryRun   Whether the command is currently simulating changes.
@@ -44,6 +44,10 @@ final class OutputSummaryRowBuilder
             new SummaryRow('Scanned files', (string) $counters->scannedFiles),
         ];
 
+        if ($counters->unchangedCount > 0) {
+            $rows[] = new SummaryRow('Already correctly named', (string) $counters->unchangedCount);
+        }
+
         if ($counters->skippedCount > 0) {
             $rows[] = new SummaryRow('Skipped (no metadata)', (string) $counters->skippedCount);
         }
@@ -53,11 +57,11 @@ final class OutputSummaryRowBuilder
         }
 
         if ($counters->plannedMoves > 0) {
-            $rows[] = new SummaryRow('Planned moves', (string) $counters->plannedMoves);
+            $rows[] = new SummaryRow('Planned renames', (string) $counters->plannedMoves);
         }
 
         if ($counters->plannedSkips > 0) {
-            $rows[] = new SummaryRow('Planned skips', (string) $counters->plannedSkips);
+            $rows[] = new SummaryRow('Withheld for review', (string) $counters->plannedSkips);
         }
 
         if ($counters->livePhotoGroups > 0) {
@@ -65,7 +69,7 @@ final class OutputSummaryRowBuilder
         }
 
         if ($counters->duplicateCount > 0) {
-            $rows[] = new SummaryRow('Duplicates found', (string) $counters->duplicateCount);
+            $rows[] = new SummaryRow('Grouped as duplicates', (string) $counters->duplicateCount);
         }
 
         if ($counters->namingCollisions > 0) {
@@ -88,7 +92,7 @@ final class OutputSummaryRowBuilder
             $rows[] = new SummaryRow('Partial Live Photo groups', (string) $counters->partialLivePhotoGroups);
         }
 
-        $rows[] = new SummaryRow($dryRun ? 'Files to process' : 'Files processed', (string) $counters->fileCount);
+        $rows[] = new SummaryRow($dryRun ? 'Would rename' : 'Renamed', (string) $counters->fileCount);
 
         return $rows;
     }

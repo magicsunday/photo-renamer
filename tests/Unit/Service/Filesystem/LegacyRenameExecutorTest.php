@@ -147,8 +147,8 @@ final class LegacyRenameExecutorTest extends TestCase
 
     /**
      * Verifies the default move behaviour: the source file is removed and the target
-     * file is created with the original content. The summary shows "Planned moves"
-     * and "Files processed" without copy/skip/Live Photo metrics.
+     * file is created with the original content. The summary shows "Planned renames"
+     * and "Renamed" without copy/skip/Live Photo metrics.
      */
     #[Test]
     public function renameFilesMovesFilesByDefault(): void
@@ -177,18 +177,18 @@ final class LegacyRenameExecutorTest extends TestCase
 
         $buffer = $output->fetch();
         self::assertStringContainsString('Scanned files', $buffer);
-        self::assertStringContainsString('Planned moves', $buffer);
-        self::assertStringContainsString('Files processed', $buffer);
+        self::assertStringContainsString('Planned renames', $buffer);
+        self::assertStringContainsString('Renamed', $buffer);
         self::assertStringNotContainsString('Planned copies', $buffer);
-        self::assertStringNotContainsString('Planned skips', $buffer);
+        self::assertStringNotContainsString('Withheld for review', $buffer);
         self::assertStringNotContainsString('Live Photo groups', $buffer);
-        self::assertStringNotContainsString('Duplicates found', $buffer);
+        self::assertStringNotContainsString('Grouped as duplicates', $buffer);
     }
 
     /**
      * Verifies that dry-run mode prevents any actual file operations: the source
-     * remains, the target is not created, and the output shows "Files to process"
-     * and "Planned moves" as a preview.
+     * remains, the target is not created, and the output shows "Would rename"
+     * and "Planned renames" as a preview.
      */
     #[Test]
     public function renameFilesRespectsDryRunOption(): void
@@ -221,8 +221,8 @@ final class LegacyRenameExecutorTest extends TestCase
         self::assertFileDoesNotExist($targetFile);
 
         $buffer = $output->fetch();
-        self::assertStringContainsString('Files to process', $buffer);
-        self::assertStringContainsString('Planned moves', $buffer);
+        self::assertStringContainsString('Would rename', $buffer);
+        self::assertStringContainsString('Planned renames', $buffer);
     }
 
     /**
@@ -373,9 +373,9 @@ final class LegacyRenameExecutorTest extends TestCase
     }
 
     /**
-     * Verifies that the summary includes "Live Photo groups" and "Duplicates found"
+     * Verifies that the summary includes "Live Photo groups" and "Grouped as duplicates"
      * counters when the collection contains Live Photo groups and duplicate entries,
-     * along with "Planned moves" and "Files processed".
+     * along with "Planned renames" and "Renamed".
      */
     #[Test]
     public function renameFilesSummarisesLivePhotoGroupsAndCollisions(): void
@@ -416,10 +416,10 @@ final class LegacyRenameExecutorTest extends TestCase
         $buffer = $output->fetch();
 
         self::assertStringContainsString('Scanned files', $buffer);
-        self::assertStringContainsString('Planned moves', $buffer);
+        self::assertStringContainsString('Planned renames', $buffer);
         self::assertStringContainsString('Live Photo groups', $buffer);
-        self::assertStringContainsString('Duplicates found', $buffer);
-        self::assertStringContainsString('Files processed', $buffer);
+        self::assertStringContainsString('Grouped as duplicates', $buffer);
+        self::assertStringContainsString('Renamed', $buffer);
     }
 
     /**
@@ -576,7 +576,7 @@ final class LegacyRenameExecutorTest extends TestCase
     /**
      * Verifies that all rename entries within a group are listed in the output
      * during dry-run, including both source paths, [R] prefixes, and the
-     * "Renaming files" / "Files to process" / "Planned moves" labels.
+     * "Renaming files" / "Would rename" / "Planned renames" labels.
      */
     #[Test]
     public function renameFilesListsAllPlannedOperations(): void
@@ -613,8 +613,8 @@ final class LegacyRenameExecutorTest extends TestCase
         self::assertStringContainsString($firstSource, $buffer);
         self::assertStringContainsString($secondSource, $buffer);
         self::assertStringContainsString('Renaming files', $buffer);
-        self::assertStringContainsString('Files to process', $buffer);
-        self::assertStringContainsString('Planned moves', $buffer);
+        self::assertStringContainsString('Would rename', $buffer);
+        self::assertStringContainsString('Planned renames', $buffer);
     }
 
     /**

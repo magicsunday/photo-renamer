@@ -75,7 +75,8 @@ final class ExecutionPlanBuilderTest extends TestCase
         foreach ($plan->groups[0]->items as $item) {
             self::assertFalse($item->isExecutable);
             self::assertNotNull($item->executionBlockReason);
-            self::assertStringContainsString('Date drift:', $item->executionBlockReason);
+            self::assertStringContainsString('Date drift: 152 days between filename and metadata (max 7)', $item->executionBlockReason);
+            self::assertStringContainsString('filename date 2024-01-01, proposed metadata date 2024-06-01', $item->executionBlockReason);
         }
     }
 

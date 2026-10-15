@@ -66,11 +66,14 @@ No EXIF metadata (`[S]`), unsupported formats (PNG, RAW, MKV), corrupted files (
 | `[R]` | Rename | File will be renamed |
 | `[O]` | Original | File already has the correct name |
 | `[D]` | Duplicate | Classification duplicate (exact or accepted perceptual evidence), gets `-duplicate-NNN`; not deletion authority |
-| `[F]` | Fallback | Date from ModifyDate (0x0132) -- unreliable |
+| `[F]` | Fallback | Capture source lacks DateTimeOriginal/CreateDate; DateTime (0x0132) fallback shown, rename withheld; companions inherit the still restriction |
 | `[W]` | Warning | Ambiguous timezone or date drift -- skipped |
 | `[C]` | Candidate | Possible Live Photo pair with different IDs; counterpart shown, skipped for manual review |
 | `[S]` | Skipped | No capture date found |
 | `[E]` | Error | Metadata read failed |
+| `[V]` | Review | Video comparison needs review; comparison source shown, no automatic merge |
+
+Duplicate and video-review references use existing comparison source paths, with matching extensions preferred for duplicates. Grouping does not guarantee byte identity. Scan counts distinguish distinct affected paths from overlapping findings; summary counts cover all files regardless of `--show`. Preview/completion counts and warnings do not change classification or execution permissions.
 
 **Tag priority chain:** `[C]` > `[W]` > `[F]` > `[D]` > `[O]` > `[R]`
 

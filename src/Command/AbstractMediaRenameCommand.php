@@ -386,8 +386,15 @@ abstract class AbstractMediaRenameCommand extends Command
         $fallbackCount = count($result->fallbackDateFiles);
         $conflictCount = count($result->livePhotoConflictFiles);
         $crossDirCount = count($result->crossDirectoryCompanions);
-        $issueCount    = $skippedCount + $warningCount + $fallbackCount + $conflictCount;
-        $infoCount     = $crossDirCount;
+        $findingCount  = $skippedCount + $warningCount + $fallbackCount + $conflictCount;
+        $affectedFiles = $result->fallbackDateFiles + $result->ambiguousTimezoneFiles + $result->livePhotoConflictFiles;
+
+        foreach ($result->skippedFiles as $skippedFile) {
+            $affectedFiles[$skippedFile->getFile()->getPathname()] = true;
+        }
+
+        $issueCount = count($affectedFiles);
+        $infoCount  = $crossDirCount;
 
         if (($issueCount > 0) || ($infoCount > 0)) {
             $this->io->newLine(2);
@@ -415,8 +422,9 @@ abstract class AbstractMediaRenameCommand extends Command
                 }
 
                 $this->io->text(sprintf(
-                    ' <fg=yellow>%d file(s) with issues:</> %s',
+                    ' <fg=yellow>%d affected file(s), %d finding(s):</> %s',
                     $issueCount,
+                    $findingCount,
                     implode(', ', $parts),
                 ));
             }

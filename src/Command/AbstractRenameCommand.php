@@ -76,8 +76,6 @@ abstract class AbstractRenameCommand extends AbstractMediaRenameCommand
             return self::FAILURE;
         }
 
-        $this->io->success('done');
-
         return self::SUCCESS;
     }
 

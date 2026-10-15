@@ -176,8 +176,6 @@ final class RenameByExifDateCommand extends AbstractMediaRenameCommand
                 return self::FAILURE;
             }
 
-            $this->io->success('done');
-
             return self::SUCCESS;
         } catch (AnalysisMemoryBudgetExceededException $exception) {
             $memoryAborted = true;

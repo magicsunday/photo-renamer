@@ -100,6 +100,7 @@ final readonly class LegacyRenameExecutor
             duplicateCount: $counters->duplicateCount,
             plannedMoves: $counters->plannedMoves,
             plannedSkips: $counters->plannedSkips,
+            unchangedCount: $counters->unchangedCount,
         ), $options->dryRun);
     }
 

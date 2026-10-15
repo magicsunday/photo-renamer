@@ -18,7 +18,7 @@ namespace MagicSunday\Renamer\Model;
  * Three structural types exist (see {@see OutputEntryType}):
  * - Rename: a file operation with source/target paths and execution flags (can be a no-op or a skipped move)
  * - Skip: a file excluded during the initial scan phase (missing metadata, I/O error)
- * - Info: an informational notice attached to a nearby entry (e.g. "Duplicate of...")
+ * - Info: an informational notice attached to a nearby entry (e.g. a duplicate comparison source)
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -37,7 +37,7 @@ final readonly class OutputEntry
      * @param bool            $shouldPerformOperation True if rename should actually be performed
      * @param string|null     $reason                 Plain untrusted reason for skip/info entries; the presenter applies escaping and styling
      * @param string|null     $warningReason          Plain supplemental warning text for renames, escaped only at presentation
-     * @param string|null     $counterpartPath        Raw path of a possible Live Photo counterpart for review, not pairing authority
+     * @param string|null     $counterpartPath        Raw related source path for review, never pairing or deletion authority
      */
     public function __construct(
         public string $sortKey,
@@ -89,7 +89,7 @@ final readonly class OutputEntry
      * @param bool           $shouldSkip             True if execution should skip this
      * @param bool           $shouldPerformOperation True if disk move is required
      * @param string|null    $warningReason          Optional human-readable warning
-     * @param string|null    $counterpartPath        Raw path of the possible Live Photo counterpart, if known
+     * @param string|null    $counterpartPath        Raw related source path, if known
      *
      * @return self The constructed Rename entry
      */
@@ -146,10 +146,11 @@ final readonly class OutputEntry
     /**
      * Creates an info entry (informational notice).
      *
-     * @param string         $sortKey    Stable sort key
-     * @param string         $sourcePath Current filesystem pathname (anchor)
-     * @param string         $reason     Information text
-     * @param OutputEntryTag $tag        Visual category
+     * @param string         $sortKey         Stable sort key
+     * @param string         $sourcePath      Current filesystem pathname (anchor)
+     * @param string         $reason          Information text
+     * @param OutputEntryTag $tag             Visual category
+     * @param string|null    $counterpartPath Raw comparison source path, linked only at presentation
      *
      * @return self The constructed Info entry
      */
@@ -158,6 +159,7 @@ final readonly class OutputEntry
         string $sourcePath,
         string $reason,
         OutputEntryTag $tag = OutputEntryTag::Info,
+        ?string $counterpartPath = null,
     ): self {
         return new self(
             sortKey: $sortKey,
@@ -165,6 +167,7 @@ final readonly class OutputEntry
             tag: $tag,
             sourcePath: $sourcePath,
             reason: $reason,
+            counterpartPath: $counterpartPath,
         );
     }
 }

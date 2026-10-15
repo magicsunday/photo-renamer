@@ -216,7 +216,10 @@ final class AbstractRenameCommandTest extends TestCase
         ]);
 
         self::assertSame(Command::SUCCESS, $tester->getStatusCode());
-        self::assertStringContainsString('[O]', $this->renderOutput->fetch());
+        $display = $this->renderOutput->fetch();
+        self::assertStringContainsString('[O]', $display);
+        self::assertMatchesRegularExpression('/Already correctly named\s+1/', $display);
+        self::assertStringContainsString('Rename run complete: 0 file(s) renamed.', $display);
         self::assertSame('selected bytes', file_get_contents($path));
     }
 

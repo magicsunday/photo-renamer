@@ -67,8 +67,9 @@ final class PipelineReviewMapperTest extends TestCase
         self::assertSame(OutputEntryTag::Review, $entries[0]->tag);
         self::assertSame('/photos/2025/clip.mov', $entries[0]->sortKey);
         self::assertSame('2025/clip.mov', $entries[0]->sourcePath);
+        self::assertSame('/photos/archive/clip.mov', $entries[0]->counterpartPath);
         self::assertSame(
-            'Cross-group video review: archive/clip.mov — video stream identical, audio differs',
+            'Video comparison requires review: video stream identical, audio differs',
             $entries[0]->reason,
         );
     }

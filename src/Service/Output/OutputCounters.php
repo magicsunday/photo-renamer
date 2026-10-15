@@ -26,12 +26,14 @@ final readonly class OutputCounters
      * @param int $duplicateCount Number of duplicate targets before output filtering
      * @param int $plannedMoves   Number of planned move operations
      * @param int $plannedSkips   Number of planned execution skips
+     * @param int $unchangedCount Files already at their requested path, excluding withheld entries
      */
     public function __construct(
         public int $fileCount,
         public int $duplicateCount,
         public int $plannedMoves,
         public int $plannedSkips,
+        public int $unchangedCount = 0,
     ) {
     }
 }
