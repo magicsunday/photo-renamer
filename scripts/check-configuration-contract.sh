@@ -152,7 +152,7 @@ run_exif fresh-defaults /media/merge
 export TIMEZONE=UTC MAX_DATE_DRIFT=0 MERGE_THRESHOLD=0.06
 ./renamer.sh rename:lower --dry-run --no-ansi '/media/filename with spaces.jpg' \
     > "${configuration_workspace}/wrapper.log" 2>&1
-[[ "$(<"${configuration_workspace}/wrapper.log")" = *'[OK] done'* ]]
+[[ "$(<"${configuration_workspace}/wrapper.log")" = *'[OK] Dry-run complete: 0 file(s) would be renamed.'* ]]
 [[ -f "${MEDIA_DIR}/filename with spaces.jpg" && -f "${MEDIA_DIR}/canonical/same a.jpg" && -f "${MEDIA_DIR}/canonical/same b.heic" ]]
 
 # Exercise the actual runtime service: PID 1 must forward both interruption

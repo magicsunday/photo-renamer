@@ -277,7 +277,7 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
         $tester = new CommandTester($command);
         self::assertSame(Command::FAILURE, $tester->execute(['source' => $this->workspace, '--dry-run' => true]));
         self::assertMatchesRegularExpression('/Skipped \(read errors\)\s+1/', $output->fetch());
-        self::assertStringNotContainsString('[OK] done', $tester->getDisplay());
+        self::assertStringNotContainsString('[OK]', $tester->getDisplay());
     }
 
     /**
@@ -376,13 +376,13 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
             self::assertMatchesRegularExpression('/Planned renames\s+1/', $summary);
             self::assertMatchesRegularExpression('/Renamed\s+0/', $summary);
             self::assertMatchesRegularExpression('/Runtime errors\s+1/', $summary);
-            self::assertStringNotContainsString('[OK] done', $tester->getDisplay());
+            self::assertStringNotContainsString('[OK]', $tester->getDisplay());
             self::assertStringNotContainsString('[OK]', $summary);
             self::assertStringContainsString('file operation(s) failed', $summary);
             $diagnostics = $runtimeOutput->fetch();
             self::assertStringContainsString('Failed to rename', $diagnostics);
             self::assertStringContainsString('Synthetic storage failure', $diagnostics);
-            self::assertStringNotContainsString('[OK] done', $diagnostics);
+            self::assertStringNotContainsString('[OK]', $diagnostics);
             self::assertFileExists($source);
             self::assertSame($contents, file_get_contents($source));
             self::assertFileDoesNotExist($target);

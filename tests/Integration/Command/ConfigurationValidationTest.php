@@ -152,7 +152,7 @@ final class ConfigurationValidationTest extends TestCase
             $output = $process->getOutput() . $process->getErrorOutput();
             self::assertSame(1, $process->getExitCode());
             self::assertStringContainsString($key, $output);
-            self::assertFalse(str_contains($output, 'done'));
+            self::assertFalse(str_contains($output, '[OK]'));
             self::assertSame('synthetic unchanged source bytes', $filesystem->readFile($source));
             $remaining = glob($workspace . '/media/*');
             self::assertSame([$source], $remaining);
