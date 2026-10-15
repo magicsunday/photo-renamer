@@ -37,6 +37,7 @@ final readonly class OutputEntry
      * @param bool            $shouldPerformOperation True if rename should actually be performed
      * @param string|null     $reason                 Plain untrusted reason for skip/info entries; the presenter applies escaping and styling
      * @param string|null     $warningReason          Plain supplemental warning text for renames, escaped only at presentation
+     * @param string|null     $counterpartPath        Raw path of a possible Live Photo counterpart for review, not pairing authority
      */
     public function __construct(
         public string $sortKey,
@@ -49,6 +50,7 @@ final readonly class OutputEntry
         public bool $shouldPerformOperation = false,
         public ?string $reason = null,
         public ?string $warningReason = null,
+        public ?string $counterpartPath = null,
     ) {
     }
 
@@ -87,6 +89,7 @@ final readonly class OutputEntry
      * @param bool           $shouldSkip             True if execution should skip this
      * @param bool           $shouldPerformOperation True if disk move is required
      * @param string|null    $warningReason          Optional human-readable warning
+     * @param string|null    $counterpartPath        Raw path of the possible Live Photo counterpart, if known
      *
      * @return self The constructed Rename entry
      */
@@ -99,6 +102,7 @@ final readonly class OutputEntry
         bool $shouldSkip = false,
         bool $shouldPerformOperation = false,
         ?string $warningReason = null,
+        ?string $counterpartPath = null,
     ): self {
         return new self(
             sortKey: $sortKey,
@@ -110,6 +114,7 @@ final readonly class OutputEntry
             shouldSkip: $shouldSkip,
             shouldPerformOperation: $shouldPerformOperation,
             warningReason: $warningReason,
+            counterpartPath: $counterpartPath,
         );
     }
 

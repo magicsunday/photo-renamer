@@ -154,6 +154,7 @@ final readonly class RenameOutputRenderer
                     shouldSkip: $skipFlags->shouldSkip,
                     shouldPerformOperation: $skipFlags->shouldPerformOperation,
                     warningReason: $tagResolution->warningReason,
+                    counterpartPath: $result->livePhotoConflictFiles[$sourcePathname] ?? null,
                 );
 
                 if (($tagResolution->tag === OutputEntryTag::Duplicate) && !$isNoOp) {
@@ -385,6 +386,7 @@ final readonly class RenameOutputRenderer
                     shouldSkip: $skipFlags->shouldSkip,
                     shouldPerformOperation: $skipFlags->shouldPerformOperation,
                     warningReason: $warningReason,
+                    counterpartPath: $result->livePhotoConflictFiles[$item->sourcePath] ?? null,
                 );
 
                 if (($tag === OutputEntryTag::Duplicate) && !$item->isNoOp && ($canonicalTargetPath !== null)) {

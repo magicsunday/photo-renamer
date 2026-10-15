@@ -38,7 +38,6 @@ use RecursiveIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
 
-use function array_keys;
 use function assert;
 use function count;
 
@@ -219,8 +218,8 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
                 $state->temporalMetadataMap,
             );
 
-            foreach (array_keys($conflictFiles) as $pathname) {
-                $context->addLivePhotoConflictFile($pathname);
+            foreach ($conflictFiles as $pathname => $counterpartPath) {
+                $context->addLivePhotoConflictFile($pathname, $counterpartPath);
             }
         }
 

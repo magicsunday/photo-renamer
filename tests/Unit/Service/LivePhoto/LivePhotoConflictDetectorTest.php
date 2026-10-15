@@ -69,8 +69,8 @@ final class LivePhotoConflictDetectorTest extends TestCase
 
         self::assertSame(
             [
-                '/tmp/2020-08-19_12-48-33-945.jpg' => true,
-                '/tmp/2020-08-19_12-48-33-945.mov' => true,
+                '/tmp/2020-08-19_12-48-33-945.jpg' => '/tmp/2020-08-19_12-48-33-945.mov',
+                '/tmp/2020-08-19_12-48-33-945.mov' => '/tmp/2020-08-19_12-48-33-945.jpg',
             ],
             $detector->detectConflictFiles($files, $metadata),
         );
@@ -95,8 +95,8 @@ final class LivePhotoConflictDetectorTest extends TestCase
 
         self::assertSame(
             [
-                '/tmp/2020-08-19_12-48-33-945.jpg' => true,
-                '/tmp/2020-08-19_12-48-33-945.mov' => true,
+                '/tmp/2020-08-19_12-48-33-945.jpg' => '/tmp/2020-08-19_12-48-33-945.mov',
+                '/tmp/2020-08-19_12-48-33-945.mov' => '/tmp/2020-08-19_12-48-33-945.jpg',
             ],
             $detector->detectConflictFiles($files, $metadata),
         );
@@ -119,8 +119,8 @@ final class LivePhotoConflictDetectorTest extends TestCase
 
         self::assertSame(
             [
-                '/tmp/2020-08-21_09-40-26-221.jpg' => true,
-                '/tmp/2020-08-21_09-40-26-221.mov' => true,
+                '/tmp/2020-08-21_09-40-26-221.jpg' => '/tmp/2020-08-21_09-40-26-221.mov',
+                '/tmp/2020-08-21_09-40-26-221.mov' => '/tmp/2020-08-21_09-40-26-221.jpg',
             ],
             $detector->detectConflictFiles($files, $metadata),
         );

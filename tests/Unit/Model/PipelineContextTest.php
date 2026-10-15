@@ -75,7 +75,7 @@ final class PipelineContextTest extends TestCase
 
         $context->addFallbackDateFile('/photos/a.jpg');
         $context->addAmbiguousTimezoneFile('/photos/b.mov');
-        $context->addLivePhotoConflictFile('/photos/c.heic');
+        $context->addLivePhotoConflictFile('/photos/c.heic', '/photos/c.mov');
         $context->addSkippedFile(new SkippedFile(new SplFileInfo('/photos/d.heic'), 'no capture date'));
         $context->addVideoDuplicateCandidate(new VideoDuplicateCandidate(
             '/photos/e.mov',
@@ -85,7 +85,7 @@ final class PipelineContextTest extends TestCase
 
         self::assertSame(['/photos/a.jpg' => true], $context->getFallbackDateFiles());
         self::assertSame(['/photos/b.mov' => true], $context->getAmbiguousTimezoneFiles());
-        self::assertSame(['/photos/c.heic' => true], $context->getLivePhotoConflictFiles());
+        self::assertSame(['/photos/c.heic' => '/photos/c.mov'], $context->getLivePhotoConflictFiles());
         self::assertCount(1, $context->getSkippedFiles());
         self::assertSame('/photos/d.heic', $context->getSkippedFiles()[0]->getFile()->getPathname());
         self::assertCount(1, $context->getVideoDuplicateCandidates());
@@ -175,7 +175,7 @@ final class PipelineContextTest extends TestCase
         $context->addSkippedFile($skipped);
         $context->addFallbackDateFile('/photos/a.jpg');
         $context->addAmbiguousTimezoneFile('/photos/b.mov');
-        $context->addLivePhotoConflictFile('/photos/c.heic');
+        $context->addLivePhotoConflictFile('/photos/c.heic', '/photos/c.mov');
         $context->addVideoDuplicateCandidate(new VideoDuplicateCandidate(
             '/photos/e.mov',
             '/photos/archive/e.mov',
@@ -196,7 +196,7 @@ final class PipelineContextTest extends TestCase
         self::assertSame([$skipped], $result->skippedFiles);
         self::assertSame(['/photos/a.jpg' => true], $result->fallbackDateFiles);
         self::assertSame(['/photos/b.mov' => true], $result->ambiguousTimezoneFiles);
-        self::assertSame(['/photos/c.heic' => true], $result->livePhotoConflictFiles);
+        self::assertSame(['/photos/c.heic' => '/photos/c.mov'], $result->livePhotoConflictFiles);
         self::assertSame([$reviewEntry], $result->reviewEntries);
         self::assertSame(1, $result->crossGroupVideoReviewCount);
     }

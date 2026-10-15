@@ -134,7 +134,7 @@ final readonly class LivePhotoConflictDetector implements LivePhotoConflictDetec
 
         [$stillCandidates, $videoCandidates] = $this->buildCandidateMaps($stills, $videos);
 
-        /** @var array<string, true> $conflictFiles */
+        /** @var array<string, string> $conflictFiles */
         $conflictFiles = [];
 
         foreach ($stillCandidates as $stillIndex => $candidateVideoIndexes) {
@@ -148,8 +148,8 @@ final readonly class LivePhotoConflictDetector implements LivePhotoConflictDetec
                 continue;
             }
 
-            $conflictFiles[$stills[$stillIndex]->pathname] = true;
-            $conflictFiles[$videos[$videoIndex]->pathname] = true;
+            $conflictFiles[$stills[$stillIndex]->pathname] = $videos[$videoIndex]->pathname;
+            $conflictFiles[$videos[$videoIndex]->pathname] = $stills[$stillIndex]->pathname;
         }
 
         return $conflictFiles;

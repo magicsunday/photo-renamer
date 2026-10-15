@@ -119,7 +119,7 @@ interface DuplicateDetectionServiceInterface
      *
      * These files are surfaced as review candidates and skipped from rename.
      *
-     * @return array<string, true>
+     * @return array<string, string> Candidate pathnames mapped to possible counterparts.
      */
     public function getLivePhotoConflictFiles(): array;
 

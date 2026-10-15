@@ -257,7 +257,7 @@ final class ExecutionPlanBuilderTest extends TestCase
     {
         $builder = new ExecutionPlanBuilder();
         $context = new PipelineContext('/photos');
-        $context->addLivePhotoConflictFile('/photos/IMG_0001.mov');
+        $context->addLivePhotoConflictFile('/photos/IMG_0001.mov', '/photos/IMG_0001.jpg');
 
         $item = new AssetItem(new SplFileInfo('/photos/IMG_0001.mov'), ItemRole::Companion)
             ->withProposedName('/photos/2024-01-01_12-00-00-000.mov');
@@ -500,7 +500,7 @@ final class ExecutionPlanBuilderTest extends TestCase
     {
         $builder = new ExecutionPlanBuilder();
         $context = new PipelineContext('/photos');
-        $context->addLivePhotoConflictFile('/photos/IMG_0001.mov');
+        $context->addLivePhotoConflictFile('/photos/IMG_0001.mov', '/photos/IMG_0001.jpg');
 
         $item = new AssetItem(new SplFileInfo('/photos/IMG_0001.mov'), ItemRole::Companion)
             ->withProposedName('/photos/2024-01-01_12-00-00-000.mov');

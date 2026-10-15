@@ -83,6 +83,49 @@ final class OutputEntryPresenterTest extends TestCase
     }
 
     /**
+     * Candidate source and counterpart links share the host mapping while hostile
+     * path bytes stay inert. Filtering hides the entire diagnostic without changing
+     * planned skips; disabled links retain the same readable relative paths.
+     */
+    #[Test]
+    public function candidateCounterpartUsesSafeRelativeLinksAndRespectsFilters(): void
+    {
+        [$presenter, $io, $output] = $this->createPresenter();
+        $output->setDecorated(true);
+        $entries = [OutputEntry::rename(
+            sortKey: '/synthetic/Trips/école.jpg',
+            sourcePath: 'Trips/école.jpg',
+            targetPath: 'Trips/renamed.jpg',
+            tag: OutputEntryTag::Candidate,
+            shouldSkip: true,
+            counterpartPath: "/synthetic/Trips/<fg=red>école\n\x1B[2J.mov",
+        )];
+        $config = new LinkConfig('/synthetic', 'F:\\Photos', 'photo-select');
+
+        $visible = $presenter->render($entries, $io, '/synthetic', ['C'], $config);
+        $buffer  = $output->fetch();
+        self::assertTrue(str_contains($buffer, 'photo-select:///F:/Photos/Trips/%C3%A9cole.jpg'));
+        self::assertTrue(str_contains($buffer, 'photo-select:///F:/Photos/Trips/%3Cfg%3Dred%3E%C3%A9cole%0A%1B%5B2J.mov'));
+        self::assertTrue(str_contains($buffer, 'Possible counterpart: '));
+        self::assertTrue(str_contains($buffer, 'Trips/<fg=red>école\\n\\u001b[2J.mov'));
+        self::assertFalse(str_contains($buffer, "\x1B[2J"));
+        self::assertSame(4, substr_count($buffer, "\x1B]8;;"));
+        self::assertSame(1, $visible->plannedSkips);
+        self::assertSame(0, $visible->plannedMoves);
+
+        $hidden = $presenter->render($entries, $io, '/synthetic', ['R'], $config);
+        self::assertSame('', $output->fetch());
+        self::assertSame($visible->plannedSkips, $hidden->plannedSkips);
+        self::assertSame($visible->plannedMoves, $hidden->plannedMoves);
+
+        $output->setDecorated(false);
+        $presenter->render($entries, $io, '/synthetic', ['C']);
+        $plain = $output->fetch();
+        self::assertTrue(str_contains($plain, 'Possible counterpart: Trips/<fg=red>école\\n\\u001b[2J.mov'));
+        self::assertFalse(str_contains($plain, 'photo-select:'));
+    }
+
+    /**
      * Verifies that pure info entries stay hidden when the active filter excludes
      * their visual tag.
      *
@@ -254,7 +297,7 @@ final class OutputEntryPresenterTest extends TestCase
      */
     public static function tagDecisions(): iterable
     {
-        yield 'candidate ignores other details' => [OutputEntryTag::Candidate, 'unrelated reason', 'unrelated warning', 'Conflicting Live Photo content ID across groups'];
+        yield 'candidate ignores other details' => [OutputEntryTag::Candidate, 'unrelated reason', 'unrelated warning', 'Possible Live Photo pair with different content IDs; skipped for manual review'];
         yield 'fallback ignores other details' => [OutputEntryTag::Fallback, 'unrelated reason', 'unrelated warning', 'Fallback date: DateTime (0x0132) used instead of DateTimeOriginal'];
         yield 'review null' => [OutputEntryTag::Review, null, 'unrelated warning', 'Cross-group video review required'];
         yield 'review empty' => [OutputEntryTag::Review, '', 'unrelated warning', ''];
