@@ -68,6 +68,7 @@ use function array_values;
 use function file_get_contents;
 use function file_put_contents;
 use function getenv;
+use function glob;
 use function hash;
 use function hash_file;
 use function mkdir;
@@ -76,7 +77,6 @@ use function putenv;
 use function rtrim;
 use function str_contains;
 use function str_starts_with;
-use function strpos;
 use function substr;
 use function sys_get_temp_dir;
 use function uniqid;
@@ -488,7 +488,8 @@ final class RenameByExifDateCommandTest extends TestCase
     /**
      * Verifies that a still/video pair in the same timestamp group with
      * conflicting non-null content identifiers is surfaced as a review
-     * candidate [C] and skipped instead of being auto-paired.
+     * candidate [C] with its counterpart and preserved bytes in both preview
+     * and confirmed execution, without relying on matching source basenames.
      */
     #[Test]
     public function executeMarksConflictingLivePhotoContentIdentifiersAsCandidates(): void
@@ -499,7 +500,7 @@ final class RenameByExifDateCommandTest extends TestCase
 
         try {
             $jpgPath = $workspace . DIRECTORY_SEPARATOR . 'IMG_0001.jpg';
-            $movPath = $workspace . DIRECTORY_SEPARATOR . 'IMG_0001.mov';
+            $movPath = $workspace . DIRECTORY_SEPARATOR . 'CLIP_0099.mov';
 
             file_put_contents($jpgPath, 'photo');
             file_put_contents($movPath, 'video');
@@ -539,16 +540,18 @@ final class RenameByExifDateCommandTest extends TestCase
                 ),
             );
 
-            $output = $this->runCommandOutput($workspace, $metadataExtractor);
-            $clean  = preg_replace('/<[^>]+>/', '', $output) ?? $output;
+            foreach ([true, false] as $dryRun) {
+                $output = $this->runCommandOutput($workspace, $metadataExtractor, dryRun: $dryRun);
 
-            self::assertNotFalse(
-                strpos($clean, '[C]'),
-                'Conflicting Live Photo candidates must be marked with [C]',
-            );
-            self::assertStringContainsString('IMG_0001.jpg', $clean);
-            self::assertStringContainsString('IMG_0001.mov', $clean);
-            self::assertStringContainsString('Conflicting Live Photo content ID across groups', $clean);
+                self::assertStringContainsString('[C] IMG_0001.jpg', $output);
+                self::assertStringContainsString('[C] CLIP_0099.mov', $output);
+                self::assertStringContainsString('Possible counterpart: IMG_0001.jpg', $output);
+                self::assertStringContainsString('Possible counterpart: CLIP_0099.mov', $output);
+                self::assertStringContainsString('Possible Live Photo pair with different content IDs; skipped for manual review', $output);
+                self::assertSame('photo', file_get_contents($jpgPath));
+                self::assertSame('video', file_get_contents($movPath));
+                self::assertSame([$movPath, $jpgPath], glob($workspace . '/*'));
+            }
         } finally {
             $this->removeWorkspace($workspace);
         }

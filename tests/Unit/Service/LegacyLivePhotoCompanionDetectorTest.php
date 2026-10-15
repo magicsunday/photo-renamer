@@ -177,8 +177,8 @@ final class LegacyLivePhotoCompanionDetectorTest extends TestCase
         self::assertNull($result);
         self::assertSame(
             [
-                $canonical->getSource()->getPathname()            => true,
-                $conflictingCompanion->getSource()->getPathname() => true,
+                $canonical->getSource()->getPathname()            => $conflictingCompanion->getSource()->getPathname(),
+                $conflictingCompanion->getSource()->getPathname() => $canonical->getSource()->getPathname(),
             ],
             $conflicts,
         );

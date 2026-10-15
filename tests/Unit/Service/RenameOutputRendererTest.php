@@ -284,7 +284,7 @@ final class RenameOutputRendererTest extends TestCase
             $collection,
             new RenameOptions(),
             new RenameResult(
-                livePhotoConflictFiles: [$source => true],
+                livePhotoConflictFiles: [$source => $sourceDir . '/photo.jpg'],
             ),
             $sourceDir,
         )->entries;
@@ -292,6 +292,7 @@ final class RenameOutputRendererTest extends TestCase
         self::assertCount(1, $entries);
         self::assertSame(OutputEntryTag::Candidate, $entries[0]->tag);
         self::assertTrue($entries[0]->shouldSkip);
+        self::assertSame($sourceDir . '/photo.jpg', $entries[0]->counterpartPath);
     }
 
     /**

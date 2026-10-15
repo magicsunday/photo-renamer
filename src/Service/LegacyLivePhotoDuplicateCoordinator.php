@@ -44,7 +44,7 @@ final readonly class LegacyLivePhotoDuplicateCoordinator
      * @param Rename|null           $canonicalRename        Canonical rename chosen for the duplicate group.
      * @param FileDuplicate         $fileDuplicate          Duplicate group being processed.
      * @param array<string, string> $contentIdentifierMap   Normalized content identifiers keyed by source pathname.
-     * @param array<string, true>   $livePhotoConflictFiles Conflict map updated when fallback detection hits mismatched content IDs.
+     * @param array<string, string> $livePhotoConflictFiles Candidate-to-counterpart paths updated when fallback detection hits mismatched content IDs.
      *
      * @return LegacyLivePhotoDuplicateCoordination Result carrying the companion rename and optional normalized pair.
      */

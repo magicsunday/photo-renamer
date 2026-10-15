@@ -60,7 +60,7 @@ final readonly class LegacyLivePhotoCompanionDetector
      * @param Rename|null           $canonicalRename        Canonical rename of the current duplicate group.
      * @param FileDuplicate         $fileDuplicate          Group whose renames are searched for a companion.
      * @param array<string, string> $contentIdentifierMap   Normalized content identifiers keyed by source pathname.
-     * @param array<string, true>   $livePhotoConflictFiles Conflict map that is updated when fallback detection finds mismatched IDs.
+     * @param array<string, string> $livePhotoConflictFiles Candidate-to-counterpart paths updated when fallback detection finds mismatched IDs.
      *
      * @return Rename|null The detected companion rename, or null if no companion was found.
      */
@@ -144,8 +144,8 @@ final readonly class LegacyLivePhotoCompanionDetector
                 ($fallbackContentId !== null)
                 && ($fallbackContentId !== $canonicalContentId)
             ) {
-                $livePhotoConflictFiles[$canonicalPath] = true;
-                $livePhotoConflictFiles[$fallbackPath]  = true;
+                $livePhotoConflictFiles[$canonicalPath] = $fallbackPath;
+                $livePhotoConflictFiles[$fallbackPath]  = $canonicalPath;
 
                 return null;
             }

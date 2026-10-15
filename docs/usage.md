@@ -125,9 +125,11 @@ Each file in the output is prefixed with a status indicator:
 | `[W]` | **Warning** -- date drift between source filename and target exceeds `--max-date-drift` (default 7 days); file is skipped. |
 | `[S]` | **Skipped** -- file has no usable metadata (no capture date found).                   |
 | `[E]` | **Error** -- metadata could not be read (parser error).                               |
-| `[C]` | **Candidate** -- conflicting Live Photo Content Identifier detected across groups.    |
+| `[C]` | **Candidate** -- possible Live Photo pair with different Content Identifiers; skipped for manual review. |
 | `[V]` | **Review** -- video comparison needs operator review; no automatic merge. |
 | `[I]` | **Info** -- supplemental information. |
+
+`[C]` entries identify the possible counterpart on a separate line. Both filenames use the configured [terminal links](configuration.md#clickable-file-paths-in-terminal-output). This is a heuristic review hint, not proof of a wrong pair, corruption or a changed key photo. The files remain skipped; this diagnostic does not compare video frames or repair metadata.
 
 After processing, a summary table shows scanned files, skipped files (no metadata), read errors, planned moves/skips, Live Photo groups, duplicates found, naming collisions, and total files to process.
 

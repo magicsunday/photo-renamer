@@ -57,10 +57,10 @@ final class PipelineContext
     private array $ambiguousTimezoneFiles = [];
 
     /**
-     * Pathnames of files that appear to be Live Photo pairs by heuristic but
-     * carry conflicting non-null content identifiers.
+     * Candidate pathnames mapped to their possible Live Photo counterparts.
+     * Conflicting non-null identifiers require review rather than automatic pairing.
      *
-     * @var array<string, true>
+     * @var array<string, string>
      */
     private array $livePhotoConflictFiles = [];
 
@@ -165,11 +165,12 @@ final class PipelineContext
      * Records a pathname as having a Live Photo content-identifier conflict
      * during the pairing phase.
      *
-     * @param string $pathname Absolute path of the affected file.
+     * @param string $pathname        Absolute path of the affected file.
+     * @param string $counterpartPath Absolute path of its possible counterpart, not a confirmed pairing.
      */
-    public function addLivePhotoConflictFile(string $pathname): void
+    public function addLivePhotoConflictFile(string $pathname, string $counterpartPath): void
     {
-        $this->livePhotoConflictFiles[$pathname] = true;
+        $this->livePhotoConflictFiles[$pathname] = $counterpartPath;
     }
 
     /**
@@ -226,7 +227,7 @@ final class PipelineContext
     /**
      * Returns pathnames recorded as having Live Photo content-identifier conflicts.
      *
-     * @return array<string, true> Map of pathnames with ID conflicts.
+     * @return array<string, string> Candidate pathnames mapped to possible counterpart pathnames.
      */
     public function getLivePhotoConflictFiles(): array
     {

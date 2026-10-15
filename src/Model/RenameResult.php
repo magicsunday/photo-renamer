@@ -31,7 +31,7 @@ final readonly class RenameResult
      * @param list<SkippedFile>           $skippedFiles               The list of files that were skipped during the process (e.g., due to errors or missing metadata).
      * @param array<string, true>         $fallbackDateFiles          A map (pathname => true) of files where the capture date was retrieved from a fallback metadata field.
      * @param array<string, true>         $ambiguousTimezoneFiles     A map (pathname => true) of files with ambiguous timezone data (e.g., UTC vs. local time).
-     * @param array<string, true>         $livePhotoConflictFiles     A map (pathname => true) of files identified as potential Live Photo pairs that have conflicting content identifiers.
+     * @param array<string, string>       $livePhotoConflictFiles     Candidate pathnames mapped to possible counterparts with conflicting content identifiers.
      * @param list<array{string, string}> $crossDirectoryCompanions   A list of Live Photo pairs where canonical and companion are located in different directories.
      * @param list<OutputEntry>           $reviewEntries              Output-ready review findings produced from structured pipeline facts.
      * @param int                         $crossGroupVideoReviewCount Number of cross-group video review findings carried into the output boundary.

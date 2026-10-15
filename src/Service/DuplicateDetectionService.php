@@ -149,7 +149,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
      * Pathnames of files that look like a Live Photo pair by fallback heuristics
      * but expose conflicting non-null content identifiers.
      *
-     * @var array<string, true>
+     * @var array<string, string>
      */
     private array $livePhotoConflictFiles = [];
 
@@ -238,7 +238,7 @@ final class DuplicateDetectionService implements DuplicateDetectionServiceInterf
     }
 
     /**
-     * @return array<string, true>
+     * @return array<string, string> Candidate pathnames mapped to possible counterparts.
      */
     #[Override]
     public function getLivePhotoConflictFiles(): array

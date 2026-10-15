@@ -111,6 +111,12 @@ final readonly class OutputEntryPresenter
             if ($this->isTagVisible($entry->tag, $showFilter)) {
                 if ($entry->shouldSkip) {
                     $this->renderTwoLineReasonBlock($entry->tag, $linkedPath, $this->skipReason($entry), $io);
+
+                    if (($entry->tag === OutputEntryTag::Candidate) && ($entry->counterpartPath !== null)) {
+                        $counterpartPath   = PathHelper::relativizePath($entry->counterpartPath, $sourceBaseDirectory);
+                        $linkedCounterpart = PathHelper::linkifyPath($counterpartPath, $counterpartPath, $sourceBaseDirectory, $linkConfig, 'yellow');
+                        $io->text(sprintf('     <fg=cyan>→</> Possible counterpart: %s', $linkedCounterpart));
+                    }
                 } else {
                     $io->text(sprintf(
                         ' %s %s' . $padding . ' <fg=cyan>→</> %s',
@@ -196,7 +202,7 @@ final readonly class OutputEntryPresenter
     private function skipReason(OutputEntry $entry): string
     {
         return match ($entry->tag) {
-            OutputEntryTag::Candidate => 'Conflicting Live Photo content ID across groups',
+            OutputEntryTag::Candidate => 'Possible Live Photo pair with different content IDs; skipped for manual review',
             OutputEntryTag::Review    => $entry->reason ?? 'Cross-group video review required',
             OutputEntryTag::Warning   => $entry->warningReason ?? 'Warning',
             OutputEntryTag::Fallback  => 'Fallback date: DateTime (0x0132) used instead of DateTimeOriginal',

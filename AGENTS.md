@@ -275,7 +275,9 @@ This is an intentional bounded exception (End State B). These commands are too s
 
 `OutputEntryPresenter` selects plain skip text directly from the exclusive Candidate/Review/Warning/Fallback tags, with a generic default for other tags. Review uses `reason`, Warning uses `warningReason`; null and empty details remain distinct. Escaping and styling follow at the actual output boundary. The existing parameterized output matrix protects every tag and conditional detail.
 
-`[R]` Rename, `[F]` Fallback, `[D]` Duplicate, `[O]` Original, `[W]` Warning, `[S]` Skipped, `[E]` Error, `[C]` Candidate (conflicting content ID)
+`[R]` Rename, `[F]` Fallback, `[D]` Duplicate, `[O]` Original, `[W]` Warning, `[S]` Skipped, `[E]` Error, `[C]` Candidate (possible Live Photo pair with different content IDs)
+
+Live Photo conflict maps retain candidate pathname → possible counterpart pathname in both EXIF and legacy detection. `[C]` keeps manual-review wording and shows the counterpart through the same relative-path, escaping and explicit-link boundary as the source. Preserve existing detection, skip policy, filters and counts; the diagnostic is neither confirmed pairing nor frame-analysis evidence or metadata-write authority.
 
 ### Timezone Handling
 

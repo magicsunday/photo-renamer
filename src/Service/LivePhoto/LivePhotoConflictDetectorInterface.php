@@ -19,7 +19,7 @@ use SplFileInfo;
  * even though the surrounding metadata strongly suggests they belong together.
  *
  * The detector is intentionally conservative: it never pairs assets, it only
- * returns pathnames that should be surfaced as manual review candidates [C].
+ * returns candidate pathnames and their possible counterparts for manual review [C].
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -31,7 +31,7 @@ interface LivePhotoConflictDetectorInterface
      * @param array<string, SplFileInfo>      $filesByPath    All scanned media files keyed by pathname
      * @param array<string, TemporalMetadata> $metadataByPath Extracted temporal metadata keyed by pathname
      *
-     * @return array<string, true> Pathnames of files that should be marked as [C]
+     * @return array<string, string> Candidate pathnames mapped to their possible counterpart pathnames
      */
     public function detectConflictFiles(array $filesByPath, array $metadataByPath): array;
 }

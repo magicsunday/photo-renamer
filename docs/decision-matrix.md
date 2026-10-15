@@ -68,7 +68,7 @@ No EXIF metadata (`[S]`), unsupported formats (PNG, RAW, MKV), corrupted files (
 | `[D]` | Duplicate | Classification duplicate (exact or accepted perceptual evidence), gets `-duplicate-NNN`; not deletion authority |
 | `[F]` | Fallback | Date from ModifyDate (0x0132) -- unreliable |
 | `[W]` | Warning | Ambiguous timezone or date drift -- skipped |
-| `[C]` | Candidate | Live Photo conflict -- skipped |
+| `[C]` | Candidate | Possible Live Photo pair with different IDs; counterpart shown, skipped for manual review |
 | `[S]` | Skipped | No capture date found |
 | `[E]` | Error | Metadata read failed |
 
