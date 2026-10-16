@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Test\Integration;
 
 use DateTimeImmutable;
+use Generator;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\FilenameDateParser;
 use MagicSunday\Renamer\Helper\PrivateCacheStorage;
@@ -46,11 +47,16 @@ use RecursiveIteratorIterator;
 use SplFileInfo;
 use Symfony\Component\Filesystem\Exception\IOException;
 use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\Process\Process;
 
+use function dirname;
 use function json_decode;
 use function json_encode;
+use function strrpos;
+use function substr;
 
 use const JSON_THROW_ON_ERROR;
+use const PHP_BINARY;
 
 /**
  * Exercises the provider and private disk cache across fresh instances rather
@@ -381,8 +387,14 @@ final class MetadataCacheLifecycleTest extends TestCase
         $realStorage->write($this->cachePath(), '{}');
         $realStorage->write($this->signalCachePath(), '{}');
 
-        $filesystem = self::getMockBuilder(Filesystem::class)->onlyMethods(['readFile'])->getMock();
-        $filesystem->expects(self::exactly(2))->method('readFile')->willThrowException(new IOException('Controlled ordinary read failure.'));
+        $filesystem   = self::getMockBuilder(Filesystem::class)->onlyMethods(['readFile', 'chmod'])->getMock();
+        $metadataPath = $this->cachePath();
+        $filesystem->method('chmod')->willReturnCallback(static function (string $path, int $mode) use ($metadataPath): void {
+            // The stream really encounters denied read access after validation;
+            // the ordinary Filesystem read double still covers perceptual JSON.
+            new Filesystem()->chmod($path, $path === $metadataPath ? 0 : $mode);
+        });
+        $filesystem->expects(self::once())->method('readFile')->willThrowException(new IOException('Controlled ordinary read failure.'));
         $storage  = new PrivateCacheStorage($filesystem);
         $metadata = new MetadataCache($this->cachePath(), $storage);
         $signals  = new PerceptualSignalCache($this->signalCachePath(), $storage);
@@ -390,6 +402,106 @@ final class MetadataCacheLifecycleTest extends TestCase
         self::assertNull($signals->get($file));
         self::assertSame('Metadata cache could not be read; starting cold.', $metadata->getDiagnostic());
         self::assertSame('Perceptual cache could not be read; starting cold.', $signals->getDiagnostic());
+    }
+
+    /**
+     * A late corrupt row or truncated/trailing envelope discards all earlier rows.
+     */
+    #[Test]
+    public function streamedSnapshotFailureCannotPublishPartialWarmMetadata(): void
+    {
+        $first = $this->createFile('first.jpg');
+        $last  = $this->createFile('last.jpg');
+        $cache = $this->createCache();
+        $cache->set($first, new TemporalMetadata(new DateTimeImmutable('2024-01-01T12:00:00Z'), 'first'));
+        $cache->set($last, new TemporalMetadata(new DateTimeImmutable('2024-01-02T12:00:00Z'), 'last'));
+        $cache->flush();
+
+        $filesystem = new Filesystem();
+        $complete   = $filesystem->readFile($this->cachePath());
+        $filesystem->dumpFile($this->cachePath(), $complete . " \n");
+        $whitespace = $this->createCache();
+        self::assertNull($whitespace->getDiagnostic());
+        self::assertNotNull($whitespace->get($first));
+        $lastPayload = json_decode($complete, true, flags: JSON_THROW_ON_ERROR);
+        self::assertIsArray($lastPayload);
+        self::assertIsArray($lastPayload['entries']);
+        self::assertIsArray($lastPayload['entries'][$last->getPathname()]);
+        $badRow               = $lastPayload['entries'][$last->getPathname()];
+        $badRow['isFallback'] = 'false';
+        $lastOffset           = strrpos($complete, ',' . json_encode($last->getPathname(), JSON_THROW_ON_ERROR) . ':');
+        self::assertNotFalse($lastOffset);
+        $lateInvalid = substr($complete, 0, $lastOffset)
+            . ',' . json_encode($last->getPathname(), JSON_THROW_ON_ERROR) . ':' . json_encode($badRow, JSON_THROW_ON_ERROR) . "\n}}";
+        self::assertIsString($lateInvalid);
+
+        foreach ([substr($complete, 0, -2), $complete . 'unexpected', $lateInvalid] as $broken) {
+            $filesystem->dumpFile($this->cachePath(), $broken);
+            $fresh = $this->createCache();
+            self::assertNotNull($fresh->getDiagnostic());
+            self::assertNull($fresh->get($first));
+            self::assertNull($fresh->get($last));
+        }
+    }
+
+    /**
+     * Historical rows must load and flush within a budget that rejects eager decoding.
+     */
+    #[Test]
+    public function largeHistoricalSnapshotUsesBoundedRowDecoding(): void
+    {
+        $file  = $this->createFile('retained.jpg');
+        $cache = $this->createCache();
+        $cache->set($file, new TemporalMetadata(new DateTimeImmutable('2024-01-15T10:30:00Z'), 'synthetic'));
+        $cache->flush();
+
+        $filesystem = new Filesystem();
+        $payload    = json_decode($filesystem->readFile($this->cachePath()), true, flags: JSON_THROW_ON_ERROR);
+        self::assertIsArray($payload);
+        self::assertIsArray($payload['entries']);
+        $row    = json_encode($payload['entries'][$file->getPathname()], JSON_THROW_ON_ERROR);
+        $header = '{"_version":' . json_encode($payload['_version'], JSON_THROW_ON_ERROR)
+            . ',"_parser":' . json_encode($payload['_parser'], JSON_THROW_ON_ERROR) . ',"entries":{' . "\n";
+        $chunks = static function () use ($header, $row, $file): Generator {
+            yield $header;
+
+            for ($index = 0; $index < 20000; ++$index) {
+                $path = $index === 0 ? $file->getPathname() : '/synthetic-historical-' . $index . '.jpg';
+                yield ($index === 0 ? '' : ',') . json_encode($path, JSON_THROW_ON_ERROR) . ':' . $row . "\n";
+            }
+
+            yield '}}';
+        };
+        new PrivateCacheStorage($filesystem)->write($this->cachePath(), $chunks());
+        $script = $this->workspace . '/bounded-cache.php';
+        $filesystem->dumpFile($script, <<<'PHP'
+            <?php
+            require $argv[1];
+            $filesystem = new Symfony\Component\Filesystem\Filesystem();
+            $storage = new MagicSunday\Renamer\Helper\PrivateCacheStorage($filesystem);
+            $cache = new MagicSunday\Renamer\Metadata\MetadataCache($argv[2], $storage);
+            $file = new SplFileInfo($argv[3]);
+            if (($cache->getDiagnostic() !== null) || ($cache->get($file)?->getContentId() !== 'synthetic')) {
+                throw new RuntimeException('Bounded cache must be warm.');
+            }
+            $cache->set($file, new MagicSunday\Renamer\Metadata\TemporalMetadata(new DateTimeImmutable('2024-01-15T10:30:00Z'), 'synthetic'));
+            $cache->flush();
+            unset($cache);
+            $fresh = new MagicSunday\Renamer\Metadata\MetadataCache($argv[2], $storage);
+            if (($fresh->getDiagnostic() !== null) || ($fresh->get($file)?->getContentId() !== 'synthetic')) {
+                throw new RuntimeException('Mixed retained/fresh rows must reload.');
+            }
+            $lines = 0;
+            foreach (new SplFileObject($argv[2]) as $line) { ++$lines; }
+            if ($lines !== 20002) { throw new RuntimeException('Historical rows were lost.'); }
+            echo 'bounded-cache-pass';
+            PHP);
+        $process = new Process([PHP_BINARY, '-d', 'memory_limit=32M', $script, dirname(__DIR__, 2) . '/.build/vendor/autoload.php', $this->cachePath(), $file->getPathname()]);
+        $process->setTimeout(30);
+        $process->run();
+        self::assertSame(0, $process->getExitCode(), $process->getOutput() . $process->getErrorOutput());
+        self::assertSame('bounded-cache-pass', $process->getOutput());
+        self::assertSame('', $process->getErrorOutput());
     }
 
     /**

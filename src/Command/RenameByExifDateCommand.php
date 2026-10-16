@@ -302,7 +302,7 @@ final class RenameByExifDateCommand extends AbstractMediaRenameCommand
 
         // Step 7: Build ExecutionPlan from pipeline output
         $executionPlan = $this->executionPlanBuilder->build(
-            $pipelineResult->groups,
+            $pipelineResult->groups->drain(),
             $pipelineResult->context,
             $this->maxDateDrift,
         );
@@ -316,6 +316,10 @@ final class RenameByExifDateCommand extends AbstractMediaRenameCommand
             $reviewEntries,
             count($reviewEntries),
         );
+
+        // The plan and summary now own everything needed for output/execution.
+        // Release analysis models before constructing the sorted output entries.
+        unset($pipelineResult, $group);
 
         $this->renderPostScanSummary($result);
 

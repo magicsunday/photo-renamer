@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Helper;
 
 use RuntimeException;
 use SplFileInfo;
+use SplFileObject;
 use Symfony\Component\Filesystem\Exception\IOException;
 use Symfony\Component\Filesystem\Filesystem;
 
@@ -89,6 +90,26 @@ final readonly class PrivateCacheStorage
         try {
             return $this->filesystem->readFile($pathname);
         } catch (IOException) {
+            return null;
+        }
+    }
+
+    /**
+     * Opens one owned private snapshot for bounded reads. The open inode stays
+     * stable if another writer atomically publishes a newer cache snapshot.
+     * Ordinary open failures are cold-cache misses; privacy failures stay explicit.
+     */
+    public function openRead(string $pathname): ?SplFileObject
+    {
+        if (!$this->isOwnedFile($pathname)) {
+            return null;
+        }
+
+        $this->filesystem->chmod($pathname, 0o600);
+
+        try {
+            return new SplFileObject($pathname, 'rb');
+        } catch (RuntimeException) {
             return null;
         }
     }

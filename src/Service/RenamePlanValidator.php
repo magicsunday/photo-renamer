@@ -18,8 +18,9 @@ use function array_key_exists;
 use function array_keys;
 use function array_search;
 use function array_slice;
-use function count;
 use function in_array;
+use function is_array;
+use function is_string;
 use function strtolower;
 
 /**
@@ -49,10 +50,10 @@ final readonly class RenamePlanValidator
      */
     public function validate(AssetGroupCollection $groups): ValidationResult
     {
-        /** @var array<string, list<string>> $targetToSources */
-        $targetToSources = [];
+        /** @var array<string, int> $targetCounts */
+        $targetCounts = [];
 
-        /** @var array<string, list<string>> $caseMap */
+        /** @var array<string, string|list<string>> $caseMap */
         $caseMap = [];
 
         /** @var array<string, string> $sourceToTarget */
@@ -73,21 +74,20 @@ final readonly class RenamePlanValidator
                     continue;
                 }
 
-                // Track target -> sources for duplicate detection
-                if (!array_key_exists($target, $targetToSources)) {
-                    $targetToSources[$target] = [];
-                }
+                // Only counts are needed to report duplicate target paths.
+                $targetCounts[$target] = ($targetCounts[$target] ?? 0) + 1;
 
-                $targetToSources[$target][] = $source;
-
-                // Track lowercase target -> original-case targets for case conflict detection
+                // Most lowercase keys have one spelling; allocate a list only
+                // for an actual case conflict, preserving first-encounter order.
                 $lowerTarget = strtolower($target);
 
                 if (!array_key_exists($lowerTarget, $caseMap)) {
-                    $caseMap[$lowerTarget] = [];
-                }
-
-                if (!$this->inArray($target, $caseMap[$lowerTarget])) {
+                    $caseMap[$lowerTarget] = $target;
+                } elseif (is_string($caseMap[$lowerTarget])) {
+                    if ($caseMap[$lowerTarget] !== $target) {
+                        $caseMap[$lowerTarget] = [$caseMap[$lowerTarget], $target];
+                    }
+                } elseif (!in_array($target, $caseMap[$lowerTarget], true)) {
                     $caseMap[$lowerTarget][] = $target;
                 }
 
@@ -96,7 +96,7 @@ final readonly class RenamePlanValidator
             }
         }
 
-        $duplicateTargets = $this->detectDuplicateTargets($targetToSources);
+        $duplicateTargets = $this->detectDuplicateTargets($targetCounts);
         $caseConflicts    = $this->detectCaseConflicts($caseMap);
         $circularSwaps    = $this->detectCircularSwaps($sourceToTarget);
 
@@ -106,16 +106,16 @@ final readonly class RenamePlanValidator
     /**
      * Detects targets that have more than one source file.
      *
-     * @param array<string, list<string>> $targetToSources
+     * @param array<string, int> $targetCounts
      *
      * @return list<string>
      */
-    private function detectDuplicateTargets(array $targetToSources): array
+    private function detectDuplicateTargets(array $targetCounts): array
     {
         $duplicates = [];
 
-        foreach ($targetToSources as $target => $sources) {
-            if (count($sources) > 1) {
+        foreach ($targetCounts as $target => $count) {
+            if ($count > 1) {
                 $duplicates[] = $target;
             }
         }
@@ -126,7 +126,7 @@ final readonly class RenamePlanValidator
     /**
      * Detects targets that differ only in letter casing.
      *
-     * @param array<string, list<string>> $caseMap
+     * @param array<string, string|list<string>> $caseMap
      *
      * @return list<list<string>>
      */
@@ -135,7 +135,7 @@ final readonly class RenamePlanValidator
         $conflicts = [];
 
         foreach ($caseMap as $targets) {
-            if (count($targets) > 1) {
+            if (is_array($targets)) {
                 $conflicts[] = $targets;
             }
         }
@@ -201,16 +201,5 @@ final readonly class RenamePlanValidator
         }
 
         return $circularSwaps;
-    }
-
-    /**
-     * Checks whether a value exists in an array (strict comparison).
-     *
-     * @param string       $needle Value to search for
-     * @param list<string> $array  Array to search in
-     */
-    private function inArray(string $needle, array $array): bool
-    {
-        return in_array($needle, $array, true);
     }
 }

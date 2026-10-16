@@ -237,6 +237,8 @@ final class PrivateCacheStorageTest extends TestCase
             try {
                 if ($operation === 'read') {
                     $storage->read($pathname);
+                } elseif ($operation === 'open') {
+                    $storage->openRead($pathname);
                 } elseif ($operation === 'write') {
                     $storage->write($pathname, 'changed');
                 } else {
@@ -267,6 +269,8 @@ final class PrivateCacheStorageTest extends TestCase
         yield 'read' => ['read', false];
         yield 'replace' => ['write', false];
         yield 'purge' => ['remove', false];
+        yield 'open stream' => ['open', false];
+        yield 'open dangling stream' => ['open', true];
         yield 'read dangling' => ['read', true];
         yield 'replace dangling' => ['write', true];
         yield 'purge dangling' => ['remove', true];

@@ -13,6 +13,7 @@ namespace MagicSunday\Renamer\Test\Integration;
 
 use MagicSunday\Renamer\Command\RenameByExifDateCommand;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
+use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\Execution\ExecutionGroup;
 use MagicSunday\Renamer\Model\Execution\ExecutionItem;
@@ -594,7 +595,10 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
             ) {
             }
 
-            public function build(AssetGroupCollection $groups, PipelineContext $context, ?int $maxDateDrift = null): ExecutionPlan
+            /**
+             * @param iterable<AssetGroup> $groups Validated group stream
+             */
+            public function build(iterable $groups, PipelineContext $context, ?int $maxDateDrift = null): ExecutionPlan
             {
                 return $this->executionPlan;
             }

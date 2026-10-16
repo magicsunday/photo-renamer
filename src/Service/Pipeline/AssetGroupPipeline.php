@@ -131,6 +131,7 @@ final readonly class AssetGroupPipeline
             // Step 5: Resolve collisions
             AnalysisMemoryBudget::assertHeadroom('collision resolution');
             $this->collisionResolver->resolve($groups, $context);
+            $context->releaseDiskIndex();
 
             // Step 6: Validate rename plan
             AnalysisMemoryBudget::assertHeadroom('plan validation');
