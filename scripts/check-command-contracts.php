@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Scripts;
 
+use DateTimeImmutable;
 use FilesystemIterator;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -26,6 +27,10 @@ use function count;
 use function dirname;
 use function file_exists;
 use function glob;
+use function hash;
+use function preg_match;
+use function str_replace;
+use function substr_count;
 use function hash_file;
 use function implode;
 use function is_dir;
@@ -97,6 +102,7 @@ function runCli(array $prefix, array $arguments, string $cwd, array $environment
     $process->run();
     $text = $process->getOutput() . $process->getErrorOutput();
     requireContract($process->getExitCode() === $expectedStatus, implode(' ', $arguments) . ': ' . $text);
+    requireContract(preg_match('/^(?:PHP )?(?:Warning|Notice|Deprecated|Fatal error|Parse error): /m', $text) !== 1, 'PHP runtime diagnostic: ' . $text);
     requireContract(!str_contains($text, 'Fatal error:') && !str_contains($text, 'internal corruption') && !str_contains($text, 'zlib: data error'), 'Archive/autoload failure: ' . $text);
 
     return $process;
@@ -119,27 +125,92 @@ function mediaSnapshot(string $directory): array
     return $snapshot;
 }
 
-try {
-    // Real cold reads must outnumber the descriptor budget; tiny smoke batches
-    // cannot detect stream ownership cycles that wait for automatic collection.
-    $pressureDirectory = $workspace . '/metadata-descriptor-pressure';
-    $filesystem->mkdir($pressureDirectory);
 
-    for ($index = 0; $index < 384; ++$index) {
-        $filesystem->copy($fixtures . '/10-already-correct/2024-10-20_16-45-00-000.jpg', $pressureDirectory . '/' . sprintf('%04d.jpg', $index));
+/**
+ * Runs the same finite-capacity contract for source, PHAR and native artifacts.
+ *
+ * @param list<string> $prefix Executable and optional interpreter
+ * @param array<string, string|false> $environment Child configuration
+ */
+function checkCollectionCapacity(array $prefix, string $fixtures, Filesystem $filesystem, string $workspace, array $environment): void
+{
+    $media = $workspace . '/capacity media';
+    $template = $filesystem->readFile($fixtures . '/10-already-correct/2024-10-20_16-45-00-000.jpg');
+    requireContract(substr_count($template, '2024:10:20 16:45:00') > 0, 'Capacity fixture date missing');
+    $start = new DateTimeImmutable('2024-10-20T16:45:00+00:00');
+    $expected = [];
+
+    for ($index = 0; $index < 6000; ++$index) {
+        $date = $start->modify('+' . $index . ' seconds');
+        $bytes = str_replace('2024:10:20 16:45:00', $date->format('Y:m:d H:i:s'), $template);
+        $filesystem->dumpFile($media . '/' . sprintf('CAMERA-%05d.jpg', $index), $bytes);
+        $expected[$date->format('Y-m-d_H-i-s') . '-000.jpg'] = hash('sha256', $bytes);
     }
 
-    $pressureBefore = mediaSnapshot($pressureDirectory);
+    foreach (['preview', 'rename', 'repeat'] as $mode) {
+        $options = $mode === 'preview' ? ['--dry-run'] : [];
+        $result = runCli($prefix, ['rename:exif', $media, '--show=E', ...$options], $workspace . '/cwd', [
+            ...$environment,
+            'PHP_MEMORY_LIMIT' => '96M',
+            'CACHE_DIR' => $workspace . ($mode === 'preview' ? '/capacity-preview-state' : '/capacity-state'),
+        ]);
+        requireContract(preg_match('/Scanned files\s+6000\b/', $result->getOutput()) === 1, 'Capacity scan incomplete: ' . $mode);
+        $observed = glob($media . '/*.jpg');
+        requireContract(($observed !== false) && (count($observed) === 6000), 'Capacity files missing: ' . $mode);
+        $index = 0;
+
+        foreach ($expected as $name => $digest) {
+            $actualName = $mode === 'preview' ? sprintf('CAMERA-%05d.jpg', $index) : $name;
+            requireContract(hash_file('sha256', $media . '/' . $actualName) === $digest, 'Capacity name/bytes changed: ' . $mode);
+            ++$index;
+        }
+    }
+
+    echo 'Collection capacity: 6000 distinct captures at 96 MiB, cold preview, confirmed rename and retained-cache repeat passed' . PHP_EOL;
+}
+
+try {
     $limitedPrefix = ['sh', '-c', 'set -e; ulimit -n 128; exec "$@"', 'metadata-descriptor-pressure', ...$prefix];
-    runCli($limitedPrefix, ['rename:exif', $pressureDirectory, '--dry-run', '--show=E'], $workspace . '/cwd', $environment);
-    requireContract(mediaSnapshot($pressureDirectory) === $pressureBefore, 'Descriptor-pressure dry-run changed media');
-    $filesystem->dumpFile($pressureDirectory . '/zz-corrupt.jpg', 'synthetic invalid media');
-    $pressureBefore = mediaSnapshot($pressureDirectory);
-    $pressureResult = runCli($limitedPrefix, ['rename:verify', $pressureDirectory, '--show=E'], $workspace . '/cwd', [...$environment, 'CACHE_DIR' => $workspace . '/fresh-pressure-cache']);
-    requireContract(str_contains($pressureResult->getOutput(), 'zz-corrupt.jpg'), 'Late damaged input was not reported after descriptor-pressure reads');
-    requireContract(!str_contains($pressureResult->getOutput() . $pressureResult->getErrorOutput(), 'No file descriptors'), 'Descriptor budget exhausted');
-    requireContract(mediaSnapshot($pressureDirectory) === $pressureBefore, 'Descriptor-pressure verification changed media');
-    echo 'Metadata descriptors: 384 cold files with a 128-descriptor limit, dry-run and late damaged-input diagnostics passed' . PHP_EOL;
+    checkCollectionCapacity($limitedPrefix, $fixtures, $filesystem, $workspace, $environment);
+
+    if (($argv[5] ?? null) === 'capacity-only') {
+        return;
+    }
+
+    // Parser families have distinct resource ownership; both cold reads and
+    // cached reads must scan beyond the descriptor budget without changing media.
+    foreach ([
+        'jpg' => '10-already-correct/2024-10-20_16-45-00-000.jpg',
+        'heic' => '14-heic-image/IMG_0042.heic',
+        'mov' => '33-mov-with-timezone/clip.mov',
+        'avi' => '34-avi-with-date/clip.avi',
+    ] as $extension => $fixture) {
+        $directory = $workspace . '/metadata-pressure-' . $extension;
+        $filesystem->mkdir($directory);
+
+        for ($index = 0; $index < 384; ++$index) {
+            $filesystem->copy($fixtures . '/' . $fixture, $directory . '/' . sprintf('%04d.', $index) . $extension);
+        }
+        $filesystem->dumpFile($directory . '/zz-corrupt.jpg', 'synthetic invalid media');
+        $before = mediaSnapshot($directory);
+        $pressureEnvironment = [...$environment, 'CACHE_DIR' => $workspace . '/pressure-cache-' . $extension];
+
+        foreach (['cold', 'warm'] as $phase) {
+            $result = runCli($limitedPrefix, ['rename:verify', $directory, '--show=E'], $workspace . '/cwd', $pressureEnvironment);
+            requireContract(preg_match('/Scanned files\s+385\b/', $result->getOutput()) === 1, $extension . ' ' . $phase . ' descriptor scan incomplete');
+            requireContract(str_contains($result->getOutput(), 'zz-corrupt.jpg'), $extension . ' ' . $phase . ' damaged input was not reported');
+            requireContract(mediaSnapshot($directory) === $before, $extension . ' ' . $phase . ' verification changed names/bytes');
+        }
+
+        if ($extension === 'jpg') {
+            // EXIF sorts source paths, so this fresh-cache damaged read really
+            // occurs after all 384 valid inputs, independently of readdir order.
+            $late = runCli($limitedPrefix, ['rename:exif', $directory, '--dry-run', '--show=E'], $workspace . '/cwd', [...$environment, 'CACHE_DIR' => $workspace . '/late-pressure-cache'], 1);
+            requireContract(str_contains($late->getOutput(), 'zz-corrupt.jpg'), 'Sorted late damaged input was not reported');
+            requireContract(mediaSnapshot($directory) === $before, 'Late damaged-input preview changed names/bytes');
+        }
+        echo 'Metadata descriptors: ' . $extension . ', 384 valid files plus damaged input, cold/warm at 128 descriptors passed' . PHP_EOL;
+    }
 
     $renameCases = [
         ['rename:lower', 'PHOTO.JPG', 'photo.jpg', []],

@@ -152,7 +152,7 @@ MEDIA_DIR="$PWD/tests/Fixtures/Images" MEDIA_READ_ONLY=true ./renamer.sh rename:
 | `make cgl`     | Auto-fix code style.                 |
 | `make rector`  | Apply Rector rules.                  |
 
-The normal test suite also runs 6000 distinct real JPEG captures within 96 MiB through cold preview, confirmed rename and repeat, retaining old metadata-cache paths. The separate large synthetic Live Photo profile supports a selected finite worker budget: `make mixed-collection-benchmark COUNT=70000 MEMORY_MIB=512`. Its default remains 3072 MiB; the container remains limited to 4 GiB with no extra swap. This profile measures structural capacity, not arbitrary original-media throughput.
+The normal test suite and source/PHAR/native acceptance runner share one capacity scenario: 6000 distinct real JPEG captures within 96 MiB through cold preview, confirmed rename and repeat, retaining old metadata-cache paths. The separate large synthetic Live Photo profile supports a selected finite worker budget: `make mixed-collection-benchmark COUNT=70000 MEMORY_MIB=512`. Its default remains 3072 MiB; the container remains limited to 4 GiB with no extra swap. This profile measures structural capacity, not arbitrary original-media throughput.
 
 ### Build a standalone binary (optional)
 
@@ -161,12 +161,22 @@ Compiles a Linux standalone executable with PHP, production packages and Imagick
 `make binary-init` preserves an existing `.env` byte for byte, including comments and runtime settings. Its builder invocation uses the calling user's UID/GID through transient environment overrides. If `.env` is missing, initialization copies all `.env.dist` defaults and substitutes those initial numeric IDs. Docker/authentication failure does not erase existing configuration.
 
 ```bash
-make binary         # Build and verify native default-state mutation/failure paths
+make binary         # Build native artifact/runtime tools and require all native command contracts
 make binary-check   # Exercise all native commands with synthetic media; requires runtime image
 make binary-clean   # Remove SPC build artifacts to free space
 ```
 
-`make no-dev-smoke` runs the same real command/file-state contracts against an isolated production source tree and a compressed PHAR built by the production packer. These checks run in PR CI. `make binary` additionally checks the native executable with `CACHE_DIR` removed, HOME/temp defaults and a real I/O failure. `make binary-check` uses the existing runtime image’s native tools to exercise all eight commands through that executable: preview, actual mutation, fixed-point repeat, absolute/relative directory/single-file inputs and trailing slashes, verified duplicate deletion/refusal, quarantine, read-only verification and actual EXIF writes. The shared runner also scans 384 cold synthetic JPEGs with a 128-file-descriptor child limit, exercising EXIF dry-run and fresh verification with a late damaged input. This catches delayed stream-resource release and exception-autoload failures that small batches cannot expose. All fixtures and state are disposable; inherited cache/link settings are removed explicitly. These targeted contracts complement the detailed unit/integration suites; they do not claim an exhaustive Cartesian product of arbitrary regexes, paths and options.
+`make no-dev-smoke` runs the same real command/file-state contracts against an isolated production source tree and a compressed PHAR built by the production packer. These checks run in PR CI. `make binary` additionally checks the native executable with `CACHE_DIR` removed, HOME/temp defaults and a real I/O failure. `make binary-check` uses the existing runtime image’s native tools to exercise all eight commands through that executable: preview, actual mutation, fixed-point repeat, absolute/relative directory/single-file inputs and trailing slashes, verified duplicate deletion/refusal, quarantine, read-only verification and actual EXIF writes. The shared runner checks each parser family (JPEG, HEIC, ISO-BMFF/MOV and RIFF/AVI) with 384 valid files plus a damaged JPEG, both cold and warm under 128 descriptors. A separate sorted EXIF run reads the damaged input after all valid files; readdir order is not treated as a late-read guarantee. Its shared 6000-capture/96-MiB contract checks cold preview, confirmed renaming and a retained-cache repeat under the same descriptor limit. Unexpected PHP engine warnings, notices or deprecations in child output fail acceptance even when the child returns zero; expected application metadata warnings remain accepted. `make binary` automatically builds the runtime tools image and requires this complete exact-native runner before succeeding, in addition to its lightweight state/failure probe. All fixtures and state are disposable; inherited cache/link settings are removed explicitly. These targeted contracts complement the detailed unit/integration suites; they do not claim an exhaustive Cartesian product of arbitrary regexes, paths and options.
+
+| Partition | Executed evidence | Scope limit |
+|---|---|---|
+| All eight commands | Preview, actual applicable mutation, repeat, names/bytes/metadata, failures | Representative options and paths, not every possible combination |
+| Rename input paths | Absolute/relative, file/directory, spaces, trailing slash, unselected sibling | Owned synthetic filesystem only |
+| Parser resource pressure | JPEG/HEIC/MOV/AVI cold and warm above 128 descriptors, damaged-input reporting | Format aliases and all metadata variants are not a Cartesian matrix |
+| Collection capacity | 6000 distinct JPEG captures at 96 MiB and 128 descriptors, preview/mutation/repeat | Small-format structural regression, not arbitrary collection capacity |
+| Production packaging | Same runner against no-dev source, compressed PHAR and exact native executable | Each artifact must be tested again after a rebuild |
+| Larger mixed collections | Separate finite-budget synthetic benchmark | Explicitly measured sizes/media only; see [collection memory](collection-memory.md) |
+
 
 The output is `renamer` in the repository root. Install it on a compatible Linux host:
 
