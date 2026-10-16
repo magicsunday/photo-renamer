@@ -47,8 +47,8 @@ final class ConsoleProgressReporterTest extends TestCase
      * Emits headings, consistently indented known/unknown-total progress, plain
      * text and error diagnostics through the wrapped SymfonyStyle instance.
      *
-     * A four-digit unknown count fills Symfony's counter field so its padding
-     * cannot conceal a missing leading indent.
+     * Unknown counters keep exactly one leading space at every tested width;
+     * Symfony's default four-character padding must not add another indent.
      */
     #[Test]
     public function itEmitsConsoleVisibleMessagesAndProgress(): void
@@ -61,9 +61,13 @@ final class ConsoleProgressReporterTest extends TestCase
         $reporter->advance();
         $reporter->advance();
         $reporter->finish();
-        $reporter->startProgress(0);
-        $reporter->advance(2943);
-        $reporter->finish();
+
+        foreach ([0, 1, 42, 438, 2943, 71733] as $count) {
+            $reporter->startProgress(0);
+            $reporter->advance($count);
+            $reporter->finish();
+        }
+
         $reporter->text('plain message');
         $reporter->error('diagnostic problem');
 
@@ -71,7 +75,11 @@ final class ConsoleProgressReporterTest extends TestCase
 
         self::assertStringContainsString('Phase title', $normalizedOutput);
         self::assertStringContainsString(' 2/2 [', $normalizedOutput);
-        self::assertStringContainsString("\n 2943 file(s) | Elapsed:", $normalizedOutput);
+
+        foreach ([0, 1, 42, 438, 2943, 71733] as $count) {
+            self::assertStringContainsString("\n " . $count . ' file(s) | Elapsed:', $normalizedOutput);
+        }
+
         self::assertStringContainsString('plain message', $normalizedOutput);
         self::assertStringContainsString('diagnostic problem', $normalizedOutput);
     }
