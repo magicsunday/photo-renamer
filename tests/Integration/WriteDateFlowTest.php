@@ -139,7 +139,7 @@ final class WriteDateFlowTest extends TestCase
                 }
             }
 
-            $args = [PHP_BINARY, dirname(__DIR__, 2) . '/src/Renamer.php', 'rename:write-date', '--force', '--reason=timezone', $source];
+            $args = [PHP_BINARY, dirname(__DIR__, 2) . '/src/Renamer.php', 'rename:write-date', '--apply', '--force', '--reason=timezone', $source];
 
             if ($localAsUtc) {
                 $args[] = '--local-as-utc';
@@ -237,6 +237,7 @@ final class WriteDateFlowTest extends TestCase
             $writeTester->setInputs(['yes']);
 
             $exitCode = $writeTester->execute([
+                '--apply'    => true,
                 'source'     => $newPath,
                 '--reason'   => 'timezone',
                 '--timezone' => 'Europe/Berlin',
@@ -289,6 +290,7 @@ final class WriteDateFlowTest extends TestCase
             $writeTester->setInputs(['yes']);
 
             $exitCode = $writeTester->execute([
+                '--apply'  => true,
                 'source'   => $workspace,
                 '--reason' => 'nodata',
             ]);
@@ -336,7 +338,8 @@ final class WriteDateFlowTest extends TestCase
             $writeTester->setInputs(['yes']);
 
             $exitCode = $writeTester->execute([
-                'source' => $filePath,
+                '--apply' => true,
+                'source'  => $filePath,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -424,7 +427,6 @@ final class WriteDateFlowTest extends TestCase
         $tester   = new CommandTester($command);
         $exitCode = $tester->execute([
             'source'     => $workspace,
-            '--dry-run'  => true,
             '--list-all' => true,
             '--timezone' => 'Europe/Berlin',
         ]);

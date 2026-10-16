@@ -59,7 +59,7 @@ Set `USERID` and `GROUPID` in `.env` for the host filesystem permissions; `id -u
 
 ```bash
 make runtime-build
-MEDIA_DIR="$HOME/Photos" MEDIA_READ_ONLY=true ./renamer.sh rename:exif --dry-run --list-all /media
+MEDIA_DIR="$HOME/Photos" MEDIA_READ_ONLY=true ./renamer.sh rename:exif --list-all /media
 ```
 
 `MEDIA_DIR` must be an existing host directory. The container sees it at `/media`; use that path in commands. Rebuild the runtime after code, configuration or dependency changes.
@@ -67,10 +67,10 @@ MEDIA_DIR="$HOME/Photos" MEDIA_READ_ONLY=true ./renamer.sh rename:exif --dry-run
 Keep a backup, inspect the preview and stop importers/editors before applying changes:
 
 ```bash
-MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:exif /media
+MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:exif --apply /media
 ```
 
-Mutating commands ask for confirmation. Standard renames then count source files and display safety verification with progress and a remaining-time estimate before analysis; this reads each source fully and can take time for large videos. See the [collection workflow](docs/usage.md#collection-workflow) for metadata repair, verification and duplicate cleanup.
+All file-changing commands preview by default. Add `--apply` to perform changes; applying commands ask for confirmation. Standard renames then count source files and display safety verification with progress and a remaining-time estimate before analysis; this reads each source fully and can take time for large videos. See the [collection workflow](docs/usage.md#collection-workflow) for metadata repair, verification and duplicate cleanup.
 
 ## 🧩 Commands
 
@@ -90,13 +90,13 @@ Mutating commands ask for confirmation. Standard renames then count source files
 MEDIA_DIR="$HOME/Photos" MEDIA_READ_ONLY=true ./renamer.sh rename:verify --detail /media
 
 # Preview duplicate quarantine
-MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:dedup --dry-run /media
+MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:dedup /media
 
 # Show command-specific options
 MEDIA_DIR="$HOME/Photos" MEDIA_READ_ONLY=true ./renamer.sh help rename:exif
 ```
 
-Renaming commands support `--dry-run`, `--list-all` and `--show=TAGS`. Summaries distinguish planned, unchanged, withheld and completed renames; display filters do not change the counts. See [output indicators](docs/usage.md#output-indicators) for review hints and comparison links. EXIF defaults to `YYYY-MM-DD_HH-MM-SS-mmm.ext`; `--target-filename-pattern` (`-p`) selects another format. `--timezone`, `--max-date-drift` and `--merge-threshold` control timestamp and comparison policy. CLI values take precedence over environment settings.
+Renaming commands support `--apply`, `--list-all` and `--show=TAGS`. Without `--apply`, they only preview media changes. Summaries distinguish planned, unchanged, withheld and completed renames; display filters do not change the counts. See [output indicators](docs/usage.md#output-indicators) for review hints and comparison links. EXIF defaults to `YYYY-MM-DD_HH-MM-SS-mmm.ext`; `--target-filename-pattern` (`-p`) selects another format. `--timezone`, `--max-date-drift` and `--merge-threshold` control timestamp and comparison policy. CLI values take precedence over environment settings.
 
 See [usage and output indicators](docs/usage.md) and the [media decision matrix](docs/decision-matrix.md) for detailed behavior and examples.
 
@@ -120,8 +120,8 @@ The runtime uses a private `/cache` volume. All workflows use `CACHE_DIR` when s
 
 ## 🔒 Safe operation and collection size
 
-- Use a backup and a dry-run before mutation. Ctrl+C interrupts Docker runs; a batch may be partially complete, with its private journal supporting inspection and reconciliation.
-- Exact/perceptual classification does not authorize permanent deletion. `rename:dedup --delete` requires fresh SHA-256 equality with a surviving original; distinct format conversions cannot pass that byte-identity check.
+- Use a backup and inspect the default preview before applying changes. Ctrl+C interrupts Docker runs; a batch may be partially complete, with its private journal supporting inspection and reconciliation.
+- Exact/perceptual classification does not authorize permanent deletion. `rename:dedup --delete --apply` requires fresh SHA-256 equality with a surviving original; distinct format conversions cannot pass that byte-identity check.
 - Cooperating mutating runs share a lock and verify source identity. Keep directories trusted and other media writers stopped; separate state volumes/hosts do not coordinate automatically.
 - The Docker runtime has no external network access and uses a read-only application filesystem, finite resource limits and a private cache. Standalone execution needs its own isolation.
 - Capacity depends on media sizes, grouping and comparison buckets, not file count alone. Some comparison workloads are quadratic. Budget exhaustion reports incomplete analysis; default limits do not guarantee a 70,000- or 100,000-file collection fits.

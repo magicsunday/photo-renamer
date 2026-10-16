@@ -78,7 +78,7 @@ metadata; coverage attribution is separate from whether a behavior is checked.
 Test the CLI:
 
 ```bash
-MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:exif --dry-run --list-all /media
+MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:exif --list-all /media
 ```
 
 `rename:exif` uses capture grouping, content classification, role assignment, naming, plan validation and guarded execution. The simple hash/pattern/date/lowercase commands use the bounded legacy execution path. Both callers use the shared content kernel and target resolvers. Source/lock/journal/deletion checks remain execution infrastructure, independent of classification evidence.
@@ -142,7 +142,7 @@ Generate synthetic test files covering all renamer scenarios (duplicates, Live P
 
 ```bash
 docker compose run --rm buildbox php scripts/create-test-images.php
-MEDIA_DIR="$PWD/tests/Fixtures/Images" MEDIA_READ_ONLY=true ./renamer.sh rename:exif --dry-run --list-all /media
+MEDIA_DIR="$PWD/tests/Fixtures/Images" MEDIA_READ_ONLY=true ./renamer.sh rename:exif --list-all /media
 ```
 
 ### Fix targets

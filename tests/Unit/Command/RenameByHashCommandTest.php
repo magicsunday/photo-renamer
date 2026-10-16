@@ -68,7 +68,7 @@ final class RenameByHashCommandTest extends TestCase
 
     /**
      * Verifies that execute() wires the correct strategies (InheritFilenameStrategy
-     * for renaming, ContentHashStrategy for grouping) and propagates --dry-run
+     * for renaming, ContentHashStrategy for grouping) and preserves preview mode
      * through the common command workflow.
      *
      * The mock expectations ensure that groupFilesByDuplicateIdentifier() receives
@@ -120,8 +120,7 @@ final class RenameByHashCommandTest extends TestCase
 
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source'    => $sourceDir,
-                '--dry-run' => true,
+                'source' => $sourceDir,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);

@@ -140,7 +140,7 @@ final class DedupCommandTest extends TestCase
             $journal->begin('rename:dedup');
             $tester = new CommandTester($this->createCommand(mutationJournal: $journal));
             $tester->setInputs(['yes']);
-            self::assertSame(Command::FAILURE, $tester->execute(['source' => $source, '--delete' => true]));
+            self::assertSame(Command::FAILURE, $tester->execute(['--apply' => true, 'source' => $source, '--delete' => true]));
             self::assertSame('same', $filesystem->readFile($original));
             self::assertSame(1, (int) $filesystem->exists($first) + (int) $filesystem->exists($second));
             self::assertMatchesRegularExpression('/Duplicates found\s+1\R/', $tester->getDisplay());
@@ -186,7 +186,7 @@ final class DedupCommandTest extends TestCase
 
             $tester = new CommandTester($this->createCommand(sourceIdentityGuard: $guard));
             $tester->setInputs(['yes']);
-            $options = ['source' => $source];
+            $options = ['source' => $source, '--apply' => true];
 
             if ($delete) {
                 $options['--delete'] = true;
@@ -248,8 +248,7 @@ final class DedupCommandTest extends TestCase
             $command  = $this->createCommand();
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source'    => $workspace,
-                '--dry-run' => true,
+                'source' => $workspace,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -288,8 +287,7 @@ final class DedupCommandTest extends TestCase
             $command  = $this->createCommand();
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source'    => $workspace,
-                '--dry-run' => true,
+                'source' => $workspace,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -322,8 +320,7 @@ final class DedupCommandTest extends TestCase
             $command  = $this->createCommand();
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source'    => $workspace,
-                '--dry-run' => true,
+                'source' => $workspace,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -360,7 +357,8 @@ final class DedupCommandTest extends TestCase
             $tester->setInputs(['yes']);
 
             $exitCode = $tester->execute([
-                'source' => $workspace,
+                '--apply' => true,
+                'source'  => $workspace,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -408,7 +406,7 @@ final class DedupCommandTest extends TestCase
             $tester->setInputs(['yes']);
             $target = $linkedDirectory === 'review/_duplicates' ? 'review/_duplicates' : '_duplicates';
 
-            self::assertSame(Command::FAILURE, $tester->execute(['source' => $source, '--target' => $target, '--dry-run' => $dryRun]));
+            self::assertSame(Command::FAILURE, $tester->execute(['source' => $source, '--target' => $target, '--apply' => !$dryRun]));
             self::assertStringContainsString('Quarantine blocked', $tester->getDisplay());
             self::assertFileExists($source . '/photo-duplicate-001.jpg');
             self::assertFileExists($source . '/2025/clip-duplicate-001.mov');
@@ -456,7 +454,7 @@ final class DedupCommandTest extends TestCase
             $tester = new CommandTester($this->createCommand());
             $tester->setInputs(['yes']);
 
-            self::assertSame(Command::FAILURE, $tester->execute(['source' => $workspace, '--target' => $target]));
+            self::assertSame(Command::FAILURE, $tester->execute(['--apply' => true, 'source' => $workspace, '--target' => $target]));
             self::assertStringContainsString('Quarantine blocked', $tester->getDisplay());
             self::assertFileExists($workspace . '/photo-duplicate-001.jpg');
             self::assertDirectoryDoesNotExist($workspace . '/_duplicates');
@@ -516,7 +514,7 @@ final class DedupCommandTest extends TestCase
             $tester = new CommandTester($this->createCommand($filesystem));
             $tester->setInputs(['yes']);
 
-            self::assertSame(Command::FAILURE, $tester->execute(['source' => $source]));
+            self::assertSame(Command::FAILURE, $tester->execute(['--apply' => true, 'source' => $source]));
             self::assertStringContainsString('Quarantine blocked', $tester->getDisplay());
             self::assertFileExists($source . '/photo-duplicate-001.jpg');
             self::assertFileDoesNotExist($outside . '/photo-duplicate-001.jpg');
@@ -547,13 +545,13 @@ final class DedupCommandTest extends TestCase
         try {
             $tester    = new CommandTester($this->createCommand());
             $arguments = ['source' => $workspace, '--target' => './review/duplicates/'];
-            self::assertSame(Command::SUCCESS, $tester->execute([...$arguments, '--dry-run' => true]));
+            self::assertSame(Command::SUCCESS, $tester->execute($arguments));
             self::assertFileExists($duplicate);
             self::assertDirectoryDoesNotExist($workspace . '/review');
             self::assertStringContainsString('Would move', $tester->getDisplay());
 
             $tester->setInputs(['yes']);
-            self::assertSame(Command::SUCCESS, $tester->execute($arguments));
+            self::assertSame(Command::SUCCESS, $tester->execute([...$arguments, '--apply' => true]));
             self::assertFileDoesNotExist($duplicate);
             self::assertSame('candidate', $filesystem->readFile($destination));
             self::assertFileExists($original);
@@ -583,6 +581,7 @@ final class DedupCommandTest extends TestCase
             $tester->setInputs(['yes']);
 
             $exitCode = $tester->execute([
+                '--apply'  => true,
                 'source'   => $workspace,
                 '--delete' => true,
             ]);
@@ -614,14 +613,15 @@ final class DedupCommandTest extends TestCase
         try {
             $tester = new CommandTester($this->createCommand());
             self::assertSame(Command::SUCCESS, $tester->execute([
-                'source' => $workspace, '--delete' => true, '--dry-run' => true,
+                'source' => $workspace, '--delete' => true,
             ]));
             self::assertStringContainsString('fresh byte identity verified', $tester->getDisplay());
             self::assertFileExists($duplicate);
 
             $tester->setInputs(['yes']);
             self::assertSame(Command::SUCCESS, $tester->execute([
-                'source' => $workspace, '--delete' => true,
+                '--apply' => true,
+                'source'  => $workspace, '--delete' => true,
             ]));
             self::assertFileDoesNotExist($duplicate);
             self::assertFileExists($original);
@@ -648,7 +648,7 @@ final class DedupCommandTest extends TestCase
         try {
             $tester = new CommandTester($this->createCommand());
             self::assertSame(Command::FAILURE, $tester->execute([
-                'source' => $workspace, '--delete' => true, '--dry-run' => true,
+                'source' => $workspace, '--delete' => true,
             ]));
             self::assertStringContainsString('Deletion blocked', $tester->getDisplay());
             self::assertStringNotContainsString('Would delete', $tester->getDisplay());
@@ -680,6 +680,7 @@ final class DedupCommandTest extends TestCase
             $tester->setInputs(['yes']);
 
             $exitCode = $tester->execute([
+                '--apply'  => true,
                 'source'   => $workspace,
                 '--target' => '_trash',
             ]);
@@ -717,7 +718,8 @@ final class DedupCommandTest extends TestCase
             $tester->setInputs(['no']);
 
             $exitCode = $tester->execute([
-                'source' => $workspace,
+                '--apply' => true,
+                'source'  => $workspace,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -755,8 +757,7 @@ final class DedupCommandTest extends TestCase
             $command  = $this->createCommand();
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source'    => $workspace,
-                '--dry-run' => true,
+                'source' => $workspace,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -795,8 +796,7 @@ final class DedupCommandTest extends TestCase
             $command  = $this->createCommand();
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source'    => $workspace,
-                '--dry-run' => true,
+                'source' => $workspace,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);
@@ -825,8 +825,7 @@ final class DedupCommandTest extends TestCase
             $command  = $this->createCommand();
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
-                'source'    => $workspace,
-                '--dry-run' => true,
+                'source' => $workspace,
             ]);
 
             self::assertSame(Command::SUCCESS, $exitCode);

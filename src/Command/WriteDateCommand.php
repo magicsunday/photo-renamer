@@ -51,7 +51,7 @@ use function trim;
 /**
  * Extracts dates from filenames and writes them into EXIF/QuickTime metadata
  * using exiftool. Only touches files with missing or wrong metadata. Supports
- * --dry-run for safe preview.
+ * previews by default; --apply authorizes writes after confirmation.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -121,10 +121,10 @@ final class WriteDateCommand extends Command
                 'Source directory or single file to process.',
             )
             ->addOption(
-                'dry-run',
-                'd',
+                'apply',
+                null,
                 InputOption::VALUE_NONE,
-                'Preview changes without modifying any files.',
+                'Apply the planned changes after confirmation; preview is the default.',
             )
             ->addOption(
                 'max-date-drift',
@@ -194,7 +194,13 @@ final class WriteDateCommand extends Command
         $isSingleFile    = is_file($source);
         $sourceDirectory = $isSingleFile ? dirname($source) : $source;
 
-        $dryRun       = (bool) $input->getOption('dry-run');
+        $dryRun = $input->getOption('apply') !== true;
+
+        if ($dryRun) {
+            $io->text('<fg=cyan>Preview mode. No media files will be changed. Use --apply to apply changes.</>');
+            $io->newLine();
+        }
+
         $maxDateDrift = $this->resolveMaxDateDrift($input);
         $reasonFilter = $this->resolveReasonFilter($input);
 
@@ -261,7 +267,7 @@ final class WriteDateCommand extends Command
             $maxPathLength = max($maxPathLength, mb_strlen($relativePath));
         }
 
-        // Safety confirmation for non-dry-run (Principle 9)
+        // Applying changes still requires action-specific confirmation.
         if (!$dryRun && ($pendingWrites !== []) && !$io->confirm('This will modify metadata in ' . count($pendingWrites) . ' file(s). Are you sure?', false)) {
             $io->text('<fg=yellow>Aborted.</>');
 

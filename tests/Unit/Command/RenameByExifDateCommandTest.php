@@ -307,8 +307,8 @@ final class RenameByExifDateCommandTest extends TestCase
 
         try {
             $tester = new CommandTester($this->createConfigurationCommand($visual, $grouping));
-            self::assertSame(0, $tester->execute(['source' => $workspace, '--dry-run' => true, '--timezone' => 'UTC', '--merge-threshold' => '0.01']));
-            self::assertSame(0, $tester->execute(['source' => $workspace, '--dry-run' => true, '--timezone' => 'Europe/Berlin', '--merge-threshold' => '0.03']));
+            self::assertSame(0, $tester->execute(['source' => $workspace, '--timezone' => 'UTC', '--merge-threshold' => '0.01']));
+            self::assertSame(0, $tester->execute(['source' => $workspace, '--timezone' => 'Europe/Berlin', '--merge-threshold' => '0.03']));
             self::assertSame([0.01, null, 0.03, null], $selected);
             self::assertInstanceOf(PerceptualSignalCache::class, $caches[0]);
             self::assertNull($caches[1]);
@@ -344,7 +344,7 @@ final class RenameByExifDateCommandTest extends TestCase
 
         try {
             $tester = new CommandTester($this->createConfigurationCommand($visual, $grouping, true));
-            self::assertSame(1, $tester->execute(['source' => $workspace, '--dry-run' => true, '--merge-threshold' => '0.01']));
+            self::assertSame(1, $tester->execute(['source' => $workspace, '--merge-threshold' => '0.01']));
             self::assertSame([0.01, null], $selected);
             self::assertInstanceOf(PerceptualSignalCache::class, $caches[0]);
             self::assertNull($caches[1]);
@@ -369,8 +369,8 @@ final class RenameByExifDateCommandTest extends TestCase
 
         try {
             $tester = new CommandTester($this->createConfigurationCommand(self::createStub(PerceptualHashCalculatorInterface::class), self::createStub(ContentClassifierInterface::class)));
-            self::assertSame(0, $tester->execute(['source' => $path, '--dry-run' => true]));
-            self::assertSame(0, $tester->execute(['source' => $workspace, '--dry-run' => true]));
+            self::assertSame(0, $tester->execute(['source' => $path]));
+            self::assertSame(0, $tester->execute(['source' => $workspace]));
             self::assertSame('synthetic media', new Filesystem()->readFile($path));
         } finally {
             $this->removeWorkspace($workspace);
@@ -393,7 +393,7 @@ final class RenameByExifDateCommandTest extends TestCase
         try {
             $tester = new CommandTester($this->createConfigurationCommand(self::createStub(PerceptualHashCalculatorInterface::class), $grouping));
             $this->expectException(InvalidArgumentException::class);
-            $tester->execute(['source' => $workspace, '--dry-run' => true, '--merge-threshold' => '-1']);
+            $tester->execute(['source' => $workspace, '--merge-threshold' => '-1']);
         } finally {
             $this->removeWorkspace($workspace);
         }
@@ -592,7 +592,6 @@ final class RenameByExifDateCommandTest extends TestCase
             $tester   = new CommandTester($command);
             $exitCode = $tester->execute([
                 'source'     => $workspace,
-                '--dry-run'  => true,
                 '--list-all' => true,
             ]);
 

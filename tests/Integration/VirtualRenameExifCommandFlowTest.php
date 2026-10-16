@@ -152,7 +152,7 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
             }, $plan, executor: $executor);
             $tester = new CommandTester($command);
             $tester->setInputs(['yes']);
-            $status = $tester->execute(['source' => $workspace]);
+            $status = $tester->execute(['--apply' => true, 'source' => $workspace]);
             self::assertTrue($journal->finish($status));
             self::assertSame(Command::FAILURE, $status);
             self::assertSame('synthetic still', $filesystem->readFile($stillTarget));
@@ -235,7 +235,7 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
                 self::assertNotNull($journalPath);
                 $tester = new CommandTester($command);
                 $tester->setInputs(['yes']);
-                $status = $tester->execute(['source' => $workspace]);
+                $status = $tester->execute(['--apply' => true, 'source' => $workspace]);
                 self::assertTrue($journal->finish($status));
                 self::assertSame(Command::SUCCESS, $status);
                 self::assertSame(4, substr_count($filesystem->readFile($journalPath), '"event":"pair_member"'));
@@ -294,7 +294,7 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
             }, $plan, executor: $executor);
             $tester = new CommandTester($command);
             $tester->setInputs(['yes']);
-            self::assertSame(Command::FAILURE, $tester->execute(['source' => $workspace]));
+            self::assertSame(Command::FAILURE, $tester->execute(['--apply' => true, 'source' => $workspace]));
             self::assertSame('reserved video', $filesystem->readFile($companionTarget));
             self::assertSame('synthetic still', $filesystem->readFile($stillTarget));
             self::assertSame('synthetic companion', $filesystem->readFile($workspace . '/capture-duplicate-001.mov'));
@@ -342,7 +342,7 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
             }, $plan, executor: $executor);
             $tester = new CommandTester($command);
             $tester->setInputs(['yes']);
-            self::assertSame(Command::SUCCESS, $tester->execute(['source' => $workspace]));
+            self::assertSame(Command::SUCCESS, $tester->execute(['--apply' => true, 'source' => $workspace]));
             self::assertSame('synthetic still', $filesystem->readFile($stillTarget));
             self::assertSame('synthetic companion', $filesystem->readFile($companionTarget));
             $summary = $output->fetch();
@@ -368,7 +368,7 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
             new ExecutionPlan([]),
         );
         $tester = new CommandTester($command);
-        self::assertSame(Command::FAILURE, $tester->execute(['source' => $this->workspace, '--dry-run' => true]));
+        self::assertSame(Command::FAILURE, $tester->execute(['source' => $this->workspace]));
         self::assertMatchesRegularExpression('/Skipped \(read errors\)\s+1/', $output->fetch());
         self::assertStringNotContainsString('[OK]', $tester->getDisplay());
     }
@@ -404,7 +404,7 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
             );
             $tester = new CommandTester($command);
             $tester->setInputs(['yes']);
-            self::assertSame(Command::FAILURE, $tester->execute(['source' => $workspace]));
+            self::assertSame(Command::FAILURE, $tester->execute(['--apply' => true, 'source' => $workspace]));
             $summary = $output->fetch();
             self::assertMatchesRegularExpression('/Renamed\s+2/', $summary);
             self::assertMatchesRegularExpression('/Runtime errors\s+1/', $summary);
@@ -464,7 +464,7 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
             $tester = new CommandTester($command);
             $tester->setInputs(['yes']);
 
-            self::assertSame(Command::FAILURE, $tester->execute(['source' => $workspace]));
+            self::assertSame(Command::FAILURE, $tester->execute(['--apply' => true, 'source' => $workspace]));
             $summary = $output->fetch();
             self::assertMatchesRegularExpression('/Planned renames\s+1/', $summary);
             self::assertMatchesRegularExpression('/Renamed\s+0/', $summary);
@@ -528,7 +528,6 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
         $tester   = new CommandTester($command);
         $exitCode = $tester->execute([
             'source'     => $this->workspace,
-            '--dry-run'  => true,
             '--list-all' => true,
         ]);
 
@@ -538,7 +537,7 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
         $buffer         = $output->fetch();
 
         self::assertStringContainsString('rename:exif', $commandDisplay);
-        self::assertStringContainsString('Performing dry run. No files will be changed.', $commandDisplay);
+        self::assertStringContainsString('Preview mode. No media files will be changed. Use --apply to apply changes.', $commandDisplay);
         self::assertStringContainsString('Renaming files', $commandDisplay);
         self::assertStringContainsString('Video comparison requires review: video stream identical, audio differs', $buffer);
         self::assertStringContainsString('Compared with: review-b.mov', $buffer);
@@ -586,7 +585,6 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
         $tester   = new CommandTester($command);
         $exitCode = $tester->execute([
             'source'     => $this->workspace,
-            '--dry-run'  => true,
             '--list-all' => true,
         ]);
 
@@ -622,7 +620,7 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
             new ExecutionPlan([]),
         );
         $tester = new CommandTester($command);
-        self::assertSame(Command::FAILURE, $tester->execute(['source' => $this->workspace, '--dry-run' => true]));
+        self::assertSame(Command::FAILURE, $tester->execute(['source' => $this->workspace]));
         $display = $tester->getDisplay();
         self::assertStringContainsString('2 affected file(s), 5 finding(s):', $display);
         self::assertStringContainsString('1 ambiguous timezone, 1 fallback date, 2 skipped, 1 LP conflict', $display);

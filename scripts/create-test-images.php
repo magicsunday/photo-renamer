@@ -607,6 +607,6 @@ if (is_dir($backupDir)) {
 }
 
 echo "\nDone. Run:\n";
-echo "  make run CMD=\"rename:exif tests/Fixtures/Images --dry-run --list-all\"\n";
-echo "  make run CMD=\"rename:write-date tests/Fixtures/Images --dry-run\"\n";
+echo "  make run CMD=\"rename:exif tests/Fixtures/Images --list-all\"\n";
+echo "  make run CMD=\"rename:write-date tests/Fixtures/Images\"\n";
 echo "  make run CMD=\"rename:verify tests/Fixtures/Images\"\n";

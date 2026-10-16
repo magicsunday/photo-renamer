@@ -72,7 +72,7 @@ final class MutationLockTest extends TestCase
             $executed = false;
             $command  = new Command($commandName);
             $command->addArgument('source', InputArgument::REQUIRED);
-            $command->addOption('dry-run', 'd', InputOption::VALUE_NONE);
+            $command->addOption('apply', null, InputOption::VALUE_NONE);
             $command->setCode(static function () use (&$executed): int {
                 $executed = true;
 
@@ -82,7 +82,7 @@ final class MutationLockTest extends TestCase
             $application->setAutoExit(false);
             $output = new BufferedOutput();
 
-            self::assertSame(Command::FAILURE, $application->run(new ArrayInput(['command' => $commandName, 'source' => $workspace . '/child']), $output));
+            self::assertSame(Command::FAILURE, $application->run(new ArrayInput(['--apply' => true, 'command' => $commandName, 'source' => $workspace . '/child']), $output));
             self::assertFalse($executed);
             self::assertStringContainsString('Another mutating renamer', $output->fetch());
         } finally {
@@ -106,12 +106,11 @@ final class MutationLockTest extends TestCase
     }
 
     /**
-     * Parsed long/short dry-run flags and the verification command can run while
-     * a mutation is locked. An ArrayInput false option must still take the lock;
-     * inspecting only raw option presence would silently bypass protection.
+     * Default preview, false apply and verification can run while a mutation
+     * is locked. Only a parsed true apply value may enter the mutation scope.
      *
      * @param string              $commandName  Canonical command whose lock policy is exercised
-     * @param array<string, bool> $options      Input options, including false dry-run
+     * @param array<string, bool> $options      Input options, including false apply
      * @param int                 $expectedCode Expected status while another batch owns the lock
      *
      * @return void
@@ -127,7 +126,7 @@ final class MutationLockTest extends TestCase
         try {
             $command = new Command($commandName);
             $command->addArgument('source', InputArgument::REQUIRED);
-            $command->addOption('dry-run', 'd', InputOption::VALUE_NONE);
+            $command->addOption('apply', null, InputOption::VALUE_NONE);
             $command->setCode(static fn (): int => Command::SUCCESS);
             $application = new Application([$command], $lockService, RuntimeExecutorFactory::createSourceIdentityGuard(), RuntimeExecutorFactory::createMutationJournal($workspace));
             $application->setAutoExit(false);
@@ -141,17 +140,16 @@ final class MutationLockTest extends TestCase
     }
 
     /**
-     * Keeps all forms of read-only invocation distinct from a supplied false
-     * flag, which programmatic Console callers may legitimately use.
+     * Distinguishes default preview and false apply from explicit mutation.
      *
      * @return iterable<string, array{string, array<string, bool>, int}> Parsed policy cases
      */
     public static function readOnlyInputs(): iterable
     {
-        yield 'long dry run' => ['rename:lower', ['--dry-run' => true], Command::SUCCESS];
-        yield 'short dry run' => ['rename:dedup', ['-d' => true], Command::SUCCESS];
+        yield 'default preview' => ['rename:lower', [], Command::SUCCESS];
+        yield 'false apply' => ['rename:dedup', ['--apply' => false], Command::SUCCESS];
         yield 'verification' => ['rename:verify', [], Command::SUCCESS];
-        yield 'false dry run' => ['rename:write-date', ['--dry-run' => false], Command::FAILURE];
+        yield 'explicit apply' => ['rename:write-date', ['--apply' => true], Command::FAILURE];
     }
 
     /**

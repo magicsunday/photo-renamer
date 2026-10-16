@@ -88,7 +88,7 @@ MEDIA_READ_ONLY=false docker compose run --rm -e CACHE_DIR=/tmp/synthetic-cache 
     --entrypoint sh runtime -c '
     mkdir /media/synthetic-rename
     cp /media/2024-01-01_12-00-00-000.jpg /media/synthetic-rename/UPPER.JPG
-    printf "yes\n" | php /app/src/Renamer.php rename:lower /media/synthetic-rename >/dev/null
+    printf "yes\n" | php /app/src/Renamer.php rename:lower --apply /media/synthetic-rename >/dev/null
     test -f /media/synthetic-rename/upper.jpg
     test ! -e /media/synthetic-rename/UPPER.JPG
 '

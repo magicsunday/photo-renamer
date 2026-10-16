@@ -147,12 +147,11 @@ final class AbstractRenameCommandTest extends TestCase
 
         $tester = new CommandTester($command);
         $tester->execute([
-            'source'    => $this->workspace,
-            '--dry-run' => true,
+            'source' => $this->workspace,
         ]);
 
         self::assertSame(Command::SUCCESS, $tester->getStatusCode());
-        self::assertStringContainsString('Performing dry run', $tester->getDisplay());
+        self::assertStringContainsString('Preview mode', $tester->getDisplay());
         self::assertSame('selected bytes', file_get_contents($path));
         self::assertFileDoesNotExist($target);
         self::assertStringContainsString('renamed.jpg', $this->renderOutput->fetch());
@@ -211,6 +210,7 @@ final class AbstractRenameCommandTest extends TestCase
         $tester = new CommandTester($command);
         $tester->setInputs(['yes']);
         $tester->execute([
+            '--apply'    => true,
             'source'     => $this->workspace,
             '--list-all' => true,
         ]);
@@ -285,8 +285,7 @@ final class AbstractRenameCommandTest extends TestCase
 
         $tester = new CommandTester($command);
         $tester->execute([
-            'source'    => $this->workspace,
-            '--dry-run' => true,
+            'source' => $this->workspace,
         ]);
 
         self::assertSame(Command::SUCCESS, $tester->getStatusCode());
@@ -329,7 +328,8 @@ final class AbstractRenameCommandTest extends TestCase
         $tester = new CommandTester($command);
         $tester->setInputs(['']);
         $tester->execute([
-            'source' => $this->workspace,
+            '--apply' => true,
+            'source'  => $this->workspace,
         ]);
 
         self::assertSame(Command::FAILURE, $tester->getStatusCode());
@@ -388,8 +388,7 @@ final class AbstractRenameCommandTest extends TestCase
 
         $tester = new CommandTester($command);
         $tester->execute([
-            'source'    => 'relative-source',
-            '--dry-run' => true,
+            'source' => 'relative-source',
         ]);
 
         self::assertSame(Command::SUCCESS, $tester->getStatusCode());
@@ -447,8 +446,7 @@ final class AbstractRenameCommandTest extends TestCase
 
         $tester = new CommandTester($command);
         $tester->execute([
-            'source'    => 'relative-source///',
-            '--dry-run' => true,
+            'source' => 'relative-source///',
         ]);
 
         self::assertSame(Command::SUCCESS, $tester->getStatusCode());
@@ -478,8 +476,7 @@ final class AbstractRenameCommandTest extends TestCase
 
         $tester = new CommandTester($command);
         $tester->execute([
-            'source'    => '/nonexistent-directory-for-test',
-            '--dry-run' => true,
+            'source' => '/nonexistent-directory-for-test',
         ]);
 
         self::assertSame(Command::FAILURE, $tester->getStatusCode());
@@ -542,8 +539,7 @@ final class AbstractRenameCommandTest extends TestCase
 
             $tester = new CommandTester($command);
             $tester->execute([
-                'source'    => $sourceFile,
-                '--dry-run' => true,
+                'source' => $sourceFile,
             ]);
 
             self::assertSame(Command::SUCCESS, $tester->getStatusCode());

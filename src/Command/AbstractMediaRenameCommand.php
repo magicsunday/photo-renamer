@@ -87,7 +87,7 @@ abstract class AbstractMediaRenameCommand extends Command
     /**
      * When true, the pipeline simulates all operations without touching the file system.
      */
-    protected bool $dryRun = false;
+    protected bool $dryRun = true;
 
     /**
      * When true, the output lists all files including unchanged originals.
@@ -146,7 +146,7 @@ abstract class AbstractMediaRenameCommand extends Command
      * Configures the command.
      *
      * Registers the shared CLI arguments (source) and options
-     * (--dry-run, --list-all, --show, --timezone, --max-date-drift) common to all rename commands.
+     * (--apply, --list-all, --show, --timezone, --max-date-drift) common to all rename commands.
      */
     #[Override]
     protected function configure(): void
@@ -158,10 +158,10 @@ abstract class AbstractMediaRenameCommand extends Command
                 'Source directory or single file to process.',
             )
             ->addOption(
-                'dry-run',
-                'd',
+                'apply',
+                null,
                 InputOption::VALUE_NONE,
-                'Perform a dry run, without actually changing anything.'
+                'Apply the planned changes after confirmation; preview is the default.'
             )
             ->addOption(
                 'list-all',
@@ -260,7 +260,7 @@ abstract class AbstractMediaRenameCommand extends Command
      */
     private function initializeCommandParameters(InputInterface $input): void
     {
-        $this->dryRun  = (bool) $input->getOption('dry-run');
+        $this->dryRun  = $input->getOption('apply') !== true;
         $this->listAll = (bool) $input->getOption('list-all');
 
         $this->maxDateDrift = $this->resolveMaxDateDrift($input);
@@ -308,7 +308,7 @@ abstract class AbstractMediaRenameCommand extends Command
     private function handleDryRunConfirmation(): int
     {
         if ($this->dryRun) {
-            $this->io->text('<fg=cyan>Performing dry run. No files will be changed.</>');
+            $this->io->text('<fg=cyan>Preview mode. No media files will be changed. Use --apply to apply changes.</>');
             $this->io->newLine();
 
             return self::SUCCESS;

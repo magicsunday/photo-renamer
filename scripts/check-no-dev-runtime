@@ -111,7 +111,7 @@ WRITE_DATE_OUTPUT="${SMOKE_ROOT}/write-date.txt"
 set +e
 printf 'yes\n' | (
     cd "${SMOKE_ROOT}"
-    "${PHP_BIN}" src/Renamer.php rename:write-date "${IMAGE_FILE}" --reason=nodata
+    "${PHP_BIN}" src/Renamer.php rename:write-date "${IMAGE_FILE}" --apply --reason=nodata
 ) >"${WRITE_DATE_OUTPUT}" 2>&1
 write_date_status=$?
 set -e
@@ -126,7 +126,7 @@ NO_TOOLS_DIR="${SMOKE_ROOT}/no-tools"
 mkdir "${NO_TOOLS_DIR}"
 NO_TOOL_OUTPUT="${SMOKE_ROOT}/missing-exiftool.txt"
 
-if PATH="${NO_TOOLS_DIR}" "${PHP_BIN}" "${SMOKE_ROOT}/src/Renamer.php" rename:write-date "${IMAGE_FILE}" --dry-run >"${NO_TOOL_OUTPUT}" 2>&1; then
+if PATH="${NO_TOOLS_DIR}" "${PHP_BIN}" "${SMOKE_ROOT}/src/Renamer.php" rename:write-date "${IMAGE_FILE}" >"${NO_TOOL_OUTPUT}" 2>&1; then
     echo "Missing exiftool unexpectedly returned success." >&2
     exit 1
 fi

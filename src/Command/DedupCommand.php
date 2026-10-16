@@ -102,10 +102,10 @@ final class DedupCommand extends Command
                 'Source directory or single file to scan for duplicates.',
             )
             ->addOption(
-                'dry-run',
-                'd',
+                'apply',
+                null,
                 InputOption::VALUE_NONE,
-                'Preview changes without modifying any files.',
+                'Apply the planned changes after confirmation; preview is the default.',
             )
             ->addOption(
                 'delete',
@@ -156,7 +156,13 @@ final class DedupCommand extends Command
         $isSingleFile    = is_file($resolved);
         $sourceDirectory = $isSingleFile ? dirname($resolved) : $resolved;
 
-        $dryRun = (bool) $input->getOption('dry-run');
+        $dryRun = $input->getOption('apply') !== true;
+
+        if ($dryRun) {
+            $io->text('<fg=cyan>Preview mode. No media files will be changed. Use --apply to apply changes.</>');
+            $io->newLine();
+        }
+
         $delete = (bool) $input->getOption('delete');
         $target = $input->getOption('target');
 
@@ -256,7 +262,7 @@ final class DedupCommand extends Command
             $io->newLine();
         }
 
-        // Safety confirmation for non-dry-run (Principle 9)
+        // Applying changes still requires action-specific confirmation.
         if (!$dryRun && ($actionableCount > 0) && !$io->confirm('This will ' . $action . ' ' . $actionableCount . ' duplicate file(s). Are you sure?', false)) {
             $io->text('<fg=yellow>Aborted.</>');
 

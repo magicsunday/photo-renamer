@@ -2,6 +2,8 @@
 
 Examples use the Docker wrapper with your collection mounted at `/media`. Build the runtime first, keep a backup and stop other media writers before mutations. The optional standalone executable accepts ordinary host paths instead.
 
+All file-changing commands preview by default. Add `--apply` to execute the reviewed operations after confirmation. `--delete`, `--force` and `--no-interaction` do not enable writes on their own. The `--dry-run` and `-d` options are not supported.
+
 ## Collection workflow
 
 The recommended 5-phase workflow for tidying a large photo/video collection:
@@ -15,19 +17,19 @@ MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:verify --detail /media # per-file d
 MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:verify --detail /media/single-file.mov # check a single file
 
 # Step 2: Fix files with no metadata (writes date extracted from filename)
-MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:write-date --reason=nodata /media
+MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:write-date --apply --reason=nodata /media
 # Step 3: Fix files using only ModifyDate (0x0132) instead of DateTimeOriginal
-MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:write-date --reason=fallback /media
+MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:write-date --apply --reason=fallback /media
 # Step 4: Fix QuickTime videos with ambiguous UTC timestamps
 # Apple/DJI cameras (CreateDate is real UTC → convert to local time):
-MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:write-date --reason=timezone --timezone=Europe/Berlin /media
+MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:write-date --apply --reason=timezone --timezone=Europe/Berlin /media
 # Android/Panasonic/Canon cameras (CreateDate is already local time stored as "UTC"):
-MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:write-date --reason=timezone --timezone=Europe/Berlin --local-as-utc /media
+MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:write-date --apply --reason=timezone --timezone=Europe/Berlin --local-as-utc /media
 ```
 
 Rename workflows report scan findings before processing. Affected-file counts are distinct paths; one file may contribute several findings (for example a fallback date and a Live Photo conflict). Each category retains its own count.
 
-The `--detail` flag on `rename:verify` shows per-file diagnostics with copy-pasteable fix commands:
+The `--detail` flag on `rename:verify` shows per-file diagnostics with copy-pasteable repair previews. Add `--apply` after reviewing their proposed changes:
 
 ```
   clip.mov (2.3 KB)
@@ -49,14 +51,14 @@ The `--detail` flag on `rename:verify` shows per-file diagnostics with copy-past
 
 ```bash
 # Step 5: Preview
-MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:exif --dry-run /media
-# Step 6: Execute (prompts for confirmation)
 MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:exif /media
+# Step 6: Execute (prompts for confirmation)
+MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:exif --apply /media
 ```
 
 Renames all photos and videos to `YYYY-MM-DD_HH-MM-SS-mmm.ext`. Extensions are normalised automatically (e.g. `JPEG` → `jpg`). Live Photo pairs (still + video) receive the same base name. Files with distinct content sharing the same timestamp get sequential sub-group numbers (`-002`, `-003`, ...), while visually identical files (format conversions, re-imports) are merged via perceptual hashing. True duplicates get `-duplicate-NNN` suffixes.
 
-Use `--target-filename-pattern` (short form `-p`) with a PHP date format to customize the EXIF filename, for example `rename:exif --dry-run -p Y_m_d_H_i_s_v /media`.
+Use `--target-filename-pattern` (short form `-p`) with a PHP date format to customize the EXIF filename, for example `rename:exif -p Y_m_d_H_i_s_v /media`.
 
 Classification distinguishes matching content hashes (`exact`), accepted visual similarity (`perceptual`), rejected comparisons (`different`) and unavailable evidence (`uncertain`). Decode/hash failures, color vetoes and the effective pixel-difference threshold cannot be overridden by a matching filename or an identical Live Photo companion clip. Companion identity keeps pairing intact while distinct still images retain separate subgroups. Classification hashes are analysis evidence; permanent deletion still requires the separate fresh SHA-256 check described below.
 
@@ -68,9 +70,9 @@ Use `--list-all` to see classification reasons in the EXIF decision log. Each gr
 # Step 7: Confirm all metadata issues resolved
 MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:verify /media
 # Step 8: Fix metadata that disagrees with the (now reliable) filename dates
-MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:write-date --reason=drift /media
+MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:write-date --apply --reason=drift /media
 # Step 9: Re-run to apply drift fixes (minimal changes expected)
-MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:exif /media
+MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:exif --apply /media
 ```
 
 > **Why drift comes after rename:** `--reason=drift` compares filename dates with metadata dates. On fresh collections with camera names (`IMG_1234.jpg`), there is no filename date to compare. Only after `rename:exif` produces date-based names does drift detection work.
@@ -79,21 +81,21 @@ MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:exif /media
 
 ```bash
 # Step 10: Verify idempotency (must show 0 changes)
-MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:exif --dry-run /media
+MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:exif /media
 ```
 
 ### Phase 5: Cleanup
 
 ```bash
 # Step 11: Preview which duplicates would be moved
-MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:dedup --dry-run /media
-# Step 12: Move duplicates (prompts for confirmation)
 MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:dedup /media
+# Step 12: Move duplicates (prompts for confirmation)
+MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:dedup --apply /media
 # Or delete freshly verified byte-identical duplicates
-MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:dedup --delete /media
+MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:dedup --apply --delete /media
 ```
 
-Files with `-duplicate-NNN` suffixes are cleanup candidates; a suffix alone does not prove identical content. The default action moves candidates to quarantine for review. `--delete` requires fresh SHA-256 equality with a retained original and unchanged file state during verification, after confirmation. Different contents, cross-format conversions and unavailable evidence block deletion and produce a nonzero exit code. `--delete --dry-run` applies the same verification without deleting files. Orphaned candidates are skipped with a warning. State checks do not provide an atomic transaction against concurrent external writers; keep other media writers stopped during cleanup.
+Files with `-duplicate-NNN` suffixes are cleanup candidates; a suffix alone does not prove identical content. The default preview shows quarantine candidates; `--apply` moves them to quarantine for review. `--delete --apply` requires fresh SHA-256 equality with a retained original and unchanged file state during verification, after confirmation. Different contents, cross-format conversions and unavailable evidence block deletion and produce a nonzero exit code. `--delete` without `--apply` performs the same verification without deleting files. Orphaned candidates are skipped with a warning. State checks do not provide an atomic transaction against concurrent external writers; keep other media writers stopped during cleanup.
 
 Quarantine uses `_duplicates` by default. `--target=review/duplicates` selects another relative subdirectory of the canonical source directory (the containing directory for a single-file source). Absolute paths, parent traversal and the source root itself are rejected. Existing symlinks in any destination component, including dangling links and links pointing inside the source tree, are rejected. The whole batch is checked before any move, with fresh checks around directory creation and before each rename; dry-run validates the same boundary without creating directories. A rejected boundary produces a nonzero exit code and retains affected source files. If a later boundary changes during execution, earlier successful moves remain in quarantine; there is no automatic rollback.
 
@@ -103,13 +105,13 @@ These path checks detect unsafe paths observed at the check boundaries. They do 
 
 ```bash
 # Group identical files by content hash
-MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:hash --dry-run /media
+MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:hash /media
 # Extract and rewrite date fragments in filenames
-MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:date --dry-run -p "/^{y}-{m}-{d}.{H}-{i}-{s}(.+)$/" -r "{Y}-{m}-{d}_{H}-{i}-{s}" /media
+MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:date -p "/^{y}-{m}-{d}.{H}-{i}-{s}(.+)$/" -r "{Y}-{m}-{d}_{H}-{i}-{s}" /media
 # Lowercase all filenames
-MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:lower --dry-run /media
+MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:lower /media
 # Rename files using a regular expression pattern
-MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:pattern --dry-run -p "/^(.+)(jpeg)$/" -r '${1}jpg' /media
+MEDIA_DIR="$HOME/Photos" ./renamer.sh rename:pattern -p "/^(.+)(jpeg)$/" -r '${1}jpg' /media
 ```
 
 ## Output indicators
@@ -145,7 +147,7 @@ Completion states whether this was a preview or execution and reports the rename
 
 - **Failed subgroup analysis:** `rename:exif` skips mutations in the affected capture group and shows the failure reason as a warning. Coherent existing subgroup names remain unchanged; unrelated groups can still be renamed. Retry after resolving the analysis failure. A proposed duplicate filename in a blocked entry is not proof of duplicate identity.
 - **Multi-track videos:** Cross-group exact-video matching supports one video stream and at most one audio stream. A matching primary video with additional AV tracks remains a review candidate with an explicit reason; it is not automatically merged.
-- **Dry-run first:** Mutating commands support `--dry-run` to preview changes; `rename:verify` is read-only.
+- **Preview first:** File-changing commands preview by default. Add `--apply` to change files after confirmation; `rename:verify` is always read-only.
 - **Idempotent EXIF execution:** Re-running `rename:exif` on an already processed collection preserves the resolved filenames, duplicate suffixes and hash sub-group numbers.
 - **Pattern rules:** `rename:pattern` applies the configured regex on every run. It is idempotent only when the generated name is unchanged by that same rule. For example, `/^a/` with replacement `aa` transforms `a.jpg` to `aa.jpg`, then to `aaa.jpg` on the next run. Use a rule that stops matching its output when repeat runs should be no-ops.
 - **Smart time formatting:** When a file's EXIF date has no time information (midnight with zero subseconds), the time portion is omitted from the filename (e.g. `2011-09-09.jpg` instead of `2011-09-09_00-00-00-000.jpg`). Works with any `--target-filename-pattern`.

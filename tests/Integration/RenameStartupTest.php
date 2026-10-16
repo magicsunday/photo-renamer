@@ -115,7 +115,7 @@ final class RenameStartupTest extends TestCase
         $lock = $holdLock ? new BatchRunLock($filesystem, $workspace . '/state')->acquire() : null;
 
         try {
-            self::assertSame($expected, $tester->run(['command' => 'rename:exif', 'source' => $workspace . '/media', '--dry-run' => $dryRun], ['interactive' => $interactive]));
+            self::assertSame($expected, $tester->run(['command' => 'rename:exif', 'source' => $workspace . '/media', '--apply' => !$dryRun], ['interactive' => $interactive]));
             $display = $tester->getDisplay();
             self::assertSame($willMove, $filesystem->exists($target));
             self::assertSame('synthetic source bytes', $filesystem->readFile($willMove ? $target : $source));
@@ -133,8 +133,12 @@ final class RenameStartupTest extends TestCase
             $lock?->release();
             $direct = new CommandTester($command);
             $direct->setInputs(['no']);
-            self::assertSame(Command::FAILURE, $direct->execute(['source' => $workspace . '/media'], ['interactive' => true]));
+            self::assertSame(Command::FAILURE, $direct->execute(['--apply' => true, 'source' => $workspace . '/media'], ['interactive' => true]));
             self::assertStringContainsString('Are you sure?', $direct->getDisplay());
+            self::assertStringNotContainsString('Verifying source file safety', $direct->getDisplay());
+            self::assertSame(Command::SUCCESS, $direct->execute(['source' => $workspace . '/media'], ['interactive' => false]));
+            self::assertStringContainsString('Use --apply', $direct->getDisplay());
+            self::assertStringNotContainsString('Are you sure?', $direct->getDisplay());
             self::assertStringNotContainsString('Verifying source file safety', $direct->getDisplay());
         } finally {
             $lock?->release();
