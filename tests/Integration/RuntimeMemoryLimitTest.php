@@ -11,7 +11,6 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Integration;
 
-use DateTimeImmutable;
 use MagicSunday\Renamer\Helper\PrivateCacheStorage;
 use MagicSunday\Renamer\Service\Filesystem\BatchRunLock;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
@@ -24,12 +23,8 @@ use Symfony\Component\Process\Process;
 
 use function dirname;
 use function glob;
-use function hash;
-use function hash_file;
 use function sprintf;
 use function str_contains;
-use function str_replace;
-use function substr_count;
 
 use const PHP_BINARY;
 
@@ -43,64 +38,25 @@ final class RuntimeMemoryLimitTest extends TestCase
     use WorkspaceTrait;
 
     /**
-     * Real distinct captures must fit a modest budget through cold preview,
-     * confirmed rename and rescan with historical cache paths retained.
+     * The shared artifact runner protects collection capacity through the real CLI.
      */
     #[Test]
     public function distinctCapturesCompleteWithinFiniteBudget(): void
     {
-        $workspace  = $this->createTempWorkspace();
-        $filesystem = new Filesystem();
-        $media      = $workspace . '/media';
-        $project    = dirname(__DIR__, 2);
-        $template   = $filesystem->readFile($project . '/tests/Fixtures/Images/10-already-correct/2024-10-20_16-45-00-000.jpg');
-        self::assertGreaterThan(0, substr_count($template, '2024:10:20 16:45:00'));
-        $start    = new DateTimeImmutable('2024-10-20T16:45:00+00:00');
-        $expected = [];
-
-        try {
-            for ($index = 0; $index < 6000; ++$index) {
-                $date  = $start->modify('+' . $index . ' seconds');
-                $bytes = str_replace('2024:10:20 16:45:00', $date->format('Y:m:d H:i:s'), $template);
-                $filesystem->dumpFile($media . '/' . sprintf('CAMERA-%05d.jpg', $index), $bytes);
-                $expected[$date->format('Y-m-d_H-i-s') . '-000.jpg'] = hash('sha256', $bytes);
-            }
-
-            foreach (['preview', 'rename', 'repeat'] as $mode) {
-                $arguments = [PHP_BINARY, $project . '/src/Renamer.php', 'rename:exif', $media, '--show=E', '--no-ansi'];
-
-                if ($mode === 'preview') {
-                    $arguments[] = '--dry-run';
-                }
-
-                $process = new Process($arguments, $workspace, [
-                    'PHP_MEMORY_LIMIT'          => '96M',
-                    'CACHE_DIR'                 => $workspace . ($mode === 'preview' ? '/preview-state' : '/state'),
-                    'TIMEZONE'                  => 'UTC',
-                    'MAX_DATE_DRIFT'            => '0',
-                    'MAX_COMPARISON_PAIRS'      => '100000',
-                    'MERGE_THRESHOLD'           => false,
-                    'CANONICAL_FORMAT_PRIORITY' => false,
-                ], "yes\n");
-                $process->setTimeout(90);
-                $process->run();
-                self::assertSame(0, $process->getExitCode(), $mode . ': ' . $process->getOutput() . $process->getErrorOutput());
-                self::assertMatchesRegularExpression('/Scanned files\s+6000\b/', $process->getOutput());
-                $observed = glob($media . '/*.jpg');
-                self::assertNotFalse($observed);
-                self::assertCount(6000, $observed);
-
-                $index = 0;
-
-                foreach ($expected as $name => $digest) {
-                    $actualName = $mode === 'preview' ? sprintf('CAMERA-%05d.jpg', $index) : $name;
-                    self::assertSame($digest, hash_file('sha256', $media . '/' . $actualName));
-                    ++$index;
-                }
-            }
-        } finally {
-            $filesystem->remove($workspace);
-        }
+        $project = dirname(__DIR__, 2);
+        $process = new Process([
+            PHP_BINARY,
+            $project . '/scripts/check-command-contracts.php',
+            $project . '/.build/vendor/autoload.php',
+            $project . '/tests/Fixtures/Images',
+            $project . '/src/Renamer.php',
+            PHP_BINARY,
+            'capacity-only',
+        ]);
+        $process->setTimeout(120);
+        $process->run();
+        self::assertSame(0, $process->getExitCode(), $process->getOutput() . $process->getErrorOutput());
+        self::assertStringContainsString('Collection capacity: 6000 distinct captures at 96 MiB', $process->getOutput());
     }
 
     /**

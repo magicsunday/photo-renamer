@@ -91,4 +91,67 @@ final class QualityTargetExitStatusTest extends TestCase
         yield 'mutation error' => ['mutation', 'ci:test:php:mutation', 53, 2];
         yield 'mutation success' => ['mutation', 'ci:test:php:mutation', 0, 0];
     }
+
+    /**
+     * The actual native-build Make recipe must finish only after complete artifact
+     * acceptance, propagating package, runtime-image and command-check failures.
+     *
+     * @param string $failure Phase failing at the controlled external boundary
+     * @param string $phases  Observed phases required before stopping
+     * @param int    $status  Expected Make status
+     */
+    #[Test]
+    #[DataProvider('binaryResults')]
+    public function binaryRequiresSuccessfulArtifactContracts(string $failure, string $phases, int $status): void
+    {
+        $workspace  = $this->createTempWorkspace();
+        $filesystem = new Filesystem();
+
+        try {
+            $filesystem->dumpFile($workspace . '/Makefile', 'include ' . dirname(__DIR__, 2) . "/Make/application.mk\nCOMPOSE_BUILD := bash docker.sh\nCOMPOSE_BIN := bash docker.sh\n.logo:\n\t@:\n");
+            $filesystem->dumpFile($workspace . '/phase.sh', <<<'SH'
+                #!/usr/bin/env bash
+                set -euo pipefail
+                printf '%s\n' "$1" >> phases
+                if [[ "$1" == "$BINARY_FAIL_PHASE" ]]; then exit 53; fi
+                SH);
+            $filesystem->dumpFile($workspace . '/docker.sh', <<<'SH'
+                #!/usr/bin/env bash
+                set -euo pipefail
+                case "$1" in
+                    php) bash phase.sh clear ;;
+                    build) [[ "$2" == runtime ]]; bash phase.sh runtime ;;
+                    *) exit 81 ;;
+                esac
+                SH);
+            $filesystem->dumpFile($workspace . '/scripts/build-with-docker.sh', "bash phase.sh package\n");
+            $filesystem->dumpFile($workspace . '/scripts/check-binary-commands.sh', "bash phase.sh contracts\n");
+            $process = new Process(['make', '--no-print-directory', 'binary'], $workspace, [
+                'BINARY_FAIL_PHASE' => $failure,
+                'MAKEFLAGS'         => false,
+                'MFLAGS'            => false,
+                'MAKELEVEL'         => false,
+                'GITHUB_TOKEN'      => false,
+                'GH_TOKEN'          => false,
+                'COMPOSER_AUTH'     => false,
+            ]);
+            $process->setTimeout(10);
+            $process->run();
+            self::assertSame($status, $process->getExitCode(), $process->getErrorOutput());
+            self::assertSame($phases, $filesystem->readFile($workspace . '/phases'));
+        } finally {
+            $filesystem->remove($workspace);
+        }
+    }
+
+    /**
+     * @return iterable<string, array{string, string, int}> Success and each downstream failure
+     */
+    public static function binaryResults(): iterable
+    {
+        yield 'all verified' => ['none', "clear\npackage\nruntime\ncontracts\n", 0];
+        yield 'package failed' => ['package', "clear\npackage\n", 2];
+        yield 'runtime failed' => ['runtime', "clear\npackage\nruntime\n", 2];
+        yield 'contracts failed' => ['contracts', "clear\npackage\nruntime\ncontracts\n", 2];
+    }
 }

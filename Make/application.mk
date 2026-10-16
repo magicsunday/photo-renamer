@@ -24,9 +24,11 @@ metadata-cache-benchmark: .logo ## Profile a large synthetic metadata snapshot u
 mixed-collection-benchmark: .logo ## Profile synthetic JPG/HEIC+MOV (COUNT=70000, MEMORY_MIB=3072).
 	bash scripts/benchmark-mixed-collection.sh $(or $(COUNT),70000) $(or $(MEMORY_MIB),3072)
 
-binary: .logo ## Build the self-contained renamer binary.
+binary: .logo ## Build and verify all command contracts against the native artifact.
 	$(COMPOSE_BUILD) php scripts/clear-cache.php
 	@bash scripts/build-with-docker.sh
+	$(COMPOSE_BIN) build runtime
+	bash scripts/check-binary-commands.sh
 
 binary-check: .logo ## Test all native CLI commands using synthetic media in the existing runtime image.
 	bash scripts/check-binary-commands.sh
