@@ -105,7 +105,7 @@ final class Application extends \Symfony\Component\Console\Application
      * Holds the shared mutation lock throughout command analysis, execution and
      * cache cleanup. Standard rename confirmation precedes source fingerprinting.
      * New rename commands are protected by default;
-     * verification and explicitly parsed dry runs do not mutate media.
+     * verification and default previews do not mutate media.
      *
      * @param Command         $command Resolved command, including aliases
      * @param InputInterface  $input   Raw command arguments and options
@@ -127,7 +127,7 @@ final class Application extends \Symfony\Component\Console\Application
         $command->mergeApplicationDefinition();
         $input->bind($command->getDefinition());
 
-        if ($input->hasOption('dry-run') && ($input->getOption('dry-run') === true)) {
+        if ($input->hasOption('apply') && ($input->getOption('apply') !== true)) {
             return parent::doRunCommand($command, $input, $output);
         }
 

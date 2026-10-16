@@ -134,7 +134,7 @@ final class StaleSourceMutationTest extends TestCase
         $result   = null;
         $command  = new Command('rename:exif');
         $command->addArgument('source', InputArgument::REQUIRED);
-        $command->addOption('dry-run', 'd', InputOption::VALUE_NONE);
+        $command->addOption('apply', null, InputOption::VALUE_NONE);
         $command->setCode(static function () use ($changeKind, $filesystem, $source, $target, $mtime, $executor, &$result): int {
             if ($changeKind === 'replace inode') {
                 $filesystem->dumpFile($source, 'original content');
@@ -160,7 +160,7 @@ final class StaleSourceMutationTest extends TestCase
 
         try {
             $unchanged = $changeKind === 'unchanged';
-            self::assertSame($unchanged ? Command::SUCCESS : Command::FAILURE, $application->run(new ArrayInput(['command' => 'rename:exif', 'source' => $workspace . '/media']), new BufferedOutput()));
+            self::assertSame($unchanged ? Command::SUCCESS : Command::FAILURE, $application->run(new ArrayInput(['--apply' => true, 'command' => 'rename:exif', 'source' => $workspace . '/media']), new BufferedOutput()));
             self::assertNotNull($result);
             self::assertSame($unchanged ? 1 : 0, $result->executedMoves);
             self::assertSame($unchanged ? 0 : 1, $result->runtimeErrors);

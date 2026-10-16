@@ -8,7 +8,7 @@ body:
       attributes:
           label: "Command and arguments"
           description: "The exact command you ran."
-          placeholder: "renamer rename:exif /photos --dry-run"
+          placeholder: "renamer rename:exif /photos"
       validations:
           required: true
 

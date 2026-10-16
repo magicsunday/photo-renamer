@@ -89,6 +89,7 @@ final class MutationJournalTest extends TestCase
         $entered     = false;
         $command     = new Command('rename:lower');
         $command->addArgument('source', InputArgument::REQUIRED);
+        $command->addOption('apply', null, InputOption::VALUE_NONE);
         $command->setCode(static function () use (&$entered): int {
             $entered = true;
 
@@ -98,7 +99,7 @@ final class MutationJournalTest extends TestCase
         $application->setAutoExit(false);
 
         try {
-            self::assertSame(Command::FAILURE, $application->run(new ArrayInput(['command' => 'rename:lower', 'source' => $workspace . '/media']), new BufferedOutput()));
+            self::assertSame(Command::FAILURE, $application->run(new ArrayInput(['--apply' => true, 'command' => 'rename:lower', 'source' => $workspace . '/media']), new BufferedOutput()));
             self::assertFalse($entered);
             self::assertSame('synthetic source', $filesystem->readFile($source));
             $lock = $lockService->acquire();
@@ -212,6 +213,7 @@ final class MutationJournalTest extends TestCase
             $result   = null;
             $command  = new Command('rename:exif');
             $command->addArgument('source', InputArgument::REQUIRED);
+            $command->addOption('apply', null, InputOption::VALUE_NONE);
             $command->setCode(static function () use ($executor, $stillTarget, $companion, $companionTarget, &$result): int {
                 $result = $executor->executePlan(new ExecutionPlan([new ExecutionGroup('synthetic pair', true, $stillTarget, [
                     new ExecutionItem($stillTarget, $stillTarget, ExecutionItemType::Canonical, false, true, 'synthetic pair', isExecutable: false),
@@ -223,7 +225,7 @@ final class MutationJournalTest extends TestCase
             $application = new Application([$command], new BatchRunLock($filesystem, $workspace . '/state'), $guard, $journal);
             $application->setAutoExit(false);
             $filesystem->dumpFile($companionTarget, 'foreign recovery target');
-            self::assertSame(Command::FAILURE, $application->run(new ArrayInput(['command' => 'rename:exif', 'source' => $workspace . '/media']), new BufferedOutput()));
+            self::assertSame(Command::FAILURE, $application->run(new ArrayInput(['--apply' => true, 'command' => 'rename:exif', 'source' => $workspace . '/media']), new BufferedOutput()));
             self::assertNotNull($result);
             self::assertSame(0, $result->executedMoves);
             self::assertSame(1, $result->partialLivePhotoGroups);
@@ -234,7 +236,7 @@ final class MutationJournalTest extends TestCase
             // Only explicit resolution of this synthetic foreign target allows
             // a fresh run; no receipt automatically overwrites or rolls back.
             $filesystem->remove($companionTarget);
-            self::assertSame(Command::SUCCESS, $application->run(new ArrayInput(['command' => 'rename:exif', 'source' => $workspace . '/media']), new BufferedOutput()));
+            self::assertSame(Command::SUCCESS, $application->run(new ArrayInput(['--apply' => true, 'command' => 'rename:exif', 'source' => $workspace . '/media']), new BufferedOutput()));
             self::assertSame(1, $result->executedMoves);
             self::assertSame(0, $result->partialLivePhotoGroups);
             self::assertSame('synthetic still', $filesystem->readFile($stillTarget));
@@ -291,14 +293,14 @@ final class MutationJournalTest extends TestCase
         $result   = null;
         $command  = new Command('rename:exif');
         $command->addArgument('source', InputArgument::REQUIRED);
-        $command->addOption('dry-run', 'd', InputOption::VALUE_NONE);
+        $command->addOption('apply', null, InputOption::VALUE_NONE);
         $command->setCode(static function (InputInterface $input) use ($executor, $first, $second, $firstTarget, $secondTarget, &$result): int {
             $result = $executor->executePlan(new ExecutionPlan([
                 new ExecutionGroup('synthetic pair', true, $first, [
                     new ExecutionItem($first, $firstTarget, ExecutionItemType::Canonical, true, false, 'synthetic pair'),
                     new ExecutionItem($second, $secondTarget, ExecutionItemType::Companion, true, false, 'synthetic pair'),
                 ]),
-            ]), $input->getOption('dry-run') === true);
+            ]), $input->getOption('apply') !== true);
 
             return $result->runtimeErrors === 0 ? Command::SUCCESS : Command::FAILURE;
         });
@@ -306,7 +308,7 @@ final class MutationJournalTest extends TestCase
         $application->setAutoExit(false);
 
         try {
-            $status = $application->run(new ArrayInput(['command' => 'rename:exif', 'source' => $workspace . '/media']), new BufferedOutput());
+            $status = $application->run(new ArrayInput(['--apply' => true, 'command' => 'rename:exif', 'source' => $workspace . '/media']), new BufferedOutput());
             self::assertNotNull($result);
             self::assertSame($moves, $result->executedMoves);
             self::assertSame($moves === 1 ? 1 : 0, $result->partialLivePhotoGroups);
@@ -331,7 +333,7 @@ final class MutationJournalTest extends TestCase
 
                 // Reusing this application for a dry-run must not inherit the
                 // finished mutation scope's failure or create another journal.
-                self::assertSame(Command::SUCCESS, $application->run(new ArrayInput(['command' => 'rename:exif', 'source' => $workspace . '/media', '--dry-run' => true]), new BufferedOutput()));
+                self::assertSame(Command::SUCCESS, $application->run(new ArrayInput(['command' => 'rename:exif', 'source' => $workspace . '/media']), new BufferedOutput()));
                 self::assertSame(0, $result->executedMoves);
                 self::assertSame(0, $result->runtimeErrors);
                 self::assertSame($contents, $realFilesystem->readFile($journals[0]));

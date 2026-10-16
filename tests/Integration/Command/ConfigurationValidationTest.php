@@ -77,8 +77,8 @@ final class ConfigurationValidationTest extends TestCase
             foreach ([true, false] as $dryRun) {
                 $arguments = [PHP_BINARY, dirname(__DIR__, 3) . '/src/Renamer.php', 'rename:exif', $option, 'Y_m_d', '--no-ansi', $selected];
 
-                if ($dryRun) {
-                    $arguments[] = '--dry-run';
+                if (!$dryRun) {
+                    $arguments[] = '--apply';
                 }
 
                 $process = new Process($arguments, $workspace, ['CACHE_DIR' => $workspace . '/state', 'TIMEZONE' => 'UTC', 'MAX_DATE_DRIFT' => '0']);

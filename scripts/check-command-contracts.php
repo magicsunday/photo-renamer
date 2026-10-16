@@ -33,6 +33,7 @@ use function str_replace;
 use function substr_count;
 use function hash_file;
 use function implode;
+use function in_array;
 use function is_dir;
 use function is_file;
 use function json_encode;
@@ -148,7 +149,7 @@ function checkCollectionCapacity(array $prefix, string $fixtures, Filesystem $fi
     }
 
     foreach (['preview', 'rename', 'repeat', 'warm-repeat'] as $mode) {
-        $options = $mode === 'preview' ? ['--dry-run'] : [];
+        $options = $mode === 'preview' ? [] : ['--apply'];
         $result = runCli($prefix, ['rename:exif', $media, '--show=E', ...$options], $workspace . '/cwd', [
             ...$environment,
             'PHP_MEMORY_LIMIT' => '96M',
@@ -176,6 +177,50 @@ try {
     if (($argv[5] ?? null) === 'capacity-only') {
         return;
     }
+
+    // The mode contract is shared by every media-writing entry point, including
+    // destructive selectors. Preview may cache analysis but never opens mutation state.
+    foreach ([
+        ['rename:lower', 'PHOTO.JPG', []],
+        ['rename:pattern', 'PHOTO.jpeg', ['--pattern=/^(.+)\\.jpeg$/', '--replacement=${1}.jpg']],
+        ['rename:date', '2024-01-15.10-30-00_photo.jpg', ['--pattern=/^{Y}-{m}-{d}[._]{H}-{i}-{s}(.+)$/']],
+        ['rename:exif', 'CAMERA.JPG', []],
+        ['rename:hash', 'CAMERA.JPG', []],
+        ['rename:dedup', 'capture-duplicate-001.jpg', ['--delete']],
+        ['rename:write-date', '2024-02-03_04-05-06-000.jpg', ['--reason=nodata', '--force']],
+    ] as [$command, $name, $options]) {
+        $directory = $workspace . '/mode/' . $command;
+        $fixture = $command === 'rename:write-date' ? '/07-no-metadata/screenshot.jpg' : '/10-already-correct/2024-10-20_16-45-00-000.jpg';
+        $filesystem->copy($fixtures . $fixture, $directory . '/' . $name);
+
+        if ($command === 'rename:dedup') {
+            $filesystem->copy($directory . '/' . $name, $directory . '/capture.jpg');
+        }
+
+        $before = mediaSnapshot($directory);
+        $modeEnvironment = [...$environment, 'CACHE_DIR' => $workspace . '/mode-state/' . $command];
+        $preview = runCli($prefix, [$command, $directory, ...$options, '--no-interaction'], $workspace . '/cwd', $modeEnvironment);
+        requireContract(str_contains($preview->getOutput(), 'Use --apply') && !str_contains($preview->getOutput(), 'Are you sure?') && !str_contains($preview->getOutput(), 'Verifying source file safety'), $command . ' did not clearly default to preview');
+        requireContract(mediaSnapshot($directory) === $before, $command . ' default preview changed media');
+        requireContract(!is_dir($modeEnvironment['CACHE_DIR'] . '/locks') && glob($modeEnvironment['CACHE_DIR'] . '/private-*/mutation-*.jsonl') === [], $command . ' default preview entered mutation state');
+        $help = runCli($prefix, ['help', $command], $workspace . '/cwd', $modeEnvironment);
+        requireContract(str_contains($help->getOutput(), '--apply') && !str_contains($help->getOutput(), '--dry-run'), $command . ' help exposes the wrong mode options');
+
+        foreach ([['--dry-run'], ['-d'], ['--apply', '--dry-run'], ['--apply', '-d']] as $removedOptions) {
+            runCli($prefix, [$command, $directory, ...$options, ...$removedOptions], $workspace . '/cwd', $modeEnvironment, 1);
+            requireContract(mediaSnapshot($directory) === $before, $command . ' removed option changed media');
+            requireContract(!is_dir($modeEnvironment['CACHE_DIR'] . '/locks') && glob($modeEnvironment['CACHE_DIR'] . '/private-*/mutation-*.jsonl') === [], $command . ' rejected option entered mutation state');
+        }
+
+        $expectedStatus = in_array($command, ['rename:dedup', 'rename:write-date'], true) ? 0 : 1;
+        runCli($prefix, [$command, $directory, ...$options, '--apply', '--no-interaction'], $workspace . '/cwd', $modeEnvironment, $expectedStatus);
+        requireContract(mediaSnapshot($directory) === $before, $command . ' non-interactive apply bypassed confirmation');
+    }
+    $verifyHelp = runCli($prefix, ['help', 'rename:verify'], $workspace . '/cwd', $environment);
+    requireContract(!str_contains($verifyHelp->getOutput(), '--apply'), 'Read-only verify exposed apply');
+    runCli($prefix, ['rename:verify', $directory, '--apply'], $workspace . '/cwd', $environment, 1);
+    requireContract(mediaSnapshot($directory) === $before, 'Verify apply rejection changed media');
+    echo 'All seven mutating commands: default preview, explicit apply refusal, removed flags and mutation-scope isolation passed' . PHP_EOL;
 
     // Parser families have distinct resource ownership; both cold reads and
     // cached reads must scan beyond the descriptor budget without changing media.
@@ -205,7 +250,7 @@ try {
         if ($extension === 'jpg') {
             // EXIF sorts source paths, so this fresh-cache damaged read really
             // occurs after all 384 valid inputs, independently of readdir order.
-            $late = runCli($limitedPrefix, ['rename:exif', $directory, '--dry-run', '--show=E'], $workspace . '/cwd', [...$environment, 'CACHE_DIR' => $workspace . '/late-pressure-cache'], 1);
+            $late = runCli($limitedPrefix, ['rename:exif', $directory, '--show=E'], $workspace . '/cwd', [...$environment, 'CACHE_DIR' => $workspace . '/late-pressure-cache'], 1);
             requireContract(str_contains($late->getOutput(), 'zz-corrupt.jpg'), 'Sorted late damaged input was not reported');
             requireContract(mediaSnapshot($directory) === $before, 'Late damaged-input preview changed names/bytes');
         }
@@ -240,11 +285,11 @@ try {
                 $filesystem->copy($fixtures . '/10-already-correct/2024-10-20_16-45-00-000.jpg', $sibling);
             }
             $before  = mediaSnapshot($directory);
-            $preview = runCli($prefix, [$command, $input, ...$options, '--dry-run', '--show=R'], $workspace . '/cwd', $environment);
+            $preview = runCli($prefix, [$command, $input, ...$options, '--show=R'], $workspace . '/cwd', $environment);
             requireContract(!str_contains($preview->getOutput(), 'Verifying source file safety') && !str_contains($preview->getOutput(), 'Are you sure?'), $command . ' dry-run entered mutation startup');
             requireContract(mediaSnapshot($directory) === $before, $command . ' dry-run changed paths/bytes');
             $answer  = new InputStream();
-            $decline = new Process([...$prefix, $command, $input, ...$options, '--no-ansi'], $workspace . '/cwd', $environment, $answer);
+            $decline = new Process([...$prefix, $command, $input, ...$options, '--apply', '--no-ansi'], $workspace . '/cwd', $environment, $answer);
             $decline->setTimeout(30.0);
 
             try {
@@ -259,7 +304,7 @@ try {
             }
             requireContract(($decline->getExitCode() === 1) && str_contains($decline->getOutput(), 'Are you sure?') && !str_contains($decline->getOutput(), 'Verifying source file safety'), $command . ' refusal entered safety verification');
             requireContract(mediaSnapshot($directory) === $before, $command . ' refusal changed paths/bytes');
-            $confirmed = runCli($prefix, [$command, $input, ...$options], $workspace . '/cwd', $environment);
+            $confirmed = runCli($prefix, [$command, $input, ...$options, '--apply'], $workspace . '/cwd', $environment);
             $prompt    = strpos($confirmed->getOutput(), 'Are you sure?');
             $phase     = strpos($confirmed->getOutput(), 'Verifying source file safety');
             requireContract(($prompt !== false) && ($phase !== false) && ($prompt < $phase), $command . ' did not confirm before safety verification');
@@ -274,7 +319,7 @@ try {
             if ($mode === 'relative-file') {
                 $repeatInput = '../' . substr($target, strlen($workspace) + 1);
             }
-            runCli($prefix, [$command, $repeatInput, ...$options], $workspace . '/cwd', $environment);
+            runCli($prefix, [$command, $repeatInput, ...$options, '--apply'], $workspace . '/cwd', $environment);
             requireContract(mediaSnapshot($directory) === $after, $command . ' fixed-point repeat changed media');
 
             if ($singleFile) {
@@ -291,9 +336,9 @@ try {
         $directory = $workspace . '/media/live photo ' . $fixture;
         $filesystem->mirror($fixtures . '/' . $fixture, $directory);
         $before = mediaSnapshot($directory);
-        runCli($prefix, ['rename:exif', $directory, '--dry-run'], $workspace . '/cwd', $environment);
+        runCli($prefix, ['rename:exif', $directory], $workspace . '/cwd', $environment);
         requireContract(mediaSnapshot($directory) === $before, 'Live Photo preview changed media: ' . $fixture);
-        $renamed = runCli($prefix, ['rename:exif', $directory], $workspace . '/cwd', $environment);
+        $renamed = runCli($prefix, ['rename:exif', $directory, '--apply'], $workspace . '/cwd', $environment);
         requireContract(!str_contains($renamed->getOutput() . $renamed->getErrorOutput(), 'Partial Live Photo groups'), 'Planned variant reported as incomplete: ' . $fixture);
         $after = mediaSnapshot($directory);
         requireContract(count($after) === $expectedCount, 'Live Photo lost a component: ' . $fixture);
@@ -308,7 +353,7 @@ try {
         sort($oldHashes);
         sort($newHashes);
         requireContract($oldHashes === $newHashes, 'Live Photo rename changed media bytes: ' . $fixture);
-        runCli($prefix, ['rename:exif', $directory], $workspace . '/cwd', $environment);
+        runCli($prefix, ['rename:exif', $directory, '--apply'], $workspace . '/cwd', $environment);
         requireContract(mediaSnapshot($directory) === $after, 'Live Photo repeat changed names/bytes: ' . $fixture);
     }
     echo 'rename:exif: real JPG/MOV pairing, planned companion variants, component bytes and repeated execution passed' . PHP_EOL;
@@ -327,7 +372,7 @@ try {
     $filesystem->chmod($videoDirectory, 0o555);
 
     try {
-        $partial = runCli($prefix, ['rename:exif', $directory], $workspace . '/cwd', $environment, 1);
+        $partial = runCli($prefix, ['rename:exif', $directory, '--apply'], $workspace . '/cwd', $environment, 1);
         $details = $partial->getOutput() . $partial->getErrorOutput();
         requireContract(preg_match('/Renamed\s+1\b/', $details) === 1, 'Partial run did not retain its one successful move');
         requireContract(preg_match('/Partial Live Photo groups\s+1\b/', $details) === 1, 'Partial run did not report the incomplete pair');
@@ -347,13 +392,13 @@ try {
         $filesystem->copy($fixtures . '/10-already-correct/2024-10-20_16-45-00-000.jpg', $directory . '/' . $name);
     }
     $before = mediaSnapshot($directory);
-    runCli($prefix, ['rename:hash', $directory, '--dry-run'], $workspace . '/cwd', $environment);
-    requireContract(mediaSnapshot($directory) === $before, 'hash preview changed files');
     runCli($prefix, ['rename:hash', $directory], $workspace . '/cwd', $environment);
+    requireContract(mediaSnapshot($directory) === $before, 'hash preview changed files');
+    runCli($prefix, ['rename:hash', $directory, '--apply'], $workspace . '/cwd', $environment);
     $after = mediaSnapshot($directory);
     requireContract(count($after) === 2 && count(preg_grep('/-duplicate-001\\.jpg$/', array_keys($after))) === 1, 'hash did not group identical files');
     requireContract(array_values($after) === array_values($before), 'hash changed duplicate bytes');
-    runCli($prefix, ['rename:hash', $directory], $workspace . '/cwd', $environment);
+    runCli($prefix, ['rename:hash', $directory, '--apply'], $workspace . '/cwd', $environment);
     requireContract(mediaSnapshot($directory) === $after, 'hash repeat changed files');
     echo 'rename:hash: preview, actual grouping, byte preservation and repeat passed' . PHP_EOL;
 
@@ -364,9 +409,9 @@ try {
         $filesystem->copy($directory . '/capture.jpg', $directory . '/capture-duplicate-001.jpg');
         $options = $action === 'delete' ? ['--delete'] : ['--target=review copies'];
         $before  = mediaSnapshot($directory);
-        runCli($prefix, ['rename:dedup', $directory, ...$options, '--dry-run'], $workspace . '/cwd', $environment);
-        requireContract(mediaSnapshot($directory) === $before, 'dedup preview changed files');
         runCli($prefix, ['rename:dedup', $directory, ...$options], $workspace . '/cwd', $environment);
+        requireContract(mediaSnapshot($directory) === $before, 'dedup preview changed files');
+        runCli($prefix, ['rename:dedup', $directory, ...$options, '--apply'], $workspace . '/cwd', $environment);
         requireContract($filesystem->readFile($directory . '/capture.jpg') === 'identical synthetic media bytes', 'dedup changed original');
         requireContract(!file_exists($directory . '/capture-duplicate-001.jpg'), 'dedup did not act on duplicate');
 
@@ -379,7 +424,7 @@ try {
     // Different bytes must remain protected even when the filename claims duplicate status.
     $filesystem->dumpFile($directory . '/capture-duplicate-002.jpg', 'different synthetic media bytes');
     $before = mediaSnapshot($directory);
-    runCli($prefix, ['rename:dedup', $directory, '--delete'], $workspace . '/cwd', $environment, 1);
+    runCli($prefix, ['rename:dedup', $directory, '--delete', '--apply'], $workspace . '/cwd', $environment, 1);
     requireContract(mediaSnapshot($directory) === $before, 'dedup deleted an unverified original/duplicate');
     echo 'rename:dedup: preview, quarantine, verified delete and different-byte refusal passed' . PHP_EOL;
 
@@ -391,15 +436,15 @@ try {
     $verify = runCli($prefix, ['rename:verify', $source, '--detail', '--show=nodata'], $workspace . '/cwd', $environment);
     requireContract(str_contains($verify->getOutput(), 'rename:write-date --reason=nodata'), 'verify did not diagnose missing metadata');
     requireContract(mediaSnapshot($directory) === $before, 'verify changed media');
-    runCli($prefix, ['rename:write-date', $source, '--reason=nodata', '--dry-run'], $workspace . '/cwd', $environment);
-    requireContract(mediaSnapshot($directory) === $before, 'write-date preview changed bytes');
     runCli($prefix, ['rename:write-date', $source, '--reason=nodata'], $workspace . '/cwd', $environment);
+    requireContract(mediaSnapshot($directory) === $before, 'write-date preview changed bytes');
+    runCli($prefix, ['rename:write-date', $source, '--reason=nodata', '--apply'], $workspace . '/cwd', $environment);
     $readDate = new Process(['exiftool', '-s3', '-DateTimeOriginal', $source]);
     $readDate->mustRun();
     requireContract(trim($readDate->getOutput()) === '2024:02:03 04:05:06', 'write-date did not write actual EXIF timestamp');
     $after = mediaSnapshot($directory);
     requireContract(count($after) === 1 && $after !== $before, 'write-date did not update only the intended file');
-    runCli($prefix, ['rename:write-date', $source, '--reason=nodata'], $workspace . '/cwd', $environment);
+    runCli($prefix, ['rename:write-date', $source, '--reason=nodata', '--apply'], $workspace . '/cwd', $environment);
     requireContract(mediaSnapshot($directory) === $after, 'write-date repeat changed valid metadata');
     $verify = runCli($prefix, ['rename:verify', $source, '--detail', '--show=nodata'], $workspace . '/cwd', $environment);
     requireContract(!str_contains($verify->getOutput(), 'rename:write-date --reason=nodata'), 'verify still reports missing date after repair');
@@ -428,7 +473,7 @@ try {
             $env['HOME'] = false;
             $base        = str_ends_with($entry, '/src/Renamer.php') ? $defaultBase : $workspace . '/temp/renamer-cache';
         }
-        runCli($prefix, ['rename:exif', $directory], $workspace . '/cwd', $env);
+        runCli($prefix, ['rename:exif', $directory, '--apply'], $workspace . '/cwd', $env);
         requireContract(is_file($directory . '/2024-10-20_16-45-00-000.jpg') && is_dir($base . '/locks'), $mode . ' state/mutation failed');
         requireContract(glob($base . '/private-*/mutation-*.jsonl') !== [], $mode . ' journal missing');
         requireContract(glob($base . '/private-*/metadata-cache.json') !== [], $mode . ' metadata cache did not share the state base');
@@ -437,7 +482,7 @@ try {
     $env              = $environment;
     $env['CACHE_DIR'] = $workspace . '/blocked-state';
     $before           = mediaSnapshot($directory);
-    runCli($prefix, ['rename:lower', $directory], $workspace . '/cwd', $env, 1);
+    runCli($prefix, ['rename:lower', $directory, '--apply'], $workspace . '/cwd', $env, 1);
     requireContract(mediaSnapshot($directory) === $before, 'State failure changed media');
     echo 'State: unset CACHE_DIR, HOME/default/temp, absolute/relative overrides and I/O failure passed' . PHP_EOL;
 } finally {

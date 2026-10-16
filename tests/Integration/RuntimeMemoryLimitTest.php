@@ -128,8 +128,8 @@ final class RuntimeMemoryLimitTest extends TestCase
 
             $arguments = [PHP_BINARY, dirname(__DIR__, 2) . '/src/Renamer.php', 'rename:exif', $media, '--no-ansi'];
 
-            if ($dryRun) {
-                $arguments[] = '--dry-run';
+            if (!$dryRun) {
+                $arguments[] = '--apply';
             }
 
             $process = new Process($arguments, dirname(__DIR__, 2), ['PHP_MEMORY_LIMIT' => '32M', 'CACHE_DIR' => $state]);

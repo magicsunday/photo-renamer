@@ -74,7 +74,7 @@ final class ConsoleOutputSafetyTest extends TestCase
                 $filesystem->dumpFile($source, $bytes);
             }
 
-            foreach ([['rename:lower', '--dry-run'], ['rename:dedup', '--dry-run'], ['rename:verify', '--detail']] as [$command, $option]) {
+            foreach ([['rename:lower', '--list-all'], ['rename:dedup', '--target=_duplicates'], ['rename:verify', '--detail']] as [$command, $option]) {
                 $process = new Process([
                     PHP_BINARY,
                     dirname(__DIR__, 2) . '/src/Renamer.php',

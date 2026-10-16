@@ -25,5 +25,5 @@ bash: .logo ## Opens a bash within the buildbox container.
 
 .PHONY: run
 
-run: .logo ## Runs the isolated CLI (usage: MEDIA_DIR=/photos make run CMD="rename:exif /media --dry-run").
+run: .logo ## Runs the isolated CLI (usage: MEDIA_DIR=/photos make run CMD="rename:exif /media").
 	$(COMPOSE_BIN) run --rm runtime $(CMD)

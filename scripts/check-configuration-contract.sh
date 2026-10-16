@@ -93,7 +93,7 @@ run_exif() {
     local source="$2"
     shift 2
     docker compose --env-file /dev/null run --rm -e CACHE_DIR=/tmp/configuration-cache \
-        runtime rename:exif "${source}" --dry-run --list-all --no-ansi "$@" \
+        runtime rename:exif "${source}" --list-all --no-ansi "$@" \
         > "${configuration_workspace}/${profile}.log" 2>&1
 }
 
@@ -150,7 +150,7 @@ run_exif fresh-defaults /media/merge
 # Exercise the documented wrapper with both an external host directory and a
 # filename containing spaces. This simple dry run has no metadata-cache writes.
 export TIMEZONE=UTC MAX_DATE_DRIFT=0 MERGE_THRESHOLD=0.06
-./renamer.sh rename:lower --dry-run --no-ansi '/media/filename with spaces.jpg' \
+./renamer.sh rename:lower --no-ansi '/media/filename with spaces.jpg' \
     > "${configuration_workspace}/wrapper.log" 2>&1
 [[ "$(<"${configuration_workspace}/wrapper.log")" = *'[OK] Dry-run complete: 0 file(s) would be renamed.'* ]]
 [[ -f "${MEDIA_DIR}/filename with spaces.jpg" && -f "${MEDIA_DIR}/canonical/same a.jpg" && -f "${MEDIA_DIR}/canonical/same b.heic" ]]

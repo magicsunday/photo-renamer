@@ -558,7 +558,7 @@ final class RenameByExifDateCommandTest extends TestCase
     }
 
     /**
-     * Verifies that the decision log is rendered in --dry-run --list-all output
+     * Verifies that the decision log is rendered in default preview with --list-all output
      * when the pipeline encounters a multi-file group that requires canonical
      * selection. The RoleAssigner logs "Canonical: <file> (score N: ...)" for
      * every group with more than one candidate, and the RenameOutputRenderer
@@ -977,7 +977,7 @@ final class RenameByExifDateCommandTest extends TestCase
 
         $arguments = [
             'source'     => $workspace,
-            '--dry-run'  => $dryRun,
+            '--apply'    => !$dryRun,
             '--list-all' => true,
         ];
 
