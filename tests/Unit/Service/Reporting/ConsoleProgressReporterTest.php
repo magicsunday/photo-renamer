@@ -44,11 +44,11 @@ use function substr_count;
 final class ConsoleProgressReporterTest extends TestCase
 {
     /**
-     * Ensures the adapter emits headings, progress completion, plain text, and
-     * error diagnostics through the wrapped SymfonyStyle instance.
+     * Emits headings, consistently indented known/unknown-total progress, plain
+     * text and error diagnostics through the wrapped SymfonyStyle instance.
      *
-     * This guards the runtime contract expected by current commands while still
-     * allowing domain services to depend only on ProgressReporterInterface.
+     * A four-digit unknown count fills Symfony's counter field so its padding
+     * cannot conceal a missing leading indent.
      */
     #[Test]
     public function itEmitsConsoleVisibleMessagesAndProgress(): void
@@ -61,12 +61,17 @@ final class ConsoleProgressReporterTest extends TestCase
         $reporter->advance();
         $reporter->advance();
         $reporter->finish();
+        $reporter->startProgress(0);
+        $reporter->advance(2943);
+        $reporter->finish();
         $reporter->text('plain message');
         $reporter->error('diagnostic problem');
 
         $normalizedOutput = str_replace("\r", '', $output->fetch());
 
         self::assertStringContainsString('Phase title', $normalizedOutput);
+        self::assertStringContainsString(' 2/2 [', $normalizedOutput);
+        self::assertStringContainsString("\n 2943 file(s) | Elapsed:", $normalizedOutput);
         self::assertStringContainsString('plain message', $normalizedOutput);
         self::assertStringContainsString('diagnostic problem', $normalizedOutput);
     }
