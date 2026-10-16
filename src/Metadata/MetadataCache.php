@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Metadata;
 
 use Composer\InstalledVersions;
+use Generator;
 use JsonException;
 use MagicSunday\Renamer\Helper\PrivateCacheStorage;
 use SplFileInfo;
@@ -23,6 +24,7 @@ use function is_int;
 use function is_string;
 use function json_decode;
 use function json_encode;
+use function strlen;
 
 use const JSON_INVALID_UTF8_SUBSTITUTE;
 use const JSON_THROW_ON_ERROR;
@@ -149,21 +151,42 @@ final class MetadataCache
             return;
         }
 
-        $serializedEntries = [];
-
-        foreach ($this->entries as $pathname => $entry) {
-            $serializedEntries[$pathname] = $entry->toArray();
-        }
-
-        $this->storage->write(
-            $this->cacheFile,
-            json_encode(
-                ['_version' => self::CACHE_VERSION, '_parser' => $this->parserVersion(), 'entries' => $serializedEntries],
-                JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE,
-            ),
-        );
+        $this->storage->write($this->cacheFile, $this->serializedChunks());
 
         $this->dirty = false;
+    }
+
+    /**
+     * Emits the existing JSON envelope without duplicating all typed rows as arrays.
+     * The atomic storage boundary publishes only after the entire stream succeeds.
+     *
+     * @return Generator<int, string> JSON chunks, buffered to roughly 64 KiB
+     */
+    private function serializedChunks(): Generator
+    {
+        $flags = JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE;
+
+        if ($this->entries === []) {
+            yield json_encode(['_version' => self::CACHE_VERSION, '_parser' => $this->parserVersion(), 'entries' => []], $flags);
+
+            return;
+        }
+
+        yield '{"_version":' . self::CACHE_VERSION . ',"_parser":' . json_encode($this->parserVersion(), $flags) . ',"entries":{';
+        $chunk     = '';
+        $separator = '';
+
+        foreach ($this->entries as $pathname => $entry) {
+            $chunk .= $separator . json_encode($pathname, $flags) . ':' . json_encode($entry->toArray(), $flags);
+            $separator = ',';
+
+            if (strlen($chunk) >= 65536) {
+                yield $chunk;
+                $chunk = '';
+            }
+        }
+
+        yield $chunk . '}}';
     }
 
     /**

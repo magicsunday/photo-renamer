@@ -87,7 +87,7 @@ final class ExistingSubgroupNamePreserver
                 continue;
             }
 
-            $basename = FileHelper::basenameWithoutExtension($item->file);
+            $basename = FileHelper::basenameWithoutExtension($item->getFile());
 
             if ($basename === $groupKey) {
                 $subgroupBuckets[$groupKey][] = $item;
@@ -124,7 +124,7 @@ final class ExistingSubgroupNamePreserver
             $cleanCount = 0;
 
             foreach ($bucketItems as $bucketItem) {
-                if (FileHelper::basenameWithoutExtension($bucketItem->file) === $cleanBasename) {
+                if (FileHelper::basenameWithoutExtension($bucketItem->getFile()) === $cleanBasename) {
                     ++$cleanCount;
                 }
             }
@@ -152,12 +152,12 @@ final class ExistingSubgroupNamePreserver
         $subgroupCleanPattern = '/^' . preg_quote($groupKey, '/') . '-\d{3}/';
 
         foreach ($items as $item) {
-            $basename  = FileHelper::basenameWithoutExtension($item->file);
+            $basename  = FileHelper::basenameWithoutExtension($item->getFile());
             $extension = (preg_match($subgroupCleanPattern, $basename) === 1)
-                ? FileHelper::normalizeExtension($item->file->getExtension())
+                ? FileHelper::normalizeExtension($item->getFile()->getExtension())
                 : $resolveExtension($item, $canonicalExtension, $useFileExtensionFromSource);
 
-            $proposedName = $item->file->getPath() . DIRECTORY_SEPARATOR . $basename . '.' . $extension;
+            $proposedName = $item->getFile()->getPath() . DIRECTORY_SEPARATOR . $basename . '.' . $extension;
 
             $group->replaceItem($item, $item->withProposedName($proposedName));
         }
@@ -186,7 +186,7 @@ final class ExistingSubgroupNamePreserver
                 continue;
             }
 
-            if (preg_match($pattern, FileHelper::basenameWithoutExtension($item->file)) === 1) {
+            if (preg_match($pattern, FileHelper::basenameWithoutExtension($item->getFile())) === 1) {
                 return true;
             }
         }

@@ -62,7 +62,7 @@ final readonly class CompanionDetector implements CompanionDetectorInterface
             return new CompanionPathSet();
         }
 
-        $canonicalBasename = FileHelper::basenameWithoutExtension($canonical->file);
+        $canonicalBasename = FileHelper::basenameWithoutExtension($canonical->getFile());
 
         $companions = new CompanionPathSet();
 
@@ -77,12 +77,12 @@ final readonly class CompanionDetector implements CompanionDetectorInterface
             }
 
             // Only different media types can be companions
-            if (!$this->mediaTypeClassifier->areDifferentMediaFamilies($canonical->file, $item->file)) {
+            if (!$this->mediaTypeClassifier->areDifferentMediaFamilies($canonical->getFile(), $item->getFile())) {
                 continue;
             }
 
             if ($item->contentIdentifier === $canonical->contentIdentifier) {
-                $mediaType = $this->mediaTypeClassifier->isLivePhotoStill($item->file)
+                $mediaType = $this->mediaTypeClassifier->isLivePhotoStill($item->getFile())
                     ? 'still'
                     : 'video';
                 $candidatesByMediaType[$mediaType][] = $item;
@@ -92,10 +92,10 @@ final readonly class CompanionDetector implements CompanionDetectorInterface
         // Select best candidate per media type
         foreach ($candidatesByMediaType as $candidates) {
             if (count($candidates) === 1) {
-                $companions->add($candidates[0]->file->getPathname());
+                $companions->add($candidates[0]->pathname);
             } else {
                 $winner = $this->selectBestCandidate($candidates, $canonical);
-                $companions->add($winner->file->getPathname());
+                $companions->add($winner->pathname);
             }
         }
 
@@ -109,11 +109,11 @@ final readonly class CompanionDetector implements CompanionDetectorInterface
                     continue;
                 }
 
-                if (!$this->mediaTypeClassifier->areDifferentMediaFamilies($canonical->file, $item->file)) {
+                if (!$this->mediaTypeClassifier->areDifferentMediaFamilies($canonical->getFile(), $item->getFile())) {
                     continue;
                 }
 
-                $itemBasename = FileHelper::basenameWithoutExtension($item->file);
+                $itemBasename = FileHelper::basenameWithoutExtension($item->getFile());
 
                 if ($itemBasename === $canonicalBasename) {
                     $fallbackCandidates[] = $item;
@@ -132,9 +132,9 @@ final readonly class CompanionDetector implements CompanionDetectorInterface
                     $group->addDecision(
                         sprintf(
                             'LP conflict: canonical %s (content-id=%s) vs %s (content-id=%s)',
-                            $canonical->file->getPathname(),
+                            $canonical->pathname,
                             $canonical->contentIdentifier,
-                            $candidate->file->getPathname(),
+                            $candidate->pathname,
                             $candidate->contentIdentifier,
                         ),
                     );
@@ -142,7 +142,7 @@ final readonly class CompanionDetector implements CompanionDetectorInterface
                     return new CompanionPathSet();
                 }
 
-                $companions->add($candidate->file->getPathname());
+                $companions->add($candidate->pathname);
             }
         }
 
@@ -164,13 +164,13 @@ final readonly class CompanionDetector implements CompanionDetectorInterface
      */
     private function selectBestCandidate(array $candidates, AssetItem $canonical): AssetItem
     {
-        $canonicalBasename = FileHelper::basenameWithoutExtension($canonical->file);
+        $canonicalBasename = FileHelper::basenameWithoutExtension($canonical->getFile());
 
         // Tier 1: Basename matches canonical (idempotent case — only when canonical
         // already has a clean name, meaning it won't be renamed with a different basename)
         if (!str_contains($canonicalBasename, Constants::DUPLICATE_IDENTIFIER)) {
             foreach ($candidates as $candidate) {
-                if (FileHelper::basenameWithoutExtension($candidate->file) === $canonicalBasename) {
+                if (FileHelper::basenameWithoutExtension($candidate->getFile()) === $canonicalBasename) {
                     return $candidate;
                 }
             }
@@ -207,7 +207,7 @@ final readonly class CompanionDetector implements CompanionDetectorInterface
             return false;
         }
 
-        $basename = FileHelper::basenameWithoutExtension($candidate->file);
+        $basename = FileHelper::basenameWithoutExtension($candidate->getFile());
 
         return !str_contains($basename, Constants::DUPLICATE_IDENTIFIER);
     }
@@ -232,8 +232,8 @@ final readonly class CompanionDetector implements CompanionDetectorInterface
         }
 
         // Shorter pathname wins
-        $aPath  = $itemA->file->getPathname();
-        $bPath  = $itemB->file->getPathname();
+        $aPath  = $itemA->pathname;
+        $bPath  = $itemB->pathname;
         $lenCmp = strlen($aPath) <=> strlen($bPath);
 
         if ($lenCmp !== 0) {

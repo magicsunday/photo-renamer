@@ -13,7 +13,6 @@ namespace MagicSunday\Renamer\Service\Pipeline;
 
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Service\ContentIdentifierCacheEntry;
-use SplFileInfo;
 
 /**
  * Mutable per-run state created fresh at the start of each CaptureGroupBuilder::build()
@@ -40,13 +39,6 @@ final class CaptureGroupBuildState
      * @var array<string, TemporalMetadata>
      */
     public array $temporalMetadataMap = [];
-
-    /**
-     * All scanned files keyed by pathname for post-group heuristics.
-     *
-     * @var array<string, SplFileInfo>
-     */
-    public array $filesByPath = [];
 
     /**
      * Cache for content identifier resolution during grouping.

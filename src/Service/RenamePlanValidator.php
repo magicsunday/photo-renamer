@@ -65,7 +65,7 @@ final readonly class RenamePlanValidator
                     continue;
                 }
 
-                $source = $item->file->getPathname();
+                $source = $item->pathname;
                 $target = $item->proposedName;
 
                 // Skip no-ops

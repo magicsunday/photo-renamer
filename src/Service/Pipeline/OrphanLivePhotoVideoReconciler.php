@@ -113,8 +113,8 @@ final readonly class OrphanLivePhotoVideoReconciler
                 }
 
                 $similarity = $this->perceptualHashCalculator->similarityScore(
-                    $orphanVideo->file,
-                    $candidate->item->file,
+                    $orphanVideo->getFile(),
+                    $candidate->item->getFile(),
                     $orphanVideo->metadata?->getVideoDurationSeconds(),
                     $candidate->item->metadata?->getVideoDurationSeconds(),
                 );
@@ -146,8 +146,8 @@ final readonly class OrphanLivePhotoVideoReconciler
             $targetGroup->addItem($orphanVideo);
             $targetGroup->addDecision(sprintf(
                 'Merged orphan video duplicate: %s matched %s (score %d, content-id %s vs %s)',
-                $orphanVideo->file->getBasename(),
-                $targetVideo->file->getBasename(),
+                $orphanVideo->getFile()->getBasename(),
+                $targetVideo->getFile()->getBasename(),
                 $bestMatch->score,
                 $orphanVideo->contentIdentifier ?? 'none',
                 $targetVideo->contentIdentifier ?? 'none',
@@ -175,7 +175,7 @@ final readonly class OrphanLivePhotoVideoReconciler
             foreach ($group->getItems() as $item) {
                 if (
                     ($item->contentIdentifier !== null)
-                    && $this->mediaTypeClassifier->isLivePhotoStill($item->file)
+                    && $this->mediaTypeClassifier->isLivePhotoStill($item->getFile())
                 ) {
                     $stillContentIds[$item->contentIdentifier] = true;
                 }
@@ -186,7 +186,7 @@ final readonly class OrphanLivePhotoVideoReconciler
             }
 
             foreach ($group->getItems() as $item) {
-                if ($this->mediaTypeClassifier->isLivePhotoStill($item->file)) {
+                if ($this->mediaTypeClassifier->isLivePhotoStill($item->getFile())) {
                     continue;
                 }
 
@@ -307,7 +307,7 @@ final readonly class OrphanLivePhotoVideoReconciler
 
         $item = $group->getItems()[0];
 
-        if ($this->mediaTypeClassifier->isLivePhotoStill($item->file)) {
+        if ($this->mediaTypeClassifier->isLivePhotoStill($item->getFile())) {
             return null;
         }
 

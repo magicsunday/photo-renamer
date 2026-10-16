@@ -81,9 +81,9 @@ final class CaptureContentIdentifierCoordinatorTest extends TestCase
         );
 
         self::assertTrue($deferred);
-        $pending = $state->contentIdentifierCache['abc-123']->getPendingFiles();
+        $pending = $state->contentIdentifierCache['abc-123']->getPendingPathnames();
         self::assertCount(1, $pending);
-        self::assertSame($file->getPathname(), $pending[0]->getPathname());
+        self::assertSame($file->getPathname(), $pending[0]);
         $rememberedTarget = $state->contentIdentifierCache['abc-123']->getTarget();
         self::assertNotNull($rememberedTarget);
         self::assertSame($targetFile->getPathname(), $rememberedTarget->getPathname());
@@ -127,7 +127,7 @@ final class CaptureContentIdentifierCoordinatorTest extends TestCase
         $group = $collection->get($groupKey);
         self::assertInstanceOf(AssetGroup::class, $group);
         self::assertCount(2, $group->getItems());
-        self::assertSame([], $state->contentIdentifierCache[$contentId]->getPendingFiles());
+        self::assertSame([], $state->contentIdentifierCache[$contentId]->getPendingPathnames());
 
         $attachedPending = $group->getItemByPath($pendingFile->getPathname());
         self::assertInstanceOf(AssetItem::class, $attachedPending);

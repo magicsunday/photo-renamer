@@ -117,8 +117,8 @@ final readonly class SubgroupNameResolver
             }
 
             $expectedBasename = sprintf('%s-%03d', $groupKey, $subgroup);
-            $aMatch           = FileHelper::basenameWithoutExtension($itemA->file) === $expectedBasename;
-            $bMatch           = FileHelper::basenameWithoutExtension($itemB->file) === $expectedBasename;
+            $aMatch           = FileHelper::basenameWithoutExtension($itemA->getFile()) === $expectedBasename;
+            $bMatch           = FileHelper::basenameWithoutExtension($itemB->getFile()) === $expectedBasename;
 
             if ($aMatch && !$bMatch) {
                 return -1;
@@ -141,7 +141,7 @@ final readonly class SubgroupNameResolver
         $canonicalClusterDupCounterByExt = [];
 
         foreach ($items as $item) {
-            $directory = $item->file->getPath();
+            $directory = $item->getFile()->getPath();
 
             if ($item->role === ItemRole::Companion) {
                 $group->replaceItem($item, $this->resolveCompanionItem(
@@ -165,7 +165,7 @@ final readonly class SubgroupNameResolver
 
             $extension = $isCanonicalCluster
                 ? $extensionResolver($item, $canonicalExtension, $useFileExtensionFromSource)
-                : FileHelper::normalizeExtension($item->file->getExtension());
+                : FileHelper::normalizeExtension($item->getFile()->getExtension());
 
             if ($isCanonicalCluster) {
                 $canonicalClusterDupCounterByExt[$extension] ??= 0;
@@ -374,8 +374,8 @@ final readonly class SubgroupNameResolver
      */
     private function compareByDuplicateNumberThenRank(AssetItem $itemA, AssetItem $itemB): int
     {
-        $aDupNum = $this->extractDuplicateNumber($itemA->file);
-        $bDupNum = $this->extractDuplicateNumber($itemB->file);
+        $aDupNum = $this->extractDuplicateNumber($itemA->getFile());
+        $bDupNum = $this->extractDuplicateNumber($itemB->getFile());
 
         if ($aDupNum !== null && $bDupNum !== null) {
             return $aDupNum <=> $bDupNum;

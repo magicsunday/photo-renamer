@@ -197,7 +197,7 @@ final class VideoStreamFingerprintMatcherTest extends TestCase
 
         foreach ($groups as $group) {
             self::assertCount(1, $group->getItems());
-            self::assertSame('synthetic media', $filesystem->readFile($group->getItems()[0]->file->getPathname()));
+            self::assertSame('synthetic media', $filesystem->readFile($group->getItems()[0]->pathname));
         }
     }
 

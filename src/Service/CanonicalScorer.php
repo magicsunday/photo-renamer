@@ -160,7 +160,7 @@ final class CanonicalScorer implements CanonicalScorerInterface
         $reasoning = [];
 
         // Format priority
-        $extension   = FileHelper::normalizeExtension($item->file->getExtension());
+        $extension   = FileHelper::normalizeExtension($item->getFile()->getExtension());
         $formatScore = $this->computeFormatScore($extension);
 
         if ($formatScore > 0) {
@@ -169,13 +169,13 @@ final class CanonicalScorer implements CanonicalScorerInterface
         }
 
         // Idempotency
-        if (FileHelper::basenameWithoutExtension($item->file) === $group->groupKey) {
+        if (FileHelper::basenameWithoutExtension($item->getFile()) === $group->groupKey) {
             $score += self::SCORE_IDEMPOTENCY;
             $reasoning[] = sprintf('idempotent=%d', self::SCORE_IDEMPOTENCY);
         }
 
         // Root directory
-        if ($item->file->getPath() . DIRECTORY_SEPARATOR === $this->normalizedSourceDir) {
+        if ($item->getFile()->getPath() . DIRECTORY_SEPARATOR === $this->normalizedSourceDir) {
             $score += self::SCORE_ROOT_DIRECTORY;
             $reasoning[] = sprintf('root=%d', self::SCORE_ROOT_DIRECTORY);
         }
@@ -187,7 +187,7 @@ final class CanonicalScorer implements CanonicalScorerInterface
         }
 
         // Tie-break: shorter path wins
-        $pathLen  = strlen($item->file->getPathname());
+        $pathLen  = strlen($item->pathname);
         $tieBreak = max(0, self::SCORE_TIE_BREAK_MAX - (int) ($pathLen / 10));
 
         if ($tieBreak > 0) {

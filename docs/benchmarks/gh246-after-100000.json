@@ -1,0 +1,634 @@
+{
+  "schema": 1,
+  "synthetic_only": true,
+  "runtime_image_id": "sha256:bdbe6e9f9910c4d7f2c7d843b5b23dbe5ec46f7eafb4f7609200d3fbe2c129c5",
+  "harness_sha256": {
+    "benchmark-mixed-collection.php": "ad9fe0d4aae474bd1ad3c4800bcf6dcee571d449152e9a6ba884fd1c79a776d6",
+    "BenchmarkProgressReporter.php": "ce37cd909abcff52216a2d7eccee0e55594769fa5b95dd69bf1072bba15f1cc5"
+  },
+  "runtime": {
+    "source_sha256": "65b6f2a8c438d9bd55deefe5da23e3b115e643e4672b2386b1ac9003777e62b3",
+    "composer_lock_sha256": "e2527362abd9e215d456cfc17ce22b61d67a82182a6839383010aed9bad0c7cc",
+    "packages": [
+      {
+        "name": "magicsunday/imagemeta",
+        "version": "dev-main",
+        "reference": "a976739365fc64679604948eb5c7b7c8e797054a"
+      },
+      {
+        "name": "psr/container",
+        "version": "2.0.2",
+        "reference": "c71ecc56dfe541dbd90c5360474fbc405f8d5963"
+      },
+      {
+        "name": "psr/log",
+        "version": "3.0.2",
+        "reference": "f16e1d5863e37f8d8c2a01719f5b34baa2b714d3"
+      },
+      {
+        "name": "symfony/config",
+        "version": "v8.1.5",
+        "reference": "ec711a6c14ae287d9618fbd2c9de4e223a1a4b02"
+      },
+      {
+        "name": "symfony/console",
+        "version": "v8.1.8",
+        "reference": "4b81146e3ee248ea969186f85499b54fbc78db08"
+      },
+      {
+        "name": "symfony/dependency-injection",
+        "version": "v8.1.8",
+        "reference": "e375617d3f132059bd096f41951b527c2eb60cd0"
+      },
+      {
+        "name": "symfony/deprecation-contracts",
+        "version": "v3.7.1",
+        "reference": "f3202fa1b5097b0af062dc978b32ecf63404e31d"
+      },
+      {
+        "name": "symfony/filesystem",
+        "version": "v8.1.6",
+        "reference": "7599ebb855fede59413ddb7f15198d67bfcae7ba"
+      },
+      {
+        "name": "symfony/lock",
+        "version": "v8.1.8",
+        "reference": "a57c18e351998f9964dff24713f7138a01d53703"
+      },
+      {
+        "name": "symfony/polyfill-ctype",
+        "version": "v1.37.0",
+        "reference": "141046a8f9477948ff284fa65be2095baafb94f2"
+      },
+      {
+        "name": "symfony/polyfill-deepclone",
+        "version": "v1.43.1",
+        "reference": "aaba44b6ee7299ae65717811c55b57ab9bc0fedd"
+      },
+      {
+        "name": "symfony/polyfill-intl-grapheme",
+        "version": "v1.43.0",
+        "reference": "5cac8f4db97208823aa353f59a01faad2da52c75"
+      },
+      {
+        "name": "symfony/polyfill-intl-normalizer",
+        "version": "v1.43.0",
+        "reference": "ebd57ccc7edb93d632e184efbe7693d2517bab3b"
+      },
+      {
+        "name": "symfony/polyfill-mbstring",
+        "version": "v1.43.0",
+        "reference": "4d5d331bf731e0aedbc6b2f5e61135b7b7996a72"
+      },
+      {
+        "name": "symfony/polyfill-php85",
+        "version": "v1.43.0",
+        "reference": "86a42cbcc07adc331481a5ab310a4024bfc227f6"
+      },
+      {
+        "name": "symfony/process",
+        "version": "v8.1.7",
+        "reference": "10823b09358e690df4ff943e24e8492bb1019fc3"
+      },
+      {
+        "name": "symfony/service-contracts",
+        "version": "v3.7.3",
+        "reference": "15e6a07ec2a2c75ceb1b21dd98105ee8456d2257"
+      },
+      {
+        "name": "symfony/string",
+        "version": "v8.1.7",
+        "reference": "d950140b5f56f31901e5b7a0c04ffc3a3deb943c"
+      },
+      {
+        "name": "symfony/var-exporter",
+        "version": "v8.1.6",
+        "reference": "802362f41128c430fd6685491e1fb72127fae78a"
+      },
+      {
+        "name": "symfony/yaml",
+        "version": "v8.1.8",
+        "reference": "030e96eed0303223bfca3af9109e9e64830b6ec3"
+      }
+    ],
+    "tools": {
+      "php": "8.5.11",
+      "composer": "2.10.3",
+      "php_extensions": [
+        "Core",
+        "PDO",
+        "Phar",
+        "Reflection",
+        "SPL",
+        "SimpleXML",
+        "Zend OPcache",
+        "ctype",
+        "curl",
+        "date",
+        "dom",
+        "fileinfo",
+        "filter",
+        "gd",
+        "hash",
+        "iconv",
+        "imagick",
+        "json",
+        "lexbor",
+        "libxml",
+        "mbstring",
+        "mysqlnd",
+        "openssl",
+        "pcov",
+        "pcre",
+        "pdo_sqlite",
+        "posix",
+        "random",
+        "readline",
+        "session",
+        "sodium",
+        "sqlite3",
+        "standard",
+        "tokenizer",
+        "uri",
+        "xml",
+        "xmlreader",
+        "xmlwriter",
+        "zlib"
+      ]
+    }
+  },
+  "workers": [
+    {
+      "phase": "cold",
+      "files": 100000,
+      "groups": 50000,
+      "live_photo_groups": 50000,
+      "seconds": 108.387222383,
+      "php_peak_bytes": 434118656,
+      "peak_rss_bytes": 464228352,
+      "measurements": {
+        "source_scope_ready": {
+          "php_current_bytes": 9526768,
+          "php_allocated_bytes": 10485760,
+          "php_peak_bytes": 10485760,
+          "peak_rss_bytes": 51224576
+        },
+        "before_cache_load": {
+          "php_current_bytes": 9527520,
+          "php_allocated_bytes": 10485760,
+          "php_peak_bytes": 10485760,
+          "peak_rss_bytes": 51224576
+        },
+        "cache_loaded": {
+          "php_current_bytes": 9528120,
+          "php_allocated_bytes": 10485760,
+          "php_peak_bytes": 10485760,
+          "peak_rss_bytes": 51224576
+        },
+        "file_list_and_indexes": {
+          "php_current_bytes": 27917320,
+          "php_allocated_bytes": 30412800,
+          "php_peak_bytes": 33034240,
+          "peak_rss_bytes": 61161472
+        },
+        "group_scan_finished": {
+          "php_current_bytes": 241030008,
+          "php_allocated_bytes": 245370880,
+          "php_peak_bytes": 245370880,
+          "peak_rss_bytes": 273154048
+        },
+        "pairing_bridge": {
+          "php_current_bytes": 223327496,
+          "php_allocated_bytes": 237506560,
+          "php_peak_bytes": 245370880,
+          "peak_rss_bytes": 273940480
+        },
+        "pairing_indexes_ready": {
+          "php_current_bytes": 248665720,
+          "php_allocated_bytes": 256380928,
+          "php_peak_bytes": 259002368,
+          "peak_rss_bytes": 288256000
+        },
+        "pairing_finished": {
+          "php_current_bytes": 223345720,
+          "php_allocated_bytes": 245895168,
+          "php_peak_bytes": 259002368,
+          "peak_rss_bytes": 288256000
+        },
+        "groups_built": {
+          "php_current_bytes": 215984536,
+          "php_allocated_bytes": 265814016,
+          "php_peak_bytes": 271056896,
+          "peak_rss_bytes": 302231552
+        },
+        "classification_finished": {
+          "php_current_bytes": 215992248,
+          "php_allocated_bytes": 265814016,
+          "php_peak_bytes": 271056896,
+          "peak_rss_bytes": 302231552
+        },
+        "pipeline_complete": {
+          "php_current_bytes": 289626280,
+          "php_allocated_bytes": 354942976,
+          "php_peak_bytes": 388501504,
+          "peak_rss_bytes": 411455488
+        },
+        "plan_built": {
+          "php_current_bytes": 339906224,
+          "php_allocated_bytes": 394788864,
+          "php_peak_bytes": 397410304,
+          "peak_rss_bytes": 428077056
+        },
+        "output_rendered": {
+          "php_current_bytes": 342616968,
+          "php_allocated_bytes": 424673280,
+          "php_peak_bytes": 434118656,
+          "peak_rss_bytes": 464228352
+        },
+        "execution_complete": {
+          "php_current_bytes": 342617344,
+          "php_allocated_bytes": 424673280,
+          "php_peak_bytes": 434118656,
+          "peak_rss_bytes": 464228352
+        },
+        "before_cache_flush": {
+          "php_current_bytes": 342617720,
+          "php_allocated_bytes": 424673280,
+          "php_peak_bytes": 434118656,
+          "peak_rss_bytes": 464228352
+        },
+        "cache_flushed": {
+          "php_current_bytes": 342749120,
+          "php_allocated_bytes": 424673280,
+          "php_peak_bytes": 434118656,
+          "peak_rss_bytes": 464228352
+        }
+      },
+      "effective_php_memory_limit": "1024M",
+      "effective_container_memory_bytes": "4294967296",
+      "tmpfs_capacity_bytes": 1073741824,
+      "protected_mutation_scope": false,
+      "comparison_plans": 0,
+      "first_comparison_php_bytes": null,
+      "noops": 0,
+      "executables": 100000,
+      "native_subprocesses": 0,
+      "sampled_tmp_peak_bytes": 456589312,
+      "tmp_sample_interval_ms": 100
+    },
+    {
+      "phase": "warm",
+      "files": 100000,
+      "groups": 50000,
+      "live_photo_groups": 50000,
+      "seconds": 12.38687363,
+      "php_peak_bytes": 543170560,
+      "peak_rss_bytes": 567693312,
+      "measurements": {
+        "source_scope_ready": {
+          "php_current_bytes": 9526768,
+          "php_allocated_bytes": 10485760,
+          "php_peak_bytes": 10485760,
+          "peak_rss_bytes": 51224576
+        },
+        "before_cache_load": {
+          "php_current_bytes": 9527520,
+          "php_allocated_bytes": 10485760,
+          "php_peak_bytes": 10485760,
+          "peak_rss_bytes": 51224576
+        },
+        "cache_loaded": {
+          "php_current_bytes": 121330344,
+          "php_allocated_bytes": 265289728,
+          "php_peak_bytes": 317509632,
+          "peak_rss_bytes": 347516928
+        },
+        "file_list_and_indexes": {
+          "php_current_bytes": 139718744,
+          "php_allocated_bytes": 285216768,
+          "php_peak_bytes": 317509632,
+          "peak_rss_bytes": 347516928
+        },
+        "group_scan_finished": {
+          "php_current_bytes": 245810272,
+          "php_allocated_bytes": 383782912,
+          "php_peak_bytes": 383782912,
+          "peak_rss_bytes": 406675456
+        },
+        "pairing_bridge": {
+          "php_current_bytes": 228354456,
+          "php_allocated_bytes": 375918592,
+          "php_peak_bytes": 385880064,
+          "peak_rss_bytes": 407330816
+        },
+        "pairing_indexes_ready": {
+          "php_current_bytes": 253692680,
+          "php_allocated_bytes": 394792960,
+          "php_peak_bytes": 397414400,
+          "peak_rss_bytes": 420040704
+        },
+        "pairing_finished": {
+          "php_current_bytes": 228372680,
+          "php_allocated_bytes": 384307200,
+          "php_peak_bytes": 397414400,
+          "peak_rss_bytes": 420040704
+        },
+        "groups_built": {
+          "php_current_bytes": 221011496,
+          "php_allocated_bytes": 395837440,
+          "php_peak_bytes": 401080320,
+          "peak_rss_bytes": 426549248
+        },
+        "classification_finished": {
+          "php_current_bytes": 221019208,
+          "php_allocated_bytes": 395837440,
+          "php_peak_bytes": 401080320,
+          "peak_rss_bytes": 426549248
+        },
+        "pipeline_complete": {
+          "php_current_bytes": 294653240,
+          "php_allocated_bytes": 468189184,
+          "php_peak_bytes": 501747712,
+          "peak_rss_bytes": 517971968
+        },
+        "plan_built": {
+          "php_current_bytes": 344933184,
+          "php_allocated_bytes": 508035072,
+          "php_peak_bytes": 510656512,
+          "peak_rss_bytes": 535764992
+        },
+        "output_rendered": {
+          "php_current_bytes": 347709464,
+          "php_allocated_bytes": 533725184,
+          "php_peak_bytes": 543170560,
+          "peak_rss_bytes": 567693312
+        },
+        "execution_complete": {
+          "php_current_bytes": 347709840,
+          "php_allocated_bytes": 533725184,
+          "php_peak_bytes": 543170560,
+          "peak_rss_bytes": 567693312
+        },
+        "before_cache_flush": {
+          "php_current_bytes": 347710216,
+          "php_allocated_bytes": 533725184,
+          "php_peak_bytes": 543170560,
+          "peak_rss_bytes": 567693312
+        },
+        "cache_flushed": {
+          "php_current_bytes": 347710592,
+          "php_allocated_bytes": 533725184,
+          "php_peak_bytes": 543170560,
+          "peak_rss_bytes": 567693312
+        }
+      },
+      "effective_php_memory_limit": "1024M",
+      "effective_container_memory_bytes": "4294967296",
+      "tmpfs_capacity_bytes": 1073741824,
+      "protected_mutation_scope": false,
+      "comparison_plans": 0,
+      "first_comparison_php_bytes": null,
+      "noops": 0,
+      "executables": 100000,
+      "native_subprocesses": 0,
+      "sampled_tmp_peak_bytes": 456589312,
+      "tmp_sample_interval_ms": 100
+    },
+    {
+      "phase": "mutate",
+      "files": 100000,
+      "groups": 50000,
+      "live_photo_groups": 50000,
+      "seconds": 18.921603579,
+      "php_peak_bytes": 584065024,
+      "peak_rss_bytes": 609001472,
+      "measurements": {
+        "source_scope_ready": {
+          "php_current_bytes": 51065488,
+          "php_allocated_bytes": 53477376,
+          "php_peak_bytes": 58720256,
+          "peak_rss_bytes": 87990272
+        },
+        "before_cache_load": {
+          "php_current_bytes": 51066240,
+          "php_allocated_bytes": 53477376,
+          "php_peak_bytes": 58720256,
+          "peak_rss_bytes": 87990272
+        },
+        "cache_loaded": {
+          "php_current_bytes": 163619392,
+          "php_allocated_bytes": 308281344,
+          "php_peak_bytes": 360501248,
+          "peak_rss_bytes": 388804608
+        },
+        "file_list_and_indexes": {
+          "php_current_bytes": 182007792,
+          "php_allocated_bytes": 328208384,
+          "php_peak_bytes": 360501248,
+          "peak_rss_bytes": 388804608
+        },
+        "group_scan_finished": {
+          "php_current_bytes": 286417056,
+          "php_allocated_bytes": 424677376,
+          "php_peak_bytes": 424677376,
+          "peak_rss_bytes": 447733760
+        },
+        "pairing_bridge": {
+          "php_current_bytes": 268961240,
+          "php_allocated_bytes": 416813056,
+          "php_peak_bytes": 424677376,
+          "peak_rss_bytes": 447733760
+        },
+        "pairing_indexes_ready": {
+          "php_current_bytes": 294365000,
+          "php_allocated_bytes": 435687424,
+          "php_peak_bytes": 438308864,
+          "peak_rss_bytes": 460963840
+        },
+        "pairing_finished": {
+          "php_current_bytes": 269045000,
+          "php_allocated_bytes": 425201664,
+          "php_peak_bytes": 438308864,
+          "peak_rss_bytes": 460963840
+        },
+        "groups_built": {
+          "php_current_bytes": 261683816,
+          "php_allocated_bytes": 436731904,
+          "php_peak_bytes": 441974784,
+          "peak_rss_bytes": 467578880
+        },
+        "classification_finished": {
+          "php_current_bytes": 261691528,
+          "php_allocated_bytes": 436731904,
+          "php_peak_bytes": 441974784,
+          "peak_rss_bytes": 467578880
+        },
+        "pipeline_complete": {
+          "php_current_bytes": 335325560,
+          "php_allocated_bytes": 511180800,
+          "php_peak_bytes": 544739328,
+          "peak_rss_bytes": 560418816
+        },
+        "plan_built": {
+          "php_current_bytes": 385605504,
+          "php_allocated_bytes": 551026688,
+          "php_peak_bytes": 553648128,
+          "peak_rss_bytes": 577150976
+        },
+        "output_rendered": {
+          "php_current_bytes": 388316248,
+          "php_allocated_bytes": 574619648,
+          "php_peak_bytes": 584065024,
+          "peak_rss_bytes": 609001472
+        },
+        "execution_complete": {
+          "php_current_bytes": 388319336,
+          "php_allocated_bytes": 574619648,
+          "php_peak_bytes": 584065024,
+          "peak_rss_bytes": 609001472
+        },
+        "before_cache_flush": {
+          "php_current_bytes": 388319712,
+          "php_allocated_bytes": 574619648,
+          "php_peak_bytes": 584065024,
+          "peak_rss_bytes": 609001472
+        },
+        "cache_flushed": {
+          "php_current_bytes": 388320088,
+          "php_allocated_bytes": 574619648,
+          "php_peak_bytes": 584065024,
+          "peak_rss_bytes": 609001472
+        }
+      },
+      "effective_php_memory_limit": "1024M",
+      "effective_container_memory_bytes": "4294967296",
+      "tmpfs_capacity_bytes": 1073741824,
+      "protected_mutation_scope": true,
+      "comparison_plans": 0,
+      "first_comparison_php_bytes": null,
+      "noops": 0,
+      "executables": 100000,
+      "native_subprocesses": 0,
+      "sampled_tmp_peak_bytes": 531267584,
+      "tmp_sample_interval_ms": 100
+    },
+    {
+      "phase": "idempotency",
+      "files": 100000,
+      "groups": 50000,
+      "live_photo_groups": 50000,
+      "seconds": 84.572889262,
+      "php_peak_bytes": 616570880,
+      "peak_rss_bytes": 652279808,
+      "measurements": {
+        "source_scope_ready": {
+          "php_current_bytes": 9526776,
+          "php_allocated_bytes": 10485760,
+          "php_peak_bytes": 10485760,
+          "peak_rss_bytes": 51224576
+        },
+        "before_cache_load": {
+          "php_current_bytes": 9527528,
+          "php_allocated_bytes": 10485760,
+          "php_peak_bytes": 10485760,
+          "peak_rss_bytes": 51224576
+        },
+        "cache_loaded": {
+          "php_current_bytes": 121330352,
+          "php_allocated_bytes": 265289728,
+          "php_peak_bytes": 317509632,
+          "peak_rss_bytes": 347619328
+        },
+        "file_list_and_indexes": {
+          "php_current_bytes": 139718752,
+          "php_allocated_bytes": 285216768,
+          "php_peak_bytes": 317509632,
+          "peak_rss_bytes": 347619328
+        },
+        "group_scan_finished": {
+          "php_current_bytes": 352833384,
+          "php_allocated_bytes": 472911872,
+          "php_peak_bytes": 472911872,
+          "peak_rss_bytes": 506396672
+        },
+        "pairing_bridge": {
+          "php_current_bytes": 334635712,
+          "php_allocated_bytes": 465047552,
+          "php_peak_bytes": 472911872,
+          "peak_rss_bytes": 508100608
+        },
+        "pairing_indexes_ready": {
+          "php_current_bytes": 360373936,
+          "php_allocated_bytes": 483921920,
+          "php_peak_bytes": 486543360,
+          "peak_rss_bytes": 519544832
+        },
+        "pairing_finished": {
+          "php_current_bytes": 334653936,
+          "php_allocated_bytes": 473436160,
+          "php_peak_bytes": 486543360,
+          "peak_rss_bytes": 519544832
+        },
+        "groups_built": {
+          "php_current_bytes": 327292752,
+          "php_allocated_bytes": 484966400,
+          "php_peak_bytes": 492306432,
+          "peak_rss_bytes": 527761408
+        },
+        "classification_finished": {
+          "php_current_bytes": 327300464,
+          "php_allocated_bytes": 484966400,
+          "php_peak_bytes": 492306432,
+          "peak_rss_bytes": 527761408
+        },
+        "pipeline_complete": {
+          "php_current_bytes": 402091616,
+          "php_allocated_bytes": 520617984,
+          "php_peak_bytes": 523239424,
+          "peak_rss_bytes": 559665152
+        },
+        "plan_built": {
+          "php_current_bytes": 452371560,
+          "php_allocated_bytes": 570949632,
+          "php_peak_bytes": 573571072,
+          "peak_rss_bytes": 610086912
+        },
+        "output_rendered": {
+          "php_current_bytes": 455082024,
+          "php_allocated_bytes": 607125504,
+          "php_peak_bytes": 616570880,
+          "peak_rss_bytes": 652279808
+        },
+        "execution_complete": {
+          "php_current_bytes": 455082400,
+          "php_allocated_bytes": 607125504,
+          "php_peak_bytes": 616570880,
+          "peak_rss_bytes": 652279808
+        },
+        "before_cache_flush": {
+          "php_current_bytes": 455082776,
+          "php_allocated_bytes": 607125504,
+          "php_peak_bytes": 616570880,
+          "peak_rss_bytes": 652279808
+        },
+        "cache_flushed": {
+          "php_current_bytes": 455148848,
+          "php_allocated_bytes": 607125504,
+          "php_peak_bytes": 616570880,
+          "peak_rss_bytes": 652279808
+        }
+      },
+      "effective_php_memory_limit": "1024M",
+      "effective_container_memory_bytes": "4294967296",
+      "tmpfs_capacity_bytes": 1073741824,
+      "protected_mutation_scope": false,
+      "comparison_plans": 0,
+      "first_comparison_php_bytes": null,
+      "noops": 100000,
+      "executables": 0,
+      "native_subprocesses": 0,
+      "sampled_tmp_peak_bytes": 610963456,
+      "tmp_sample_interval_ms": 100
+    }
+  ]
+}

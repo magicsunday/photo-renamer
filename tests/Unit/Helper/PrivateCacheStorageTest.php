@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Helper;
 
+use Generator;
 use MagicSunday\Renamer\Helper\PrivateCacheStorage;
 use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -111,7 +112,8 @@ final class PrivateCacheStorageTest extends TestCase
      * Replacing an existing 0644 destination must not inherit its old mode.
      */
     #[Test]
-    public function replacementIsPrivateBeforeAndAfterPublishing(): void
+    #[DataProvider('replacementContents')]
+    public function replacementIsPrivateBeforeAndAfterPublishing(bool $chunks): void
     {
         $workspace      = $this->createTempWorkspace();
         $realFilesystem = new Filesystem();
@@ -131,13 +133,52 @@ final class PrivateCacheStorageTest extends TestCase
         $previousUmask = umask(0o022);
 
         try {
-            new PrivateCacheStorage($filesystem)->write($pathname, 'new synthetic contents');
+            new PrivateCacheStorage($filesystem)->write($pathname, $chunks ? ['new', ' synthetic contents'] : 'new synthetic contents');
             clearstatcache(true);
             self::assertSame(0o600, fileperms($pathname) & 0o777);
             self::assertSame([], glob($workspace . '/.renamer-cache-*'));
         } finally {
             umask($previousUmask);
             $realFilesystem->remove($workspace);
+        }
+    }
+
+    /**
+     * @return iterable<string, array{bool}> Both whole-string and streamed callers
+     */
+    public static function replacementContents(): iterable
+    {
+        yield 'string' => [false];
+        yield 'chunks' => [true];
+    }
+
+    /**
+     * A failed serializer must not publish a partial cache or leave temporary bytes.
+     */
+    #[Test]
+    public function interruptedChunksPreservePreviousSnapshot(): void
+    {
+        $workspace  = $this->createTempWorkspace();
+        $filesystem = new Filesystem();
+        $path       = $workspace . '/metadata-cache.json';
+        $filesystem->dumpFile($path, 'previous snapshot');
+        $chunks = static function (): Generator {
+            yield 'partial replacement';
+
+            throw new RuntimeException('Synthetic serialization failure.');
+        };
+
+        try {
+            try {
+                new PrivateCacheStorage($filesystem)->write($path, $chunks());
+                self::fail('Partial cache serialization must fail.');
+            } catch (RuntimeException $exception) {
+                self::assertSame('Synthetic serialization failure.', $exception->getMessage());
+                self::assertSame('previous snapshot', $filesystem->readFile($path));
+                self::assertSame([], glob($workspace . '/.renamer-cache-*'));
+            }
+        } finally {
+            $filesystem->remove($workspace);
         }
     }
 

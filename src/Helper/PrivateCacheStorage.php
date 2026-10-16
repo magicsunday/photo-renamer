@@ -19,6 +19,7 @@ use Symfony\Component\Filesystem\Filesystem;
 use function clearstatcache;
 use function dirname;
 use function is_link;
+use function is_string;
 use function posix_geteuid;
 use function realpath;
 use function sprintf;
@@ -97,12 +98,12 @@ final readonly class PrivateCacheStorage
      * Populates an empty private temporary file through Symfony Filesystem,
      * then publishes that inode without inheriting the old destination mode.
      *
-     * @param string $pathname Destination cache filename
-     * @param string $contents Serialized cache contents
+     * @param string                  $pathname Destination cache filename
+     * @param string|iterable<string> $contents Serialized cache contents, optionally streamed in bounded chunks
      *
      * @return void
      */
-    public function write(string $pathname, string $contents): void
+    public function write(string $pathname, string|iterable $contents): void
     {
         $this->isOwnedFile($pathname);
         $this->filesystem->mkdir(dirname($pathname), 0o700);
@@ -114,7 +115,11 @@ final readonly class PrivateCacheStorage
             }
 
             $this->filesystem->chmod($temporary, 0o600);
-            $this->filesystem->appendToFile($temporary, $contents);
+
+            foreach (is_string($contents) ? [$contents] : $contents as $chunk) {
+                $this->filesystem->appendToFile($temporary, $chunk);
+            }
+
             $this->isOwnedFile($pathname);
             $this->filesystem->rename($temporary, $pathname, true);
         } finally {

@@ -190,7 +190,7 @@ final class CanonicalScorerTest extends TestCase
         $canonical = $scorer->selectCanonical($group);
 
         self::assertNotNull($canonical);
-        self::assertSame('heic', $canonical->file->getExtension());
+        self::assertSame('heic', $canonical->getFile()->getExtension());
     }
 
     /**

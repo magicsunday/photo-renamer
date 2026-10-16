@@ -184,7 +184,8 @@ final readonly class CaptureContentIdentifierCoordinator
         $cacheEntry = $state->contentIdentifierCache[$normalizedContentIdentifier];
         $cacheEntry->rememberResolvedGroup($duplicateIdentifier, $targetFileInfo);
 
-        foreach ($cacheEntry->getPendingFiles() as $pendingFile) {
+        foreach ($cacheEntry->getPendingPathnames() as $pendingPath) {
+            $pendingFile = new SplFileInfo($pendingPath);
             $pendingItem = new AssetItem($pendingFile);
             $pendingItem = $pendingItem->withMetadata(
                 $state->temporalMetadataMap[$pendingFile->getPathname()] ?? null,

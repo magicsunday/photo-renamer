@@ -1,5 +1,7 @@
 # Synthetic mixed-collection profile
 
+Current path-based collection lifetimes and lower-budget validation are documented in [collection memory and capacity](collection-memory.md). The dated measurements below retain their original implementations and budgets; they are historical evidence, not the current default-budget result.
+
 Issue #127 requires measurements with real files in addition to virtual candidates and the isolated stream-cache benchmark. Run `make runtime-build`, then `make mixed-collection-benchmark COUNT=70000` or `COUNT=100000`. A small smoke profile is available with `COUNT=20`; accepted counts are multiples of four between 4 and 100000. Original collections are never mounted or accepted.
 
 The generator creates native 64×64 JPEG/HEIC pixels and one-second 64×64 MPEG-4 video in MOV containers. Minimal TIFF/Apple MakerNotes and QuickTime keys carry generated content identifiers and capture dates; no camera metadata, personal media, coordinates or serial numbers are copied. Each capture has one still and one companion; half the stills are JPEG and half HEIC. All MOVs have equal duration but distinct known IDs and belong to separate capture groups. This deliberately stresses a large plausible Live Photo duration bucket while preserving its cheap identity exclusions.

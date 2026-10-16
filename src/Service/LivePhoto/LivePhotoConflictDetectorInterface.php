@@ -28,10 +28,10 @@ use SplFileInfo;
 interface LivePhotoConflictDetectorInterface
 {
     /**
-     * @param array<string, SplFileInfo>      $filesByPath    All scanned media files keyed by pathname
+     * @param iterable<string, SplFileInfo>   $filesByPath    All scanned media files keyed by pathname
      * @param array<string, TemporalMetadata> $metadataByPath Extracted temporal metadata keyed by pathname
      *
      * @return array<string, string> Candidate pathnames mapped to their possible counterpart pathnames
      */
-    public function detectConflictFiles(array $filesByPath, array $metadataByPath): array;
+    public function detectConflictFiles(iterable $filesByPath, array $metadataByPath): array;
 }

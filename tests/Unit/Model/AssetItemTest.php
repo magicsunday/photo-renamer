@@ -19,6 +19,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use SplFileInfo;
+use WeakReference;
 
 /**
  * Verifies the immutable value-object contract of AssetItem, ensuring
@@ -33,8 +34,7 @@ use SplFileInfo;
 final class AssetItemTest extends TestCase
 {
     /**
-     * Verifies that the constructor sets correct default values for all properties
-     * of a new AssetItem.
+     * Stores source bytes without retaining its native view, with unchanged defaults.
      */
     #[Test]
     public function constructorSetsDefaults(): void
@@ -42,7 +42,11 @@ final class AssetItemTest extends TestCase
         $file = new SplFileInfo('/tmp/photo.heic');
         $item = new AssetItem($file);
 
-        self::assertSame($file, $item->file);
+        self::assertSame($file->getPathname(), $item->pathname);
+        $reference = WeakReference::create($file);
+        unset($file);
+        self::assertNull($reference->get());
+        self::assertSame($item->pathname, $item->getFile()->getPathname());
         self::assertSame(ItemRole::Canonical, $item->role);
         self::assertNull($item->metadata);
         self::assertNull($item->contentIdentifier);
@@ -252,7 +256,7 @@ final class AssetItemTest extends TestCase
     /**
      * Replacing metadata uses the explicitly supplied identifier rather than the
      * metadata object's ID. Omission clears a previous identifier; null metadata
-     * remains supported. Source identity, independent score and original state stay.
+     * remains supported. Source path, independent score and original state stay.
      *
      * @return void
      */
@@ -268,7 +272,7 @@ final class AssetItemTest extends TestCase
         self::assertNotSame($item, $changed);
         self::assertSame($metadata, $changed->metadata);
         self::assertSame('explicit-content-id', $changed->contentIdentifier);
-        self::assertSame($file, $changed->file);
+        self::assertSame($file->getPathname(), $changed->pathname);
         self::assertSame(42, $changed->priorityScore);
         self::assertSame($originalMetadata, $item->metadata);
         self::assertSame('old-content-id', $item->contentIdentifier);

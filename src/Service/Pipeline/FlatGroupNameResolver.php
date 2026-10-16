@@ -62,7 +62,7 @@ final readonly class FlatGroupNameResolver
             );
 
             $sequenceCounterByExt[$extension] ??= 0;
-            $directory    = $item->file->getPath();
+            $directory    = $item->getFile()->getPath();
             $proposedName = $this->buildProposedName(
                 $directory,
                 $group->groupKey,

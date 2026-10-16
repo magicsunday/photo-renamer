@@ -21,8 +21,8 @@ comparison-benchmark: .logo ## Benchmark 1,000 synthetic video candidates under 
 metadata-cache-benchmark: .logo ## Profile a large synthetic metadata snapshot under finite Docker limits.
 	bash scripts/benchmark-metadata-cache.sh $(or $(COUNT),100000)
 
-mixed-collection-benchmark: .logo ## Profile synthetic JPG/HEIC+MOV through the runtime pipeline (COUNT=70000 or 100000).
-	bash scripts/benchmark-mixed-collection.sh $(or $(COUNT),70000)
+mixed-collection-benchmark: .logo ## Profile synthetic JPG/HEIC+MOV (COUNT=70000, MEMORY_MIB=3072).
+	bash scripts/benchmark-mixed-collection.sh $(or $(COUNT),70000) $(or $(MEMORY_MIB),3072)
 
 binary: .logo ## Build the self-contained renamer binary.
 	$(COMPOSE_BUILD) php scripts/clear-cache.php

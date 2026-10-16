@@ -91,9 +91,9 @@ final class LegacyContentIdentifierCoordinatorTest extends TestCase
         );
 
         self::assertTrue($deferred);
-        $pending = $cacheEntry->getPendingFiles();
+        $pending = $cacheEntry->getPendingPathnames();
         self::assertCount(1, $pending);
-        self::assertSame($sourceFile->getPathname(), $pending[0]->getPathname());
+        self::assertSame($sourceFile->getPathname(), $pending[0]);
         $rememberedTarget = $cacheEntry->getTarget();
         self::assertNotNull($rememberedTarget);
         self::assertSame($targetFile->getPathname(), $rememberedTarget->getPathname());
@@ -129,7 +129,7 @@ final class LegacyContentIdentifierCoordinatorTest extends TestCase
 
         self::assertSame('2024-01-01_12-00-00-000', $cacheEntry->getDuplicateIdentifier());
         self::assertCount(2, $fileDuplicate->getFiles());
-        self::assertSame([], $cacheEntry->getPendingFiles());
+        self::assertSame([], $cacheEntry->getPendingPathnames());
     }
 
     /**

@@ -69,7 +69,7 @@ final class CompanionDetectorTest extends TestCase
 
         $companions = $detector->detect($group, $heic);
 
-        self::assertTrue($companions->contains($mov->file->getPathname()));
+        self::assertTrue($companions->contains($mov->pathname));
         self::assertCount(1, $companions->toPathList());
     }
 
@@ -125,7 +125,7 @@ final class CompanionDetectorTest extends TestCase
 
         $companions = $detector->detect($group, $heic);
 
-        self::assertTrue($companions->contains($mov->file->getPathname()));
+        self::assertTrue($companions->contains($mov->pathname));
         self::assertCount(1, $companions->toPathList());
     }
 
@@ -271,7 +271,7 @@ final class CompanionDetectorTest extends TestCase
 
         // Only one video companion selected (MOV wins: basename matches canonical)
         self::assertCount(1, $companions->toPathList());
-        self::assertTrue($companions->contains($mov->file->getPathname()));
+        self::assertTrue($companions->contains($mov->pathname));
     }
 
     /**
@@ -299,7 +299,7 @@ final class CompanionDetectorTest extends TestCase
 
         $companions = $detector->detect($group, $mov);
 
-        self::assertTrue($companions->contains($heic->file->getPathname()));
+        self::assertTrue($companions->contains($heic->pathname));
         self::assertCount(1, $companions->toPathList());
     }
 
@@ -370,7 +370,7 @@ final class CompanionDetectorTest extends TestCase
         $companions = $detector->detect($group, $heic);
 
         self::assertCount(1, $companions->toPathList());
-        self::assertTrue($companions->contains($movMatch->file->getPathname()));
+        self::assertTrue($companions->contains($movMatch->pathname));
     }
 
     /**
@@ -409,7 +409,7 @@ final class CompanionDetectorTest extends TestCase
 
         // Lower clusterRank wins
         self::assertCount(1, $companions->toPathList());
-        self::assertTrue($companions->contains($movLowRank->file->getPathname()));
+        self::assertTrue($companions->contains($movLowRank->pathname));
 
         // Test without clusterRank: shorter pathname wins
         $movLong = new AssetItem(
@@ -431,7 +431,7 @@ final class CompanionDetectorTest extends TestCase
 
         // Shorter pathname wins
         self::assertCount(1, $companions2->toPathList());
-        self::assertTrue($companions2->contains($movShort->file->getPathname()));
+        self::assertTrue($companions2->contains($movShort->pathname));
 
         // Test lexicographic tie-breaker (same length)
         $movAlpha = new AssetItem(
@@ -453,7 +453,7 @@ final class CompanionDetectorTest extends TestCase
 
         // Lexicographic: AAA < BBB
         self::assertCount(1, $companions3->toPathList());
-        self::assertTrue($companions3->contains($movAlpha->file->getPathname()));
+        self::assertTrue($companions3->contains($movAlpha->pathname));
     }
 
     private function createDetector(): CompanionDetectorInterface

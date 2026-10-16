@@ -96,7 +96,7 @@ final readonly class RoleAssigner
         // Log the canonical decision
         $group->addDecision(sprintf(
             'Canonical: %s (score %d: %s)',
-            $canonical->file->getBasename(),
+            $canonical->getFile()->getBasename(),
             $canonical->priorityScore,
             implode(', ', $canonical->reasoning),
         ));
@@ -114,15 +114,15 @@ final readonly class RoleAssigner
 
         // 5. Assign roles to all non-canonical items
         foreach ($group->getItems() as $item) {
-            if ($item->file->getPathname() === $canonical->file->getPathname()) {
+            if ($item->pathname === $canonical->pathname) {
                 continue;
             }
 
-            if ($allCompanionPaths->contains($item->file->getPathname())) {
+            if ($allCompanionPaths->contains($item->pathname)) {
                 $group->replaceItem($item, $item->withRole(ItemRole::Companion));
                 $group->addDecision(sprintf(
                     'Companion: %s (Live Photo pair)',
-                    $item->file->getBasename(),
+                    $item->getFile()->getBasename(),
                 ));
 
                 continue;
@@ -166,7 +166,7 @@ final readonly class RoleAssigner
         }
 
         foreach ($group->getItems() as $item) {
-            if ($item->file->getPathname() === $canonical->file->getPathname()) {
+            if ($item->pathname === $canonical->pathname) {
                 continue;
             }
 
@@ -207,8 +207,8 @@ final readonly class RoleAssigner
             return;
         }
 
-        $canonicalPath    = $canonical->file->getPathname();
-        $canonicalIsStill = $this->mediaTypeClassifier->isLivePhotoStill($canonical->file);
+        $canonicalPath    = $canonical->pathname;
+        $canonicalIsStill = $this->mediaTypeClassifier->isLivePhotoStill($canonical->getFile());
 
         $hasFallbackDate      = $canonicalIsStill && isset($context->getFallbackDateFiles()[$canonicalPath]);
         $hasAmbiguousTimezone = isset($context->getAmbiguousTimezoneFiles()[$canonicalPath]);
@@ -242,17 +242,17 @@ final readonly class RoleAssigner
             return;
         }
 
-        $canonicalDir = $canonical->file->getPath();
+        $canonicalDir = $canonical->getFile()->getPath();
 
         foreach ($group->getItems() as $item) {
-            if (!$companionPaths->contains($item->file->getPathname())) {
+            if (!$companionPaths->contains($item->pathname)) {
                 continue;
             }
 
-            if ($item->file->getPath() !== $canonicalDir) {
+            if ($item->getFile()->getPath() !== $canonicalDir) {
                 $context->addCrossDirectoryCompanion(
-                    $canonical->file->getPathname(),
-                    $item->file->getPathname(),
+                    $canonical->pathname,
+                    $item->pathname,
                 );
             }
         }

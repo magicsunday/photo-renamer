@@ -43,24 +43,47 @@ final class SortedFileIteratorCollector
      */
     public static function collectAndSortFiles(RecursiveIteratorIterator $iterator): array
     {
-        /** @var list<SplFileInfo> $files */
+        $files = [];
+
+        foreach (self::collectAndSortPaths($iterator) as $pathname) {
+            AnalysisMemoryBudget::assertHeadroom('file collection');
+            $files[] = new SplFileInfo($pathname);
+        }
+
+        return $files;
+    }
+
+    /**
+     * Keeps path values while sorting, without retaining native filesystem buffers.
+     *
+     * @template TInner of RecursiveIterator
+     *
+     * @param RecursiveIteratorIterator<TInner> $iterator Candidate files
+     *
+     * @return list<string> Parent-first paths, then bytewise pathname order
+     *
+     * @throws AnalysisMemoryBudgetExceededException When path retention reaches the pre-mutation budget
+     */
+    public static function collectAndSortPaths(RecursiveIteratorIterator $iterator): array
+    {
+        /** @var list<string> $files */
         $files = [];
 
         /** @var SplFileInfo $fileInfo */
         foreach ($iterator as $fileInfo) {
             AnalysisMemoryBudget::assertHeadroom('file collection');
-            $files[] = $fileInfo;
+            $files[] = $fileInfo->getPathname();
         }
 
         AnalysisMemoryBudget::assertHeadroom('file sorting');
 
-        usort($files, static function (SplFileInfo $fileA, SplFileInfo $fileB): int {
+        usort($files, static function (string $fileA, string $fileB): int {
             $depthA = self::pathDepth($fileA);
             $depthB = self::pathDepth($fileB);
 
             return ($depthA !== $depthB)
                 ? $depthA <=> $depthB
-                : $fileA->getPathname() <=> $fileB->getPathname();
+                : $fileA <=> $fileB;
         });
 
         return $files;
@@ -69,8 +92,8 @@ final class SortedFileIteratorCollector
     /**
      * Counts path separators in a platform-neutral pathname string.
      */
-    private static function pathDepth(SplFileInfo $file): int
+    private static function pathDepth(string $file): int
     {
-        return substr_count(str_replace('\\', '/', $file->getPathname()), '/');
+        return substr_count(str_replace('\\', '/', $file), '/');
     }
 }

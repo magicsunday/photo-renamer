@@ -11,7 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\LivePhoto;
 
-use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
+use MagicSunday\Renamer\Model\FileDuplicate;
 use RecursiveIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
@@ -32,13 +32,13 @@ interface LivePhotoPairingServiceInterface
      * @template TInner of RecursiveIterator
      *
      * @param RecursiveIteratorIterator<TInner> $iterator                  iterator traversing all source files
-     * @param FileDuplicateCollection           $fileDuplicateCollection   collection generated during the first pass
+     * @param iterable<string, FileDuplicate>   $fileDuplicateCollection   collection generated during the first pass
      * @param callable(SplFileInfo): ?string    $contentIdentifierResolver callback resolving the Live Photo content identifier
      * @param callable(): void|null             $onFileInspected           optional callback invoked after each inspected file
      */
     public function pairByContentIdentifier(
         RecursiveIteratorIterator $iterator,
-        FileDuplicateCollection $fileDuplicateCollection,
+        iterable $fileDuplicateCollection,
         callable $contentIdentifierResolver,
         ?callable $onFileInspected = null,
         bool $matchByContentIdentifier = true,
