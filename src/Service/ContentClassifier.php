@@ -30,6 +30,7 @@ use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use Override;
 use SplFileInfo;
 
+use function array_intersect_key;
 use function array_key_exists;
 use function array_keys;
 use function count;
@@ -209,10 +210,10 @@ final class ContentClassifier implements ContentClassifierInterface
                 $id   = $contentIdentifiers[$path] ?? null;
 
                 if ($id !== null) {
-                    $byIdentifier[$id] = $rootByPath[$path];
+                    $byIdentifier[$id][$rootByPath[$path]] = true;
                 }
 
-                $byBasename[FileHelper::basenameWithoutExtension($file)] = $rootByPath[$path];
+                $byBasename[FileHelper::basenameWithoutExtension($file)][$rootByPath[$path]] = true;
             }
 
             foreach ($files as $file) {
@@ -222,11 +223,27 @@ final class ContentClassifier implements ContentClassifierInterface
                     continue;
                 }
 
-                $id   = $contentIdentifiers[$path] ?? null;
-                $root = (($id !== null) && isset($byIdentifier[$id])) ? $byIdentifier[$id] : ($byBasename[FileHelper::basenameWithoutExtension($file)] ?? null);
+                $id            = $contentIdentifiers[$path] ?? null;
+                $basename      = FileHelper::basenameWithoutExtension($file);
+                $basenameRoots = $byBasename[$basename] ?? [];
 
-                if ($root !== null) {
-                    $companionClusters[$path] = $root;
+                if ($basenameRoots === []) {
+                    $basenameRoots = $byBasename[FileHelper::stripDuplicateSuffix($basename)] ?? [];
+                }
+
+                $roots = $id !== null ? ($byIdentifier[$id] ?? []) : [];
+
+                if ($roots === []) {
+                    $roots = $basenameRoots;
+                } elseif (count($roots) > 1) {
+                    // An edited still can retain its original content identifier.
+                    // A basename may disambiguate companion ownership, but cannot
+                    // merge rejected stills or select an arbitrary last root.
+                    $roots = array_intersect_key($roots, $basenameRoots);
+                }
+
+                if (count($roots) === 1) {
+                    $companionClusters[$path] = (string) array_keys($roots)[0];
                 }
             }
         }

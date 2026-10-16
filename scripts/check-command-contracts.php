@@ -284,24 +284,61 @@ try {
         echo $command . ': preview, mutation, fixed-point repeat, absolute/relative directory/single-file and trailing-slash paths passed' . PHP_EOL;
     }
 
-    $directory = $workspace . '/media/live photo';
-    $filesystem->mirror($fixtures . '/04-live-photo-pair', $directory);
-    $before = mediaSnapshot($directory);
-    runCli($prefix, ['rename:exif', $directory, '--dry-run'], $workspace . '/cwd', $environment);
-    requireContract(mediaSnapshot($directory) === $before, 'Live Photo preview changed media');
-    runCli($prefix, ['rename:exif', $directory], $workspace . '/cwd', $environment);
-    $after = mediaSnapshot($directory);
-    requireContract(count($after) === 2, 'Live Photo lost a component');
-    $names = array_keys($after);
-    requireContract(pathinfo($names[0], PATHINFO_FILENAME) === pathinfo($names[1], PATHINFO_FILENAME), 'Live Photo companion did not inherit the still basename');
-    $oldHashes = array_values($before);
-    $newHashes = array_values($after);
-    sort($oldHashes);
-    sort($newHashes);
-    requireContract($oldHashes === $newHashes, 'Live Photo rename changed media bytes');
-    runCli($prefix, ['rename:exif', $directory], $workspace . '/cwd', $environment);
-    requireContract(mediaSnapshot($directory) === $after, 'Live Photo repeat changed names/bytes');
-    echo 'rename:exif: real JPG/MOV pairing, component bytes and repeated execution passed' . PHP_EOL;
+    // Execute both existing real-media fixtures: one primary pair and a
+    // capture with independently named variants. Plan-only checks miss false
+    // partial errors raised after every physical rename already succeeded.
+    foreach (['04-live-photo-pair' => 2, '29-livephoto-edit-duplicate' => 6] as $fixture => $expectedCount) {
+        $directory = $workspace . '/media/live photo ' . $fixture;
+        $filesystem->mirror($fixtures . '/' . $fixture, $directory);
+        $before = mediaSnapshot($directory);
+        runCli($prefix, ['rename:exif', $directory, '--dry-run'], $workspace . '/cwd', $environment);
+        requireContract(mediaSnapshot($directory) === $before, 'Live Photo preview changed media: ' . $fixture);
+        $renamed = runCli($prefix, ['rename:exif', $directory], $workspace . '/cwd', $environment);
+        requireContract(!str_contains($renamed->getOutput() . $renamed->getErrorOutput(), 'Partial Live Photo groups'), 'Planned variant reported as incomplete: ' . $fixture);
+        $after = mediaSnapshot($directory);
+        requireContract(count($after) === $expectedCount, 'Live Photo lost a component: ' . $fixture);
+
+        if ($fixture === '04-live-photo-pair') {
+            $names = array_keys($after);
+            requireContract(pathinfo($names[0], PATHINFO_FILENAME) === pathinfo($names[1], PATHINFO_FILENAME), 'Live Photo companion did not inherit the still basename');
+        }
+
+        $oldHashes = array_values($before);
+        $newHashes = array_values($after);
+        sort($oldHashes);
+        sort($newHashes);
+        requireContract($oldHashes === $newHashes, 'Live Photo rename changed media bytes: ' . $fixture);
+        runCli($prefix, ['rename:exif', $directory], $workspace . '/cwd', $environment);
+        requireContract(mediaSnapshot($directory) === $after, 'Live Photo repeat changed names/bytes: ' . $fixture);
+    }
+    echo 'rename:exif: real JPG/MOV pairing, planned companion variants, component bytes and repeated execution passed' . PHP_EOL;
+
+    // A real unprivileged directory-permission failure must leave the MOV
+    // intact after its still moved, with actionable component diagnostics.
+    $directory = $workspace . '/media/partial permission pair';
+    $stillDirectory = $directory . '/stills';
+    $videoDirectory = $directory . '/videos';
+    $stillSource = $stillDirectory . '/CAMERA.jpg';
+    $videoSource = $videoDirectory . '/CAMERA.mov';
+    $filesystem->copy($fixtures . '/04-live-photo-pair/IMG_0001.jpg', $stillSource);
+    $filesystem->copy($fixtures . '/04-live-photo-pair/IMG_0001.mov', $videoSource);
+    $stillHash = hash_file('sha256', $stillSource);
+    $videoHash = hash_file('sha256', $videoSource);
+    $filesystem->chmod($videoDirectory, 0o555);
+
+    try {
+        $partial = runCli($prefix, ['rename:exif', $directory], $workspace . '/cwd', $environment, 1);
+        $details = $partial->getOutput() . $partial->getErrorOutput();
+        requireContract(preg_match('/Renamed\s+1\b/', $details) === 1, 'Partial run did not retain its one successful move');
+        requireContract(preg_match('/Partial Live Photo groups\s+1\b/', $details) === 1, 'Partial run did not report the incomplete pair');
+        requireContract(str_contains($details, 'companion: Failed:') && str_contains($details, 'Current: ' . $videoSource) && str_contains($details, 'Planned: ') && str_contains($details, 'Journal: '), 'Partial run omitted component paths, concrete status or journal');
+        $stills = glob($stillDirectory . '/*.jpg');
+        requireContract(($stills !== false) && (count($stills) === 1) && !file_exists($stillSource) && (hash_file('sha256', $stills[0]) === $stillHash), 'Partial run lost or misreported the moved still');
+        requireContract(hash_file('sha256', $videoSource) === $videoHash, 'Partial run changed or removed the failed companion');
+    } finally {
+        $filesystem->chmod($videoDirectory, 0o755);
+    }
+    echo 'rename:exif: real companion permission failure, retained bytes and actionable partial diagnostics passed' . PHP_EOL;
 
     $directory = $workspace . '/media/hash';
     $filesystem->mkdir($directory);

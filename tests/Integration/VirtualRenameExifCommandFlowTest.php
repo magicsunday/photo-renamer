@@ -53,6 +53,7 @@ use MagicSunday\Renamer\Test\Fixtures\WorkspaceTrait;
 use MagicSunday\Renamer\Test\Unit\Service\Fixtures\StubMetadataExtractor;
 use Override;
 use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use RecursiveIteratorIterator;
@@ -67,6 +68,8 @@ use Symfony\Component\Filesystem\Filesystem;
 
 use function file_get_contents;
 use function file_put_contents;
+use function str_contains;
+use function substr_count;
 
 /**
  * Verifies the virtual command-orchestration flow for `rename:exif`.
@@ -105,14 +108,16 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
     }
 
     /**
-     * A real still move followed by a controlled companion storage failure must
-     * retain the MOV, count exactly one moved file and visibly identify the
-     * incomplete Live Photo in the command's observed summary.
+     * A failed or policy-withheld companion remains in place after the still
+     * moves. The command must identify paths, outcomes and a concrete reason.
+     *
+     * @param bool $withheld Whether policy blocks the companion instead of a storage failure
      *
      * @return void
      */
     #[Test]
-    public function partiallyMovedLivePhotoIsVisibleInCommandSummary(): void
+    #[DataProvider('componentFailures')]
+    public function partiallyMovedLivePhotoIsVisibleInCommandSummary(bool $withheld): void
     {
         $workspace       = $this->createTempWorkspace();
         $filesystem      = new Filesystem();
@@ -124,19 +129,20 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
         $filesystem->dumpFile($companion, 'synthetic companion');
 
         $failingFilesystem = self::createPartialMock(Filesystem::class, ['rename']);
-        $failingFilesystem->expects(self::exactly(2))->method('rename')->willReturnCallback(static function (string $source, string $target, bool $overwrite = false) use ($filesystem, $companion): void {
+        $failingFilesystem->expects(self::exactly($withheld ? 1 : 2))->method('rename')->willReturnCallback(static function (string $source, string $target, bool $overwrite = false) use ($filesystem, $companion): void {
             if ($source === $companion) {
-                throw new IOException('Controlled companion storage failure.');
+                throw new IOException("Controlled companion storage failure.\x1B[2J");
             }
 
             $filesystem->rename($source, $target, $overwrite);
         });
-        $reporter = new ConsoleProgressReporter(new SymfonyStyle(new ArrayInput([]), new BufferedOutput()));
-        $journal  = RuntimeExecutorFactory::createMutationJournal($workspace . '/state');
-        $executor = new ExecutionPlanExecutor($reporter, new RuntimeFileMoveExecutor($reporter, $failingFilesystem, new RuntimeCollisionPathAllocator(), RuntimeExecutorFactory::createSourceIdentityGuard(), $journal), $journal);
-        $plan     = new ExecutionPlan([new ExecutionGroup('synthetic pair', true, $still, [
+        $detailsOutput = new BufferedOutput();
+        $reporter      = new ConsoleProgressReporter(new SymfonyStyle(new ArrayInput([]), $detailsOutput));
+        $journal       = RuntimeExecutorFactory::createMutationJournal($workspace . '/state');
+        $executor      = new ExecutionPlanExecutor($reporter, new RuntimeFileMoveExecutor($reporter, $failingFilesystem, new RuntimeCollisionPathAllocator(), RuntimeExecutorFactory::createSourceIdentityGuard(), $journal), $journal);
+        $plan          = new ExecutionPlan([new ExecutionGroup('synthetic pair', true, $still, [
             new ExecutionItem($still, $stillTarget, ExecutionItemType::Canonical, true, false, 'synthetic pair'),
-            new ExecutionItem($companion, $companionTarget, ExecutionItemType::Companion, true, false, 'synthetic pair'),
+            new ExecutionItem($companion, $companionTarget, ExecutionItemType::Companion, true, false, 'synthetic pair', isExecutable: !$withheld, executionBlockReason: $withheld ? 'Controlled policy block' : null),
         ])]);
 
         try {
@@ -155,8 +161,91 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
             self::assertFileDoesNotExist($companionTarget);
             $summary = $output->fetch();
             self::assertMatchesRegularExpression('/Renamed\s+1/', $summary);
-            self::assertMatchesRegularExpression('/Runtime errors\s+1/', $summary);
+
+            if ($withheld) {
+                self::assertStringNotContainsString('Runtime errors', $summary);
+            } else {
+                self::assertMatchesRegularExpression('/Runtime errors\s+1/', $summary);
+            }
+
             self::assertMatchesRegularExpression('/Partial Live Photo groups\s+1/', $summary);
+            $details = $detailsOutput->fetch();
+            self::assertFalse(str_contains($details, "\x1B"));
+            self::assertStringContainsString('synthetic pair', $details);
+            self::assertStringContainsString('canonical: Renamed', $details);
+            self::assertStringContainsString($withheld
+                ? 'companion: Withheld: Controlled policy block'
+                : 'companion: Failed: Controlled companion storage failure.', $details);
+            self::assertStringContainsString('Source: ' . $still, $details);
+            self::assertStringContainsString('Current: ' . $stillTarget, $details);
+            self::assertStringContainsString('Planned: ' . $companionTarget, $details);
+            self::assertStringContainsString('Current: ' . $companion, $details);
+            self::assertStringContainsString('Journal: ', $details);
+            self::assertStringContainsString('No automatic rollback was performed.', $details);
+        } finally {
+            $this->removeWorkspace($workspace);
+        }
+    }
+
+    /**
+     * @return array<string, array{bool}> Actual filesystem failure and explicit policy withholding
+     */
+    public static function componentFailures(): array
+    {
+        return ['storage failure' => [false], 'policy withholding' => [true]];
+    }
+
+    /**
+     * A capture can contain a primary pair and a separately named companion variant.
+     * Every planned move and its no-op repeat must succeed without a partial warning.
+     */
+    #[Test]
+    public function plannedCompanionVariantsRemainCompleteAfterRenameAndRepeat(): void
+    {
+        $workspace  = $this->createTempWorkspace();
+        $filesystem = new Filesystem();
+        $sources    = [$workspace . '/camera.heic', $workspace . '/camera.mov', $workspace . '/variant.jpg', $workspace . '/variant.mov'];
+        $targets    = [$workspace . '/capture.heic', $workspace . '/capture.mov', $workspace . '/capture-002.jpg', $workspace . '/capture-002.mov'];
+        $types      = [ExecutionItemType::Canonical, ExecutionItemType::Companion, ExecutionItemType::Duplicate, ExecutionItemType::Companion];
+        $contents   = ['synthetic still', 'synthetic primary video', 'synthetic edited still', 'synthetic alternate video'];
+
+        foreach ($sources as $index => $source) {
+            $filesystem->dumpFile($source, $contents[$index]);
+        }
+
+        $runtimeOutput = new BufferedOutput();
+        $reporter      = new ConsoleProgressReporter(new SymfonyStyle(new ArrayInput([]), $runtimeOutput));
+        $journal       = RuntimeExecutorFactory::createMutationJournal($workspace . '/state');
+        $executor      = new ExecutionPlanExecutor($reporter, new RuntimeFileMoveExecutor($reporter, $filesystem, new RuntimeCollisionPathAllocator(), RuntimeExecutorFactory::createSourceIdentityGuard(), $journal), $journal);
+
+        try {
+            foreach ([false, true] as $repeat) {
+                $items = [];
+
+                foreach ($targets as $index => $target) {
+                    $items[] = new ExecutionItem($repeat ? $target : $sources[$index], $target, $types[$index], !$repeat, $repeat, 'synthetic variants');
+                }
+
+                $plan               = new ExecutionPlan([new ExecutionGroup('synthetic variants', true, $repeat ? $targets[0] : $sources[0], $items)]);
+                [$command, $output] = $this->createCommandHarness(static function (PipelineContext $context): void {
+                    $context->setScannedFileCount(4);
+                }, $plan, executor: $executor);
+                $journal->begin('rename:exif');
+                $journalPath = $journal->pathname();
+                self::assertNotNull($journalPath);
+                $tester = new CommandTester($command);
+                $tester->setInputs(['yes']);
+                $status = $tester->execute(['source' => $workspace]);
+                self::assertTrue($journal->finish($status));
+                self::assertSame(Command::SUCCESS, $status);
+                self::assertSame(4, substr_count($filesystem->readFile($journalPath), '"event":"pair_member"'));
+                self::assertStringNotContainsString('Partial Live Photo groups', $output->fetch());
+                self::assertStringNotContainsString('incomplete', $runtimeOutput->fetch());
+
+                foreach ($targets as $index => $target) {
+                    self::assertSame($contents[$index], $filesystem->readFile($target));
+                }
+            }
         } finally {
             $this->removeWorkspace($workspace);
         }
@@ -179,6 +268,8 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
         $companion       = $workspace . '/camera.mov';
         $stillTarget     = $workspace . '/capture.jpg';
         $companionTarget = $workspace . '/capture.mov';
+        $canonical       = $workspace . '/canonical.heic';
+        $filesystem->dumpFile($canonical, 'unchanged canonical still');
         $filesystem->dumpFile($still, 'synthetic still');
         $filesystem->dumpFile($companion, 'synthetic companion');
         $filesystem->dumpFile($companionTarget, 'reserved video');
@@ -190,15 +281,16 @@ final class VirtualRenameExifCommandFlowTest extends TestCase
             new ExecutionGroup('reserved video', false, items: [
                 new ExecutionItem($companionTarget, $companionTarget, ExecutionItemType::Canonical, false, true, 'reserved video', isExecutable: false),
             ]),
-            new ExecutionGroup('synthetic pair', true, $still, [
-                new ExecutionItem($still, $stillTarget, ExecutionItemType::Canonical, true, false, 'synthetic pair'),
+            new ExecutionGroup('synthetic pair', true, $canonical, [
+                new ExecutionItem($canonical, $canonical, ExecutionItemType::Canonical, false, true, 'synthetic pair'),
+                new ExecutionItem($still, $stillTarget, ExecutionItemType::Duplicate, true, false, 'synthetic pair'),
                 new ExecutionItem($companion, $companionTarget, ExecutionItemType::Companion, true, false, 'synthetic pair'),
             ]),
         ]);
 
         try {
             [$command, $output] = $this->createCommandHarness(static function (PipelineContext $context): void {
-                $context->setScannedFileCount(3);
+                $context->setScannedFileCount(4);
             }, $plan, executor: $executor);
             $tester = new CommandTester($command);
             $tester->setInputs(['yes']);

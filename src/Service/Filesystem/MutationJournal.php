@@ -19,7 +19,6 @@ use JsonException;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Helper\PrivateCacheStorage;
 use MagicSunday\Renamer\Model\Execution\ExecutionGroup;
-use MagicSunday\Renamer\Model\Execution\ExecutionItemType;
 use RuntimeException;
 use Symfony\Component\Filesystem\Filesystem;
 use Throwable;
@@ -128,9 +127,9 @@ final class MutationJournal
     }
 
     /**
-     * Streams both Live Photo component plans before the first move so an abrupt
-     * exit after one receipt still identifies the not-yet-attempted companion.
-     * Duplicate candidates are excluded because they are not pair components.
+     * Streams the planned Live Photo components before the first move so an
+     * abrupt exit identifies not-yet-attempted peers, including paired still
+     * variants. Unrelated duplicates remain outside the component records.
      *
      * @param ExecutionGroup $group Live Photo group about to execute
      *
@@ -142,11 +141,7 @@ final class MutationJournal
             return;
         }
 
-        foreach ($group->items as $item) {
-            if (($item->type !== ExecutionItemType::Canonical) && ($item->type !== ExecutionItemType::Companion)) {
-                continue;
-            }
-
+        foreach ($group->getLivePhotoComponents() as $item) {
             $this->append([
                 'event'              => 'pair_member',
                 'group_b64'          => base64_encode($group->groupKey),

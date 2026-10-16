@@ -68,6 +68,15 @@ After an interruption, stop foreign writers and inspect the private journals bef
 
 Journals survive exceptions and forced process termination, but appending is not a power-loss/fsync or storage-failure durability guarantee. They have no automatic retention or expiration. Cache-clear deliberately preserves `.jsonl` journals and lock files. After successful reconciliation, remove only the specific owned journals you no longer need, while no run is active; retain any needed backup/audit evidence. Repeated runs consume journal disk space, independently of cache size, and a full state volume prevents further media writes.
 
+### Incomplete Live Photo diagnostics
+A capture can include several still/video variants with intentionally different planned basenames. Edited stills can reuse an Apple content identifier across different content clusters; companion ownership then requires an unambiguous matching basename within that identifier. This hint assigns a companion without merging the rejected still variants or selecting the last still encountered. A successful planned variant is not an incomplete pair. Execution checks whether components intended to share a basename remain together, and whether required component operations actually completed.
+
+Non-canonical stills sharing a companion's planned basename are included in both completion checks and the pre-mutation journal records. Unrelated duplicate files remain outside this pair boundary.
+
+For an incomplete group, the command reports its key and each tracked component's source, planned target, observed current path, and outcome (renamed, already at target, withheld with reason, failed with reason, or not attempted). The active mutation journal is shown when available. A renamed count records completed file operations; it does not alone establish complete Live Photo pairing.
+
+Keep all components. Resolve the specific reported storage, target-collision or metadata-policy cause, inspect the current paths and journal, then run a fresh preview before confirming changes. Runtime fallback can leave a still and video under different basenames even when both moves succeed. There is no automatic rollback, pair repair, deletion or replay of an old journal.
+
 ### Private caches and maintenance
 
 Metadata caches contain absolute media paths, capture times and possibly GPS/device information. Both JSON caches live in `<cache base>/private-<effective UID>/` (`/cache` in the runtime, `CACHE_DIR` in development/standalone), using the actual container UID (`USERID`) and GID (`GROUPID`). On Unix filesystems the directory is `0700` and files are `0600`, including the populated temporary file used for atomic replacement, independently of `umask 0022`. Existing owned private directories and files have their permissions corrected. Shared parents are not chmodded; each user needs permission to create their own child. Changing UID starts a separate cold cache.

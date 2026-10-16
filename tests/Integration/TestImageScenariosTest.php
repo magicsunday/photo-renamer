@@ -789,18 +789,19 @@ final class TestImageScenariosTest extends TestCase
 
         // Format-dominant canonical: HEIC beats JPG.
         // HEIC gets the clean basename; JPG is demoted to -duplicate-001.
-        // Only one MOV per media type can be companion: the clean-basename .mov wins.
+        // Reused IDs span rejected still variants: each MOV keeps the matching
+        // source basename owner instead of inheriting the last encountered cluster.
         // Conservative merge policy: JPG and HEIC have RMSE 0.053 — above safe-merge
         // zone (0.025), so they form separate subgroups instead of merging.
         yield '29-livephoto-edit-duplicate' => [
             '29-livephoto-edit-duplicate',
             [
                 '2025-05-03_14-38-16-939.jpg'                => '2025-05-03_14-38-16-939-003.jpg',
-                '2025-05-03_14-38-16-939.mov'                => '2025-05-03_14-38-16-939-003-duplicate-001.mov',
+                '2025-05-03_14-38-16-939.mov'                => '2025-05-03_14-38-16-939-003.mov',
                 '2025-05-03_14-38-16-939-002.jpg'            => '2025-05-03_14-38-16-939-002.jpg',
                 '2025-05-03_14-38-16-939-002.mov'            => '2025-05-03_14-38-16-939-002.mov',
                 '2025-05-03_14-38-16-939-duplicate-001.heic' => '2025-05-03_14-38-16-939.heic',
-                '2025-05-03_14-38-16-939-duplicate-001.mov'  => '2025-05-03_14-38-16-939-003.mov',
+                '2025-05-03_14-38-16-939-duplicate-001.mov'  => '2025-05-03_14-38-16-939-duplicate-001.mov',
             ],
             6,
         ];
