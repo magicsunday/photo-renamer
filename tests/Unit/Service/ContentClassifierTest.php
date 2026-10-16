@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Test\Unit\Service;
 
+use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\Classification\ContentClassificationResult;
 use MagicSunday\Renamer\Model\MergeDecision;
 use MagicSunday\Renamer\Model\MergeDecisionKind;
@@ -41,6 +42,7 @@ use SplFileInfo;
 #[CoversClass(ContentClassificationResult::class)]
 #[UsesClass(ComparisonWorkLimit::class)]
 #[UsesClass(DisjointSetUnion::class)]
+#[UsesClass(FileHelper::class)]
 #[UsesClass(ImagickImageLoader::class)]
 #[UsesClass(LocalDifferenceAnalyzer::class)]
 #[UsesClass(MediaTypeClassifier::class)]
@@ -95,6 +97,44 @@ final class ContentClassifierTest extends TestCase
             }
 
             $previousDecisions = $decisions;
+            $classifier->clearCache();
+        }
+    }
+
+    /**
+     * Reused Apple IDs across rejected still variants cannot assign both videos
+     * to the last still encountered. Matching basenames preserve each owner in
+     * either source order while the still content clusters remain separate.
+     */
+    #[Test]
+    public function ambiguousIdentifierUsesMatchingBasenameWithoutMergingStills(): void
+    {
+        $original       = new SplFileInfo('/synthetic/original.jpg');
+        $edited         = new SplFileInfo('/synthetic/edited.heic');
+        $originalVideo  = new SplFileInfo('/synthetic/original.mov');
+        $editedVideo    = new SplFileInfo('/synthetic/edited.mov');
+        $copyVideo      = new SplFileInfo('/synthetic/original-duplicate-001.mov');
+        $unmatchedVideo = new SplFileInfo('/synthetic/unmatched.mov');
+        $hashing        = self::createStub(SafeHashCalculatorInterface::class);
+        $hashing->method('hashFile')->willReturnCallback(static fn (SplFileInfo $file, string $algorithm): string => $file === $original ? 'original-root' : 'edited-root');
+        $visual = self::createStub(PerceptualHashCalculatorInterface::class);
+        $visual->method('similarityScore')->willReturn(new SimilarityResult(0, 0, 0, 0.0, 0.0, null, SimilarityClassification::Different, false));
+        $media       = new MediaTypeClassifier();
+        $reporter    = new NullProgressReporter();
+        $classifier  = new ContentClassifier($hashing, $reporter, $media, $visual, new LocalDifferenceAnalyzer(), new ImagickImageLoader($media, $reporter), new ComparisonWorkLimit(100));
+        $identifiers = [];
+
+        foreach ([$original, $edited, $originalVideo, $editedVideo, $copyVideo, $unmatchedVideo] as $file) {
+            $identifiers[$file->getPathname()] = 'shared-original-identifier';
+        }
+
+        foreach ([[$original, $edited, $originalVideo, $editedVideo, $copyVideo, $unmatchedVideo], [$edited, $original, $editedVideo, $originalVideo, $copyVideo, $unmatchedVideo]] as $files) {
+            $result = $classifier->classify($files, $original, $originalVideo, $identifiers);
+            self::assertCount(2, $result->groups);
+            self::assertSame('original-root', $result->companionClusters[$originalVideo->getPathname()]);
+            self::assertSame('edited-root', $result->companionClusters[$editedVideo->getPathname()]);
+            self::assertSame('original-root', $result->companionClusters[$copyVideo->getPathname()]);
+            self::assertArrayNotHasKey($unmatchedVideo->getPathname(), $result->companionClusters);
             $classifier->clearCache();
         }
     }

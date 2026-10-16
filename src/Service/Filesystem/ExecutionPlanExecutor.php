@@ -11,14 +11,13 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Filesystem;
 
-use MagicSunday\Renamer\Model\Execution\ExecutionItemType;
+use MagicSunday\Renamer\Helper\ConsoleText;
+use MagicSunday\Renamer\Model\Execution\ExecutionGroup;
 use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
 use MagicSunday\Renamer\Model\Execution\ExecutionResult;
 use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use RuntimeException;
 
-use function array_unique;
-use function count;
 use function pathinfo;
 use function sprintf;
 
@@ -76,20 +75,26 @@ final readonly class ExecutionPlanExecutor
         $stopped                = false;
 
         foreach ($plan->groups as $group) {
-            $pairBasenames       = [];
+            $pairMembers         = [];
             $pendingPairMoves    = 0;
             $successfulPairMoves = 0;
             $readyPairMembers    = 0;
 
             if ($group->isLivePhotoGroup && !$dryRun) {
-                foreach ($group->items as $item) {
-                    if (($item->type !== ExecutionItemType::Canonical) && ($item->type !== ExecutionItemType::Companion)) {
-                        continue;
+                foreach ($group->getLivePhotoComponents() as $item) {
+                    $status = 'Not attempted';
+
+                    if ($item->isNoOp) {
+                        $status = 'Unchanged (already at target)';
+                    } elseif (!$item->isExecutable) {
+                        $status = 'Withheld: ' . ($item->executionBlockReason ?? 'not eligible for execution');
                     }
 
-                    // Naming preserves each source directory. Matching pair
-                    // basenames remain complete even across different folders.
-                    $pairBasenames[$item->sourcePath] = pathinfo($item->sourcePath, PATHINFO_FILENAME);
+                    $pairMembers[$item->sourcePath] = [
+                        'plannedBasename' => pathinfo($item->targetPath, PATHINFO_FILENAME),
+                        'currentPath'     => $item->sourcePath,
+                        'status'          => $status,
+                    ];
 
                     if ($item->renameRequired && !$item->isNoOp) {
                         ++$pendingPairMoves;
@@ -128,12 +133,11 @@ final readonly class ExecutionPlanExecutor
                     if (!$dryRun) {
                         ++$executedMoves;
 
-                        if (isset($pairBasenames[$item->sourcePath])) {
+                        if (isset($pairMembers[$item->sourcePath])) {
                             ++$successfulPairMoves;
                             ++$readyPairMembers;
-                            // Naming preserves each source directory. Matching pair
-                            // basenames remain complete even across different folders.
-                            $pairBasenames[$item->sourcePath] = pathinfo($actualTarget, PATHINFO_FILENAME);
+                            $pairMembers[$item->sourcePath]['currentPath'] = $actualTarget;
+                            $pairMembers[$item->sourcePath]['status']      = 'Renamed';
                         }
 
                         if ($actualTarget !== $item->targetPath) {
@@ -144,6 +148,10 @@ final readonly class ExecutionPlanExecutor
                     $operationFailed                  = true;
                     $occupiedPaths[$item->sourcePath] = true;
                     $this->progressReporter->error(sprintf('Failed to rename %s: %s', $item->sourcePath, $exception->getMessage()));
+
+                    if (isset($pairMembers[$item->sourcePath])) {
+                        $pairMembers[$item->sourcePath]['status'] = 'Failed: ' . $exception->getMessage();
+                    }
 
                     ++$runtimeErrors;
                 }
@@ -162,14 +170,15 @@ final readonly class ExecutionPlanExecutor
             }
 
             if ($group->isLivePhotoGroup && !$dryRun) {
-                $partial = ($readyPairMembers > 0)
-                    && (($successfulPairMoves < $pendingPairMoves) || (count(array_unique($pairBasenames)) > 1));
+                $separated = $this->hasSeparatedPair($pairMembers);
+                $partial   = ($readyPairMembers > 0)
+                    && (($successfulPairMoves < $pendingPairMoves) || $separated);
                 $pairStatus = 'complete';
 
                 if ($partial) {
                     ++$partialLivePhotoGroups;
                     $pairStatus = 'partial';
-                    $this->progressReporter->error('Live Photo partially processed; inspect its still and companion before retrying.');
+                    $this->reportPartialLivePhoto($group, $pairMembers, $separated);
                 } elseif ($successfulPairMoves < $pendingPairMoves) {
                     $pairStatus = 'unprocessed';
                 }
@@ -194,6 +203,71 @@ final readonly class ExecutionPlanExecutor
             runtimeErrors: $runtimeErrors,
             partialLivePhotoGroups: $partialLivePhotoGroups,
         );
+    }
+
+    /**
+     * Detects separation only between components intended to share a basename.
+     * Other planned companion variants may legitimately carry their own suffix.
+     *
+     * @param array<string, array{plannedBasename: string, currentPath: string, status: string}> $members Current component outcomes, scoped to one capture group
+     */
+    private function hasSeparatedPair(array $members): bool
+    {
+        $basenamesByPlan = [];
+
+        foreach ($members as $member) {
+            $basename = pathinfo($member['currentPath'], PATHINFO_FILENAME);
+            $expected = $member['plannedBasename'];
+
+            if (isset($basenamesByPlan[$expected]) && ($basenamesByPlan[$expected] !== $basename)) {
+                return true;
+            }
+
+            $basenamesByPlan[$expected] = $basename;
+        }
+
+        return false;
+    }
+
+    /**
+     * Reports concrete observed paths and reasons without authorizing recovery writes.
+     *
+     * @param ExecutionGroup                                                                     $group     Capture containing the incomplete planned pair
+     * @param array<string, array{plannedBasename: string, currentPath: string, status: string}> $members   Current component outcomes, retained for this group only
+     * @param bool                                                                               $separated Whether members intended to share a basename ended apart
+     */
+    private function reportPartialLivePhoto(ExecutionGroup $group, array $members, bool $separated): void
+    {
+        $this->progressReporter->error(sprintf(
+            'Live Photo group "%s" incomplete: %s',
+            $group->groupKey,
+            $separated ? 'paired components have different current basenames.' : 'a component was not processed.',
+        ));
+
+        foreach ($group->items as $item) {
+            $member = $members[$item->sourcePath] ?? null;
+
+            if ($member === null) {
+                continue;
+            }
+
+            foreach ([
+                $item->type->value . ': ' . $member['status'],
+                'Source: ' . $item->sourcePath,
+                'Planned: ' . $item->targetPath,
+                'Current: ' . $member['currentPath'],
+            ] as $line) {
+                $this->progressReporter->text(ConsoleText::escape($line));
+            }
+        }
+
+        $journalPath = $this->mutationJournal->pathname();
+
+        if ($journalPath !== null) {
+            $this->progressReporter->text('Journal: ' . ConsoleText::escape($journalPath));
+        }
+
+        $this->progressReporter->text('Keep all components. Resolve the reported cause, preview again, then confirm a fresh run. No automatic rollback was performed.');
     }
 
     /**

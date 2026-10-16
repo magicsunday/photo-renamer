@@ -14,6 +14,9 @@ namespace MagicSunday\Renamer\Model\Execution;
 use function array_filter;
 use function array_values;
 use function count;
+use function pathinfo;
+
+use const PATHINFO_FILENAME;
 
 /**
  * Groups execution items that belong to the same capture (e.g. a still,
@@ -69,5 +72,41 @@ final readonly class ExecutionGroup
                 static fn (ExecutionItem $item): bool => $item->type === $type,
             ),
         );
+    }
+
+    /**
+     * Returns the canonical, companions and their planned-basename peers.
+     * Non-canonical stills can belong to their own companion variant; unrelated
+     * duplicates do not become pair components merely by sharing a capture.
+     * This planned naming relation is not content identity or deletion proof.
+     *
+     * @return list<ExecutionItem> Components whose incomplete execution affects the Live Photo result
+     */
+    public function getLivePhotoComponents(): array
+    {
+        if (!$this->isLivePhotoGroup) {
+            return [];
+        }
+
+        $companionBasenames = [];
+
+        foreach ($this->items as $item) {
+            if ($item->type === ExecutionItemType::Companion) {
+                $companionBasenames[pathinfo($item->targetPath, PATHINFO_FILENAME)] = true;
+            }
+        }
+
+        $components = [];
+
+        foreach ($this->items as $item) {
+            if (($item->type === ExecutionItemType::Canonical)
+                || ($item->type === ExecutionItemType::Companion)
+                || isset($companionBasenames[pathinfo($item->targetPath, PATHINFO_FILENAME)])
+            ) {
+                $components[] = $item;
+            }
+        }
+
+        return $components;
     }
 }
