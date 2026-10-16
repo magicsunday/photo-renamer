@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Pipeline;
 
+use Generator;
 use MagicSunday\Renamer\Exception\AnalysisMemoryBudgetExceededException;
 use MagicSunday\Renamer\Exception\ExifMetadataReadException;
 use MagicSunday\Renamer\Exception\HashComputationException;
@@ -20,7 +21,6 @@ use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
-use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
 use MagicSunday\Renamer\Model\FileDuplicate;
 use MagicSunday\Renamer\Model\PipelineContext;
 use MagicSunday\Renamer\Model\TargetFileResult;
@@ -103,13 +103,12 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
         $state = new CaptureGroupBuildState();
 
         // Step 1: Collect and sort files by directory depth then pathname
-        $files = SortedFileIteratorCollector::collectAndSortFiles($iterator);
+        $files = SortedFileIteratorCollector::collectAndSortPaths($iterator);
 
         // Step 2: Build disk index in PipelineContext
-        foreach ($files as $file) {
+        foreach ($files as $pathname) {
             AnalysisMemoryBudget::assertHeadroom('file indexing');
-            $context->markOccupied($file->getPathname());
-            $state->filesByPath[$file->getPathname()] = $file;
+            $context->markOccupied($pathname);
         }
 
         // Step 3: Set scanned file count
@@ -121,9 +120,10 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
 
         $collection = new AssetGroupCollection();
 
-        foreach ($files as $sourceFileInfo) {
+        foreach ($files as $pathname) {
             AnalysisMemoryBudget::assertHeadroom('capture grouping');
-            $result = $this->getTargetFileResult($sourceFileInfo, $renameStrategy, $context);
+            $sourceFileInfo = new SplFileInfo($pathname);
+            $result         = $this->getTargetFileResult($sourceFileInfo, $renameStrategy, $context);
 
             $item                        = $this->captureAssetCandidateExtractor->extract($sourceFileInfo, $renameStrategy, $state);
             $normalizedContentIdentifier = $item->contentIdentifier;
@@ -194,8 +194,7 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
             $collection,
         );
 
-        // Deferred resolution is complete. Do not overlap its per-ID state with
-        // the second-pass bridge, which builds its own target/path lookup.
+        // Deferred resolution is complete; pairing builds its own path indexes.
         $state->contentIdentifierCache = [];
         $state->contentIdentifierMap   = [];
 
@@ -214,7 +213,7 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
         // LP conflict detection
         if ($this->livePhotoConflictDetector instanceof LivePhotoConflictDetectorInterface) {
             $conflictFiles = $this->livePhotoConflictDetector->detectConflictFiles(
-                $state->filesByPath,
+                $this->fileViews($files),
                 $state->temporalMetadataMap,
             );
 
@@ -301,8 +300,7 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
      * only be paired via their Apple content identifier after the still image has been
      * processed.
      *
-     * Builds a temporary FileDuplicateCollection bridge, delegates discovery to the
-     * LivePhotoPairingService, then merges results back into the AssetGroupCollection.
+     * Streams group views into the shared pairing indexes, then attaches discoveries.
      *
      * @template TInner of RecursiveIterator
      *
@@ -320,39 +318,6 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
         PipelineContext $context,
     ): void {
         assert($this->livePhotoPairingService instanceof LivePhotoPairingServiceInterface);
-
-        // Build temporary FileDuplicateCollection bridge for the pairing service
-        $tempCollection = new FileDuplicateCollection();
-
-        foreach ($collection as $key => $group) {
-            AnalysisMemoryBudget::assertHeadroom('Live Photo pairing bridge');
-            $fileDuplicate = new FileDuplicate();
-
-            foreach ($group->getItems() as $item) {
-                $fileDuplicate->addFile($item->file);
-            }
-
-            // Build a target SplFileInfo from the group's first item so the pairing
-            // service can derive the target basename for companion matching.
-            $firstItem  = $group->getItems()[0] ?? null;
-            $targetFile = null;
-
-            if ($firstItem !== null) {
-                $targetPath = $firstItem->file->getPath()
-                    . DIRECTORY_SEPARATOR
-                    . $group->groupKey
-                    . '.'
-                    . FileHelper::normalizeExtension($firstItem->file->getExtension());
-
-                $targetFile = new SplFileInfo($targetPath);
-            }
-
-            if ($targetFile instanceof SplFileInfo) {
-                $fileDuplicate->setTarget($targetFile);
-            }
-
-            $tempCollection->set($key, $fileDuplicate);
-        }
 
         // Rewind the iterator for the second scan
         $iterator->rewind();
@@ -377,7 +342,7 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
 
         $pairings = $this->livePhotoPairingService->pairByContentIdentifier(
             iterator: $iterator,
-            fileDuplicateCollection: $tempCollection,
+            fileDuplicateCollection: $this->pairingGroups($collection),
             contentIdentifierResolver: $contentIdentifierResolver,
             onFileInspected: function (): void {
                 $this->progressReporter->advance();
@@ -426,5 +391,46 @@ final readonly class CaptureGroupBuilder implements CaptureGroupBuilderInterface
         }
 
         $this->progressReporter->finish();
+    }
+
+    /**
+     * Presents one legacy group at a time; pairing retains only path-based indexes.
+     *
+     * @return Generator<string, FileDuplicate>
+     *
+     * @throws AnalysisMemoryBudgetExceededException When retained pairing indexes reach the pre-mutation budget
+     */
+    private function pairingGroups(AssetGroupCollection $collection): Generator
+    {
+        foreach ($collection as $key => $group) {
+            AnalysisMemoryBudget::assertHeadroom('Live Photo pairing indexes');
+            $duplicate = new FileDuplicate();
+
+            foreach ($group->getItems() as $item) {
+                AnalysisMemoryBudget::assertHeadroom('Live Photo pairing group');
+                $duplicate->addFile($item->getFile());
+            }
+
+            $firstItem = $group->getItems()[0] ?? null;
+
+            if ($firstItem !== null) {
+                $source = $firstItem->getFile();
+                $duplicate->setTarget(new SplFileInfo($source->getPath() . DIRECTORY_SEPARATOR . $group->groupKey . '.' . FileHelper::normalizeExtension($source->getExtension())));
+            }
+
+            yield $key => $duplicate;
+        }
+    }
+
+    /**
+     * @param list<string> $paths Observed source paths in scan order
+     *
+     * @return Generator<string, SplFileInfo> Temporary views keyed by unchanged path bytes
+     */
+    private function fileViews(array $paths): Generator
+    {
+        foreach ($paths as $pathname) {
+            yield $pathname => new SplFileInfo($pathname);
+        }
     }
 }

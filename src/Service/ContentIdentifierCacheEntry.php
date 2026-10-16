@@ -22,10 +22,8 @@ use SplFileInfo;
  * stores queued files, the resolved duplicate identifier once a still anchors
  * the group, and the fallback target used when resolution falls back to the
  * video's own date-based target. Computed targets retain only pathnames and
- * create native SPL views on demand,
- * avoiding a large retained target object per capture. Pending sources reuse
- * their already collected objects; copying them would create a second native
- * source representation without releasing the original sorted file list.
+ * create native SPL views on demand. Deferred sources also retain only paths;
+ * callers materialize one view at a time while replaying paths in encounter order.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -34,7 +32,7 @@ use SplFileInfo;
 final class ContentIdentifierCacheEntry
 {
     /**
-     * @var list<SplFileInfo>
+     * @var list<string>
      */
     private array $pendingFiles = [];
 
@@ -74,13 +72,13 @@ final class ContentIdentifierCacheEntry
      */
     public function addPendingFile(SplFileInfo $file): void
     {
-        $this->pendingFiles[] = $file;
+        $this->pendingFiles[] = $file->getPathname();
     }
 
     /**
-     * @return list<SplFileInfo> Original collected source views in encounter order, without native object copies.
+     * @return list<string> Deferred source pathnames in encounter order.
      */
-    public function getPendingFiles(): array
+    public function getPendingPathnames(): array
     {
         return $this->pendingFiles;
     }

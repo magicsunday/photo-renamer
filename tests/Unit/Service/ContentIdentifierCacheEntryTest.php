@@ -57,15 +57,15 @@ final class ContentIdentifierCacheEntryTest extends TestCase
         self::assertSame(
             [$pendingA->getPathname(), $pendingB->getPathname()],
             [
-                $entry->getPendingFiles()[0]->getPathname(),
-                $entry->getPendingFiles()[1]->getPathname(),
+                $entry->getPendingPathnames()[0],
+                $entry->getPendingPathnames()[1],
             ],
         );
 
         $entry->clearPendingFiles();
 
         self::assertFalse($entry->hasPendingFiles());
-        self::assertSame([], $entry->getPendingFiles());
+        self::assertSame([], $entry->getPendingPathnames());
     }
 
     /**
@@ -115,22 +115,30 @@ final class ContentIdentifierCacheEntryTest extends TestCase
     }
 
     /**
-     * Pending sources already exist in the sorted file list. Replay must retain
-     * the same views and encounter order instead of allocating another native
-     * source object per deferred video. Clearing removes those references.
+     * Deferred files retain path values, release native views and replay in
+     * encounter order. Clearing removes the queue.
      *
      * @return void
      */
     #[Test]
-    public function pendingSourcesReuseCollectedObjectsInEncounterOrder(): void
+    public function pendingSourcesRetainPathsInEncounterOrder(): void
     {
         $entry  = new ContentIdentifierCacheEntry();
         $first  = new SplFileInfo('/synthetic/first.MOV');
         $second = new SplFileInfo('/synthetic/second.MOV');
         $entry->addPendingFile($first);
         $entry->addPendingFile($second);
-        self::assertSame([$first, $second], $entry->getPendingFiles());
+
+        $firstReference  = WeakReference::create($first);
+        $secondReference = WeakReference::create($second);
+        unset($first, $second);
+        self::assertNull($firstReference->get());
+        self::assertNull($secondReference->get());
+        self::assertSame([
+            '/synthetic/first.MOV',
+            '/synthetic/second.MOV',
+        ], $entry->getPendingPathnames());
         $entry->clearPendingFiles();
-        self::assertSame([], $entry->getPendingFiles());
+        self::assertSame([], $entry->getPendingPathnames());
     }
 }

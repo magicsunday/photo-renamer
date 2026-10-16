@@ -65,7 +65,7 @@ final readonly class LivePhotoConflictDetector implements LivePhotoConflictDetec
      * {@inheritDoc}
      */
     #[Override]
-    public function detectConflictFiles(array $filesByPath, array $metadataByPath): array
+    public function detectConflictFiles(iterable $filesByPath, array $metadataByPath): array
     {
         /** @var list<LivePhotoConflictAsset> $stills */
         $stills = [];

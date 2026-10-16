@@ -58,8 +58,8 @@ final readonly class CollisionResolver
             $groupSourcePaths = [];
 
             foreach ($group->getItems() as $item) {
-                if (($item->proposedName !== null) && ($item->proposedName !== $item->file->getPathname())) {
-                    $groupSourcePaths[$item->file->getPathname()] = true;
+                if (($item->proposedName !== null) && ($item->proposedName !== $item->pathname)) {
+                    $groupSourcePaths[$item->pathname] = true;
                 }
             }
 
@@ -69,7 +69,7 @@ final readonly class CollisionResolver
                 }
 
                 // File is already at its target path — mark occupied, no rename needed
-                if ($item->proposedName === $item->file->getPathname()) {
+                if ($item->proposedName === $item->pathname) {
                     $context->markOccupied($item->proposedName);
 
                     continue;
@@ -89,7 +89,7 @@ final readonly class CollisionResolver
                 // Target is occupied by a file outside this group — find a unique alternative
                 $resolved = $this->findUniquePath(
                     $item->proposedName,
-                    $item->file->getPathname(),
+                    $item->pathname,
                     $context,
                 );
 

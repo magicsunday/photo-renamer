@@ -67,6 +67,10 @@ final class BenchmarkProgressReporter implements ProgressReporterInterface
      */
     public function advance(int $step = 1): void
     {
+        if (($this->phase === 'pairing') && !isset($this->measurements['pairing_indexes_ready'])) {
+            $this->measure('pairing_indexes_ready');
+        }
+
         if ($this->crossGroup) {
             $this->comparisonPlans += $step;
         }

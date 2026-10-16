@@ -288,6 +288,12 @@ if ($mode === 'worker') {
 }
 
 requireProfileInvariant($mode === 'profile', 'Unknown profile mode.');
+$workerMemoryMiB = filter_var($argv[3] ?? '3072', FILTER_VALIDATE_INT, ['options' => ['min_range' => 16, 'max_range' => 3072]]);
+
+if ($workerMemoryMiB === false) {
+    throw new InvalidArgumentException('Worker memory must be a finite integer from 16 to 3072 MiB.');
+}
+
 $workspace = '/tmp/mixed-profile-' . bin2hex(random_bytes(8));
 $nativeBin = getenv('BENCHMARK_NATIVE_BIN') ?: $workspace . '/bin';
 $filesystem->mkdir([$workspace . '/media', $nativeBin], 0o700);
@@ -350,7 +356,7 @@ try {
     foreach (['cold', 'warm', 'mutate', 'idempotency'] as $phase) {
         $counter = $workspace . '/native-counter';
         $filesystem->dumpFile($counter, '');
-        $process = new Process([PHP_BINARY, '-d', 'memory_limit=3072M', __FILE__, 'worker', (string) $count, $workspace, $phase], env: ['BENCHMARK_PROJECT_ROOT' => $project, 'BENCHMARK_NATIVE_COUNTER' => $counter, 'PATH' => $nativeBin . ':' . (getenv('PATH') ?: '/usr/bin:/bin')]);
+        $process = new Process([PHP_BINARY, '-d', 'memory_limit=' . $workerMemoryMiB . 'M', __FILE__, 'worker', (string) $count, $workspace, $phase], env: ['BENCHMARK_PROJECT_ROOT' => $project, 'BENCHMARK_NATIVE_COUNTER' => $counter, 'PATH' => $nativeBin . ':' . (getenv('PATH') ?: '/usr/bin:/bin')]);
         $process->setTimeout(1200);
         $process->start();
         $peakTmp = 0;

@@ -129,7 +129,7 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
         return new ExecutionGroup(
             groupKey: $group->groupKey,
             isLivePhotoGroup: $companions !== [],
-            canonicalSourcePath: $canonical?->file->getPathname(),
+            canonicalSourcePath: $canonical?->pathname,
             items: $executionItems,
             decisionLog: $decisionLog,
         );
@@ -160,7 +160,7 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
         ?int $maxDateDrift = null,
         ?string $classificationFailureReason = null,
     ): ExecutionItem {
-        $sourcePath     = $item->file->getPathname();
+        $sourcePath     = $item->pathname;
         $targetPath     = $item->proposedName ?? $sourcePath;
         $renameRequired = ($item->proposedName !== null) && $item->renameRequired;
         $isNoOp         = !$renameRequired;

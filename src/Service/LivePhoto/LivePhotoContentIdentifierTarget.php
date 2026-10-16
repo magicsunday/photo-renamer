@@ -24,14 +24,18 @@ use SplFileInfo;
  */
 final readonly class LivePhotoContentIdentifierTarget
 {
+    /** Stored path value; native views are created only for matched companions. */
+    private string $targetPath;
+
     /**
      * @param SplFileInfo $target              Canonical target file defining the group's base name
      * @param string      $duplicateIdentifier Key referencing the FileDuplicate entry in the collection
      */
     public function __construct(
-        private SplFileInfo $target,
+        SplFileInfo $target,
         private string $duplicateIdentifier,
     ) {
+        $this->targetPath = $target->getPathname();
     }
 
     /**
@@ -39,7 +43,7 @@ final readonly class LivePhotoContentIdentifierTarget
      */
     public function getTarget(): SplFileInfo
     {
-        return $this->target;
+        return new SplFileInfo($this->targetPath);
     }
 
     /**

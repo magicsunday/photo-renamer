@@ -14,6 +14,7 @@ namespace MagicSunday\Renamer\Test\Unit\Service\Pipeline;
 use DateTimeImmutable;
 use Error;
 use LogicException;
+use MagicSunday\Renamer\Helper\AnalysisMemoryBudget;
 use MagicSunday\Renamer\Helper\FileHelper;
 use MagicSunday\Renamer\Metadata\TemporalMetadata;
 use MagicSunday\Renamer\Model\AssetGroup;
@@ -45,6 +46,7 @@ use SplFileInfo;
  * @link    https://github.com/magicsunday/photo-renamer/
  */
 #[CoversClass(SubgroupClassifier::class)]
+#[UsesClass(AnalysisMemoryBudget::class)]
 #[UsesClass(AssetGroup::class)]
 #[UsesClass(AssetItem::class)]
 #[UsesClass(ContentClassificationResult::class)]
@@ -156,8 +158,8 @@ final class SubgroupClassifierTest extends TestCase
             ->expects(self::once())
             ->method('classify')
             ->willReturn(new ContentClassificationResult(
-                [$item1->file, $item2->file],
-                ['abc123' => [$item1->file], 'def456' => [$item2->file]],
+                [$item1->getFile(), $item2->getFile()],
+                ['abc123' => [$item1->getFile()], 'def456' => [$item2->getFile()]],
                 canonicalHash: 'abc123',
             ));
 
@@ -223,8 +225,8 @@ final class SubgroupClassifierTest extends TestCase
             ->expects(self::once())
             ->method('classify')
             ->willReturn(new ContentClassificationResult(
-                [$item1->file, $item2->file],
-                ['abc123' => [$item1->file], 'def456' => [$item2->file]],
+                [$item1->getFile(), $item2->getFile()],
+                ['abc123' => [$item1->getFile()], 'def456' => [$item2->getFile()]],
                 canonicalHash: 'abc123',
             ));
 
@@ -298,7 +300,14 @@ final class SubgroupClassifierTest extends TestCase
                     self::assertSame('/photos/IMG_0001.heic', $canonical?->getPathname());
                     self::assertSame('/photos/IMG_0001.mov', $companion?->getPathname());
 
-                    self::assertSame([$canonical, $companion], $files);
+                    $paths = [];
+
+                    foreach ($files as $file) {
+                        self::assertInstanceOf(SplFileInfo::class, $file);
+                        $paths[] = $file->getPathname();
+                    }
+
+                    self::assertSame(['/photos/IMG_0001.heic', '/photos/IMG_0001.mov'], $paths);
 
                     return new ContentClassificationResult([]);
                 },
@@ -388,8 +397,8 @@ final class SubgroupClassifierTest extends TestCase
             ->expects(self::once())
             ->method('classify')
             ->willReturn(new ContentClassificationResult(
-                [$item1->file, $item2->file],
-                ['abc123' => [$item1->file], 'def456' => [$item2->file]],
+                [$item1->getFile(), $item2->getFile()],
+                ['abc123' => [$item1->getFile()], 'def456' => [$item2->getFile()]],
                 canonicalHash: 'abc123',
             ));
 
@@ -468,8 +477,8 @@ final class SubgroupClassifierTest extends TestCase
             ->expects(self::once())
             ->method('classify')
             ->willReturn(new ContentClassificationResult(
-                [$item1->file, $item2->file, $item3->file],
-                ['abc123' => [$item1->file, $item2->file], 'def456' => [$item3->file]],
+                [$item1->getFile(), $item2->getFile(), $item3->getFile()],
+                ['abc123' => [$item1->getFile(), $item2->getFile()], 'def456' => [$item3->getFile()]],
                 canonicalHash: 'abc123',
             ));
 

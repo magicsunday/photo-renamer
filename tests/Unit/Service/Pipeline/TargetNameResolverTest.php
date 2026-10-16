@@ -893,7 +893,7 @@ final class TargetNameResolverTest extends TestCase
                 $item->renameRequired,
                 sprintf(
                     'Item %s should not require rename but got proposedName=%s',
-                    $item->file->getPathname(),
+                    $item->pathname,
                     $item->proposedName ?? '(null)',
                 ),
             );

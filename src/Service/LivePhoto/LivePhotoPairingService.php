@@ -12,7 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service\LivePhoto;
 
 use MagicSunday\Renamer\Helper\FileHelper;
-use MagicSunday\Renamer\Model\Collection\FileDuplicateCollection;
+use MagicSunday\Renamer\Model\FileDuplicate;
 use Override;
 use RecursiveIterator;
 use RecursiveIteratorIterator;
@@ -40,14 +40,14 @@ final class LivePhotoPairingService implements LivePhotoPairingServiceInterface
      * @template TInner of RecursiveIterator
      *
      * @param RecursiveIteratorIterator<TInner> $iterator                  iterator traversing all source files
-     * @param FileDuplicateCollection           $fileDuplicateCollection   collection generated during the first pass
+     * @param iterable<string, FileDuplicate>   $fileDuplicateCollection   collection generated during the first pass
      * @param callable(SplFileInfo): ?string    $contentIdentifierResolver callback resolving the Live Photo content identifier
      * @param callable(): void|null             $onFileInspected           optional callback invoked after each inspected file
      */
     #[Override]
     public function pairByContentIdentifier(
         RecursiveIteratorIterator $iterator,
-        FileDuplicateCollection $fileDuplicateCollection,
+        iterable $fileDuplicateCollection,
         callable $contentIdentifierResolver,
         ?callable $onFileInspected = null,
         bool $matchByContentIdentifier = true,
@@ -56,7 +56,7 @@ final class LivePhotoPairingService implements LivePhotoPairingServiceInterface
         $contentIdentifierTargets = new LivePhotoContentIdentifierTargetMap();
         $basenameTargets          = new LivePhotoBasenameTargetMap();
 
-        foreach ($fileDuplicateCollection->asArray() as $duplicateIdentifier => $fileDuplicate) {
+        foreach ($fileDuplicateCollection as $duplicateIdentifier => $fileDuplicate) {
             foreach ($fileDuplicate->getFiles() as $existingFileInfo) {
                 $existingFilePathnames->remember($existingFileInfo);
 

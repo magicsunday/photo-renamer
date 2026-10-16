@@ -107,7 +107,7 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
                     continue;
                 }
 
-                $match = $this->videoStreamFingerprintMatcher->match($leftItem->file, $rightItem->file);
+                $match = $this->videoStreamFingerprintMatcher->match($leftItem->getFile(), $rightItem->getFile());
                 $this->progressReporter->advance();
 
                 if (!$match->analysisAvailable) {
@@ -127,8 +127,8 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
 
                 if ($match->isCandidate()) {
                     $context->addVideoDuplicateCandidate(new VideoDuplicateCandidate(
-                        $leftItem->file->getPathname(),
-                        $rightItem->file->getPathname(),
+                        $leftItem->pathname,
+                        $rightItem->pathname,
                         $match->reviewReason ?? 'cross-group video review required',
                     ));
                 }
@@ -184,10 +184,10 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
 
         foreach ($groups as $group) {
             $items = $group->getItems();
-            usort($items, static fn (AssetItem $itemA, AssetItem $itemB): int => $itemA->file->getPathname() <=> $itemB->file->getPathname());
+            usort($items, static fn (AssetItem $itemA, AssetItem $itemB): int => $itemA->pathname <=> $itemB->pathname);
 
             foreach ($items as $item) {
-                if (!$this->mediaTypeClassifier->isVideo($item->file)) {
+                if (!$this->mediaTypeClassifier->isVideo($item->getFile())) {
                     continue;
                 }
 
@@ -207,7 +207,7 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
         foreach ($bucketedVideos as &$bucketEntries) {
             usort(
                 $bucketEntries,
-                static fn (DurationBucketedVideoCandidate $entryA, DurationBucketedVideoCandidate $entryB): int => $entryA->item->file->getPathname() <=> $entryB->item->file->getPathname(),
+                static fn (DurationBucketedVideoCandidate $entryA, DurationBucketedVideoCandidate $entryB): int => $entryA->item->pathname <=> $entryB->item->pathname,
             );
         }
 
@@ -256,7 +256,7 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
                 $left      = $bucketEntries[$leftIndex];
                 $leftGroup = $groups->get($left->groupKey);
 
-                if ((!$leftGroup instanceof AssetGroup) || (!$leftGroup->getItemByPath($left->item->file->getPathname()) instanceof AssetItem)) {
+                if ((!$leftGroup instanceof AssetGroup) || (!$leftGroup->getItemByPath($left->item->pathname) instanceof AssetItem)) {
                     continue;
                 }
 
@@ -270,15 +270,15 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
 
                     $rightGroup = $groups->get($right->groupKey);
 
-                    if ((!$rightGroup instanceof AssetGroup) || (!$rightGroup->getItemByPath($right->item->file->getPathname()) instanceof AssetItem)) {
+                    if ((!$rightGroup instanceof AssetGroup) || (!$rightGroup->getItemByPath($right->item->pathname) instanceof AssetItem)) {
                         continue;
                     }
 
                     yield new CrossGroupVideoComparisonPlan(
                         $left->groupKey,
-                        $left->item->file->getPathname(),
+                        $left->item->pathname,
                         $right->groupKey,
-                        $right->item->file->getPathname(),
+                        $right->item->pathname,
                     );
                 }
             }
@@ -386,7 +386,7 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
             $rightItem,
         );
 
-        $existing = $mergeDecision->targetGroup->getItemByPath($mergeDecision->sourceItem->file->getPathname());
+        $existing = $mergeDecision->targetGroup->getItemByPath($mergeDecision->sourceItem->pathname);
 
         if ($existing instanceof AssetItem) {
             return;
@@ -395,8 +395,8 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
         $mergeDecision->targetGroup->addItem($mergeDecision->sourceItem);
         $mergeDecision->targetGroup->addDecision(sprintf(
             'Merged cross-group video duplicate: %s matched %s via stream hash',
-            $mergeDecision->sourceItem->file->getBasename(),
-            $mergeDecision->targetItem->file->getBasename(),
+            $mergeDecision->sourceItem->getFile()->getBasename(),
+            $mergeDecision->targetItem->getFile()->getBasename(),
         ));
 
         $mergeDecision->sourceGroup->removeItem($mergeDecision->sourceItem);
@@ -434,7 +434,7 @@ final readonly class CrossGroupVideoDuplicateReconciler implements CrossGroupVid
             return new CrossGroupVideoMergeDecision($rightGroup, $rightItem, $leftGroup, $leftItem);
         }
 
-        if ($leftItem->file->getPathname() <= $rightItem->file->getPathname()) {
+        if ($leftItem->pathname <= $rightItem->pathname) {
             return new CrossGroupVideoMergeDecision($leftGroup, $leftItem, $rightGroup, $rightItem);
         }
 

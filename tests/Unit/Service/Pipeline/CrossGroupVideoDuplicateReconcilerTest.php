@@ -373,7 +373,7 @@ final class CrossGroupVideoDuplicateReconcilerTest extends TestCase
 
         foreach (array_values($groups->asArray()) as $index => $group) {
             $item = $group->getItems()[0];
-            $group->replaceItem($item, new AssetItem($item->file, metadata: $item->metadata, contentIdentifier: $identifiers[$index]));
+            $group->replaceItem($item, new AssetItem($item->getFile(), metadata: $item->metadata, contentIdentifier: $identifiers[$index]));
         }
 
         $visited = [];
@@ -425,7 +425,7 @@ final class CrossGroupVideoDuplicateReconcilerTest extends TestCase
 
         foreach ($groups as $group) {
             $item = $group->getItems()[0];
-            $group->replaceItem($item, new AssetItem($item->file, metadata: $item->metadata, contentIdentifier: $group->groupKey));
+            $group->replaceItem($item, new AssetItem($item->getFile(), metadata: $item->metadata, contentIdentifier: $group->groupKey));
         }
 
         $this->matcher->expects(self::never())->method('match');

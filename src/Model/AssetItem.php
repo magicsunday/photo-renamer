@@ -31,8 +31,8 @@ use const DIRECTORY_SEPARATOR;
  *
  * Immutability ensures that data flow between pipeline phases remains explicit
  * and predictable, preventing side effects when sharing items across groups.
- * Native clone-with preserves independent fields and shared source/metadata
- * identity; each wither names only its changed or derived values.
+ * Native clone-with preserves independent fields, source path bytes and shared
+ * metadata; each wither names only its changed or derived values.
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
  * @license https://opensource.org/licenses/MIT
@@ -40,6 +40,9 @@ use const DIRECTORY_SEPARATOR;
  */
 final readonly class AssetItem
 {
+    /** Lossless source path for planning; filesystem views are short-lived. */
+    public string $pathname;
+
     /**
      * @param SplFileInfo           $file              The source file on disk.
      * @param ItemRole              $role              Role within the asset group (e.g., Canonical, Duplicate).
@@ -54,7 +57,7 @@ final readonly class AssetItem
      * @param int|null              $clusterRank       Stable rank within the cluster (0-based).
      */
     public function __construct(
-        public SplFileInfo $file,
+        SplFileInfo $file,
         public ItemRole $role = ItemRole::Canonical,
         public ?TemporalMetadata $metadata = null,
         public ?string $contentIdentifier = null,
@@ -66,6 +69,16 @@ final readonly class AssetItem
         public ?string $clusterId = null,
         public ?int $clusterRank = null,
     ) {
+        $this->pathname = $file->getPathname();
+    }
+
+    /**
+     * Creates a temporary filesystem view without retaining a native buffer per asset.
+     * Fresh mutation/deletion checks remain the executors' responsibility.
+     */
+    public function getFile(): SplFileInfo
+    {
+        return new SplFileInfo($this->pathname);
     }
 
     /**
@@ -104,7 +117,7 @@ final readonly class AssetItem
      */
     public function withProposedName(string $pathname): self
     {
-        return clone ($this, ['proposedName' => $pathname, 'renameRequired' => $pathname !== $this->file->getPathname()]);
+        return clone ($this, ['proposedName' => $pathname, 'renameRequired' => $pathname !== $this->pathname]);
     }
 
     /**
@@ -165,7 +178,7 @@ final readonly class AssetItem
      */
     public function matchesProposedNameExactly(): bool
     {
-        return ($this->proposedName !== null) && ($this->proposedName === $this->file->getPathname());
+        return ($this->proposedName !== null) && ($this->proposedName === $this->pathname);
     }
 
     /**
@@ -176,7 +189,7 @@ final readonly class AssetItem
      */
     public function matchesNamingPattern(): bool
     {
-        return preg_match('/^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}/', $this->file->getBasename('.' . $this->file->getExtension())) === 1;
+        return preg_match('/^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}/', $this->getFile()->getBasename('.' . $this->getFile()->getExtension())) === 1;
     }
 
     /**
@@ -186,7 +199,7 @@ final readonly class AssetItem
      */
     public function extension(): string
     {
-        return strtolower($this->file->getExtension());
+        return strtolower($this->getFile()->getExtension());
     }
 
     /**
@@ -197,6 +210,6 @@ final readonly class AssetItem
      */
     public function dirDepth(): int
     {
-        return substr_count($this->file->getPathname(), DIRECTORY_SEPARATOR);
+        return substr_count($this->pathname, DIRECTORY_SEPARATOR);
     }
 }

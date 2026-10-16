@@ -87,7 +87,7 @@ final readonly class TargetNameResolver
 
         $canonical          = $group->getCanonical();
         $canonicalExtension = ($canonical instanceof AssetItem)
-            ? FileHelper::normalizeExtension($canonical->file->getExtension())
+            ? FileHelper::normalizeExtension($canonical->getFile()->getExtension())
             : '';
 
         // On degraded analysis, preserve coherent existing subgroup names through
@@ -142,11 +142,11 @@ final readonly class TargetNameResolver
     ): string {
         // Companions always keep their own extension
         if ($item->role === ItemRole::Companion) {
-            return FileHelper::normalizeExtension($item->file->getExtension());
+            return FileHelper::normalizeExtension($item->getFile()->getExtension());
         }
 
         if ($useFileExtensionFromSource) {
-            return FileHelper::normalizeExtension($item->file->getExtension());
+            return FileHelper::normalizeExtension($item->getFile()->getExtension());
         }
 
         return $canonicalExtension;

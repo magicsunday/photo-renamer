@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Service\Pipeline;
 
+use MagicSunday\Renamer\Helper\AnalysisMemoryBudget;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\MergeDecision;
@@ -113,7 +114,8 @@ final readonly class SubgroupClassifier
             $temporalMetaMap = [];
 
             foreach ($group->getItems() as $item) {
-                $file              = $item->file;
+                AnalysisMemoryBudget::assertHeadroom('subgroup source views');
+                $file              = $item->getFile();
                 $path              = $file->getPathname();
                 $files[]           = $file;
                 $pathToItem[$path] = $item;
@@ -175,7 +177,7 @@ final readonly class SubgroupClassifier
             $clusterRankCounters = [];
 
             foreach ($group->getItems() as $item) {
-                $sourcePath = $item->file->getPathname();
+                $sourcePath = $item->pathname;
                 $clusterKey = $clusterMap[$sourcePath] ?? null;
 
                 if ($clusterKey === null) {
@@ -242,11 +244,11 @@ final readonly class SubgroupClassifier
                 continue;
             }
 
-            if (!$this->mediaTypeClassifier->isLivePhotoStill($item->file)) {
+            if (!$this->mediaTypeClassifier->isLivePhotoStill($item->getFile())) {
                 continue;
             }
 
-            $likelyCanonical    = $item->file;
+            $likelyCanonical    = $item->getFile();
             $canonicalContentId = $item->contentIdentifier;
 
             break;
@@ -260,14 +262,14 @@ final readonly class SubgroupClassifier
         $likelyCompanion = null;
 
         foreach ($group->getItems() as $item) {
-            if ($this->mediaTypeClassifier->isLivePhotoStill($item->file)) {
+            if ($this->mediaTypeClassifier->isLivePhotoStill($item->getFile())) {
                 continue;
             }
 
-            $itemContentId = $contentIdMap[$item->file->getPathname()] ?? null;
+            $itemContentId = $contentIdMap[$item->pathname] ?? null;
 
             if ($itemContentId === $canonicalContentId) {
-                $likelyCompanion = $item->file;
+                $likelyCompanion = $item->getFile();
 
                 break;
             }

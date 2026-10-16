@@ -197,7 +197,7 @@ final class AssetGroup
     public function getItemByPath(string $pathname): ?AssetItem
     {
         foreach ($this->items as $item) {
-            if ($item->file->getPathname() === $pathname) {
+            if ($item->pathname === $pathname) {
                 return $item;
             }
         }

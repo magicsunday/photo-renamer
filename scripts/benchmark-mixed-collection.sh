@@ -17,4 +17,4 @@ docker run --rm --network none --read-only \
     --env BENCHMARK_PROJECT_ROOT=/app --env BENCHMARK_NATIVE_BIN=/probe-bin \
     --env MAX_COMPARISON_PAIRS=100000 \
     --entrypoint php "$benchmark_runtime_image" \
-    -d memory_limit=256M /bench/benchmark-mixed-collection.php profile "${1:-70000}"
+    -d memory_limit=256M /bench/benchmark-mixed-collection.php profile "${1:-70000}" "${2:-3072}"

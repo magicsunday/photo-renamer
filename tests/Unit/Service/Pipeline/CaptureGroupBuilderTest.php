@@ -108,7 +108,7 @@ final class CaptureGroupBuilderTest extends TestCase
 
         self::assertNotNull($group);
         self::assertSame(1, $group->itemCount());
-        self::assertSame($file->getPathname(), $group->getItems()[0]->file->getPathname());
+        self::assertSame($file->getPathname(), $group->getItems()[0]->pathname);
     }
 
     /**

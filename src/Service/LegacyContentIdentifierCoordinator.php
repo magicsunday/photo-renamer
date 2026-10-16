@@ -197,7 +197,8 @@ final readonly class LegacyContentIdentifierCoordinator
             $fileDuplicate->getTarget(),
         );
 
-        foreach ($contentIdentifierCacheEntry->getPendingFiles() as $pendingFile) {
+        foreach ($contentIdentifierCacheEntry->getPendingPathnames() as $pendingPath) {
+            $pendingFile = new SplFileInfo($pendingPath);
             $fileDuplicate->addFile($pendingFile);
         }
 
@@ -228,7 +229,7 @@ final readonly class LegacyContentIdentifierCoordinator
             }
 
             $duplicateIdentifier = $identifierGenerator(
-                $cacheEntry->getPendingFiles()[0],
+                new SplFileInfo($cacheEntry->getPendingPathnames()[0]),
                 $targetFileInfo,
             );
 
@@ -246,7 +247,8 @@ final readonly class LegacyContentIdentifierCoordinator
                 $fileDuplicate = new FileDuplicate()->setTarget($targetFileInfo);
             }
 
-            foreach ($cacheEntry->getPendingFiles() as $pendingFile) {
+            foreach ($cacheEntry->getPendingPathnames() as $pendingPath) {
+                $pendingFile = new SplFileInfo($pendingPath);
                 $fileDuplicate->addFile($pendingFile);
             }
 

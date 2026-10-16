@@ -54,11 +54,11 @@ final readonly class PendingLivePhotoVideoResolver
             }
 
             $targetFileInfo = $cacheEntry->getTarget();
-            $pendingFiles   = $cacheEntry->getPendingFiles();
+            $pendingFiles   = $cacheEntry->getPendingPathnames();
 
             try {
                 $duplicateIdentifier = $duplicateIdentifierStrategy->generateIdentifier(
-                    $pendingFiles[0],
+                    new SplFileInfo($pendingFiles[0]),
                     $targetFileInfo,
                 );
             } catch (HashComputationException) {
@@ -79,7 +79,8 @@ final readonly class PendingLivePhotoVideoResolver
                 $group = new AssetGroup($duplicateIdentifier);
             }
 
-            foreach ($pendingFiles as $pendingFile) {
+            foreach ($pendingFiles as $pendingPath) {
+                $pendingFile = new SplFileInfo($pendingPath);
                 $pendingItem = new AssetItem($pendingFile);
                 $pendingItem = $pendingItem->withMetadata(
                     $state->temporalMetadataMap[$pendingFile->getPathname()] ?? null,
