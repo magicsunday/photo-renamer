@@ -17,6 +17,7 @@ use Imagick;
 use ImagickPixel;
 use InvalidArgumentException;
 use MagicSunday\Renamer\Helper\PrivateCacheStorage;
+use MagicSunday\Renamer\Helper\AnalysisMemoryBudget;
 use MagicSunday\Renamer\Metadata\ExifMetadataProvider;
 use MagicSunday\Renamer\Metadata\MetadataCache;
 use MagicSunday\Renamer\Model\RenameOptions;
@@ -33,6 +34,8 @@ use MagicSunday\Renamer\Service\Reporting\ProgressReporterInterface;
 use MagicSunday\Renamer\Strategy\DuplicateIdentifier\TargetBasenameStrategy;
 use MagicSunday\Renamer\Strategy\RenameStrategy\ExifDateFilenameStrategy;
 use RuntimeException;
+use SplFileObject;
+use SplFileInfo;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
@@ -123,11 +126,29 @@ function syntheticExif(string $identifier, string $date): string
         . pack('V', 0) . $date . "\0" . $maker;
 }
 
+/**
+ * Counts the controlled writer's escaped one-member-per-line snapshot in bounded
+ * memory. Explicit iteration reads each current line; iterator_count() can skip
+ * SplFileObject's lazy read and never reach EOF without READ_AHEAD.
+ *
+ * @return int Row count, or -1 for a historical compact snapshot
+ */
+function snapshotRows(string $pathname): int
+{
+    $lines = 0;
+
+    foreach (new SplFileObject($pathname) as $line) {
+        ++$lines;
+    }
+
+    return $lines - 2;
+}
+
 $mode  = $argv[1] ?? 'profile';
-$count = filter_var($argv[2] ?? '70000', FILTER_VALIDATE_INT, ['options' => ['min_range' => 4, 'max_range' => 100000]]);
+$count = filter_var($argv[2] ?? '70000', FILTER_VALIDATE_INT, ['options' => ['min_range' => 4, 'max_range' => 250000]]);
 
 if (($count === false) || (($count % 4) !== 0)) {
-    throw new InvalidArgumentException('File count must be a multiple of four between 4 and 100000.');
+    throw new InvalidArgumentException('File count must be a multiple of four between 4 and 250000.');
 }
 $filesystem = new Filesystem();
 
@@ -135,7 +156,7 @@ if ($mode === 'worker') {
     $workspace = $argv[3] ?? '';
     $phase     = $argv[4] ?? '';
     requireProfileInvariant($filesystem->readFile($workspace . '/synthetic.marker') === "photo-renamer-synthetic-profile\n", 'Refusing a non-synthetic workspace.');
-    requireProfileInvariant(($phase === 'cold') || ($phase === 'warm') || ($phase === 'mutate') || ($phase === 'idempotency'), 'Unknown profile phase.');
+    requireProfileInvariant(($phase === 'cold') || ($phase === 'warm') || ($phase === 'mutate') || ($phase === 'idempotency') || ($phase === 'warm_idempotency'), 'Unknown profile phase.');
     $containerMemoryPath = $filesystem->exists('/sys/fs/cgroup/memory.max')
         ? '/sys/fs/cgroup/memory.max'
         : '/sys/fs/cgroup/memory/memory.limit_in_bytes';
@@ -188,7 +209,9 @@ if ($mode === 'worker') {
         }
         $reporter->measure('source_scope_ready');
         $reporter->measure('before_cache_load');
-        $cache = new MetadataCache($storage->directory($workspace . '/cache') . '/metadata.json', $storage);
+        $cachePath = $storage->directory($workspace . '/cache') . '/metadata.json';
+        $cacheRowsBefore = new SplFileInfo($cachePath)->isFile() ? snapshotRows($cachePath) : 0;
+        $cache = new MetadataCache($cachePath, $storage);
         $reporter->measure('cache_loaded');
         $provider = $container->get(ExifMetadataProvider::class);
         requireProfileInvariant($provider instanceof ExifMetadataProvider, 'Invalid metadata provider.');
@@ -201,21 +224,8 @@ if ($mode === 'worker') {
         requireProfileInvariant(($files instanceof FileCollector) && ($pipeline instanceof AssetGroupPipeline) && ($builder instanceof ExecutionPlanBuilder) && ($executor instanceof ExecutionPlanExecutor), 'Invalid pipeline wiring.');
         $result = $pipeline->run($files->createFileIterator($media), new ExifDateFilenameStrategy('Y-m-d_H-i-s-v', $provider), new TargetBasenameStrategy(), $media, true);
         requireProfileInvariant($result->validationResult->isValid() && ($result->context->getSkippedFiles() === []), 'Real media parsing or plan validation failed.');
+        $provider->clearCache();
         $reporter->measure('pipeline_complete');
-        $plan = $builder->build($result->groups, $result->context);
-        $reporter->measure('plan_built');
-        requireProfileInvariant(($plan->totalItemCount() === $count) && ($plan->groupCount() === intdiv($count, 2)) && ($plan->livePhotoGroupCount() === intdiv($count, 2)), 'Live Photo pairing is incomplete.');
-
-        if ($plan->nonExecutableItemCount() > 0) {
-            foreach ($plan->groups as $plannedGroup) {
-                foreach ($plannedGroup->items as $plannedItem) {
-                    if (!$plannedItem->isExecutable && !$plannedItem->isNoOp) {
-                        throw new RuntimeException('A unique synthetic item was blocked: ' . json_encode($plannedItem, JSON_THROW_ON_ERROR));
-                    }
-                }
-            }
-        }
-
         $identifiers  = [];
         $formatCounts = ['jpg' => 0, 'heic' => 0, 'mov' => 0];
 
@@ -226,7 +236,8 @@ if ($mode === 'worker') {
             requireProfileInvariant($canonical->contentIdentifier !== null, 'Native still metadata did not expose its synthetic content ID.');
             requireProfileInvariant(!isset($identifiers[$canonical->contentIdentifier]), 'Capture groups did not retain distinct synthetic IDs.');
             $identifiers[$canonical->contentIdentifier] = true;
-            $expected                                   = $canonical->metadata?->getCaptureDateTime()?->format('Y-m-d_H-i-s-v');
+            $captureDate = $canonical->metadata?->getCaptureDateTime();
+            $expected = $captureDate?->format($captureDate->format('H:i:s.v') === '00:00:00.000' ? 'Y-m-d' : 'Y-m-d_H-i-s-v');
             requireProfileInvariant($expected !== null, 'Missing real parsed capture date.');
 
             foreach ($group->getItems() as $item) {
@@ -243,21 +254,50 @@ if ($mode === 'worker') {
         }
         requireProfileInvariant((count($identifiers) === intdiv($count, 2)) && ($formatCounts === ['jpg' => intdiv($count, 4), 'heic' => intdiv($count, 4), 'mov' => intdiv($count, 2)]), 'The measured native media mix is incomplete.');
 
+        $plan = $builder->build($result->groups->drain(), $result->context);
+        $reporter->measure('plan_built');
+        requireProfileInvariant(($plan->totalItemCount() === $count) && ($plan->groupCount() === intdiv($count, 2)) && ($plan->livePhotoGroupCount() === intdiv($count, 2)), 'Live Photo pairing is incomplete.');
+
+        if ($plan->nonExecutableItemCount() > 0) {
+            foreach ($plan->groups as $plannedGroup) {
+                foreach ($plannedGroup->items as $plannedItem) {
+                    if (!$plannedItem->isExecutable && !$plannedItem->isNoOp) {
+                        throw new RuntimeException('A unique synthetic item was blocked: ' . json_encode($plannedItem, JSON_THROW_ON_ERROR));
+                    }
+                }
+            }
+        }
+
+        unset($result, $group, $canonical, $item, $identifiers);
+
         $renderer = $container->get(RenameOutputRenderer::class);
         requireProfileInvariant($renderer instanceof RenameOutputRenderer, 'Invalid output renderer.');
         $preview = $renderer->renderPlanEntries($plan, new RenameOptions(dryRun: $phase !== 'mutate', sourceBaseDirectory: $media), $media);
         requireProfileInvariant($preview->plannedMoves === $plan->executableItemCount(), 'Rendered move count differs from the validated plan.');
         $reporter->measure('output_rendered');
+        AnalysisMemoryBudget::assertHeadroom('pre-mutation execution gate');
 
         if ($phase === 'mutate') {
             $executed = $executor->executePlan($plan);
             requireProfileInvariant(($executed->executedMoves === $count) && ($executed->runtimeErrors === 0) && ($executed->runtimeFallbacks === 0), 'Synthetic media mutation was incomplete.');
-        } elseif ($phase === 'idempotency') {
+        } elseif (($phase === 'idempotency') || ($phase === 'warm_idempotency')) {
             requireProfileInvariant(($plan->noOpItemCount() === $count) && ($plan->executableItemCount() === 0), 'Second processing changed previously correct names.');
         }
         $reporter->measure('execution_complete');
         $reporter->measure('before_cache_flush');
         $cache->flush();
+        $cacheRowsAfter = snapshotRows($cachePath);
+        $expectedBefore = match ($phase) {
+            'cold' => 0,
+            'warm_idempotency' => 2 * $count,
+            default => $count,
+        };
+        $expectedAfter = (($phase === 'idempotency') || ($phase === 'warm_idempotency')) ? 2 * $count : $count;
+        // Compact historical snapshots have no line-count metric. Current
+        // streamed snapshots must retain every old and renamed cache pathname.
+        if (($cacheRowsBefore >= 0) && ($cacheRowsAfter >= 0)) {
+            requireProfileInvariant(($cacheRowsBefore === $expectedBefore) && ($cacheRowsAfter === $expectedAfter), 'Historical cache rows were lost.');
+        }
         $reporter->measure('cache_flushed');
         $status = 0;
     } finally {
@@ -281,6 +321,7 @@ if ($mode === 'worker') {
         'phase'            => $phase, 'files' => $count, 'groups' => $plan->groupCount(), 'live_photo_groups' => $plan->livePhotoGroupCount(),
         'seconds'          => (hrtime(true) - $start) / 1e9, 'php_peak_bytes' => memory_get_peak_usage(true), 'peak_rss_bytes' => $usage['ru_maxrss'] * 1024,
         'measurements'     => $reporter->measurements, 'effective_php_memory_limit' => ini_get('memory_limit'), 'effective_container_memory_bytes' => $containerMemoryLimit, 'tmpfs_capacity_bytes' => disk_total_space('/tmp'), 'protected_mutation_scope' => $phase === 'mutate',
+        'metadata_cache_rows_before' => $cacheRowsBefore < 0 ? null : $cacheRowsBefore, 'metadata_cache_rows_after' => $cacheRowsAfter < 0 ? null : $cacheRowsAfter,
         'comparison_plans' => $reporter->comparisonPlans, 'first_comparison_php_bytes' => $reporter->firstComparisonBytes,
         'noops'            => $plan->noOpItemCount(), 'executables' => $plan->executableItemCount(),
     ], JSON_THROW_ON_ERROR));
@@ -353,7 +394,7 @@ try {
     $control->mustRun();
     requireProfileInvariant($filesystem->readFile($controlCounter) === "ffprobe\n", 'Native subprocess instrumentation did not observe its control.');
 
-    foreach (['cold', 'warm', 'mutate', 'idempotency'] as $phase) {
+    foreach (['cold', 'warm', 'mutate', 'idempotency', 'warm_idempotency'] as $phase) {
         $counter = $workspace . '/native-counter';
         $filesystem->dumpFile($counter, '');
         $process = new Process([PHP_BINARY, '-d', 'memory_limit=' . $workerMemoryMiB . 'M', __FILE__, 'worker', (string) $count, $workspace, $phase], env: ['BENCHMARK_PROJECT_ROOT' => $project, 'BENCHMARK_NATIVE_COUNTER' => $counter, 'PATH' => $nativeBin . ':' . (getenv('PATH') ?: '/usr/bin:/bin')]);

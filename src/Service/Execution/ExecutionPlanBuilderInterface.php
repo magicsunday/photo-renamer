@@ -12,7 +12,7 @@ declare(strict_types=1);
 namespace MagicSunday\Renamer\Service\Execution;
 
 use MagicSunday\Renamer\Exception\AnalysisMemoryBudgetExceededException;
-use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
+use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\Execution\ExecutionPlan;
 use MagicSunday\Renamer\Model\PipelineContext;
 
@@ -28,12 +28,12 @@ use MagicSunday\Renamer\Model\PipelineContext;
 interface ExecutionPlanBuilderInterface
 {
     /**
-     * Projects an AssetGroupCollection into an ExecutionPlan.
+     * Projects already validated groups into an ExecutionPlan, accepting a releasing stream.
      *
      * Final eligibility belongs to this plan so preview and filesystem execution
      * consume the same blocking decisions.
      *
-     * @param AssetGroupCollection $groups       The analysed asset groups to project.
+     * @param iterable<AssetGroup> $groups       The analysed asset groups to project.
      * @param PipelineContext      $context      The pipeline state containing quality flags.
      * @param int|null             $maxDateDrift Maximum permitted filename-date drift; null or zero disables the limit.
      *
@@ -42,7 +42,7 @@ interface ExecutionPlanBuilderInterface
      * @throws AnalysisMemoryBudgetExceededException When retained analysis reaches its pre-mutation budget
      */
     public function build(
-        AssetGroupCollection $groups,
+        iterable $groups,
         PipelineContext $context,
         ?int $maxDateDrift = null,
     ): ExecutionPlan;

@@ -15,16 +15,27 @@ use Composer\InstalledVersions;
 use Generator;
 use JsonException;
 use MagicSunday\Renamer\Helper\PrivateCacheStorage;
+use RuntimeException;
 use SplFileInfo;
+use SplFileObject;
 
+use function array_combine;
 use function array_key_exists;
+use function array_key_first;
+use function array_keys;
+use function array_values;
+use function count;
 use function is_array;
 use function is_float;
 use function is_int;
 use function is_string;
 use function json_decode;
 use function json_encode;
+use function rtrim;
+use function str_ends_with;
+use function str_starts_with;
 use function strlen;
+use function substr;
 
 use const JSON_INVALID_UTF8_SUBSTITUTE;
 use const JSON_THROW_ON_ERROR;
@@ -35,7 +46,7 @@ use const JSON_THROW_ON_ERROR;
  * JSON-based serialization for portable and safe disk storage. A schema/meaning
  * version and the installed parser revision invalidate incompatible snapshots.
  *
- * The cache is loaded eagerly on construction and flushed explicitly via flush().
+ * The cache streams and validates rows on construction; metadata objects are hydrated on lookup. It is flushed explicitly via flush().
  * Only writes to disk when entries have been added or invalidated (dirty tracking).
  *
  * @author  Rico Sonntag <mail@ricosonntag.de>
@@ -56,9 +67,17 @@ final class MetadataCache
     private ?string $diagnostic = null;
 
     /**
-     * @var array<string, MetadataCacheEntry> A map of file pathnames to their respective typed cache entries.
+     * @var array<string, MetadataCacheEntry|string> Fresh typed entries or validated positional JSON rows from disk.
      */
     private array $entries = [];
+
+    /**
+     * Field order from the entry's canonical serializer, shared by compact rows.
+     * Named keys remain in the disk format, rather than repeated in every string.
+     *
+     * @var list<string>
+     */
+    private array $rowFields = [];
 
     /**
      * Whether the cache has been modified since last load/flush.
@@ -102,6 +121,10 @@ final class MetadataCache
         }
 
         $entry = $this->entries[$key];
+
+        if (is_string($entry)) {
+            $entry = MetadataCacheEntry::fromArray($this->decodeRow($entry));
+        }
 
         if (($entry->getMtime() !== $file->getMTime()) || ($entry->getSize() !== $file->getSize())) {
             unset($this->entries[$key]);
@@ -166,18 +189,13 @@ final class MetadataCache
     {
         $flags = JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE;
 
-        if ($this->entries === []) {
-            yield json_encode(['_version' => self::CACHE_VERSION, '_parser' => $this->parserVersion(), 'entries' => []], $flags);
-
-            return;
-        }
-
-        yield '{"_version":' . self::CACHE_VERSION . ',"_parser":' . json_encode($this->parserVersion(), $flags) . ',"entries":{';
+        yield '{"_version":' . self::CACHE_VERSION . ',"_parser":' . json_encode($this->parserVersion(), $flags) . ',"entries":{' . "\n";
         $chunk     = '';
         $separator = '';
 
         foreach ($this->entries as $pathname => $entry) {
-            $chunk .= $separator . json_encode($pathname, $flags) . ':' . json_encode($entry->toArray(), $flags);
+            $row = json_encode(is_string($entry) ? $this->decodeRow($entry) : $entry->toArray(), $flags);
+            $chunk .= $separator . json_encode($pathname, $flags) . ':' . $row . "\n";
             $separator = ',';
 
             if (strlen($chunk) >= 65536) {
@@ -235,9 +253,9 @@ final class MetadataCache
      */
     private function load(): void
     {
-        $contents = $this->storage->read($this->cacheFile);
+        $input = $this->storage->openRead($this->cacheFile);
 
-        if ($contents === null) {
+        if (!$input instanceof SplFileObject) {
             if (new SplFileInfo($this->cacheFile)->isFile()) {
                 $this->diagnostic = 'Metadata cache could not be read; starting cold.';
             }
@@ -246,55 +264,162 @@ final class MetadataCache
         }
 
         try {
-            $data = json_decode($contents, true, flags: JSON_THROW_ON_ERROR);
-        } catch (JsonException) {
-            $this->diagnostic = 'Metadata cache contains invalid JSON; starting cold.';
+            // Bound a single cache row too; oversized legacy layouts become a
+            // one-time cold cache instead of requiring collection-sized decoding.
+            $input->setMaxLineLen(65537);
+            $header = $input->fgets();
 
-            return;
+            if (!str_ends_with(rtrim($header, "\r\n"), ',"entries":{') || !str_ends_with($header, "\n")) {
+                $contents = $header;
+
+                while (!$input->eof() && (strlen($contents) <= 65536)) {
+                    $contents .= $input->fgets();
+                }
+
+                if (strlen($contents) > 65536) {
+                    $this->diagnostic = 'Metadata cache uses an unbounded legacy layout; starting cold.';
+
+                    return;
+                }
+
+                $this->loadSmallSnapshot($contents);
+
+                return;
+            }
+
+            $envelope = json_decode(rtrim($header, "\r\n") . '}}', true, flags: JSON_THROW_ON_ERROR);
+
+            if (!is_array($envelope) || !$this->compatible($envelope)) {
+                $this->diagnostic = 'Metadata cache format or parser version changed; starting cold.';
+
+                return;
+            }
+
+            $first = true;
+
+            while (!$input->eof()) {
+                $line = $input->fgets();
+
+                if (rtrim($line, " \t\r\n") === '}}') {
+                    while (!$input->eof()) {
+                        if (rtrim($input->fgets(), " \t\r\n") !== '') {
+                            throw new RuntimeException('Trailing cache bytes.');
+                        }
+                    }
+
+                    return;
+                }
+
+                if (!str_ends_with($line, "\n") || (!$first && !str_starts_with($line, ','))) {
+                    throw new RuntimeException('Incomplete cache row.');
+                }
+
+                $row = json_decode('{' . ($first ? $line : substr($line, 1)) . '}', true, flags: JSON_THROW_ON_ERROR);
+
+                if (!is_array($row) || (count($row) !== 1)) {
+                    throw new RuntimeException('Invalid cache row.');
+                }
+
+                $pathname = array_key_first($row);
+                $entry    = $row[$pathname];
+
+                if (!is_string($pathname) || !is_array($entry) || !$this->acceptRow($pathname, $entry)) {
+                    throw new RuntimeException('Invalid cache values.');
+                }
+
+                $first = false;
+            }
+
+            throw new RuntimeException('Truncated cache envelope.');
+        } catch (JsonException|RuntimeException) {
+            $this->entries    = [];
+            $this->diagnostic = 'Metadata cache contains invalid data; starting cold.';
         }
+    }
 
-        if (!is_array($data)
-            || (($data['_version'] ?? null) !== self::CACHE_VERSION)
-            || (($data['_parser'] ?? null) !== $this->parserVersion())
-            || !is_array($data['entries'] ?? null)
-        ) {
+    /**
+     * Preserves compatibility for small hand-written or previous compact snapshots.
+     * Larger previous layouts are re-extracted once and rewritten as bounded rows.
+     */
+    private function loadSmallSnapshot(string $contents): void
+    {
+        $data = json_decode($contents, true, flags: JSON_THROW_ON_ERROR);
+
+        if (!is_array($data) || !$this->compatible($data)) {
             $this->diagnostic = 'Metadata cache format or parser version changed; starting cold.';
 
             return;
         }
 
         foreach ($data['entries'] as $pathname => $entry) {
-            if (!is_string($pathname) || !is_array($entry)
-                || !is_int($entry['mtime'] ?? null) || !is_int($entry['size'] ?? null)
-            ) {
-                $this->entries    = [];
-                $this->diagnostic = 'Metadata cache contains invalid entries; starting cold.';
-
-                return;
+            if (!is_string($pathname) || !is_array($entry) || !$this->acceptRow($pathname, $entry)) {
+                throw new RuntimeException('Invalid legacy cache values.');
             }
-
-            /** @var array<string, mixed> $entry */
-            $typedEntry = MetadataCacheEntry::fromArray($entry);
-
-            // Current-version rows must satisfy their actual serialization
-            // contract. Permit JSON's integer encoding of floats, but reject
-            // missing fields, invalid dates and lossy scalar coercions.
-            foreach ($typedEntry->toArray() as $field => $expected) {
-                $actual = $entry[$field] ?? null;
-                $valid  = is_float($expected)
-                    ? ((is_int($actual) || is_float($actual)) && ((float) $actual === $expected))
-                    : $actual === $expected;
-
-                if (!array_key_exists($field, $entry) || !$valid) {
-                    $this->entries    = [];
-                    $this->diagnostic = 'Metadata cache contains invalid values; starting cold.';
-
-                    return;
-                }
-            }
-
-            $this->entries[$pathname] = $typedEntry;
         }
+    }
+
+    /**
+     * Checks the versioned JSON envelope before trusting any cached row.
+     *
+     * @param array<array-key, mixed> $data Decoded JSON boundary
+     *
+     * @phpstan-assert-if-true array{_version: int, _parser: string, entries: array<array-key, mixed>} $data
+     */
+    private function compatible(array $data): bool
+    {
+        return (($data['_version'] ?? null) === self::CACHE_VERSION)
+            && (($data['_parser'] ?? null) === $this->parserVersion())
+            && is_array($data['entries'] ?? null);
+    }
+
+    /**
+     * Validates the existing row semantics, retaining bytes instead of hydrating
+     * dates and metadata for every historical path. Lookup hydrates one row.
+     *
+     * @param array<array-key, mixed> $row Decoded untrusted cache row
+     */
+    private function acceptRow(string $pathname, array $row): bool
+    {
+        if (!is_int($row['mtime'] ?? null) || !is_int($row['size'] ?? null)) {
+            return false;
+        }
+
+        /** @var array<string, mixed> $row */
+        $entry  = MetadataCacheEntry::fromArray($row);
+        $values = $entry->toArray();
+
+        foreach ($values as $field => $expected) {
+            $actual = $row[$field] ?? null;
+            $valid  = is_float($expected)
+                ? ((is_int($actual) || is_float($actual)) && ((float) $actual === $expected))
+                : $actual === $expected;
+
+            if (!array_key_exists($field, $row) || !$valid) {
+                return false;
+            }
+        }
+
+        if ($this->rowFields === []) {
+            $this->rowFields = array_keys($values);
+        }
+
+        $this->entries[$pathname] = json_encode(array_values($values), JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE);
+
+        return true;
+    }
+
+    /**
+     * Restores keys shared by validated in-memory rows. The order comes directly
+     * from MetadataCacheEntry::toArray(), with no second schema to maintain.
+     *
+     * @return array<string, mixed> Existing named serialization boundary
+     */
+    private function decodeRow(string $json): array
+    {
+        /** @var list<mixed> $values Validated and encoded by acceptRow() */
+        $values = json_decode($json, true, flags: JSON_THROW_ON_ERROR);
+
+        return array_combine($this->rowFields, $values);
     }
 
     /**

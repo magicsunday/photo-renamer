@@ -135,6 +135,15 @@ final class PipelineContext
         return isset($this->diskIndex[$pathname]);
     }
 
+    /**
+     * Releases collection-wide occupancy after target naming/collisions finish.
+     * Physical execution uses fresh filesystem checks, never this planning index.
+     */
+    public function releaseDiskIndex(): void
+    {
+        $this->diskIndex = [];
+    }
+
     // -------------------------------------------------------------------------
     // Quality flags
     // -------------------------------------------------------------------------

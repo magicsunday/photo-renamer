@@ -17,7 +17,6 @@ use MagicSunday\Renamer\Helper\AnalysisMemoryBudget;
 use MagicSunday\Renamer\Helper\DateDriftCalculator;
 use MagicSunday\Renamer\Model\AssetGroup;
 use MagicSunday\Renamer\Model\AssetItem;
-use MagicSunday\Renamer\Model\Collection\AssetGroupCollection;
 use MagicSunday\Renamer\Model\Execution\ExecutionGroup;
 use MagicSunday\Renamer\Model\Execution\ExecutionItem;
 use MagicSunday\Renamer\Model\Execution\ExecutionItemType;
@@ -58,7 +57,7 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
     /**
      * Builds the execution-layer projection for the already classified asset groups.
      *
-     * @param AssetGroupCollection $groups       Asset groups to project into execution DTOs
+     * @param iterable<AssetGroup> $groups       Asset groups to project into execution DTOs
      * @param PipelineContext      $context      Pipeline context carrying quality and conflict flags
      * @param int|null             $maxDateDrift Maximum permitted filename-date drift; null or zero disables the limit
      *
@@ -68,7 +67,7 @@ final readonly class ExecutionPlanBuilder implements ExecutionPlanBuilderInterfa
      */
     #[Override]
     public function build(
-        AssetGroupCollection $groups,
+        iterable $groups,
         PipelineContext $context,
         ?int $maxDateDrift = null,
     ): ExecutionPlan {

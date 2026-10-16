@@ -7,11 +7,16 @@ benchmark_runtime_image="$(docker compose config --images runtime)"
 # Use the rebuilt production image. Mount only these scripts, never a collection,
 # the development vendor tree, repository credentials or the private cache volume.
 # The LP-heavy synthetic profile uses real tiny files, not camera-size payloads.
+profile_tmp_size=1g
+if [[ "${1:-70000}" =~ ^[0-9]+$ ]] && (( ${1:-70000} > 100000 )); then
+    profile_tmp_size=2g
+fi
+
 docker run --rm --network none --read-only \
     --memory 4g --memory-swap 4g --cpus 1 --pids-limit 128 \
     --cap-drop ALL --security-opt no-new-privileges \
     --user "$(id -u):$(id -g)" \
-    --tmpfs /tmp:size=1g,mode=1777,noexec,nosuid,nodev \
+    --tmpfs "/tmp:size=${profile_tmp_size},mode=1777,noexec,nosuid,nodev" \
     --tmpfs /probe-bin:size=1m,mode=1777,exec,nosuid,nodev \
     --volume "$PWD/scripts:/bench:ro" \
     --env BENCHMARK_PROJECT_ROOT=/app --env BENCHMARK_NATIVE_BIN=/probe-bin \

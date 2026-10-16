@@ -1,0 +1,311 @@
+{
+  "schema": 1,
+  "synthetic_only": true,
+  "completed": false,
+  "runtime_image_id": "sha256:bdbe6e9f9910c4d7f2c7d843b5b23dbe5ec46f7eafb4f7609200d3fbe2c129c5",
+  "runtime": {
+    "revision": "f722e6a9c7ccd54d250dfacf440569935300dd9e",
+    "workspace_modified": true,
+    "source_sha256": "65b6f2a8c438d9bd55deefe5da23e3b115e643e4672b2386b1ac9003777e62b3",
+    "composer_lock_sha256": "e2527362abd9e215d456cfc17ce22b61d67a82182a6839383010aed9bad0c7cc",
+    "packages": [
+      {
+        "name": "magicsunday/imagemeta",
+        "version": "dev-main",
+        "reference": "a976739365fc64679604948eb5c7b7c8e797054a"
+      },
+      {
+        "name": "psr/container",
+        "version": "2.0.2",
+        "reference": "c71ecc56dfe541dbd90c5360474fbc405f8d5963"
+      },
+      {
+        "name": "psr/log",
+        "version": "3.0.2",
+        "reference": "f16e1d5863e37f8d8c2a01719f5b34baa2b714d3"
+      },
+      {
+        "name": "symfony/config",
+        "version": "v8.1.5",
+        "reference": "ec711a6c14ae287d9618fbd2c9de4e223a1a4b02"
+      },
+      {
+        "name": "symfony/console",
+        "version": "v8.1.8",
+        "reference": "4b81146e3ee248ea969186f85499b54fbc78db08"
+      },
+      {
+        "name": "symfony/dependency-injection",
+        "version": "v8.1.8",
+        "reference": "e375617d3f132059bd096f41951b527c2eb60cd0"
+      },
+      {
+        "name": "symfony/deprecation-contracts",
+        "version": "v3.7.1",
+        "reference": "f3202fa1b5097b0af062dc978b32ecf63404e31d"
+      },
+      {
+        "name": "symfony/filesystem",
+        "version": "v8.1.6",
+        "reference": "7599ebb855fede59413ddb7f15198d67bfcae7ba"
+      },
+      {
+        "name": "symfony/lock",
+        "version": "v8.1.8",
+        "reference": "a57c18e351998f9964dff24713f7138a01d53703"
+      },
+      {
+        "name": "symfony/polyfill-ctype",
+        "version": "v1.37.0",
+        "reference": "141046a8f9477948ff284fa65be2095baafb94f2"
+      },
+      {
+        "name": "symfony/polyfill-deepclone",
+        "version": "v1.43.1",
+        "reference": "aaba44b6ee7299ae65717811c55b57ab9bc0fedd"
+      },
+      {
+        "name": "symfony/polyfill-intl-grapheme",
+        "version": "v1.43.0",
+        "reference": "5cac8f4db97208823aa353f59a01faad2da52c75"
+      },
+      {
+        "name": "symfony/polyfill-intl-normalizer",
+        "version": "v1.43.0",
+        "reference": "ebd57ccc7edb93d632e184efbe7693d2517bab3b"
+      },
+      {
+        "name": "symfony/polyfill-mbstring",
+        "version": "v1.43.0",
+        "reference": "4d5d331bf731e0aedbc6b2f5e61135b7b7996a72"
+      },
+      {
+        "name": "symfony/polyfill-php85",
+        "version": "v1.43.0",
+        "reference": "86a42cbcc07adc331481a5ab310a4024bfc227f6"
+      },
+      {
+        "name": "symfony/process",
+        "version": "v8.1.7",
+        "reference": "10823b09358e690df4ff943e24e8492bb1019fc3"
+      },
+      {
+        "name": "symfony/service-contracts",
+        "version": "v3.7.3",
+        "reference": "15e6a07ec2a2c75ceb1b21dd98105ee8456d2257"
+      },
+      {
+        "name": "symfony/string",
+        "version": "v8.1.7",
+        "reference": "d950140b5f56f31901e5b7a0c04ffc3a3deb943c"
+      },
+      {
+        "name": "symfony/var-exporter",
+        "version": "v8.1.6",
+        "reference": "802362f41128c430fd6685491e1fb72127fae78a"
+      },
+      {
+        "name": "symfony/yaml",
+        "version": "v8.1.8",
+        "reference": "030e96eed0303223bfca3af9109e9e64830b6ec3"
+      }
+    ],
+    "tools": {
+      "php": "8.5.11",
+      "composer": "2.10.3",
+      "php_extensions": [
+        "Core",
+        "PDO",
+        "Phar",
+        "Reflection",
+        "SPL",
+        "SimpleXML",
+        "Zend OPcache",
+        "ctype",
+        "curl",
+        "date",
+        "dom",
+        "fileinfo",
+        "filter",
+        "gd",
+        "hash",
+        "iconv",
+        "imagick",
+        "json",
+        "lexbor",
+        "libxml",
+        "mbstring",
+        "mysqlnd",
+        "openssl",
+        "pcov",
+        "pcre",
+        "pdo_sqlite",
+        "posix",
+        "random",
+        "readline",
+        "session",
+        "sodium",
+        "sqlite3",
+        "standard",
+        "tokenizer",
+        "uri",
+        "xml",
+        "xmlreader",
+        "xmlwriter",
+        "zlib"
+      ]
+    },
+    "base_images": [
+      "composer:2@sha256:af98f42dfff7c68ba8d53c2164fd9fde1087b7d449514baa38c418b1f6bc4bac",
+      "php:8.5-cli-alpine@sha256:93684051146ec037620855feb77f278090bde45ddc030801cd3f2a7685bc4deb",
+      "ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55"
+    ]
+  },
+  "harness_sha256": {
+    "benchmark-mixed-collection.php": "544a29c038439fd46386a9417f36c8c8d0d4c74d754134b9bc75d92cd97294be",
+    "BenchmarkProgressReporter.php": "ce37cd909abcff52216a2d7eccee0e55594769fa5b95dd69bf1072bba15f1cc5"
+  },
+  "failure": {
+    "phase": "warm",
+    "stage": "target naming",
+    "allocated_bytes": 1018167296,
+    "php_limit_bytes": 1073741824,
+    "reporting_reserve_bytes": 67108864,
+    "media_mutation_started": false
+  },
+  "notes": [
+    "Retained failed lower-budget baseline; subsequent mutation and repeat phases were not executed.",
+    "Older GH-246 image uses the same PHP/parser but earlier Symfony Filesystem/Lock/Process package references; see package lists.",
+    "Baseline harness corrects midnight date-only fixture expectations. It predates the fifth worker, streamed cache row metrics and current provider/group lifetime instrumentation. Cold completion in this profile is not evidence that the old real CLI passes its pre-mutation gate.",
+    "No original media or private caches were used."
+  ],
+  "results": [
+    {
+      "phase": "cold",
+      "files": 250000,
+      "groups": 125000,
+      "live_photo_groups": 125000,
+      "seconds": 287.849186921,
+      "php_peak_bytes": 1033908224,
+      "peak_rss_bytes": 1070505984,
+      "measurements": {
+        "source_scope_ready": {
+          "php_current_bytes": 9526808,
+          "php_allocated_bytes": 10485760,
+          "php_peak_bytes": 10485760,
+          "peak_rss_bytes": 51036160
+        },
+        "before_cache_load": {
+          "php_current_bytes": 9527560,
+          "php_allocated_bytes": 10485760,
+          "php_peak_bytes": 10485760,
+          "peak_rss_bytes": 51036160
+        },
+        "cache_loaded": {
+          "php_current_bytes": 9528160,
+          "php_allocated_bytes": 10485760,
+          "php_peak_bytes": 10485760,
+          "peak_rss_bytes": 51036160
+        },
+        "file_list_and_indexes": {
+          "php_current_bytes": 49657392,
+          "php_allocated_bytes": 52432896,
+          "php_peak_bytes": 57675776,
+          "peak_rss_bytes": 85770240
+        },
+        "group_scan_finished": {
+          "php_current_bytes": 556694152,
+          "php_allocated_bytes": 562040832,
+          "php_peak_bytes": 562040832,
+          "peak_rss_bytes": 593375232
+        },
+        "pairing_bridge": {
+          "php_current_bytes": 516606248,
+          "php_allocated_bytes": 546312192,
+          "php_peak_bytes": 564137984,
+          "peak_rss_bytes": 593768448
+        },
+        "pairing_indexes_ready": {
+          "php_current_bytes": 574630232,
+          "php_allocated_bytes": 592449536,
+          "php_peak_bytes": 599789568,
+          "peak_rss_bytes": 631103488
+        },
+        "pairing_finished": {
+          "php_current_bytes": 516624472,
+          "php_allocated_bytes": 571478016,
+          "php_peak_bytes": 599789568,
+          "peak_rss_bytes": 631103488
+        },
+        "groups_built": {
+          "php_current_bytes": 501923256,
+          "php_allocated_bytes": 619708416,
+          "php_peak_bytes": 634392576,
+          "peak_rss_bytes": 667447296
+        },
+        "classification_finished": {
+          "php_current_bytes": 501930968,
+          "php_allocated_bytes": 619708416,
+          "php_peak_bytes": 634392576,
+          "peak_rss_bytes": 667447296
+        },
+        "pipeline_complete": {
+          "php_current_bytes": 683407880,
+          "php_allocated_bytes": 842006528,
+          "php_peak_bytes": 909119488,
+          "peak_rss_bytes": 932515840
+        },
+        "plan_built": {
+          "php_current_bytes": 808536424,
+          "php_allocated_bytes": 940576768,
+          "php_peak_bytes": 945819648,
+          "peak_rss_bytes": 982306816
+        },
+        "output_rendered": {
+          "php_current_bytes": 813868608,
+          "php_allocated_bytes": 1015025664,
+          "php_peak_bytes": 1033908224,
+          "peak_rss_bytes": 1070505984
+        },
+        "execution_complete": {
+          "php_current_bytes": 813868984,
+          "php_allocated_bytes": 1015025664,
+          "php_peak_bytes": 1033908224,
+          "peak_rss_bytes": 1070505984
+        },
+        "before_cache_flush": {
+          "php_current_bytes": 813869360,
+          "php_allocated_bytes": 1015025664,
+          "php_peak_bytes": 1033908224,
+          "peak_rss_bytes": 1070505984
+        },
+        "cache_flushed": {
+          "php_current_bytes": 814000760,
+          "php_allocated_bytes": 1015025664,
+          "php_peak_bytes": 1033908224,
+          "peak_rss_bytes": 1070505984
+        }
+      },
+      "effective_php_memory_limit": "1024M",
+      "effective_container_memory_bytes": "4294967296",
+      "tmpfs_capacity_bytes": 2147483648,
+      "protected_mutation_scope": false,
+      "comparison_plans": 0,
+      "first_comparison_php_bytes": null,
+      "noops": 0,
+      "executables": 250000,
+      "native_subprocesses": 0,
+      "sampled_tmp_peak_bytes": 1141452800,
+      "tmp_sample_interval_ms": 100
+    },
+    {
+      "phase": "warm",
+      "files": 250000,
+      "completed": false,
+      "seconds": 14.708532804,
+      "php_peak_bytes": 1023410176,
+      "peak_rss_bytes": 1050349568,
+      "fatal_type": 1
+    }
+  ]
+}

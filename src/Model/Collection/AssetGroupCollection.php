@@ -11,8 +11,11 @@ declare(strict_types=1);
 
 namespace MagicSunday\Renamer\Model\Collection;
 
+use Generator;
 use MagicSunday\Renamer\Model\AssetGroup;
 use Override;
+
+use function array_keys;
 
 /**
  * A string-keyed collection of {@see AssetGroup} instances.
@@ -30,6 +33,22 @@ use Override;
  */
 final class AssetGroupCollection extends AbstractCollection
 {
+    /**
+     * Transfers validated groups in encounter order, releasing each original
+     * model as its execution projection is built. A key list avoids retaining
+     * every value through ArrayIterator while removing collection entries.
+     *
+     * @return Generator<int, AssetGroup>
+     */
+    public function drain(): Generator
+    {
+        foreach (array_keys($this->elements) as $key) {
+            $group = $this->elements[$key];
+            unset($this->elements[$key]);
+            yield $group;
+        }
+    }
+
     /**
      * Retrieves the {@see AssetGroup} associated with the given key.
      *

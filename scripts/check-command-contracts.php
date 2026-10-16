@@ -147,7 +147,7 @@ function checkCollectionCapacity(array $prefix, string $fixtures, Filesystem $fi
         $expected[$date->format('Y-m-d_H-i-s') . '-000.jpg'] = hash('sha256', $bytes);
     }
 
-    foreach (['preview', 'rename', 'repeat'] as $mode) {
+    foreach (['preview', 'rename', 'repeat', 'warm-repeat'] as $mode) {
         $options = $mode === 'preview' ? ['--dry-run'] : [];
         $result = runCli($prefix, ['rename:exif', $media, '--show=E', ...$options], $workspace . '/cwd', [
             ...$environment,
@@ -166,7 +166,7 @@ function checkCollectionCapacity(array $prefix, string $fixtures, Filesystem $fi
         }
     }
 
-    echo 'Collection capacity: 6000 distinct captures at 96 MiB, cold preview, confirmed rename and retained-cache repeat passed' . PHP_EOL;
+    echo 'Collection capacity: 6000 distinct captures at 96 MiB, cold preview, confirmed rename and cold/warm retained-cache repeats passed' . PHP_EOL;
 }
 
 try {

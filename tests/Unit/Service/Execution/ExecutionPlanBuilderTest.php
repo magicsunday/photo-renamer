@@ -433,7 +433,7 @@ final class ExecutionPlanBuilderTest extends TestCase
         $groups->set('degraded', $degraded);
         $groups->set('healthy', $healthy);
 
-        $plan = new ExecutionPlanBuilder()->build($groups, new PipelineContext('/photos'));
+        $plan = new ExecutionPlanBuilder()->build($groups->drain(), new PipelineContext('/photos'));
 
         self::assertTrue($plan->groups[0]->items[0]->isNoOp);
         self::assertFalse($plan->groups[0]->items[0]->isExecutable);

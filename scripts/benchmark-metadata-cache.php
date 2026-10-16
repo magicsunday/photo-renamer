@@ -69,11 +69,11 @@ $seed->flush();
 $payload = json_decode($filesystem->readFile($path), true, flags: JSON_THROW_ON_ERROR);
 $row = json_encode($payload['entries'][$source], JSON_THROW_ON_ERROR);
 $json = '{"_version":' . json_encode($payload['_version'], JSON_THROW_ON_ERROR)
-    . ',"_parser":' . json_encode($payload['_parser'], JSON_THROW_ON_ERROR) . ',"entries":{';
+    . ',"_parser":' . json_encode($payload['_parser'], JSON_THROW_ON_ERROR) . ',"entries":{' . "\n";
 
 for ($index = 0; $index < $count; ++$index) {
     $pathname = $index === 0 ? $source : $workspace . '/missing-' . $index . '.jpg';
-    $json .= ($index === 0 ? '' : ',') . json_encode($pathname, JSON_THROW_ON_ERROR) . ':' . $row;
+    $json .= ($index === 0 ? '' : ',') . json_encode($pathname, JSON_THROW_ON_ERROR) . ':' . $row . "\n";
 }
 
 $storage->write($path, $json . '}}');
