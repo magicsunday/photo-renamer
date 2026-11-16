@@ -4,8 +4,9 @@
 set -euo pipefail
 vendor_directory="${1:?Pass the isolated production vendor directory}"
 
-# Non-essential vendor directories removed before PHAR creation
-STRIP_DIRS=(docs doc tests test test-images scripts Make .github examples)
+# Non-essential vendor directories removed before PHAR creation. A package that Composer installs
+# from source carries its full Git directory, which has no place in the artifact.
+STRIP_DIRS=(docs doc tests test test-images scripts Make .github .git examples)
 
 # Non-essential vendor files removed before PHAR creation
 STRIP_FILES=(
