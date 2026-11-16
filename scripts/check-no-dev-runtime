@@ -140,6 +140,12 @@ fi
 # Exercise actual source commands, then package the same production inputs.
 "${PHP_BIN}" scripts/check-command-contracts.php "${VENDOR_DIR}/autoload.php" "${PWD}/tests/Fixtures/Images" "${SMOKE_ROOT}/src/Renamer.php" "${PHP_BIN}"
 bash scripts/strip-vendor.sh "${VENDOR_DIR}"
+
+# A package installed from source brings its Git metadata, which must not reach the PHAR.
+if [ -n "$(find "${VENDOR_DIR}" -name .git -print -quit)" ]; then
+    echo "The production vendor tree still holds Git metadata after the packaging exclusions." >&2
+    exit 1
+fi
 PACKAGE_ROOT="${SMOKE_ROOT}/package"
 mkdir -p "${PACKAGE_ROOT}/.build"
 cp -r "${SMOKE_ROOT}/src" "${SMOKE_ROOT}/config" "${PACKAGE_ROOT}/"
