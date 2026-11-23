@@ -70,7 +70,7 @@ ENTRYPOINT ["php", "/app/src/Renamer.php"]
 CMD ["--help"]
 
 # SPC builder stage
-FROM ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55 AS builder
+FROM ubuntu:26.04@sha256:d66b366dac61b575bee2aef07e9c26e8070096fbe84a3d4d3eb0da069b5d76db AS builder
 COPY --from=composer-tool /usr/bin/composer /usr/bin/composer
 
 ARG USERID=1000
